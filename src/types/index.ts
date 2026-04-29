@@ -1,4 +1,5 @@
 export type Role = "CUSTOMER" | "ADMIN" | "KITCHEN" | "MOTOBOY";
+export type DeliveryType = "PICKUP" | "DELIVERY" | "DINE_IN";
 export type OrderStatus =
   | "PENDING"
   | "CONFIRMED"
@@ -58,6 +59,7 @@ export interface OrderWithItems {
   status: OrderStatus;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
+  deliveryType: DeliveryType;
   total: number;
   notes: string | null;
   customerName: string | null;

@@ -38,6 +38,22 @@ body {
   animation: cart-bounce 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
 
+/* Bell ring animation */
+@keyframes bell-ring {
+  0%   { transform: rotate(0deg); }
+  10%  { transform: rotate(15deg); }
+  25%  { transform: rotate(-14deg); }
+  40%  { transform: rotate(12deg); }
+  55%  { transform: rotate(-10deg); }
+  70%  { transform: rotate(6deg); }
+  85%  { transform: rotate(-3deg); }
+  100% { transform: rotate(0deg); }
+}
+.animate-bell-ring {
+  animation: bell-ring 0.6s ease-in-out;
+  transform-origin: top center;
+}
+
 /* Hide scrollbar utility */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

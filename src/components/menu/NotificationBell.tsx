@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   Bell,
@@ -68,7 +68,12 @@ function NotificationItem({
         <p className={`text-sm leading-snug ${!notification.read ? "font-semibold text-neutral-900" : "font-medium text-neutral-700"}`}>
           {notification.message}
         </p>
-        <p className="text-xs text-neutral-400 mt-0.5">
+        {notification.description && (
+          <p className="text-xs text-neutral-500 mt-0.5 leading-snug">
+            {notification.description}
+          </p>
+        )}
+        <p className="text-xs text-neutral-400 mt-1">
           {timeAgo(notification.timestamp)}
         </p>
       </div>
@@ -83,7 +88,23 @@ export function NotificationBell() {
   const { notifications, unreadCount, markAllAsRead, markAsRead, clearAll } =
     useOrderNotifications();
   const [open, setOpen] = useState(false);
+  const [bellRing, setBellRing] = useState(false);
+  const [badgeBounce, setBadgeBounce] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const prevUnread = useRef(unreadCount);
+
+  // Anima o sino e o badge quando chega nova notificação
+  useEffect(() => {
+    if (unreadCount > prevUnread.current) {
+      setBellRing(true);
+      setBadgeBounce(true);
+      const t1 = setTimeout(() => setBellRing(false), 700);
+      const t2 = setTimeout(() => setBadgeBounce(false), 400);
+      prevUnread.current = unreadCount;
+      return () => { clearTimeout(t1); clearTimeout(t2); };
+    }
+    prevUnread.current = unreadCount;
+  }, [unreadCount]);
 
   // Fecha ao clicar fora
   useEffect(() => {
@@ -97,13 +118,12 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
-  function handleOpen() {
+  const handleOpen = useCallback(() => {
     setOpen((v) => !v);
     if (!open && unreadCount > 0) {
-      // Marca todas como lidas ao abrir
       markAllAsRead();
     }
-  }
+  }, [open, unreadCount, markAllAsRead]);
 
   return (
     <div className="relative" ref={panelRef}>
@@ -112,9 +132,15 @@ export function NotificationBell() {
         className="relative flex items-center justify-center w-10 h-10 rounded-full hover:bg-neutral-100 transition"
         aria-label="Notificações de pedido"
       >
-        <Bell size={20} className="text-neutral-700" />
+        <Bell
+          size={20}
+          className={`text-neutral-700 ${bellRing ? "animate-bell-ring" : ""}`}
+        />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 bg-brand text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none animate-cart-bounce">
+          <span
+            key={unreadCount}
+            className={`absolute -top-0.5 -right-0.5 bg-brand text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none ${badgeBounce ? "animate-cart-bounce" : ""}`}
+          >
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}

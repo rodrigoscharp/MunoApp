@@ -289,27 +289,24 @@ export function OrderTracker({ orderId, initialStatus, order }: Props) {
         {!isCancelled && (
           <div className="bg-white rounded-3xl border border-neutral-100 px-5 py-5">
             <div className="relative">
-              {/* Linha de fundo */}
-              <div className="absolute left-[19px] top-3 bottom-3 w-px bg-neutral-100" />
-              {/* Linha de progresso */}
-              <div
-                className="absolute left-[19px] top-3 w-px bg-brand transition-all duration-700"
-                style={{
-                  height:
-                    currentIndex <= 0
-                      ? "0%"
-                      : `${(currentIndex / (STEPS.length - 1)) * 100}%`,
-                }}
-              />
-
               <div className="space-y-0">
                 {STEPS.map((step, i) => {
                   const isCompleted = i < currentIndex;
                   const isCurrent = i === currentIndex;
                   const isFuture = i > currentIndex;
+                  const isLast = i === STEPS.length - 1;
 
                   return (
                     <div key={step} className="flex items-center gap-4 py-2.5 relative">
+                      {/* Conector para o próximo passo — não renderiza no último */}
+                      {!isLast && (
+                        <div
+                          className={`absolute left-[19px] top-[50px] bottom-[-30px] w-px z-0 transition-colors duration-700 ${
+                            i < currentIndex ? "bg-brand" : "bg-neutral-100"
+                          }`}
+                        />
+                      )}
+
                       {/* Dot */}
                       <div className="relative z-10 flex-shrink-0">
                         {isCompleted ? (

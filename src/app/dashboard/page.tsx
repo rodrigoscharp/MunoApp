@@ -3,7 +3,7 @@
 import { useKitchenOrders } from "@/hooks/useKitchenOrders";
 import { formatCurrency, ORDER_STATUS_LABELS } from "@/lib/utils";
 import { OrderStatus, OrderWithItems } from "@/types";
-import { Clock, ChefHat, CheckCircle, RefreshCw, AlertTriangle, ChevronLeft } from "lucide-react";
+import { Clock, ChefHat, CheckCircle, RefreshCw, AlertTriangle, ChevronLeft, Bike, ShoppingBag, UtensilsCrossed } from "lucide-react";
 import { toast } from "sonner";
 
 const KITCHEN_COLUMNS: { status: OrderStatus; label: string; icon: React.ReactNode; color: string }[] = [
@@ -46,6 +46,12 @@ const HEADER_COLORS: Record<string, string> = {
   orange: "text-orange-400",
   green: "text-green-400",
 };
+
+const DELIVERY_TYPE_META = {
+  DELIVERY: { label: "Entrega", icon: Bike,            className: "bg-orange-400/15 text-orange-300 border-orange-400/30" },
+  PICKUP:   { label: "Retirada", icon: ShoppingBag,    className: "bg-blue-400/15 text-blue-300 border-blue-400/30" },
+  DINE_IN:  { label: "Mesa",     icon: UtensilsCrossed, className: "bg-purple-400/15 text-purple-300 border-purple-400/30" },
+} as const;
 
 export default function KitchenPage() {
   const { orders, loading, error, refetch, updateOrderStatus, removeOrder } = useKitchenOrders();
@@ -200,18 +206,26 @@ function OrderCard({
   hasPrev: boolean;
 }) {
   const elapsed = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60_000);
+  const deliveryMeta = DELIVERY_TYPE_META[order.deliveryType] ?? DELIVERY_TYPE_META.PICKUP;
+  const DeliveryIcon = deliveryMeta.icon;
 
   return (
     <div className="bg-neutral-900 rounded-lg p-3 border border-neutral-800 flex flex-col gap-2">
-      {/* ID + hora */}
+      {/* ID + hora + tipo de entrega */}
       <div className="flex items-center justify-between">
         <span className="font-mono text-xs font-bold text-neutral-300">
           #{order.id.slice(-6).toUpperCase()}
         </span>
-        <span className={`text-xs flex items-center gap-1 ${elapsed > 20 ? "text-red-400" : "text-neutral-500"}`}>
-          <Clock size={10} />
-          {elapsed}min
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className={`flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${deliveryMeta.className}`}>
+            <DeliveryIcon size={9} />
+            {deliveryMeta.label}
+          </span>
+          <span className={`text-xs flex items-center gap-1 ${elapsed > 20 ? "text-red-400" : "text-neutral-500"}`}>
+            <Clock size={10} />
+            {elapsed}min
+          </span>
+        </div>
       </div>
 
       {/* Cliente */}
@@ -270,7 +284,13 @@ function OrderCard({
               onClick={onAdvance}
               className="text-xs px-2.5 py-1 rounded bg-brand hover:bg-brand-dark text-white font-semibold transition"
             >
-              {order.status === "READY" ? "Entregar" : "Avançar →"}
+              {order.status === "READY"
+                ? order.deliveryType === "DELIVERY"
+                  ? "Saiu p/ entrega"
+                  : order.deliveryType === "DINE_IN"
+                  ? "Servido"
+                  : "Retirado"
+                : "Avançar →"}
             </button>
           )}
         </div>
