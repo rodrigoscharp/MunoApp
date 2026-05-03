@@ -94,7 +94,7 @@ export function Footer({ restaurantInfo, schedule }: FooterProps) {
         </div>
 
         <div className="border-t border-neutral-800 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-neutral-500">
-          <span>© {new Date().getFullYear()} {restaurantInfo.name}. Todos os direitos reservados.</span>
+          <span>© {new Date().getFullYear()} Muno Food. Todos os direitos reservados.</span>
           <span>Desenvolvido com ♥ para você</span>
         </div>
       </div>
