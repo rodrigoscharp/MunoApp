@@ -1,6 +1,6 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { prisma } from "@/lib/prisma";
+import { prismaUnscoped } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -21,12 +21,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const parsed = loginSchema.safeParse(credentials);
         if (!parsed.success) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: parsed.data.email },
+        // Preenchido pelo proxy.ts a partir do subdomínio da request.
+        const tenantId = request.headers.get("x-tenant-id");
+        if (!tenantId) return null;
+
+        // NextAuth roda esse callback dentro do bundle do proxy/middleware,
+        // que tem seu próprio escopo global — por isso usa prismaUnscoped
+        // (sem a extensão de tenant baseada em AsyncLocalStorage) com
+        // tenantId explícito, em vez de runWithTenant().
+        const user = await prismaUnscoped.user.findUnique({
+          where: { tenantId_email: { tenantId, email: parsed.data.email } },
         });
 
         if (!user || !user.password) return null;
@@ -42,6 +50,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           name: user.name,
           email: user.email,
           role: user.role,
+          tenantId: user.tenantId,
         };
       },
     }),
@@ -51,6 +60,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         token.id = user.id;
         token.role = (user as { role: string }).role;
+        token.tenantId = (user as { tenantId: string }).tenantId;
       }
       return token;
     },
@@ -58,6 +68,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (token) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
+        session.user.tenantId = token.tenantId as string;
       }
       return session;
     },
