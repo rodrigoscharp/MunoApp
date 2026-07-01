@@ -1,42 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { mp } from "@/lib/mercadopago";
-import { Payment } from "mercadopago";
+import { prisma, prismaUnscoped } from "@/lib/prisma";
+import { runWithTenant } from "@/lib/tenant-context";
+import { getPaymentProvider } from "@/lib/payments/factory";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { type, data } = body;
+    const signature = req.headers.get("x-signature");
+    const requestId = req.headers.get("x-request-id");
 
-    // Only process payment notifications
-    if (type !== "payment" || !data?.id) {
-      return NextResponse.json({ received: true });
-    }
+    // Hoje só existe o provider Mercado Pago; quando outros providers
+    // existirem, o tipo de evento no payload decide qual usar.
+    const result = await getPaymentProvider().handleWebhook(body, signature, requestId);
+    if (!result) return NextResponse.json({ received: true });
 
-    // Fetch payment details from Mercado Pago
-    const paymentApi = new Payment(mp);
-    const payment = await paymentApi.get({ id: data.id });
+    // O webhook não vem pelo subdomínio do tenant (é a Mercado Pago batendo
+    // numa URL global), então descobrimos o tenant a partir do próprio
+    // pedido antes de entrar no contexto normal.
+    const orderMeta = await prismaUnscoped.order.findUnique({
+      where: { id: result.orderId },
+      select: { tenantId: true },
+    });
+    if (!orderMeta) return NextResponse.json({ received: true });
 
-    const orderId = payment.external_reference;
-    if (!orderId) return NextResponse.json({ received: true });
-
-    const status = payment.status;
-
-    if (status === "approved") {
-      await prisma.order.update({
-        where: { id: orderId },
-        data: {
-          paymentStatus: "PAID",
-          status: "CONFIRMED",
-          mpPaymentId: String(payment.id),
-        },
-      });
-    } else if (status === "rejected" || status === "cancelled") {
-      await prisma.order.update({
-        where: { id: orderId },
-        data: { paymentStatus: "UNPAID" },
-      });
-    }
+    await runWithTenant(orderMeta.tenantId, async () => {
+      if (result.status === "approved") {
+        await prisma.order.update({
+          where: { id: result.orderId },
+          data: {
+            paymentStatus: "PAID",
+            status: "CONFIRMED",
+            mpPaymentId: result.providerPaymentId,
+          },
+        });
+      } else if (result.status === "rejected" || result.status === "cancelled") {
+        await prisma.order.update({
+          where: { id: result.orderId },
+          data: { paymentStatus: "UNPAID" },
+        });
+      }
+    });
 
     return NextResponse.json({ received: true });
   } catch (err) {
