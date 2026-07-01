@@ -20,7 +20,7 @@ export async function GET() {
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const [todayStats, monthStats, last30Days, topItems] = await Promise.all([
+    const [todayStats, monthStats, last30Days, topItems, todayPayments, monthPayments] = await Promise.all([
       prisma.order.aggregate({
         where: { createdAt: { gte: startOfToday }, paymentStatus: "PAID" },
         _sum: { total: true },
@@ -41,7 +41,23 @@ export async function GET() {
         orderBy: { _sum: { quantity: "desc" } },
         take: 10,
       }),
+      prisma.payment.groupBy({
+        by: ["method"],
+        where: { createdAt: { gte: startOfToday } },
+        _sum: { amount: true },
+      }),
+      prisma.payment.groupBy({
+        by: ["method"],
+        where: { createdAt: { gte: startOfMonth } },
+        _sum: { amount: true },
+      }),
     ]);
+
+    const toBreakdown = (rows: { method: string; _sum: { amount: unknown } }[]) => ({
+      CASH: Number(rows.find((r) => r.method === "CASH")?._sum.amount ?? 0),
+      CREDIT_CARD: Number(rows.find((r) => r.method === "CREDIT_CARD")?._sum.amount ?? 0),
+      PIX: Number(rows.find((r) => r.method === "PIX")?._sum.amount ?? 0),
+    });
 
     const dailyMap: Record<string, number> = {};
     for (let i = 0; i < 30; i++) {
@@ -76,6 +92,10 @@ export async function GET() {
       },
       dailySales,
       topItems: topItemsWithNames,
+      paymentBreakdown: {
+        today: toBreakdown(todayPayments),
+        month: toBreakdown(monthPayments),
+      },
     });
   });
 }

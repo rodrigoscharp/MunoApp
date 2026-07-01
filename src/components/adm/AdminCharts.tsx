@@ -12,10 +12,18 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { formatCurrency, PAYMENT_METHOD_LABELS } from "@/lib/utils";
+
+interface PaymentBreakdown {
+  CASH: number;
+  CREDIT_CARD: number;
+  PIX: number;
+}
 
 interface AnalyticsData {
   dailySales: { date: string; revenue: number }[];
   topItems: { name: string; quantity: number }[];
+  paymentBreakdown: { today: PaymentBreakdown; month: PaymentBreakdown };
 }
 
 export function AdminCharts() {
@@ -46,7 +54,8 @@ export function AdminCharts() {
   }));
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="flex flex-col gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Daily sales chart */}
       <div className="bg-white rounded-xl border border-neutral-200 p-5">
         <h2 className="text-sm font-semibold text-neutral-700 mb-4">
@@ -101,6 +110,24 @@ export function AdminCharts() {
             <Bar dataKey="quantity" fill="#ef4444" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
+      </div>
+    </div>
+
+      {/* Payment method breakdown */}
+      <div className="bg-white rounded-xl border border-neutral-200 p-5">
+        <h2 className="text-sm font-semibold text-neutral-700 mb-4">Formas de Pagamento — Mês</h2>
+        <div className="grid grid-cols-3 gap-4">
+          {(["CASH", "CREDIT_CARD", "PIX"] as const).map((method) => (
+            <div key={method} className="text-center">
+              <p className="text-xs text-neutral-400 uppercase tracking-wide">
+                {PAYMENT_METHOD_LABELS[method]}
+              </p>
+              <p className="text-lg font-bold text-neutral-900 mt-1">
+                {formatCurrency(data.paymentBreakdown.month[method])}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

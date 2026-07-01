@@ -79,13 +79,23 @@ model Order {
 }
 
 model Table {
-  id        String   @id @default(cuid())
-  number    Int      @unique
+  id        String    @id @default(cuid())
+  number    Int       @unique
   name      String?
-  token     String   @unique @default(cuid())
-  active    Boolean  @default(true)
+  token     String    @unique @default(cuid())
+  active    Boolean   @default(true)
   orders    Order[]
-  createdAt DateTime @default(now())
+  payments  Payment[]
+  createdAt DateTime  @default(now())
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  tableId   String?
+  table     Table?        @relation(fields: [tableId], references: [id])
+  method    PaymentMethod
+  amount    Decimal       @db.Decimal(10, 2)
+  createdAt DateTime      @default(now())
 }
 
 model Setting {
