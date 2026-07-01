@@ -73,13 +73,14 @@ src/
 │   │   ├── menu/ orders/ mesas/ motoboys/ restaurante/
 │   ├── mesa/[token]/           # Experiência de mesa (QR Code)
 │   │   ├── cardapio/ checkout/ pedido/[orderId]/
-│   └── motoboy/                # Páginas do entregador
-│       ├── login/ pedidos/ delivery/[orderId]/
+│   ├── motoboy/                # Páginas do entregador
+│   │   └── login/ pedidos/ delivery/[orderId]/
+│   └── dashboard/               # Painel da cozinha (KDS)
 ├── components/
 │   ├── adm/                    # Componentes do painel admin
 │   ├── menu/                   # Cardápio + IA Assistant
-│   ├── cart/ checkout/ tracking/ kitchen/ motoboy/
-│   └── ui/                     # Componentes base
+│   ├── kitchen/                 # Kanban de pedidos (usado por app/dashboard)
+│   └── cart/ checkout/ tracking/ motoboy/ mesa/ auth/ chat/
 ├── hooks/                      # useCart, useKitchenOrders, useDeliveryTracking...
 ├── lib/                        # auth, prisma, supabase, mercadopago, resend...
 └── types/                      # Tipos compartilhados (OrderStatus, Role, etc.)
