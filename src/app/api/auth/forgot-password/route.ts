@@ -3,19 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { resend } from "@/lib/resend";
 import { getRestaurantInfo } from "@/lib/restaurant";
+import { buildTenantBaseUrl } from "@/lib/tenant-url";
 import { z } from "zod";
 const schema = z.object({
   email: z.string().email(),
 });
-
-function buildTenantBaseUrl(slug: string): string {
-  const rootDomain = (process.env.ROOT_DOMAIN ?? "localhost:3000").split(",")[0];
-  if (slug === "default") {
-    return process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_URL ?? `http://${rootDomain}`;
-  }
-  const protocol = rootDomain.startsWith("localhost") ? "http" : "https";
-  return `${protocol}://${slug}.${rootDomain}`;
-}
 
 function buildEmailHtml({
   userName,

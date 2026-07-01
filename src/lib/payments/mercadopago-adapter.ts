@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { MercadoPagoConfig, OAuth, Payment, Preference } from "mercadopago";
 import type { PaymentConnection } from "@prisma/client";
 import { prismaUnscoped } from "@/lib/prisma";
+import { signOAuthState } from "@/lib/oauth-state";
 import type { Charge, ChargeableOrder, PaymentProvider, WebhookResult } from "./types";
 
 const PLATFORM_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN;
@@ -176,9 +177,9 @@ export class MercadoPagoAdapter implements PaymentProvider {
       throw new Error("MERCADOPAGO_ACCESS_TOKEN não configurado.");
     }
 
-    // TODO (Fase 6): assinar o state com HMAC + expiração pra validar CSRF
-    // no callback, em vez de carregar o tenantId em texto puro.
-    const state = tenantId;
+    // state assinado (HMAC + expiração) — o callback valida antes de
+    // confiar no tenantId embutido nele (ver src/lib/oauth-state.ts).
+    const state = signOAuthState(tenantId);
 
     const mp = new MercadoPagoConfig({ accessToken: PLATFORM_ACCESS_TOKEN });
     const oauth = new OAuth(mp);

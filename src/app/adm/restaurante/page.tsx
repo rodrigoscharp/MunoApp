@@ -5,6 +5,7 @@ import { BusinessHoursControl, WeekSchedule } from "@/components/adm/BusinessHou
 import { RestaurantInfoControl } from "@/components/adm/RestaurantInfoControl";
 import { DeliveryZonesControl } from "@/components/adm/DeliveryZonesControl";
 import { PrinterControl } from "@/components/adm/PrinterControl";
+import { PaymentConnectionControl } from "@/components/adm/PaymentConnectionControl";
 import { getRestaurantInfo } from "@/lib/restaurant";
 import type { PrinterConfig } from "@/app/api/settings/printer/route";
 
@@ -18,16 +19,22 @@ const DEFAULT_HOURS: WeekSchedule = {
   sunday:    { open: true,  from: "11:00", to: "20:00" },
 };
 
-export default async function RestauranteAdminPage() {
+interface Props {
+  searchParams: Promise<{ mp?: string }>;
+}
+
+export default async function RestauranteAdminPage({ searchParams }: Props) {
   const session = await auth();
   const tenantId = session!.user.tenantId;
+  const { mp } = await searchParams;
 
-  const [deliveryTimeSetting, businessHoursSetting, restaurantInfo, deliveryZones, printerSetting] = await Promise.all([
+  const [deliveryTimeSetting, businessHoursSetting, restaurantInfo, deliveryZones, printerSetting, paymentConnection] = await Promise.all([
     prismaUnscoped.setting.findUnique({ where: { tenantId_key: { tenantId, key: "delivery_time_minutes" } } }),
     prismaUnscoped.setting.findUnique({ where: { tenantId_key: { tenantId, key: "business_hours" } } }),
     getRestaurantInfo(tenantId),
     prismaUnscoped.deliveryZone.findMany({ where: { active: true, tenantId }, orderBy: { position: "asc" } }),
     prismaUnscoped.setting.findUnique({ where: { tenantId_key: { tenantId, key: "printer_config" } } }),
+    prismaUnscoped.paymentConnection.findFirst({ where: { tenantId, provider: "mercado_pago" } }),
   ]);
 
   const printerConfig: PrinterConfig = printerSetting
@@ -52,6 +59,13 @@ export default async function RestauranteAdminPage() {
           <DeliveryTimeControl initialMinutes={deliveryMinutes} />
           <RestaurantInfoControl initial={restaurantInfo} />
           <PrinterControl initial={printerConfig} />
+          <PaymentConnectionControl
+            connection={{
+              connected: !!paymentConnection,
+              status: paymentConnection?.status as "active" | "needs_reauth" | undefined,
+            }}
+            feedback={mp === "success" ? "success" : mp === "error" ? "error" : null}
+          />
         </div>
         <div className="lg:col-span-3 space-y-6">
           <BusinessHoursControl initialSchedule={schedule} />
