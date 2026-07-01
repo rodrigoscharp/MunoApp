@@ -7,36 +7,43 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("Seeding database...");
 
+  const tenant = await prisma.tenant.upsert({
+    where: { slug: "default" },
+    update: {},
+    create: { nome: "Muno Food Restaurante", slug: "default" },
+  });
+  const tenantId = tenant.id;
+
   const adminPassword = await bcrypt.hash("admin123", 12);
   await prisma.user.upsert({
-    where: { email: "admin@muno.com" },
+    where: { tenantId_email: { tenantId, email: "admin@muno.com" } },
     update: {},
-    create: { name: "Administrador", email: "admin@muno.com", password: adminPassword, role: "ADMIN" },
+    create: { tenantId, name: "Administrador", email: "admin@muno.com", password: adminPassword, role: "ADMIN" },
   });
 
   const kitchenPassword = await bcrypt.hash("cozinha123", 12);
   await prisma.user.upsert({
-    where: { email: "cozinha@muno.com" },
+    where: { tenantId_email: { tenantId, email: "cozinha@muno.com" } },
     update: {},
-    create: { name: "Cozinha", email: "cozinha@muno.com", password: kitchenPassword, role: "KITCHEN" },
+    create: { tenantId, name: "Cozinha", email: "cozinha@muno.com", password: kitchenPassword, role: "KITCHEN" },
   });
 
   const lanches = await prisma.category.upsert({
-    where: { slug: "lanches" },
+    where: { tenantId_slug: { tenantId, slug: "lanches" } },
     update: {},
-    create: { name: "Lanches", slug: "lanches", position: 1 },
+    create: { tenantId, name: "Lanches", slug: "lanches", position: 1 },
   });
 
   const porcoes = await prisma.category.upsert({
-    where: { slug: "porcoes" },
+    where: { tenantId_slug: { tenantId, slug: "porcoes" } },
     update: {},
-    create: { name: "Porções", slug: "porcoes", position: 2 },
+    create: { tenantId, name: "Porções", slug: "porcoes", position: 2 },
   });
 
   const bebidas = await prisma.category.upsert({
-    where: { slug: "bebidas" },
+    where: { tenantId_slug: { tenantId, slug: "bebidas" } },
     update: {},
-    create: { name: "Bebidas", slug: "bebidas", position: 3 },
+    create: { tenantId, name: "Bebidas", slug: "bebidas", position: 3 },
   });
 
   const items = [
@@ -52,7 +59,7 @@ async function main() {
   ];
 
   for (const item of items) {
-    await prisma.menuItem.create({ data: item });
+    await prisma.menuItem.create({ data: { ...item, tenantId } });
   }
 
   console.log("✓ Seed concluído!");

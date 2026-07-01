@@ -8,10 +8,50 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model Tenant {
+  id        String             @id @default(cuid())
+  nome      String
+  slug      String             @unique
+  plano     String             @default("free")
+  status    String             @default("active")
+  createdAt DateTime           @default(now())
+
+  users             User[]
+  categories        Category[]
+  menuItems         MenuItem[]
+  orders            Order[]
+  tables            Table[]
+  payments          Payment[]
+  settings          Setting[]
+  deliveryZones     DeliveryZone[]
+  chatMessages      ChatMessage[]
+  paymentConnections PaymentConnection[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PaymentConnection {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  provider     String   @default("mercado_pago")
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  status       String   @default("active") // 'active' | 'needs_reauth'
+  mpUserId     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tenantId, provider])
+  @@index([tenantId])
+}
+
 model User {
   id                String             @id @default(cuid())
+  tenantId          String
+  tenant            Tenant             @relation(fields: [tenantId], references: [id])
   name              String
-  email             String             @unique
+  email             String
   password          String?
   role              Role               @default(CUSTOMER)
   orders            Order[]
@@ -19,6 +59,9 @@ model User {
   deliveryTrackings DeliveryTracking[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
 }
 
 enum Role {
@@ -30,15 +73,22 @@ enum Role {
 
 model Category {
   id        String     @id @default(cuid())
+  tenantId  String
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
   name      String
-  slug      String     @unique
+  slug      String
   position  Int        @default(0)
   items     MenuItem[]
   createdAt DateTime   @default(now())
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
 }
 
 model MenuItem {
   id          String      @id @default(cuid())
+  tenantId    String
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
   name        String
   description String?
   price       Decimal     @db.Decimal(10, 2)
@@ -49,10 +99,14 @@ model MenuItem {
   orderItems  OrderItem[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+
+  @@index([tenantId])
 }
 
 model Order {
   id                  String            @id @default(cuid())
+  tenantId            String
+  tenant              Tenant            @relation(fields: [tenantId], references: [id])
   status              OrderStatus       @default(PENDING)
   paymentMethod       PaymentMethod
   paymentStatus       PaymentStatus     @default(UNPAID)
@@ -76,40 +130,62 @@ model Order {
   chatMessages        ChatMessage[]
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
+
+  @@index([tenantId])
 }
 
 model Table {
   id        String    @id @default(cuid())
-  number    Int       @unique
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  number    Int
   name      String?
-  token     String    @unique @default(cuid())
+  token     String    @default(cuid())
   active    Boolean   @default(true)
   orders    Order[]
   payments  Payment[]
   createdAt DateTime  @default(now())
+
+  @@unique([tenantId, number])
+  @@unique([tenantId, token])
+  @@index([tenantId])
 }
 
 model Payment {
   id        String        @id @default(cuid())
+  tenantId  String
+  tenant    Tenant        @relation(fields: [tenantId], references: [id])
   tableId   String?
   table     Table?        @relation(fields: [tableId], references: [id])
   method    PaymentMethod
   amount    Decimal       @db.Decimal(10, 2)
   createdAt DateTime      @default(now())
+
+  @@index([tenantId])
 }
 
 model Setting {
-  key       String   @id
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  key       String
   value     String
   updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
 }
 
 model PasswordResetToken {
   id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   email     String
   token     String   @unique @default(cuid())
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  @@index([tenantId])
 }
 
 model DeliveryTracking {
@@ -165,16 +241,22 @@ enum PaymentStatus {
 
 model DeliveryZone {
   id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   name      String
   price     Decimal  @db.Decimal(10, 2)
   active    Boolean  @default(true)
   position  Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
 }
 
 model ChatMessage {
   id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
   orderId    String
   order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   senderRole String   // "CUSTOMER" | "ADMIN"
@@ -184,4 +266,5 @@ model ChatMessage {
   createdAt  DateTime @default(now())
 
   @@index([orderId])
+  @@index([tenantId])
 }
