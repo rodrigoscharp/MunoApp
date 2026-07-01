@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
+import { tenantChannelName } from "@/lib/realtime-channel";
 import { OrderWithItems } from "@/types";
 
 const POLL_INTERVAL = 30_000; // fallback polling a cada 30s
 
-export function useKitchenOrders() {
+export function useKitchenOrders(tenantId: string) {
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,12 +35,9 @@ export function useKitchenOrders() {
 
     // Tenta Realtime — se falhar, polling assume
     const channel = supabase
-      .channel("kitchen-orders")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "Order" },
-        () => fetchOrders()
-      )
+      .channel(tenantChannelName(tenantId, "kitchen-orders"))
+      .on("broadcast", { event: "order-created" }, () => fetchOrders())
+      .on("broadcast", { event: "order-updated" }, () => fetchOrders())
       .subscribe((status) => {
         realtimeActive.current = status === "SUBSCRIBED";
       });
@@ -53,7 +51,7 @@ export function useKitchenOrders() {
       supabase.removeChannel(channel);
       clearInterval(poll);
     };
-  }, [fetchOrders]);
+  }, [fetchOrders, tenantId]);
 
   // Atualiza o status localmente de imediato (optimistic update)
   const updateOrderStatus = useCallback((orderId: string, newStatus: string) => {

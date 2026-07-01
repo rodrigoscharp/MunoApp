@@ -10,8 +10,8 @@ import type { PrinterConfig } from "@/app/api/settings/printer/route";
 import { KITCHEN_COLUMNS, NEXT_STATUS, PREV_STATUS, STATUS_COLORS, BADGE_COLORS, HEADER_COLORS } from "./constants";
 import { OrderCard } from "./OrderCard";
 
-export function KitchenBoard() {
-  const { orders, loading, error, refetch, updateOrderStatus, removeOrder } = useKitchenOrders();
+export function KitchenBoard({ tenantId }: { tenantId: string }) {
+  const { orders, loading, error, refetch, updateOrderStatus, removeOrder } = useKitchenOrders(tenantId);
   const [printer, setPrinter] = useState<PrinterConfig>({ enabled: false, paperWidth: "80mm" });
 
   useEffect(() => {

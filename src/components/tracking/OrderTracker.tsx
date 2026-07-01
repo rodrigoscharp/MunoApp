@@ -36,6 +36,7 @@ interface Props {
   orderId: string;
   initialStatus: OrderStatus;
   order: OrderSummary;
+  tenantId: string;
 }
 
 // ─── Configuração dos status ───────────────────────────────────────────────────
@@ -167,9 +168,9 @@ function EtaDisplay({
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 
-export function OrderTracker({ orderId, initialStatus, order }: Props) {
+export function OrderTracker({ orderId, initialStatus, order, tenantId }: Props) {
   const { status: realtimeStatus, estimatedDeliveryAt: realtimeEta } =
-    useOrderRealtime(orderId);
+    useOrderRealtime(orderId, tenantId);
   const currentStatus = realtimeStatus ?? initialStatus;
 
   const estimatedDeliveryAt =
