@@ -6,7 +6,7 @@ import { useCart } from "@/hooks/useCart";
 import { CartFlyAnimation } from "@/components/menu/CartFlyAnimation";
 import { MesaCartDrawer } from "@/components/mesa/MesaCartDrawer";
 import { useState, useEffect, useRef } from "react";
-import { ShoppingCart, UtensilsCrossed } from "lucide-react";
+import { ShoppingCart, UtensilsCrossed, Receipt } from "lucide-react";
 import type { RestaurantInfo } from "@/lib/restaurant";
 
 interface MesaHeaderProps {
@@ -68,22 +68,33 @@ export function MesaHeader({ restaurantInfo, tableNumber, tableName, token }: Me
             </div>
           </Link>
 
-          <button
-            id="cart-btn"
-            onClick={() => setCartOpen(true)}
-            className="relative flex items-center justify-center w-10 h-10 rounded-full hover:bg-neutral-100 transition"
-            aria-label="Abrir carrinho"
-          >
-            <ShoppingCart size={20} className="text-neutral-700" />
-            {itemCount > 0 && (
-              <span
-                key={itemCount}
-                className={`absolute -top-0.5 -right-0.5 bg-brand text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none ${bounce ? "animate-cart-bounce" : ""}`}
-              >
-                {itemCount > 9 ? "9+" : itemCount}
-              </span>
-            )}
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <Link
+              href={`/mesa/${token}/conta`}
+              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-neutral-100 transition"
+              aria-label="Ver conta da mesa"
+              title="Conta da mesa"
+            >
+              <Receipt size={20} className="text-neutral-700" />
+            </Link>
+
+            <button
+              id="cart-btn"
+              onClick={() => setCartOpen(true)}
+              className="relative flex items-center justify-center w-10 h-10 rounded-full hover:bg-neutral-100 transition"
+              aria-label="Abrir carrinho"
+            >
+              <ShoppingCart size={20} className="text-neutral-700" />
+              {itemCount > 0 && (
+                <span
+                  key={itemCount}
+                  className={`absolute -top-0.5 -right-0.5 bg-brand text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none ${bounce ? "animate-cart-bounce" : ""}`}
+                >
+                  {itemCount > 9 ? "9+" : itemCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </header>
 

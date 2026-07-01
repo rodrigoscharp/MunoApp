@@ -133,8 +133,12 @@ export default function MesaCheckoutPage() {
                 placeholder="Seu nome"
                 className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
               />
-              {errors.customerName && (
+              {errors.customerName ? (
                 <p className="text-brand text-xs mt-1">{errors.customerName.message}</p>
+              ) : (
+                <p className="text-neutral-400 text-xs mt-1">
+                  Usaremos para identificar seu pedido na conta da mesa.
+                </p>
               )}
             </div>
             <div>
