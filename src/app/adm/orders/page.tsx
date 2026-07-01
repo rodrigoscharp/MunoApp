@@ -8,6 +8,7 @@ export default async function AdminOrdersPage() {
     include: {
       items: { include: { menuItem: true } },
       user: { select: { name: true, email: true } },
+      table: { select: { number: true, name: true } },
     },
   });
 
@@ -16,6 +17,7 @@ export default async function AdminOrdersPage() {
     status: o.status,
     paymentMethod: o.paymentMethod,
     paymentStatus: o.paymentStatus,
+    deliveryType: o.deliveryType,
     total: Number(o.total),
     notes: o.notes,
     customerName: o.customerName,
@@ -30,6 +32,7 @@ export default async function AdminOrdersPage() {
       menuItem: item.menuItem,
     })),
     user: o.user,
+    table: o.table,
   }));
 
   return (

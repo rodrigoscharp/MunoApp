@@ -22,6 +22,23 @@ export function formatDate(date: Date | string): string {
   }).format(new Date(date));
 }
 
+/**
+ * Pedidos de mesa (QR code, sem login) devem mostrar o nome digitado no checkout
+ * da mesa, nunca o nome de uma conta logada — a mesma pessoa pode pedir para
+ * várias pessoas na mesa com nomes diferentes. Só no cardápio digital de
+ * delivery/retirada (com login opcional) o nome da conta tem prioridade.
+ */
+export function getCustomerDisplayName(order: {
+  deliveryType: string;
+  customerName?: string | null;
+  user?: { name: string } | null;
+}): string | null {
+  if (order.deliveryType === "DINE_IN") {
+    return order.customerName || order.user?.name || null;
+  }
+  return order.user?.name || order.customerName || null;
+}
+
 export const ORDER_STATUS_LABELS: Record<string, string> = {
   PENDING: "Pendente",
   CONFIRMED: "Confirmado",

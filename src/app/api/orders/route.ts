@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
         include: {
           items: { include: { menuItem: true } },
           user: { select: { id: true, name: true, email: true } },
+          table: { select: { number: true, name: true } },
         },
         orderBy: { createdAt: "asc" },
       });
@@ -48,6 +49,7 @@ export async function GET(req: NextRequest) {
         include: {
           items: { include: { menuItem: true } },
           user: { select: { id: true, name: true, email: true } },
+          table: { select: { number: true, name: true } },
         },
         orderBy: { createdAt: "desc" },
         take: 100,

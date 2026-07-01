@@ -1,4 +1,5 @@
 import { OrderWithItems } from "@/types";
+import { getCustomerDisplayName } from "@/lib/utils";
 
 type PrintableOrder = OrderWithItems & { deliveryAddress?: string | null };
 
@@ -104,9 +105,12 @@ export function printOrder(order: PrintableOrder, paperWidth: "58mm" | "80mm" = 
     <span>${DELIVERY_LABELS[order.deliveryType] ?? order.deliveryType}</span>
   </div>
   ${
-    order.customerName || order.user?.name
-      ? `<div class="row"><span class="bold">Cliente:</span><span>${order.user?.name ?? order.customerName}</span></div>`
-      : ""
+    (() => {
+      const customerName = getCustomerDisplayName(order);
+      return customerName
+        ? `<div class="row"><span class="bold">Cliente:</span><span>${customerName}</span></div>`
+        : "";
+    })()
   }
   ${
     order.deliveryAddress

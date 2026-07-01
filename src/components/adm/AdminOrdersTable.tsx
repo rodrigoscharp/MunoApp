@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   formatCurrency,
   formatDate,
+  getCustomerDisplayName,
   ORDER_STATUS_LABELS,
   PAYMENT_METHOD_LABELS,
   PAYMENT_STATUS_LABELS,
@@ -24,6 +25,7 @@ interface Order {
   status: OrderStatus;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
+  deliveryType: string;
   total: number;
   notes: string | null;
   customerName: string | null;
@@ -32,6 +34,7 @@ interface Order {
   updatedAt: string;
   items: OrderItem[];
   user: { name: string; email: string } | null;
+  table: { number: number; name: string | null } | null;
 }
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
@@ -85,6 +88,7 @@ export function AdminOrdersTable({ orders }: { orders: Order[] }) {
               <tr>
                 <th className="text-left px-4 py-3 text-neutral-500 font-medium">ID</th>
                 <th className="text-left px-4 py-3 text-neutral-500 font-medium">Cliente</th>
+                <th className="text-left px-4 py-3 text-neutral-500 font-medium">Mesa</th>
                 <th className="text-left px-4 py-3 text-neutral-500 font-medium">Status</th>
                 <th className="text-left px-4 py-3 text-neutral-500 font-medium">Pagamento</th>
                 <th className="text-left px-4 py-3 text-neutral-500 font-medium">Total</th>
@@ -102,7 +106,10 @@ export function AdminOrdersTable({ orders }: { orders: Order[] }) {
                     #{order.id.slice(-6).toUpperCase()}
                   </td>
                   <td className="px-4 py-3 text-neutral-900">
-                    {order.user?.name ?? order.customerName ?? "—"}
+                    {getCustomerDisplayName(order) ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 text-neutral-600">
+                    {order.table ? order.table.name || `Mesa ${order.table.number}` : "—"}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[order.status]}`}>
@@ -123,7 +130,7 @@ export function AdminOrdersTable({ orders }: { orders: Order[] }) {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-neutral-400">
+                  <td colSpan={7} className="px-4 py-10 text-center text-neutral-400">
                     Nenhum pedido encontrado.
                   </td>
                 </tr>
@@ -174,12 +181,17 @@ export function AdminOrdersTable({ orders }: { orders: Order[] }) {
               {(selected.user || selected.customerName) && (
                 <div className="bg-neutral-50 rounded-lg p-3">
                   <p className="text-xs text-neutral-400 mb-1">Cliente</p>
-                  <p className="text-sm font-medium">{selected.user?.name ?? selected.customerName}</p>
+                  <p className="text-sm font-medium">{getCustomerDisplayName(selected)}</p>
                   {selected.user?.email && (
                     <p className="text-xs text-neutral-500">{selected.user.email}</p>
                   )}
                   {selected.customerPhone && (
                     <p className="text-xs text-neutral-500">{selected.customerPhone}</p>
+                  )}
+                  {selected.table && (
+                    <p className="text-xs text-neutral-500 mt-1">
+                      {selected.table.name || `Mesa ${selected.table.number}`}
+                    </p>
                   )}
                 </div>
               )}

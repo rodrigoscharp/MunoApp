@@ -82,4 +82,8 @@ export interface OrderWithItems {
     name: string;
     email: string;
   } | null;
+  table?: {
+    number: number;
+    name: string | null;
+  } | null;
 }

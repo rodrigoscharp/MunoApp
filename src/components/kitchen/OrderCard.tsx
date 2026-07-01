@@ -1,4 +1,4 @@
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, getCustomerDisplayName } from "@/lib/utils";
 import { OrderWithItems } from "@/types";
 import { Clock, ChevronLeft, Printer } from "lucide-react";
 import { DELIVERY_TYPE_META } from "./constants";
@@ -25,6 +25,7 @@ export function OrderCard({
   const elapsed = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60_000);
   const deliveryMeta = DELIVERY_TYPE_META[order.deliveryType] ?? DELIVERY_TYPE_META.PICKUP;
   const DeliveryIcon = deliveryMeta.icon;
+  const customerDisplayName = getCustomerDisplayName(order);
 
   async function handlePrint() {
     const { printOrder } = await import("@/lib/printOrder");
@@ -41,7 +42,9 @@ export function OrderCard({
         <div className="flex items-center gap-1.5">
           <span className={`flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border ${deliveryMeta.className}`}>
             <DeliveryIcon size={9} />
-            {deliveryMeta.label}
+            {order.deliveryType === "DINE_IN" && order.table
+              ? order.table.name || `Mesa ${order.table.number}`
+              : deliveryMeta.label}
           </span>
           <span className={`text-xs flex items-center gap-1 ${elapsed > 20 ? "text-red-400" : "text-neutral-500"}`}>
             <Clock size={10} />
@@ -51,9 +54,9 @@ export function OrderCard({
       </div>
 
       {/* Cliente */}
-      {(order.customerName || order.user?.name) && (
+      {customerDisplayName && (
         <p className="text-xs text-neutral-400 truncate">
-          {order.user?.name || order.customerName}
+          {customerDisplayName}
         </p>
       )}
 
