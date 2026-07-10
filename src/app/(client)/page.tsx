@@ -10,7 +10,7 @@ import { getBusinessHours, checkIsOpen } from "@/lib/business-hours";
 
 // tenantId como argumento diferencia o cache por tenant (mesmo motivo de
 // src/lib/restaurant.ts).
-const getMenu = unstable_cache(
+const getMenuCached = unstable_cache(
   async (tenantId: string) => {
     try {
       return await runWithTenant(tenantId, () =>
@@ -28,6 +28,15 @@ const getMenu = unstable_cache(
   ["menu"],
   { revalidate: 60 }
 );
+
+// runWithTenant precisa envolver a chamada por fora do unstable_cache: se
+// ficar só dentro do callback cacheado, o contexto do AsyncLocalStorage se
+// perde antes da extensão de tenant do Prisma rodar (getCurrentTenantId()
+// lança "Nenhum tenant no contexto da request"), e a query cai silenciosamente
+// no catch, retornando [].
+function getMenu(tenantId: string) {
+  return runWithTenant(tenantId, () => getMenuCached(tenantId));
+}
 
 export default async function MenuPage() {
   const tenantId = await getRequestTenantId();

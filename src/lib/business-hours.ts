@@ -42,7 +42,7 @@ export function checkIsOpen(schedule: WeekSchedule): boolean {
 
 // tenantId entra como argumento para que o unstable_cache diferencie o
 // cache por tenant (ver mesma observação em src/lib/restaurant.ts).
-export const getBusinessHours = unstable_cache(
+const getBusinessHoursCached = unstable_cache(
   async (tenantId: string): Promise<WeekSchedule> => {
     try {
       const setting = await runWithTenant(tenantId, () =>
@@ -56,3 +56,12 @@ export const getBusinessHours = unstable_cache(
   ["business_hours"],
   { revalidate: 60, tags: ["business_hours"] }
 );
+
+// runWithTenant precisa envolver a chamada por fora do unstable_cache: se
+// ficar só dentro do callback cacheado, o contexto do AsyncLocalStorage se
+// perde antes da extensão de tenant do Prisma rodar (getCurrentTenantId()
+// lança "Nenhum tenant no contexto da request"), e a query cai silenciosamente
+// no catch, retornando o valor default.
+export function getBusinessHours(tenantId: string): Promise<WeekSchedule> {
+  return runWithTenant(tenantId, () => getBusinessHoursCached(tenantId));
+}

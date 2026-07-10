@@ -34,8 +34,22 @@ export default auth(async (req) => {
     return NextResponse.json({ error: "Restaurante não encontrado" }, { status: 404 });
   }
 
-  // Sessão criada em outro subdomínio/tenant não é válida aqui.
-  if (session && session.user.tenantId !== tenant.id) {
+  const isAdminRoute = nextUrl.pathname.startsWith("/adm");
+  const isKitchenRoute = nextUrl.pathname.startsWith("/dashboard");
+  const isAuthRoute =
+    nextUrl.pathname === "/login" || nextUrl.pathname === "/register";
+
+  // Sessão criada em outro subdomínio/tenant não é válida aqui (ex.: o tenant
+  // foi recriado/resetado e o JWT antigo no navegador ainda referencia o id
+  // velho). NÃO dá pra confiar em limpar o cookie aqui: o wrapper auth() do
+  // NextAuth reemite o cookie de sessão (rolling session) na mesma resposta,
+  // sobrescrevendo qualquer delete que a gente faça. Por isso tratamos uma
+  // sessão com tenantId errado como "não logada" para fins de roteamento —
+  // isso também impede que /login redirecione pra si mesmo (o mesmo `if`
+  // bateria de novo lá) ou que o bounce pro "/" abaixo reabra o loop.
+  const tenantMismatch = !!session && session.user.tenantId !== tenant.id;
+
+  if (tenantMismatch && !isAuthRoute) {
     return NextResponse.redirect(new URL("/login", nextUrl));
   }
 
@@ -43,13 +57,8 @@ export default auth(async (req) => {
   requestHeaders.set("x-tenant-id", tenant.id);
   const forward = { request: { headers: requestHeaders } };
 
-  const isAdminRoute = nextUrl.pathname.startsWith("/adm");
-  const isKitchenRoute = nextUrl.pathname.startsWith("/dashboard");
-  const isAuthRoute =
-    nextUrl.pathname === "/login" || nextUrl.pathname === "/register";
-
   // Redirect authenticated users away from auth pages
-  if (isAuthRoute && session) {
+  if (isAuthRoute && session && !tenantMismatch) {
     return NextResponse.redirect(new URL("/", nextUrl));
   }
 
