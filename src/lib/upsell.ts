@@ -27,7 +27,7 @@ export function getUpsellSuggestions(
     if (availableItems.length === 0) continue;
 
     const cheapest = availableItems.reduce((min, item) =>
-      item.price < min.price ? item : min
+      Number(item.price) < Number(min.price) ? item : min
     );
 
     if (dismissedIds.has(cheapest.id)) continue;
@@ -35,7 +35,7 @@ export function getUpsellSuggestions(
     suggestions.push({
       id: cheapest.id,
       name: cheapest.name,
-      price: cheapest.price,
+      price: Number(cheapest.price),
       imageUrl: cheapest.imageUrl,
     });
 
