@@ -4,6 +4,7 @@ import { useCart } from "@/hooks/useCart";
 import { formatCurrency } from "@/lib/utils";
 import { X, Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
 import Link from "next/link";
+import { CartUpsell } from "@/components/cart/CartUpsell";
 
 interface CartDrawerProps {
   open: boolean;
@@ -94,6 +95,8 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
             ))
           )}
         </div>
+
+        <CartUpsell />
 
         {/* Footer */}
         {items.length > 0 && (

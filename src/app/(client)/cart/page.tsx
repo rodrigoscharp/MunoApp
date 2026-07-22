@@ -4,6 +4,7 @@ import { useCart } from "@/hooks/useCart";
 import { formatCurrency } from "@/lib/utils";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { CartUpsell } from "@/components/cart/CartUpsell";
 
 export default function CartPage() {
   const { items, updateQuantity, removeItem, total, clearCart } = useCart();
@@ -73,6 +74,8 @@ export default function CartPage() {
           </div>
         ))}
       </div>
+
+      <CartUpsell />
 
       {/* Total + actions */}
       <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-4">
