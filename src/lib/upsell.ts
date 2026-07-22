@@ -22,7 +22,11 @@ export function getUpsellSuggestions(
     const hasItemInCart = category.items.some((item) => cartIdSet.has(item.id));
     if (hasItemInCart) continue;
 
-    const cheapest = category.items.reduce((min, item) =>
+    // Filter to available items only
+    const availableItems = category.items.filter((item) => item.available);
+    if (availableItems.length === 0) continue;
+
+    const cheapest = availableItems.reduce((min, item) =>
       item.price < min.price ? item : min
     );
 
