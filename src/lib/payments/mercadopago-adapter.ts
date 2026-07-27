@@ -79,6 +79,8 @@ export class MercadoPagoAdapter implements PaymentProvider {
     label: "Mercado Pago",
     docsUrl: "https://www.mercadopago.com.br/developers/panel/app",
     methods: ["PIX", "CREDIT_CARD"],
+    // O MP identifica o pagador pelo e-mail, não precisa de CPF.
+    requiresPayerDocument: false,
     credentialFields: [
       {
         key: "accessToken",

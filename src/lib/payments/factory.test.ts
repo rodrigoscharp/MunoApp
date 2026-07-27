@@ -49,7 +49,18 @@ describe("getActiveConnection", () => {
 
 describe("registry", () => {
   it("lista os gateways disponíveis", () => {
-    expect(listPaymentProviders().map((p) => p.meta.id)).toContain("mercado_pago");
+    const ids = listPaymentProviders().map((p) => p.meta.id);
+
+    expect(ids).toContain("mercado_pago");
+    // Registrar o adapter é tudo que um gateway novo precisa pra aparecer
+    // no painel: a tela se monta a partir do meta.
+    expect(ids).toContain("asaas");
+  });
+
+  it("todo gateway declara se exige documento do pagador", () => {
+    for (const provider of listPaymentProviders()) {
+      expect(typeof provider.meta.requiresPayerDocument).toBe("boolean");
+    }
   });
 
   it("explode em gateway desconhecido", () => {

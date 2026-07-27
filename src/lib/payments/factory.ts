@@ -1,10 +1,12 @@
 import type { PaymentConnection, PaymentMethod } from "@prisma/client";
 import { prismaUnscoped } from "@/lib/prisma";
 import { MercadoPagoAdapter } from "./mercadopago-adapter";
+import { AsaasAdapter } from "./asaas-adapter";
 import type { PaymentProvider } from "./types";
 
 const adapters: Record<string, PaymentProvider> = {
   mercado_pago: new MercadoPagoAdapter(),
+  asaas: new AsaasAdapter(),
 };
 
 export function listPaymentProviders(): PaymentProvider[] {
@@ -27,8 +29,22 @@ export async function getActiveConnection(tenantId: string): Promise<PaymentConn
 }
 
 export async function getEnabledPaymentMethods(tenantId: string): Promise<PaymentMethod[]> {
-  const connection = await getActiveConnection(tenantId);
-  if (!connection) return ["CASH"];
+  return (await getPaymentContext(tenantId)).methods;
+}
 
-  return [...getPaymentProvider(connection.provider).meta.methods, "CASH"];
+// O que o checkout precisa saber sobre o gateway do tenant: quais métodos
+// oferecer e se o gateway exige CPF do pagador (o Asaas exige, o Mercado
+// Pago não). Só isso — nada de status de conexão ou nome do gateway, que
+// são informação do lojista, não do cliente final.
+export async function getPaymentContext(
+  tenantId: string
+): Promise<{ methods: PaymentMethod[]; requiresPayerDocument: boolean }> {
+  const connection = await getActiveConnection(tenantId);
+  if (!connection) return { methods: ["CASH"], requiresPayerDocument: false };
+
+  const { meta } = getPaymentProvider(connection.provider);
+  return {
+    methods: [...meta.methods, "CASH"],
+    requiresPayerDocument: meta.requiresPayerDocument,
+  };
 }

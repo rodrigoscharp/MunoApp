@@ -9,6 +9,9 @@ const schema = z.object({
   orderId: z.string(),
   paymentMethod: z.enum(["PIX", "CREDIT_CARD"]),
   customerName: z.string(),
+  // CPF do pagador, exigido só por alguns gateways. Não é persistido:
+  // atravessa daqui pro adapter e morre com a request.
+  payerDocument: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -25,7 +28,7 @@ async function handlePost(req: NextRequest, tenantId: string) {
     return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
   }
 
-  const { orderId, paymentMethod, customerName } = parsed.data;
+  const { orderId, paymentMethod, customerName, payerDocument } = parsed.data;
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -55,6 +58,7 @@ async function handlePost(req: NextRequest, tenantId: string) {
         id: order.id,
         total: Number(order.total),
         customerName,
+        payerDocument,
         paymentMethod,
         items: order.items.map((item) => ({
           menuItemId: item.menuItemId,

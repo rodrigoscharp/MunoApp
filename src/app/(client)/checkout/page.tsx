@@ -9,6 +9,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { formatCurrency } from "@/lib/utils";
 import { PaymentMethodSelector } from "@/components/checkout/PaymentMethodSelector";
 import { PaymentMethod } from "@/types";
+import { isValidCpf, formatCpf, stripCpf } from "@/lib/cpf";
 import { ArrowLeft, Store, Truck, MapPin } from "lucide-react";
 import Link from "next/link";
 
@@ -35,6 +36,8 @@ export default function CheckoutPage() {
   const { items, total, clearCart } = useCart();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[] | null>(null);
+  const [requiresPayerDocument, setRequiresPayerDocument] = useState(false);
+  const [payerDocument, setPayerDocument] = useState("");
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("PICKUP");
   const [selectedZone, setSelectedZone] = useState<DeliveryZone | null>(null);
   const [zones, setZones] = useState<DeliveryZone[]>([]);
@@ -50,8 +53,9 @@ export default function CheckoutPage() {
   useEffect(() => {
     fetch("/api/payments/methods")
       .then((res) => (res.ok ? res.json() : Promise.reject(res.statusText)))
-      .then((data: { methods: PaymentMethod[] }) => {
+      .then((data: { methods: PaymentMethod[]; requiresPayerDocument: boolean }) => {
         setEnabledMethods(data.methods);
+        setRequiresPayerDocument(data.requiresPayerDocument);
         // Prefere PIX quando disponível; se o método selecionado deixou de
         // ser aceito, cai pra dinheiro em vez de travar o pedido.
         setPaymentMethod((current) =>
@@ -89,6 +93,14 @@ export default function CheckoutPage() {
     if (deliveryType === "DELIVERY") {
       if (!selectedZone) { setError("Selecione o bairro de entrega."); return; }
       if (!data.rua || !data.numero) { setError("Preencha rua e número."); return; }
+    }
+
+    // Só bloqueia quando o gateway do restaurante realmente precisa do CPF
+    // e o cliente escolheu pagar online.
+    const onlinePayment = paymentMethod === "PIX" || paymentMethod === "CREDIT_CARD";
+    if (onlinePayment && requiresPayerDocument && !isValidCpf(payerDocument)) {
+      setError("Informe um CPF válido para pagar online.");
+      return;
     }
 
     setLoading(true);
@@ -133,7 +145,12 @@ export default function CheckoutPage() {
         const paymentRes = await fetch("/api/payments/charge", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId: order.id, paymentMethod, customerName: data.customerName }),
+          body: JSON.stringify({
+            orderId: order.id,
+            paymentMethod,
+            customerName: data.customerName,
+            ...(requiresPayerDocument ? { payerDocument: stripCpf(payerDocument) } : {}),
+          }),
         });
         if (!paymentRes.ok) throw new Error("Erro ao iniciar pagamento");
         const payment = await paymentRes.json();
@@ -285,6 +302,27 @@ export default function CheckoutPage() {
               onChange={setPaymentMethod}
               enabled={enabledMethods}
             />
+
+            {requiresPayerDocument &&
+              (paymentMethod === "PIX" || paymentMethod === "CREDIT_CARD") && (
+                <div className="mt-3 space-y-1">
+                  <label htmlFor="payerDocument" className="block text-sm font-medium text-neutral-700">
+                    CPF *
+                  </label>
+                  <input
+                    id="payerDocument"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="000.000.000-00"
+                    value={payerDocument}
+                    onChange={(e) => setPayerDocument(formatCpf(e.target.value))}
+                    className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm"
+                  />
+                  <p className="text-xs text-neutral-400">
+                    Exigido pelo meio de pagamento deste restaurante para emitir a cobrança.
+                  </p>
+                </div>
+              )}
           </div>
 
           {error && (

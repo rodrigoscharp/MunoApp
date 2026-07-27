@@ -7,6 +7,10 @@ export interface ChargeableOrder {
   id: string;
   total: number;
   customerName: string;
+  // CPF do pagador. Só vem preenchido quando o gateway conectado exige
+  // (meta.requiresPayerDocument) — não é persistido em lugar nenhum,
+  // atravessa do checkout até o gateway e morre ali.
+  payerDocument?: string;
   paymentMethod: "PIX" | "CREDIT_CARD";
   items: {
     menuItemId: string;
@@ -57,6 +61,10 @@ export interface PaymentProviderMeta {
   docsUrl: string;
   methods: PaymentMethod[];
   credentialFields: CredentialField[];
+  // Alguns gateways não emitem cobrança sem identificar o pagador. Quando
+  // true, o checkout pede o CPF antes de cobrar — e só nesse caso, pra não
+  // impor atrito a restaurante cujo gateway não precisa.
+  requiresPayerDocument: boolean;
 }
 
 export type CredentialCheck =
