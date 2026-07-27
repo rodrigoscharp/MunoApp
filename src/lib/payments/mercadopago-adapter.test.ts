@@ -1,9 +1,44 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import crypto from "node:crypto";
-import { MercadoPagoAdapter } from "@/lib/payments/mercadopago-adapter";
 import { encryptCredentials } from "@/lib/payments/credentials";
 import { InvalidWebhookSignatureError } from "@/lib/payments/types";
 import type { PaymentConnection } from "@prisma/client";
+
+// Mock do SDK do Mercado Pago: sem isso, o teste de caminho feliz bateria
+// na API de verdade. Os spies servem pra provar duas coisas que o mutation
+// testing do review mostrou que os testes de rejeição sozinhos não provam:
+// (1) que uma notificação válida é processada de fato (não só "não lança"),
+// e (2) que a consulta usa o access token do LOJISTA, nunca um token de
+// plataforma — a exigência central desta task.
+const { mockConfigCtor, mockPaymentCtor, mockPaymentGet } = vi.hoisted(() => ({
+  mockConfigCtor: vi.fn(),
+  mockPaymentCtor: vi.fn(),
+  mockPaymentGet: vi.fn(),
+}));
+
+vi.mock("mercadopago", () => {
+  class MockMercadoPagoConfig {
+    constructor(options: { accessToken: string }) {
+      mockConfigCtor(options);
+    }
+  }
+  class MockPayment {
+    constructor(config: unknown) {
+      mockPaymentCtor(config);
+    }
+    get(args: { id: string }) {
+      return mockPaymentGet(args);
+    }
+  }
+  class MockPreference {}
+  return {
+    MercadoPagoConfig: MockMercadoPagoConfig,
+    Payment: MockPayment,
+    Preference: MockPreference,
+  };
+});
+
+const { MercadoPagoAdapter } = await import("@/lib/payments/mercadopago-adapter");
 
 const WEBHOOK_SECRET = "segredo-do-lojista";
 const DATA_ID = "123456";
@@ -75,5 +110,44 @@ describe("handleWebhook — assinatura", () => {
     );
 
     expect(result).toBeNull();
+  });
+});
+
+describe("handleWebhook — caminho feliz", () => {
+  beforeEach(() => {
+    mockConfigCtor.mockClear();
+    mockPaymentCtor.mockClear();
+    mockPaymentGet.mockReset();
+  });
+
+  it("com secret certo e assinatura válida, resolve com os dados do pagamento", async () => {
+    const connection = connectionWith({ accessToken: "APP_USR-do-tenant", webhookSecret: WEBHOOK_SECRET });
+    mockPaymentGet.mockResolvedValue({
+      id: 999,
+      status: "approved",
+      external_reference: "order-abc",
+    });
+
+    const result = await adapter.handleWebhook(payload, signedHeaders(WEBHOOK_SECRET), connection);
+
+    expect(result).toEqual({
+      orderId: "order-abc",
+      providerPaymentId: "999",
+      status: "approved",
+    });
+  });
+
+  it("consulta o pagamento com o access token do LOJISTA, não um token de plataforma", async () => {
+    const connection = connectionWith({ accessToken: "APP_USR-do-tenant", webhookSecret: WEBHOOK_SECRET });
+    mockPaymentGet.mockResolvedValue({
+      id: 1,
+      status: "approved",
+      external_reference: "order-1",
+    });
+
+    await adapter.handleWebhook(payload, signedHeaders(WEBHOOK_SECRET), connection);
+
+    expect(mockConfigCtor).toHaveBeenCalledWith({ accessToken: "APP_USR-do-tenant" });
+    expect(mockPaymentGet).toHaveBeenCalledWith({ id: DATA_ID });
   });
 });
