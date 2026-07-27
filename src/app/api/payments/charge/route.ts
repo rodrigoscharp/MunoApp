@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
-import { getPaymentProviderForTenant } from "@/lib/payments/factory";
+import { getActiveConnection, getPaymentProvider } from "@/lib/payments/factory";
 import { extractErrorMessage } from "@/lib/error-message";
 import { z } from "zod";
 
@@ -36,8 +36,19 @@ async function handlePost(req: NextRequest, tenantId: string) {
     return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
   }
 
+  // Sem conexão ativa, o lojista não tem gateway configurado (ou o
+  // configurado ainda não passou pela validação/webhook inicial) — sem
+  // fallback para conta de plataforma neste modo self-service.
+  const connection = await getActiveConnection(tenantId);
+  if (!connection) {
+    return NextResponse.json(
+      { error: "Este restaurante não aceita pagamento online no momento." },
+      { status: 409 }
+    );
+  }
+
   try {
-    const { provider, connection } = await getPaymentProviderForTenant(tenantId);
+    const provider = getPaymentProvider(connection.provider);
 
     const charge = await provider.createCharge(
       {
@@ -69,7 +80,7 @@ async function handlePost(req: NextRequest, tenantId: string) {
   } catch (err) {
     // Só a mensagem — o erro pode embutir o corpo da request (que inclui
     // o access_token usado na chamada).
-    console.error("Mercado Pago error:", extractErrorMessage(err));
+    console.error("Payment error:", extractErrorMessage(err));
     return NextResponse.json({ error: "Erro ao criar pagamento" }, { status: 500 });
   }
 }

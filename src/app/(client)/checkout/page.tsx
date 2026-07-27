@@ -109,7 +109,7 @@ export default function CheckoutPage() {
       const order = await orderRes.json();
 
       if (paymentMethod === "PIX" || paymentMethod === "CREDIT_CARD") {
-        const paymentRes = await fetch("/api/payments/mercadopago", {
+        const paymentRes = await fetch("/api/payments/charge", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orderId: order.id, paymentMethod, customerName: data.customerName }),

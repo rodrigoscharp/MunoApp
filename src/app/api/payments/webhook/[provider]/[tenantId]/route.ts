@@ -6,17 +6,28 @@ import { InvalidWebhookSignatureError } from "@/lib/payments/types";
 import { broadcastTenantEvent } from "@/lib/realtime";
 import { extractErrorMessage } from "@/lib/error-message";
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const signature = req.headers.get("x-signature");
-    const requestId = req.headers.get("x-request-id");
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ provider: string; tenantId: string }> }
+) {
+  const { provider: providerId, tenantId } = await params;
 
-    // Hoje só existe o provider Mercado Pago; quando outros providers
-    // existirem, o tipo de evento no payload decide qual usar.
+  try {
+    // O tenantId vem da URL, que é PÚBLICA e não autentica nada — só serve
+    // pra localizar a conexão. Quem autentica é a assinatura verificada
+    // dentro de handleWebhook(), com o segredo daquele lojista.
+    const connection = await prismaUnscoped.paymentConnection.findUnique({
+      where: { tenantId_provider: { tenantId, provider: providerId } },
+    });
+    // Não revela se o tenant/provider existe — resposta idêntica em
+    // qualquer caso de "nada a fazer".
+    if (!connection) return NextResponse.json({ received: true });
+
+    const body = await req.json();
+
     let result;
     try {
-      result = await getPaymentProvider().handleWebhook(body, signature, requestId);
+      result = await getPaymentProvider(providerId).handleWebhook(body, req.headers, connection);
     } catch (err) {
       if (err instanceof InvalidWebhookSignatureError) {
         return NextResponse.json({ error: "Assinatura inválida" }, { status: 401 });
@@ -25,17 +36,17 @@ export async function POST(req: NextRequest) {
     }
     if (!result) return NextResponse.json({ received: true });
 
-    // O webhook não vem pelo subdomínio do tenant (é a Mercado Pago batendo
-    // numa URL global), então descobrimos o tenant a partir do próprio
-    // pedido antes de entrar no contexto normal.
-    const orderMeta = await prismaUnscoped.order.findUnique({
-      where: { id: result.orderId },
-      select: { tenantId: true },
+    // Assinatura validada: é a única prova possível de que o webhook secret
+    // colado pelo lojista está correto (não dá pra verificar isso por API).
+    await prismaUnscoped.paymentConnection.update({
+      where: { id: connection.id },
+      data: { lastCheckedAt: new Date() },
     });
-    if (!orderMeta) return NextResponse.json({ received: true });
 
-    const tenantId = orderMeta.tenantId;
-
+    // O tenant já vem da URL e foi validado pela assinatura — não é mais
+    // preciso descobri-lo pelo orderId. Toda leitura/escrita do pedido
+    // acontece dentro do contexto do tenant, pra notificação de um tenant
+    // nunca alcançar o pedido de outro.
     await runWithTenant(tenantId, async () => {
       let order;
 
@@ -72,14 +83,16 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ received: true });
   } catch (err) {
-    // Só a mensagem — nunca o objeto de erro cru (pode embutir o access
-    // token usado pra consultar o pagamento).
+    // Qualquer falha genérica (ex.: blob de credenciais corrompido ou chave
+    // de criptografia rotacionada, que faz decryptCredentials lançar Error
+    // comum) precisa virar 500 — nunca 200. Reportar "received" pro gateway
+    // quando na verdade falhamos esconderia um problema real.
     console.error("Webhook error:", extractErrorMessage(err));
     return NextResponse.json({ error: "Webhook error" }, { status: 500 });
   }
 }
 
-// MP sends GET to validate the webhook URL
+// O gateway manda GET pra validar a URL de notificação.
 export async function GET() {
   return NextResponse.json({ ok: true });
 }
