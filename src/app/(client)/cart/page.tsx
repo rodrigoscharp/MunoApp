@@ -75,7 +75,7 @@ export default function CartPage() {
         ))}
       </div>
 
-      <CartUpsell />
+      <CartUpsell className="mb-4" />
 
       {/* Total + actions */}
       <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-4">
