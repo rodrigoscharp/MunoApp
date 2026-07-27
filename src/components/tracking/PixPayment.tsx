@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import { Copy, Check } from "lucide-react";
 
 interface Props {
-  qrCodeBase64: string;
+  // Já resolvido por toQrImageSrc: pode ser data URI (Mercado Pago, Asaas,
+  // Abacate Pay) ou URL hospedada pelo gateway (PagBank).
+  qrSrc: string | null;
   copyPaste: string;
 }
 
-export function PixPayment({ qrCodeBase64, copyPaste }: Props) {
+export function PixPayment({ qrSrc, copyPaste }: Props) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -25,22 +26,19 @@ export function PixPayment({ qrCodeBase64, copyPaste }: Props) {
       </h2>
 
       {/* QR Code */}
-      {qrCodeBase64 && (
+      {qrSrc && (
         <div className="flex justify-center mb-4">
           <div className="p-3 border-2 border-neutral-200 rounded-xl">
-            <Image
-              src={`data:image/png;base64,${qrCodeBase64}`}
-              alt="QR Code Pix"
-              width={200}
-              height={200}
-              className="rounded"
-            />
+            {/* <img> comum, não next/image: o src pode ser data URI ou um
+                domínio de gateway que não está em remotePatterns. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qrSrc} alt="QR Code Pix" width={200} height={200} className="rounded" />
           </div>
         </div>
       )}
 
       <p className="text-center text-xs text-neutral-500 mb-3">
-        Ou copie o código abaixo
+        {qrSrc ? "Ou copie o código abaixo" : "Copie o código abaixo e pague no seu banco"}
       </p>
 
       {/* Copy & paste key */}

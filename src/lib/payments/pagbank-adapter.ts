@@ -139,6 +139,10 @@ export class PagBankAdapter implements PaymentProvider {
     const { apiToken, environment } = decryptCredentials(connection.credentials);
     if (!apiToken) throw new Error("Conexão do PagBank sem token de API.");
 
+    if (order.paymentMethod !== "PIX") {
+      throw new Error("O PagBank está configurado apenas para Pix neste restaurante.");
+    }
+
     if (!order.payerDocument) {
       throw new Error("O PagBank exige o CPF do pagador para emitir a cobrança.");
     }
@@ -166,14 +170,16 @@ export class PagBankAdapter implements PaymentProvider {
     });
 
     const qr = response.qr_codes?.[0];
-    const base64Link = qr?.links?.find((link) => link.rel === "QRCODE.BASE64")?.href;
+    // O PagBank hospeda a imagem e devolve links. Usamos o PNG, que é imagem
+    // de verdade — o link QRCODE.BASE64 devolve texto base64 no corpo, então
+    // não serve como src de <img>.
+    const pngLink = qr?.links?.find((link) => link.rel === "QRCODE.PNG")?.href;
 
     return {
       provider: "pagbank",
       status: "pending",
       paymentId: String(response.id),
-      // O PagBank devolve uma URL para buscar a imagem, não a imagem em si.
-      pixQrCode: base64Link,
+      pixQrCode: pngLink,
       pixCopyPaste: qr?.text,
     };
   }

@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { getRequestTenantId } from "@/lib/tenant-request";
 import { OrderTracker } from "@/components/tracking/OrderTracker";
 import { PixPayment } from "@/components/tracking/PixPayment";
+import { toQrImageSrc } from "@/lib/pix-qr";
 import { LoginPromptBanner } from "@/components/tracking/LoginPromptBanner";
 
 interface Props {
@@ -34,8 +35,8 @@ export default async function TrackPage({ params, searchParams }: Props) {
       {!isLoggedIn && <LoginPromptBanner orderId={orderId} />}
 
       {/* Pix payment display */}
-      {order.paymentMethod === "PIX" && order.paymentStatus !== "PAID" && pix && (
-        <PixPayment qrCodeBase64={pix} copyPaste={copy ?? ""} />
+      {order.paymentMethod === "PIX" && order.paymentStatus !== "PAID" && (pix || copy) && (
+        <PixPayment qrSrc={toQrImageSrc(pix)} copyPaste={copy ?? ""} />
       )}
 
       {/* Payment result feedback */}

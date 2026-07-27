@@ -158,8 +158,13 @@ export default function CheckoutPage() {
         // Decide pelo que a cobrança devolveu, não pelo método: alguns
         // gateways entregam QR code, outros só uma URL de checkout
         // hospedado, e isso varia por gateway e não por forma de pagamento.
-        if (payment.pixQrCode && payment.pixCopyPaste) {
-          router.push(`/track/${order.id}?pix=${encodeURIComponent(payment.pixQrCode)}&copy=${encodeURIComponent(payment.pixCopyPaste)}`);
+        // O copia-e-cola basta pra pagar; a imagem do QR é conveniência.
+        // Alguns gateways devolvem só um dos dois.
+        if (payment.pixCopyPaste || payment.pixQrCode) {
+          const qs = new URLSearchParams();
+          if (payment.pixQrCode) qs.set("pix", payment.pixQrCode);
+          if (payment.pixCopyPaste) qs.set("copy", payment.pixCopyPaste);
+          router.push(`/track/${order.id}?${qs}`);
         } else if (payment.checkoutUrl) {
           window.location.href = payment.checkoutUrl;
         } else {

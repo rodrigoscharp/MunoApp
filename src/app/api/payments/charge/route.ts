@@ -50,8 +50,19 @@ async function handlePost(req: NextRequest, tenantId: string) {
     );
   }
 
+  const provider = getPaymentProvider(connection.provider);
+
+  // O gateway conectado pode não cobrir o método pedido. A UI já filtra,
+  // mas esta rota é alcançável direto — sem esta checagem, um gateway de
+  // PIX puro receberia um pedido marcado como cartão.
+  if (!provider.meta.methods.includes(paymentMethod)) {
+    return NextResponse.json(
+      { error: "Este restaurante não aceita essa forma de pagamento no momento." },
+      { status: 422 }
+    );
+  }
+
   try {
-    const provider = getPaymentProvider(connection.provider);
 
     const charge = await provider.createCharge(
       {
@@ -85,6 +96,19 @@ async function handlePost(req: NextRequest, tenantId: string) {
     // Só a mensagem — o erro pode embutir o corpo da request (que inclui
     // o access_token usado na chamada).
     console.error("Payment error:", extractErrorMessage(err));
-    return NextResponse.json({ error: "Erro ao criar pagamento" }, { status: 500 });
+
+    // O pedido foi criado antes da cobrança. Se a cobrança falhou, ele não
+    // pode ficar de pé: apareceria na cozinha como pedido a preparar, sem
+    // ninguém ter pago. Cancelar deixa o rastro sem virar comida perdida.
+    await prisma.order
+      .update({ where: { id: orderId }, data: { status: "CANCELLED" } })
+      .catch((cancelErr) =>
+        console.error("Falha ao cancelar pedido sem cobrança:", extractErrorMessage(cancelErr))
+      );
+
+    return NextResponse.json(
+      { error: "Não foi possível iniciar o pagamento. O pedido foi cancelado." },
+      { status: 500 }
+    );
   }
 }

@@ -105,6 +105,12 @@ export class AbacatePayAdapter implements PaymentProvider {
     const { apiKey } = decryptCredentials(connection.credentials);
     if (!apiKey) throw new Error("Conexão do Abacate Pay sem chave de API.");
 
+    // Gateway de PIX puro: recusa em vez de gerar um PIX silenciosamente
+    // para um pedido marcado como cartão.
+    if (order.paymentMethod !== "PIX") {
+      throw new Error("O Abacate Pay está configurado apenas para Pix neste restaurante.");
+    }
+
     // Valor em centavos. O objeto customer é opcional pro PIX — por isso
     // este gateway não exige CPF do pagador.
     const response = await call<{
