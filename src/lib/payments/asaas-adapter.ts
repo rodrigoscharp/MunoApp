@@ -82,6 +82,7 @@ export class AsaasAdapter implements PaymentProvider {
     methods: ["PIX", "CREDIT_CARD"],
     requiresPayerDocument: true,
     brandColor: "#0057FF",
+    recommended: true,
     setupSteps: [
       {
         title: "Gere sua chave de API",

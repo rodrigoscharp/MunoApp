@@ -105,6 +105,14 @@ export default function PagamentosPage() {
                       {isActive && (
                         <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" title="Conectado" />
                       )}
+                      {meta.recommended && (
+                        <span
+                          className="shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-brand-light text-brand border border-brand-muted"
+                          title="Cobre Pix e cartão no mesmo gateway"
+                        >
+                          Recomendado
+                        </span>
+                      )}
                     </div>
 
                     <p className="text-xs text-neutral-500 mt-0.5">

@@ -82,6 +82,7 @@ export class MercadoPagoAdapter implements PaymentProvider {
     // O MP identifica o pagador pelo e-mail, não precisa de CPF.
     requiresPayerDocument: false,
     brandColor: "#00B1EA",
+    recommended: true,
     setupSteps: [
       {
         title: "Crie uma aplicação no Mercado Pago",

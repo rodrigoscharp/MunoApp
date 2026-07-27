@@ -71,6 +71,10 @@ export interface PaymentProviderMeta {
   // O passo a passo de configuração, na ordem real em que o lojista precisa
   // executar. A tela numera e marca o que já está feito.
   setupSteps: SetupStep[];
+  // Destacado na tela como sugestão. Hoje marca os gateways que cobrem PIX
+  // e cartão ao mesmo tempo — quem conecta um deles não precisa escolher
+  // entre as duas formas de pagamento.
+  recommended?: boolean;
 }
 
 export interface SetupStep {

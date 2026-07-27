@@ -1,8 +1,9 @@
-// Marca visual do gateway: quadrado com a cor da marca e a inicial.
-// Não é o logo oficial — é um identificador desenhado aqui, pra não
-// depender de arquivo de marca de terceiro no repositório. Para usar o logo
-// real, solte um SVG em /public/gateways/<id>.svg: o componente passa a
-// preferir o arquivo e só cai no quadrado se ele não existir.
+// Marca visual do gateway. Se existir /public/gateways/<id>.svg, mostra o
+// logo real; senão, um quadrado com a cor da marca e as iniciais.
+//
+// O quadrado é sempre a base, e o logo entra por cima só depois de carregar
+// de verdade — assim um arquivo ausente nunca pisca imagem quebrada, e
+// soltar o SVG na pasta passa a funcionar sem tocar em código.
 "use client";
 
 import { useState } from "react";
@@ -27,37 +28,35 @@ function initials(label: string): string {
 }
 
 export function GatewayMark({ id, label, color, size = 44 }: Props) {
-  const [hasLogo, setHasLogo] = useState(true);
-
-  if (hasLogo) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={`/gateways/${id}.svg`}
-        alt=""
-        width={size}
-        height={size}
-        onError={() => setHasLogo(false)}
-        className="rounded-xl shrink-0 object-contain"
-        style={{ width: size, height: size }}
-      />
-    );
-  }
+  const [logoLoaded, setLogoLoaded] = useState(false);
 
   return (
     <div
-      aria-hidden
-      className="rounded-xl shrink-0 flex items-center justify-center font-bold text-white"
-      style={{
-        width: size,
-        height: size,
-        background: color,
-        fontSize: size * 0.34,
-        // Sombra na própria cor: liga o quadrado à marca sem virar borda.
-        boxShadow: `0 2px 8px ${color}40`,
-      }}
+      className="relative rounded-xl shrink-0 overflow-hidden"
+      style={{ width: size, height: size }}
     >
-      {initials(label)}
+      <div
+        aria-hidden
+        className="absolute inset-0 flex items-center justify-center font-bold text-white transition-opacity"
+        style={{
+          background: color,
+          fontSize: size * 0.34,
+          // Sombra na própria cor: liga o quadrado à marca sem virar borda.
+          boxShadow: `0 2px 8px ${color}40`,
+          opacity: logoLoaded ? 0 : 1,
+        }}
+      >
+        {initials(label)}
+      </div>
+
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`/gateways/${id}.svg`}
+        alt=""
+        onLoad={() => setLogoLoaded(true)}
+        className="absolute inset-0 w-full h-full object-contain bg-white transition-opacity"
+        style={{ opacity: logoLoaded ? 1 : 0 }}
+      />
     </div>
   );
 }
