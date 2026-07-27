@@ -26,12 +26,26 @@ const OPTIONS: { value: PaymentMethod; label: string; description: string; icon:
 interface Props {
   value: PaymentMethod;
   onChange: (method: PaymentMethod) => void;
+  // Métodos que este restaurante aceita, vindos de /api/payments/methods.
+  // null enquanto carrega: não mostramos opção nenhuma de pagamento online
+  // antes de saber, porque uma opção que aparece e some é pior que uma que
+  // demora a aparecer.
+  enabled: PaymentMethod[] | null;
 }
 
-export function PaymentMethodSelector({ value, onChange }: Props) {
+export function PaymentMethodSelector({ value, onChange, enabled }: Props) {
+  const available = enabled ?? ["CASH"];
+  const options = OPTIONS.filter((option) => available.includes(option.value));
+
   return (
     <div className="space-y-2">
-      {OPTIONS.map((option) => (
+      {enabled !== null && !enabled.includes("PIX") && !enabled.includes("CREDIT_CARD") && (
+        <p className="text-xs text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2">
+          Este restaurante está aceitando apenas pagamento na entrega no momento.
+        </p>
+      )}
+
+      {options.map((option) => (
         <label
           key={option.value}
           className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition ${

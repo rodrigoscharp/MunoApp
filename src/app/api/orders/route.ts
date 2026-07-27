@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { broadcastTenantEvent } from "@/lib/realtime";
+import { getEnabledPaymentMethods } from "@/lib/payments/factory";
+import { assertMethodAllowed, PaymentMethodNotAllowedError } from "@/lib/payments/method-guard";
 import { z } from "zod";
 
 const orderSchema = z.object({
@@ -88,6 +90,17 @@ export async function POST(req: NextRequest) {
     }
 
     const { items, paymentMethod, notes, customerName, customerPhone, deliveryType, deliveryAddress, deliveryFee: clientFee, tableId } = parsed.data;
+
+    // Endpoint público: a UI esconder o botão não impede ninguém de pedir
+    // PIX num restaurante que não tem gateway conectado.
+    try {
+      assertMethodAllowed(paymentMethod, await getEnabledPaymentMethods(tenantId));
+    } catch (err) {
+      if (err instanceof PaymentMethodNotAllowedError) {
+        return NextResponse.json({ error: err.message }, { status: 422 });
+      }
+      throw err;
+    }
 
     const menuItems = await prisma.menuItem.findMany({
       where: { id: { in: items.map((i) => i.menuItemId) } },

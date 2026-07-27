@@ -33,7 +33,8 @@ type DeliveryType = "PICKUP" | "DELIVERY";
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, total, clearCart } = useCart();
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("PIX");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
+  const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[] | null>(null);
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("PICKUP");
   const [selectedZone, setSelectedZone] = useState<DeliveryZone | null>(null);
   const [zones, setZones] = useState<DeliveryZone[]>([]);
@@ -43,6 +44,26 @@ export default function CheckoutPage() {
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
+
+  // Quais formas de pagamento este restaurante aceita depende do gateway que
+  // ele conectou — sem conexão ativa, só dinheiro na entrega.
+  useEffect(() => {
+    fetch("/api/payments/methods")
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.statusText)))
+      .then((data: { methods: PaymentMethod[] }) => {
+        setEnabledMethods(data.methods);
+        // Prefere PIX quando disponível; se o método selecionado deixou de
+        // ser aceito, cai pra dinheiro em vez de travar o pedido.
+        setPaymentMethod((current) =>
+          data.methods.includes(current)
+            ? data.methods.includes("PIX")
+              ? "PIX"
+              : current
+            : "CASH"
+        );
+      })
+      .catch(() => setEnabledMethods(["CASH"]));
+  }, []);
 
   useEffect(() => {
     fetch("/api/delivery-zones")
@@ -259,7 +280,11 @@ export default function CheckoutPage() {
           {/* Pagamento */}
           <div className="bg-white rounded-xl border border-neutral-200 p-5">
             <h2 className="font-semibold text-neutral-900 mb-3">Pagamento</h2>
-            <PaymentMethodSelector value={paymentMethod} onChange={setPaymentMethod} />
+            <PaymentMethodSelector
+              value={paymentMethod}
+              onChange={setPaymentMethod}
+              enabled={enabledMethods}
+            />
           </div>
 
           {error && (
