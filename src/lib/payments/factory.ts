@@ -4,6 +4,7 @@ import { MercadoPagoAdapter } from "./mercadopago-adapter";
 import { AsaasAdapter } from "./asaas-adapter";
 import { StripeAdapter } from "./stripe-adapter";
 import { AbacatePayAdapter } from "./abacatepay-adapter";
+import { PagBankAdapter } from "./pagbank-adapter";
 import type { PaymentProvider } from "./types";
 
 const adapters: Record<string, PaymentProvider> = {
@@ -11,6 +12,7 @@ const adapters: Record<string, PaymentProvider> = {
   asaas: new AsaasAdapter(),
   stripe: new StripeAdapter(),
   abacate_pay: new AbacatePayAdapter(),
+  pagbank: new PagBankAdapter(),
 };
 
 export function listPaymentProviders(): PaymentProvider[] {
