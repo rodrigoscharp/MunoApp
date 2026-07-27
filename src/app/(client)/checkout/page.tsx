@@ -155,10 +155,15 @@ export default function CheckoutPage() {
         if (!paymentRes.ok) throw new Error("Erro ao iniciar pagamento");
         const payment = await paymentRes.json();
         clearCart();
-        if (paymentMethod === "PIX") {
+        // Decide pelo que a cobrança devolveu, não pelo método: alguns
+        // gateways entregam QR code, outros só uma URL de checkout
+        // hospedado, e isso varia por gateway e não por forma de pagamento.
+        if (payment.pixQrCode && payment.pixCopyPaste) {
           router.push(`/track/${order.id}?pix=${encodeURIComponent(payment.pixQrCode)}&copy=${encodeURIComponent(payment.pixCopyPaste)}`);
-        } else {
+        } else if (payment.checkoutUrl) {
           window.location.href = payment.checkoutUrl;
+        } else {
+          router.push(`/track/${order.id}`);
         }
       } else {
         clearCart();

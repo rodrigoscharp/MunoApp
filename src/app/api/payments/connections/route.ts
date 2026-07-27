@@ -96,9 +96,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: extractErrorMessage(err) }, { status: 400 });
   }
 
+  // O cadastro é em duas etapas: primeiro a credencial de cobrança, depois
+  // o segredo do webhook (que o gateway só gera depois que a URL é
+  // cadastrada lá). Na segunda etapa o lojista digita só o segredo — mesclar
+  // com o que já está salvo evita obrigar ele a recolar a chave inteira.
+  const existing = await prismaUnscoped.paymentConnection.findUnique({
+    where: { tenantId_provider: { tenantId, provider: providerId } },
+  });
+  const merged = {
+    ...(existing ? decryptCredentials(existing.credentials) : {}),
+    ...parsed.data.credentials,
+  };
+
   // Valida as credenciais contra os campos que ESTE gateway declara.
   const parsedCredentials = buildCredentialsSchema(provider.meta.credentialFields).safeParse(
-    parsed.data.credentials
+    merged
   );
   if (!parsedCredentials.success) {
     return NextResponse.json(

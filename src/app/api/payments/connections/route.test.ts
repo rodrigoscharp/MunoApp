@@ -14,12 +14,14 @@ const findMany = vi.fn();
 const upsert = vi.fn();
 const updateMany = vi.fn();
 const deleteMany = vi.fn();
+const findUnique = vi.fn();
 const $transaction = vi.fn(async (ops: unknown[]) => Promise.all(ops as Promise<unknown>[]));
 
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
     paymentConnection: {
       findMany: (...args: unknown[]) => findMany(...args),
+      findUnique: (...args: unknown[]) => findUnique(...args),
       upsert: (...args: unknown[]) => upsert(...args),
       updateMany: (...args: unknown[]) => updateMany(...args),
       deleteMany: (...args: unknown[]) => deleteMany(...args),
@@ -92,6 +94,7 @@ beforeEach(() => {
   auth.mockResolvedValue({ user: { role: "ADMIN", tenantId: TENANT } });
   validateCredentials.mockResolvedValue({ ok: true, externalAccountId: "acc-9" });
   findMany.mockResolvedValue([]);
+  findUnique.mockResolvedValue(null);
   upsert.mockResolvedValue({});
   updateMany.mockResolvedValue({ count: 0 });
   deleteMany.mockResolvedValue({ count: 1 });
@@ -221,9 +224,45 @@ describe("DELETE", () => {
 
   it("depois de desconectar, o provider volta sem conexão nenhuma", async () => {
     findMany.mockResolvedValue([]);
+  findUnique.mockResolvedValue(null);
 
     const body = await (await DELETE(deleteRequest("fake_gw"))).json();
 
     expect(body.providers[0].connection).toBeNull();
+  });
+});
+
+// --- fluxo de duas etapas -------------------------------------------------
+
+describe("POST — cadastro em duas etapas", () => {
+  it("na segunda etapa aceita só o webhookSecret, sem exigir recolar a chave", async () => {
+    // Etapa 1 já aconteceu: a conexão existe com a chave salva.
+    findUnique.mockResolvedValue(storedConnection({ apiKey: "chave-ja-salva" }));
+
+    const res = await POST(postRequest({ provider: "fake_gw", credentials: { webhookSecret: "s" } }));
+
+    expect(res.status).toBe(200);
+    expect(upsert.mock.calls[0][0].update.status).toBe("active");
+  });
+
+  it("mescla: a chave antiga é preservada ao salvar só o secret", async () => {
+    findUnique.mockResolvedValue(storedConnection({ apiKey: "chave-ja-salva" }));
+
+    await POST(postRequest({ provider: "fake_gw", credentials: { webhookSecret: "s" } }));
+
+    // validateCredentials recebe a credencial completa, não só o pedaço novo.
+    expect(validateCredentials).toHaveBeenCalledWith({
+      apiKey: "chave-ja-salva",
+      webhookSecret: "s",
+    });
+  });
+
+  it("sem conexão prévia, campo obrigatório ausente ainda é recusado", async () => {
+    findUnique.mockResolvedValue(null);
+
+    const res = await POST(postRequest({ provider: "fake_gw", credentials: { webhookSecret: "s" } }));
+
+    expect(res.status).toBe(422);
+    expect(upsert).not.toHaveBeenCalled();
   });
 });
