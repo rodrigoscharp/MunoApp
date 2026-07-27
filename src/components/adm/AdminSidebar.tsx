@@ -17,6 +17,7 @@ import {
   Bike,
   TableProperties,
   MessageSquare,
+  CreditCard,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -35,6 +36,7 @@ const NAV_GROUPS = [
       { href: "/adm/menu",        label: "Cardápio",      icon: UtensilsCrossed, exact: false },
       { href: "/adm/motoboys",    label: "Motoboys",      icon: Bike,            exact: false },
       { href: "/adm/mesas",       label: "Mesas (QR)",    icon: TableProperties, exact: false },
+      { href: "/adm/pagamentos",  label: "Pagamentos",    icon: CreditCard,      exact: false },
     ],
   },
 ];
