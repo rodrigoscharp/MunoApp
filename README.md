@@ -25,7 +25,7 @@ O **Muno V2** é uma plataforma full-stack para restaurantes que cobre toda a jo
 - **Gestão de Mesas no Admin** — cards com flag de status (livre/em aberto), quantidade de pedidos e total em aberto por mesa
 - **Fechar Conta** — agrupa os pedidos por cliente, permite 10% de serviço opcional, divide o pagamento em múltiplas formas (Pix/Cartão/Dinheiro) e imprime o recibo
 - **Rastreamento em Tempo Real** — Mapa Leaflet com atualização de GPS do motoboy
-- **Pagamentos Integrados** — PIX (QR Code), Cartão de Crédito (Mercado Pago) e Dinheiro
+- **Pagamentos self-service** — cada restaurante conecta o próprio gateway em `/adm/pagamentos` e recebe direto na conta dele. Sem gateway conectado, só dinheiro na entrega.
 
 ---
 
@@ -39,7 +39,7 @@ O **Muno V2** é uma plataforma full-stack para restaurantes que cobre toda a jo
 - **Autenticação:** NextAuth v5 (JWT + Credentials)
 - **Estado:** Zustand
 - **Formulários/Validação:** React Hook Form + Zod
-- **Pagamentos:** Mercado Pago SDK
+- **Pagamentos:** adapters por gateway (Mercado Pago hoje), credencial por restaurante
 - **E-mail:** Resend
 - **IA:** Groq API (LLaMA 3.3 70B)
 - **Mapas:** Leaflet + React Leaflet
@@ -62,7 +62,7 @@ src/
 │   │   ├── menu/
 │   │   ├── motoboy/orders/
 │   │   ├── orders/
-│   │   ├── payments/           # Mercado Pago + webhook
+│   │   ├── payments/           # cobrança, webhook por tenant, conexões
 │   │   ├── settings/
 │   │   ├── tables/
 │   │   └── users/motoboys/
@@ -118,7 +118,7 @@ Principais modelos Prisma:
 
 - Node.js 20+
 - Conta no Supabase (banco + storage)
-- Conta no Mercado Pago (payments)
+- Conta num gateway de pagamento (cada restaurante conecta a própria, pelo painel)
 - Conta no Resend (e-mails)
 - Conta no Groq (IA)
 
@@ -154,9 +154,10 @@ SUPABASE_SERVICE_ROLE_KEY=""
 NEXTAUTH_SECRET=""        # gerar com: openssl rand -base64 32
 NEXTAUTH_URL="http://localhost:3000"
 
-# Pagamentos (Mercado Pago)
-MERCADOPAGO_ACCESS_TOKEN=""
-MERCADOPAGO_WEBHOOK_SECRET=""
+# Pagamentos — a plataforma NÃO tem conta de gateway.
+# Cada restaurante cola a própria credencial em /adm/pagamentos, e ela é
+# gravada criptografada com esta chave (32 bytes hex: openssl rand -hex 32).
+PAYMENT_TOKEN_ENCRYPTION_KEY=""
 
 # E-mail (Resend)
 RESEND_API_KEY=""
@@ -219,7 +220,7 @@ npm run db:studio    # Abrir Prisma Studio (localhost:5555)
 | Serviço | Finalidade |
 |---------|-----------|
 | **Supabase** | PostgreSQL gerenciado + armazenamento de imagens |
-| **Mercado Pago** | PIX (QR Code) e Cartão de Crédito |
+| **Gateway de pagamento** | Conectado por cada restaurante em `/adm/pagamentos`. O dinheiro cai direto na conta dele — a Muno nunca é parte da transação. |
 | **Resend** | E-mails transacionais (reset de senha) |
 | **Groq** | LLM para o assistente de cardápio (gratuito) |
 | **Leaflet / OSM** | Mapas de rastreamento de entrega |
@@ -234,7 +235,9 @@ O projeto está configurado para deploy no **Vercel** (região `gru1` — São P
 npm run build
 ```
 
-Configure todas as variáveis de ambiente no painel da Vercel antes do deploy. O webhook do Mercado Pago deve apontar para `https://[seu-dominio]/api/payments/webhook`.
+Configure todas as variáveis de ambiente no painel da Vercel antes do deploy.
+
+O webhook **não** é configurado pela plataforma: cada restaurante cadastra, no painel do próprio gateway, a URL que aparece em `/adm/pagamentos` — `https://[dominio-do-tenant]/api/payments/webhook/[gateway]/[tenantId]` — e cola de volta a chave secreta que o gateway gerar.
 
 ---
 
