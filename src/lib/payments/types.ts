@@ -58,3 +58,12 @@ export interface PaymentProvider {
   exchangeAuthorizationCode(code: string, tenantId: string): Promise<PaymentConnection>;
   refreshToken(connection: PaymentConnection): Promise<PaymentConnection>;
 }
+
+export interface CredentialField {
+  key: string;
+  label: string;
+  help: string;
+  type: "text" | "secret" | "select";
+  options?: { value: string; label: string }[];
+  required: boolean;
+}
