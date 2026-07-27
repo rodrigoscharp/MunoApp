@@ -4,6 +4,11 @@ import { prismaUnscoped } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { listPaymentProviders, getPaymentProvider } from "@/lib/payments/factory";
 import { encryptCredentials, decryptCredentials, maskCredentials } from "@/lib/payments/credentials";
+import {
+  buildCredentialsSchema,
+  resolveConnectionStatus,
+  firstIssueMessage,
+} from "@/lib/payments/connection-rules";
 import { extractErrorMessage } from "@/lib/error-message";
 import { z } from "zod";
 
@@ -71,12 +76,18 @@ export async function POST(req: NextRequest) {
 
   const tenantId = session.user.tenantId;
 
-  const body = await req.json();
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Corpo da requisição inválido" }, { status: 400 });
+  }
+
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
+    return NextResponse.json({ error: firstIssueMessage(parsed.error) }, { status: 400 });
   }
-  const { provider: providerId, credentials } = parsed.data;
+  const { provider: providerId } = parsed.data;
 
   let provider;
   try {
@@ -85,15 +96,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: extractErrorMessage(err) }, { status: 400 });
   }
 
+  // Valida as credenciais contra os campos que ESTE gateway declara.
+  const parsedCredentials = buildCredentialsSchema(provider.meta.credentialFields).safeParse(
+    parsed.data.credentials
+  );
+  if (!parsedCredentials.success) {
+    return NextResponse.json(
+      { error: firstIssueMessage(parsedCredentials.error) },
+      { status: 422 }
+    );
+  }
+  const credentials = parsedCredentials.data as Record<string, string>;
+
   // Credencial que não passa no teste do gateway NUNCA entra no banco.
   const check = await provider.validateCredentials(credentials);
   if (!check.ok) {
     return NextResponse.json({ error: check.reason }, { status: 422 });
   }
 
-  // Só vira 'active' quando o webhook secret estiver presente — sem ele não
-  // conseguiríamos confirmar pagamento nenhum.
-  const status = credentials.webhookSecret ? "active" : "pending_webhook";
+  const status = resolveConnectionStatus(credentials);
 
   await prismaUnscoped.$transaction([
     // Um gateway ativo por tenant: ativar um desativa os outros.
@@ -140,12 +161,14 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: extractErrorMessage(err) }, { status: 400 });
   }
 
-  // Desconectar é o mesmo estado de "perdeu a disputa" pra ativação de outro
-  // gateway: 'disabled'. Mantém o registro (credenciais, histórico) em vez
-  // de apagar, caso o lojista reconecte depois.
-  await prismaUnscoped.paymentConnection.updateMany({
+  // Desconectar apaga a linha, não marca 'disabled': guardar a credencial
+  // depois de um "desconectar" explícito deixaria um token vivo e
+  // descriptografável que qualquer caminho futuro poderia reativar sem
+  // consentimento novo. Manter também não ajudaria num reconectar — o app
+  // nunca devolve o token guardado, então o lojista cola de novo de qualquer
+  // forma. deleteMany (e não delete) pra ser idempotente.
+  await prismaUnscoped.paymentConnection.deleteMany({
     where: { tenantId, provider: providerId },
-    data: { status: "disabled" },
   });
 
   return NextResponse.json(await buildProvidersPayload(tenantId));
