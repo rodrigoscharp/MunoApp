@@ -1,35 +1,30 @@
 import crypto from "node:crypto";
-import { MercadoPagoConfig, OAuth, Payment, Preference } from "mercadopago";
+import { MercadoPagoConfig, Payment, Preference } from "mercadopago";
 import type { PaymentConnection } from "@prisma/client";
-import { prismaUnscoped } from "@/lib/prisma";
-import { signOAuthState } from "@/lib/oauth-state";
-import { encryptSecret, decryptSecret } from "@/lib/crypto";
-import { extractErrorMessage } from "@/lib/error-message";
+import { decryptCredentials } from "./credentials";
 import { InvalidWebhookSignatureError } from "./types";
-import type { Charge, ChargeableOrder, PaymentProvider, WebhookResult } from "./types";
+import type {
+  Charge,
+  ChargeableOrder,
+  CredentialCheck,
+  PaymentProvider,
+  PaymentProviderMeta,
+  WebhookResult,
+} from "./types";
 
-const PLATFORM_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN;
-const CLIENT_ID = process.env.MERCADOPAGO_CLIENT_ID;
-const CLIENT_SECRET = process.env.MERCADOPAGO_CLIENT_SECRET;
-const WEBHOOK_SECRET = process.env.MERCADOPAGO_WEBHOOK_SECRET;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 
-// Percentual de comissão da Muno sobre pedidos de tenants já conectados via
-// marketplace. Só é aplicado quando existe uma PaymentConnection — sem
-// conexão, o adapter cai no token da própria plataforma e não há split.
-const PLATFORM_COMMISSION_PERCENT = Number(process.env.PLATFORM_COMMISSION_PERCENT ?? "5");
-
-function configFor(connection: PaymentConnection | null): MercadoPagoConfig {
-  const accessToken = connection ? decryptSecret(connection.accessToken) : PLATFORM_ACCESS_TOKEN;
-  if (!accessToken) {
-    throw new Error("MERCADOPAGO_ACCESS_TOKEN não configurado e tenant sem conta conectada.");
-  }
+function configFor(connection: PaymentConnection): MercadoPagoConfig {
+  const { accessToken } = decryptCredentials(connection.credentials);
+  if (!accessToken) throw new Error("Conexão do Mercado Pago sem access token.");
   return new MercadoPagoConfig({ accessToken });
 }
 
-function calculateCommission(total: number, connection: PaymentConnection | null): number | undefined {
-  if (!connection) return undefined;
-  return Number(((total * PLATFORM_COMMISSION_PERCENT) / 100).toFixed(2));
+// A URL do webhook carrega o tenant porque, sem aplicação de plataforma, o
+// segredo de assinatura é de cada lojista — precisamos saber de quem é a
+// notificação antes de conseguir validá-la.
+function notificationUrl(connection: PaymentConnection): string {
+  return `${APP_URL}/api/payments/webhook/mercado_pago/${connection.tenantId}`;
 }
 
 function mapPaymentStatus(status: string | undefined): WebhookResult["status"] {
@@ -51,15 +46,9 @@ function mapPaymentStatus(status: string | undefined): WebhookResult["status"] {
   }
 }
 
-// Valida a assinatura do webhook do MP (header x-signature: "ts=...,v1=...").
-// Ver https://www.mercadopago.com.br/developers/pt/docs/checkout-api/webhooks#editor_5
-function isValidSignature(signature: string | null, requestId: string | null, dataId: string | null): boolean {
-  if (!WEBHOOK_SECRET) {
-    // Sem secret configurado ainda — não bloqueia (compatível com o setup
-    // atual), mas fica registrado pra não passar despercebido.
-    console.warn("[mercadopago] MERCADOPAGO_WEBHOOK_SECRET não configurado — assinatura do webhook não validada.");
-    return true;
-  }
+function isValidSignature(secret: string, headers: Headers, dataId: string): boolean {
+  const signature = headers.get("x-signature");
+  const requestId = headers.get("x-request-id");
   if (!signature) return false;
 
   const parts = Object.fromEntries(
@@ -72,12 +61,11 @@ function isValidSignature(signature: string | null, requestId: string | null, da
   const hash = parts.v1;
   if (!ts || !hash) return false;
 
-  const manifest = `id:${dataId ?? ""};request-id:${requestId ?? ""};ts:${ts};`;
-  const expected = crypto.createHmac("sha256", WEBHOOK_SECRET).update(manifest).digest("hex");
+  const manifest = `id:${dataId};request-id:${requestId ?? ""};ts:${ts};`;
+  const expected = crypto.createHmac("sha256", secret).update(manifest).digest("hex");
 
-  // timingSafeEqual lança RangeError se os buffers tiverem tamanhos
-  // diferentes (ex.: alguém manda um v1 curto/forjado) — trata como
-  // assinatura inválida em vez de deixar a exceção escapar.
+  // timingSafeEqual lança RangeError com buffers de tamanhos diferentes
+  // (ex.: v1 forjado curto) — tratamos como assinatura inválida.
   const expectedBuf = Buffer.from(expected);
   const hashBuf = Buffer.from(hash);
   if (expectedBuf.length !== hashBuf.length) return false;
@@ -86,9 +74,48 @@ function isValidSignature(signature: string | null, requestId: string | null, da
 }
 
 export class MercadoPagoAdapter implements PaymentProvider {
-  async createCharge(order: ChargeableOrder, connection: PaymentConnection | null): Promise<Charge> {
+  meta: PaymentProviderMeta = {
+    id: "mercado_pago",
+    label: "Mercado Pago",
+    docsUrl: "https://www.mercadopago.com.br/developers/panel/app",
+    methods: ["PIX", "CREDIT_CARD"],
+    credentialFields: [
+      {
+        key: "accessToken",
+        label: "Access token de produção",
+        help: "No painel do Mercado Pago: Suas integrações → sua aplicação → Credenciais de produção.",
+        type: "secret",
+        required: true,
+      },
+      {
+        key: "webhookSecret",
+        label: "Chave secreta do webhook",
+        help: "Gerada ao cadastrar a URL de notificação na sua aplicação, em Webhooks.",
+        type: "secret",
+        required: false,
+      },
+    ],
+  };
+
+  async validateCredentials(credentials: Record<string, string>): Promise<CredentialCheck> {
+    const accessToken = credentials.accessToken;
+    if (!accessToken) return { ok: false, reason: "Informe o access token." };
+
+    try {
+      const res = await fetch("https://api.mercadopago.com/users/me", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) return { ok: false, reason: "O Mercado Pago recusou esse access token." };
+
+      const user = (await res.json()) as { id?: number | string };
+      return { ok: true, externalAccountId: user.id ? String(user.id) : undefined };
+    } catch {
+      return { ok: false, reason: "Não foi possível falar com o Mercado Pago agora." };
+    }
+  }
+
+  async createCharge(order: ChargeableOrder, connection: PaymentConnection): Promise<Charge> {
     const mp = configFor(connection);
-    const applicationFee = calculateCommission(order.total, connection);
 
     if (order.paymentMethod === "PIX") {
       const paymentApi = new Payment(mp);
@@ -103,8 +130,7 @@ export class MercadoPagoAdapter implements PaymentProvider {
             last_name: order.customerName.split(" ").slice(1).join(" ") || ".",
           },
           external_reference: order.id,
-          notification_url: `${APP_URL}/api/payments/webhook`,
-          ...(applicationFee ? { application_fee: applicationFee } : {}),
+          notification_url: notificationUrl(connection),
         },
       });
 
@@ -132,14 +158,13 @@ export class MercadoPagoAdapter implements PaymentProvider {
         })),
         payer: { name: order.customerName },
         external_reference: order.id,
-        notification_url: `${APP_URL}/api/payments/webhook`,
+        notification_url: notificationUrl(connection),
         back_urls: {
           success: `${APP_URL}/track/${order.id}?payment=success`,
           failure: `${APP_URL}/track/${order.id}?payment=failure`,
           pending: `${APP_URL}/track/${order.id}?payment=pending`,
         },
         auto_return: "approved",
-        ...(applicationFee ? { marketplace_fee: applicationFee } : {}),
       },
     });
 
@@ -151,23 +176,34 @@ export class MercadoPagoAdapter implements PaymentProvider {
     };
   }
 
-  async handleWebhook(payload: unknown, signature: string | null, requestId: string | null): Promise<WebhookResult | null> {
+  async handleWebhook(
+    payload: unknown,
+    headers: Headers,
+    connection: PaymentConnection
+  ): Promise<WebhookResult | null> {
     const body = payload as { type?: string; data?: { id?: string } };
     if (body?.type !== "payment" || !body?.data?.id) return null;
 
-    if (!isValidSignature(signature, requestId, body.data.id)) {
+    const { accessToken, webhookSecret } = decryptCredentials(connection.credentials);
+
+    // Sem segredo configurado, NÃO processa. O tenantId da URL é público e
+    // não autentica nada — aceitar aqui deixaria qualquer um marcar pedido
+    // como pago.
+    if (!webhookSecret) {
+      console.error(
+        `[mercadopago] Tenant ${connection.tenantId} recebeu webhook sem webhookSecret configurado — recusando.`
+      );
+      throw new InvalidWebhookSignatureError();
+    }
+
+    if (!isValidSignature(webhookSecret, headers, body.data.id)) {
       console.error("[mercadopago] Assinatura do webhook inválida — rejeitando notificação.");
       throw new InvalidWebhookSignatureError();
     }
 
-    // O token usado aqui é sempre o da plataforma: a Muno é sempre
-    // aplicação/co-titular do pagamento (mesmo em cobranças com split), então
-    // consegue consultar qualquer pagamento originado pelos seus tenants.
-    if (!PLATFORM_ACCESS_TOKEN) {
-      throw new Error("MERCADOPAGO_ACCESS_TOKEN não configurado.");
-    }
-    const mp = new MercadoPagoConfig({ accessToken: PLATFORM_ACCESS_TOKEN });
-    const paymentApi = new Payment(mp);
+    // Agora consultamos com o token do próprio lojista: o pagamento é da
+    // conta dele, não existe mais token de plataforma.
+    const paymentApi = new Payment(new MercadoPagoConfig({ accessToken }));
     const payment = await paymentApi.get({ id: body.data.id });
 
     const orderId = payment.external_reference;
@@ -178,112 +214,5 @@ export class MercadoPagoAdapter implements PaymentProvider {
       providerPaymentId: String(payment.id),
       status: mapPaymentStatus(payment.status),
     };
-  }
-
-  async getOnboardingUrl(tenantId: string): Promise<string> {
-    if (!CLIENT_ID) {
-      throw new Error(
-        "MERCADOPAGO_CLIENT_ID não configurado — crie a Aplicação MP para Marketplace antes de habilitar o onboarding."
-      );
-    }
-    if (!PLATFORM_ACCESS_TOKEN) {
-      throw new Error("MERCADOPAGO_ACCESS_TOKEN não configurado.");
-    }
-
-    // state assinado (HMAC + expiração) — o callback valida antes de
-    // confiar no tenantId embutido nele (ver src/lib/oauth-state.ts).
-    const state = signOAuthState(tenantId);
-
-    const mp = new MercadoPagoConfig({ accessToken: PLATFORM_ACCESS_TOKEN });
-    const oauth = new OAuth(mp);
-    return oauth.getAuthorizationURL({
-      options: {
-        client_id: CLIENT_ID,
-        redirect_uri: `${APP_URL}/api/payments/callback`,
-        state,
-      },
-    });
-  }
-
-  async exchangeAuthorizationCode(code: string, tenantId: string): Promise<PaymentConnection> {
-    if (!CLIENT_ID || !CLIENT_SECRET || !PLATFORM_ACCESS_TOKEN) {
-      throw new Error("Aplicação MP Marketplace não configurada (client id/secret/access token ausentes).");
-    }
-
-    const mp = new MercadoPagoConfig({ accessToken: PLATFORM_ACCESS_TOKEN });
-    const oauth = new OAuth(mp);
-    const result = await oauth.create({
-      body: {
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-        code,
-        redirect_uri: `${APP_URL}/api/payments/callback`,
-      },
-    });
-
-    if (!result.access_token || !result.refresh_token || !result.expires_in) {
-      throw new Error("Resposta inesperada do Mercado Pago ao trocar o code por token.");
-    }
-
-    return prismaUnscoped.paymentConnection.upsert({
-      where: { tenantId_provider: { tenantId, provider: "mercado_pago" } },
-      update: {
-        accessToken: encryptSecret(result.access_token),
-        refreshToken: encryptSecret(result.refresh_token),
-        expiresAt: new Date(Date.now() + result.expires_in * 1000),
-        status: "active",
-        mpUserId: result.user_id ? String(result.user_id) : null,
-      },
-      create: {
-        tenantId,
-        provider: "mercado_pago",
-        accessToken: encryptSecret(result.access_token),
-        refreshToken: encryptSecret(result.refresh_token),
-        expiresAt: new Date(Date.now() + result.expires_in * 1000),
-        mpUserId: result.user_id ? String(result.user_id) : null,
-      },
-    });
-  }
-
-  async refreshToken(connection: PaymentConnection): Promise<PaymentConnection> {
-    if (!CLIENT_ID || !CLIENT_SECRET || !PLATFORM_ACCESS_TOKEN) {
-      throw new Error("Aplicação MP Marketplace não configurada (client id/secret/access token ausentes).");
-    }
-
-    const mp = new MercadoPagoConfig({ accessToken: PLATFORM_ACCESS_TOKEN });
-    const oauth = new OAuth(mp);
-
-    try {
-      const result = await oauth.refresh({
-        body: {
-          client_id: CLIENT_ID,
-          client_secret: CLIENT_SECRET,
-          refresh_token: decryptSecret(connection.refreshToken),
-        },
-      });
-
-      if (!result.access_token || !result.refresh_token || !result.expires_in) {
-        throw new Error("Resposta inesperada do Mercado Pago ao renovar o token.");
-      }
-
-      return await prismaUnscoped.paymentConnection.update({
-        where: { id: connection.id },
-        data: {
-          accessToken: encryptSecret(result.access_token),
-          refreshToken: encryptSecret(result.refresh_token),
-          expiresAt: new Date(Date.now() + result.expires_in * 1000),
-          status: "active",
-        },
-      });
-    } catch (err) {
-      // Nunca loga o objeto de erro inteiro aqui — algumas libs HTTP
-      // embutem o corpo da request (com client_secret/refresh_token) no
-      // próprio erro. Só a mensagem, nunca o objeto cru.
-      console.error(`[mercadopago] Falha ao renovar token do tenant ${connection.tenantId}: ${extractErrorMessage(err)}`);
-      return prismaUnscoped.paymentConnection.update({
-        where: { id: connection.id },
-        data: { status: "needs_reauth" },
-      });
-    }
   }
 }

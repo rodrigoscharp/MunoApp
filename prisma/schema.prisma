@@ -30,17 +30,16 @@ model Tenant {
 }
 
 model PaymentConnection {
-  id           String   @id @default(cuid())
-  tenantId     String
-  tenant       Tenant   @relation(fields: [tenantId], references: [id])
-  provider     String   @default("mercado_pago")
-  accessToken  String   // criptografado (AES-256-GCM) pela aplicação, ver src/lib/crypto.ts
-  refreshToken String   // idem
-  expiresAt    DateTime
-  status       String   @default("active") // 'active' | 'needs_reauth'
-  mpUserId     String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String   @id @default(cuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  provider          String   // 'mercado_pago' | 'asaas'
+  credentials       String   // JSON criptografado (AES-256-GCM), ver src/lib/payments/credentials.ts
+  externalAccountId String?  // id da conta no gateway, quando a validação devolver
+  status            String   // 'pending_webhook' | 'active' | 'invalid' | 'disabled'
+  lastCheckedAt     DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@unique([tenantId, provider])
   @@index([tenantId])

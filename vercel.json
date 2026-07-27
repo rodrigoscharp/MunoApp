@@ -3,11 +3,5 @@
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
-  "regions": ["gru1"],
-  "crons": [
-    {
-      "path": "/api/cron/refresh-payment-tokens",
-      "schedule": "0 3 * * *"
-    }
-  ]
+  "regions": ["gru1"]
 }

@@ -1,4 +1,4 @@
-import type { PaymentConnection } from "@prisma/client";
+import type { PaymentConnection, PaymentMethod } from "@prisma/client";
 
 // Pedido em formato mínimo que qualquer adapter precisa pra cobrar —
 // desacoplado do shape exato do model Prisma para não vazar detalhes de
@@ -42,23 +42,6 @@ export class InvalidWebhookSignatureError extends Error {
   }
 }
 
-export interface PaymentProvider {
-  // connection é null quando o tenant ainda não conectou a própria conta —
-  // nesse caso o adapter deve usar a conta da plataforma, sem split.
-  createCharge(order: ChargeableOrder, connection: PaymentConnection | null): Promise<Charge>;
-
-  // Retorna null se o payload não for uma notificação de pagamento relevante
-  // (responder 200 normalmente). Lança InvalidWebhookSignatureError se a
-  // assinatura não bater (o caller deve responder 401/403, nunca 200).
-  // requestId vem do header x-request-id, parte do manifesto assinado
-  // junto com o header x-signature.
-  handleWebhook(payload: unknown, signature: string | null, requestId: string | null): Promise<WebhookResult | null>;
-
-  getOnboardingUrl(tenantId: string): Promise<string>;
-  exchangeAuthorizationCode(code: string, tenantId: string): Promise<PaymentConnection>;
-  refreshToken(connection: PaymentConnection): Promise<PaymentConnection>;
-}
-
 export interface CredentialField {
   key: string;
   label: string;
@@ -66,4 +49,37 @@ export interface CredentialField {
   type: "text" | "secret" | "select";
   options?: { value: string; label: string }[];
   required: boolean;
+}
+
+export interface PaymentProviderMeta {
+  id: string;
+  label: string;
+  docsUrl: string;
+  methods: PaymentMethod[];
+  credentialFields: CredentialField[];
+}
+
+export type CredentialCheck =
+  | { ok: true; externalAccountId?: string }
+  | { ok: false; reason: string };
+
+export interface PaymentProvider {
+  meta: PaymentProviderMeta;
+
+  // Só confirma o que a API do gateway sabe responder (token válido, de qual
+  // conta). O webhook secret NÃO é verificável por API — ele só se prova na
+  // primeira notificação recebida.
+  validateCredentials(credentials: Record<string, string>): Promise<CredentialCheck>;
+
+  // connection não é nullable: sem conexão não existe cobrança. Não há mais
+  // fallback para conta da plataforma.
+  createCharge(order: ChargeableOrder, connection: PaymentConnection): Promise<Charge>;
+
+  // Recebe a connection porque o segredo de assinatura é de cada lojista.
+  // Recebe Headers inteiro porque cada gateway assina com headers diferentes.
+  handleWebhook(
+    payload: unknown,
+    headers: Headers,
+    connection: PaymentConnection
+  ): Promise<WebhookResult | null>;
 }
