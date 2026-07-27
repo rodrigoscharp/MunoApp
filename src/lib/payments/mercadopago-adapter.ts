@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { MercadoPagoConfig, Payment, Preference } from "mercadopago";
 import type { PaymentConnection } from "@prisma/client";
 import { decryptCredentials } from "./credentials";
-import { InvalidWebhookSignatureError } from "./types";
+import { InvalidWebhookSignatureError, safeParse } from "./types";
 import type {
   Charge,
   ChargeableOrder,
@@ -81,6 +81,29 @@ export class MercadoPagoAdapter implements PaymentProvider {
     methods: ["PIX", "CREDIT_CARD"],
     // O MP identifica o pagador pelo e-mail, não precisa de CPF.
     requiresPayerDocument: false,
+    brandColor: "#00B1EA",
+    setupSteps: [
+      {
+        title: "Crie uma aplicação no Mercado Pago",
+        body: "No painel de desenvolvedor, crie uma aplicação do tipo Pagamentos online. É ela que gera as credenciais da sua conta.",
+        link: { label: "Abrir painel do Mercado Pago", url: "https://www.mercadopago.com.br/developers/panel/app" },
+      },
+      {
+        title: "Copie o access token de produção",
+        body: "Dentro da aplicação, vá em Credenciais de produção e copie o Access Token. Cole no campo abaixo e salve.",
+        fills: ["accessToken"],
+      },
+      {
+        title: "Cadastre a URL de notificação",
+        body: "Ainda na aplicação, abra Webhooks, cole a URL abaixo e marque o evento Pagamentos.",
+        showsWebhookUrl: true,
+      },
+      {
+        title: "Cole a chave secreta do webhook",
+        body: "Ao salvar o webhook, o Mercado Pago mostra uma chave secreta. Cole aqui para que a gente consiga confirmar seus pagamentos.",
+        fills: ["webhookSecret"],
+      },
+    ],
     credentialFields: [
       {
         key: "accessToken",
@@ -179,11 +202,13 @@ export class MercadoPagoAdapter implements PaymentProvider {
   }
 
   async handleWebhook(
-    payload: unknown,
+    rawBody: string,
     headers: Headers,
     connection: PaymentConnection
   ): Promise<WebhookResult | null> {
-    const body = payload as { type?: string; data?: { id?: string } };
+    // O MP assina um manifesto com o id do recurso, não o corpo — então
+    // aqui o parse é só pra ler o payload.
+    const body = safeParse(rawBody) as { type?: string; data?: { id?: string } } | null;
     if (body?.type !== "payment" || !body?.data?.id) return null;
 
     const { accessToken, webhookSecret } = decryptCredentials(connection.credentials);

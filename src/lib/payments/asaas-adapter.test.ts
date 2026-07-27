@@ -26,10 +26,11 @@ const fullCreds = {
   webhookSecret: WEBHOOK_TOKEN,
 };
 
-const paymentEvent = {
+const paymentEventObj = {
   event: "PAYMENT_RECEIVED",
   payment: { id: "pay_123", status: "RECEIVED", externalReference: "order-1" },
 };
+const paymentEvent = JSON.stringify(paymentEventObj);
 
 const adapter = new AsaasAdapter();
 
@@ -73,7 +74,7 @@ describe("handleWebhook — autenticação", () => {
     const headers = new Headers({ "asaas-access-token": WEBHOOK_TOKEN });
 
     const result = await adapter.handleWebhook(
-      { event: "SUBSCRIPTION_CREATED", subscription: { id: "s1" } },
+      JSON.stringify({ event: "SUBSCRIPTION_CREATED", subscription: { id: "s1" } }),
       headers,
       connectionWith(fullCreds)
     );
@@ -99,7 +100,7 @@ describe("handleWebhook — caminho feliz", () => {
     const headers = new Headers({ "asaas-access-token": WEBHOOK_TOKEN });
 
     const result = await adapter.handleWebhook(
-      { event: "PAYMENT_CONFIRMED", payment: { id: "p2", externalReference: "order-2" } },
+      JSON.stringify({ event: "PAYMENT_CONFIRMED", payment: { id: "p2", externalReference: "order-2" } }),
       headers,
       connectionWith(fullCreds)
     );
@@ -111,7 +112,7 @@ describe("handleWebhook — caminho feliz", () => {
     const headers = new Headers({ "asaas-access-token": WEBHOOK_TOKEN });
 
     const result = await adapter.handleWebhook(
-      { event: "PAYMENT_REFUNDED", payment: { id: "p3", externalReference: "order-3" } },
+      JSON.stringify({ event: "PAYMENT_REFUNDED", payment: { id: "p3", externalReference: "order-3" } }),
       headers,
       connectionWith(fullCreds)
     );
@@ -123,7 +124,7 @@ describe("handleWebhook — caminho feliz", () => {
     const headers = new Headers({ "asaas-access-token": WEBHOOK_TOKEN });
 
     const result = await adapter.handleWebhook(
-      { event: "PAYMENT_RECEIVED", payment: { id: "p4" } },
+      JSON.stringify({ event: "PAYMENT_RECEIVED", payment: { id: "p4" } }),
       headers,
       connectionWith(fullCreds)
     );

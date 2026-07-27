@@ -63,7 +63,7 @@ function signedHeaders(secret: string, requestId = "req-1", ts = "1700000000"): 
   return new Headers({ "x-signature": `ts=${ts},v1=${v1}`, "x-request-id": requestId });
 }
 
-const payload = { type: "payment", data: { id: DATA_ID } };
+const payload = JSON.stringify({ type: "payment", data: { id: DATA_ID } });
 const adapter = new MercadoPagoAdapter();
 
 describe("handleWebhook — assinatura", () => {
@@ -104,7 +104,7 @@ describe("handleWebhook — assinatura", () => {
     const connection = connectionWith({ accessToken: "APP_USR-1", webhookSecret: WEBHOOK_SECRET });
 
     const result = await adapter.handleWebhook(
-      { type: "plan", data: { id: "1" } },
+      JSON.stringify({ type: "plan", data: { id: "1" } }),
       signedHeaders(WEBHOOK_SECRET),
       connection
     );

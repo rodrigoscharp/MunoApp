@@ -23,11 +23,19 @@ export async function POST(
     // qualquer caso de "nada a fazer".
     if (!connection) return NextResponse.json({ received: true });
 
-    const body = await req.json();
+    // Corpo CRU: Stripe e Abacate Pay assinam o texto exato recebido, e
+    // re-serializar um objeto parseado muda os bytes e invalida a
+    // assinatura. Cada adapter faz o próprio parse.
+    const rawBody = await req.text();
 
     let result;
     try {
-      result = await getPaymentProvider(providerId).handleWebhook(body, req.headers, connection);
+      result = await getPaymentProvider(providerId).handleWebhook(
+        rawBody,
+        req.headers,
+        connection,
+        new URL(req.url)
+      );
     } catch (err) {
       if (err instanceof InvalidWebhookSignatureError) {
         return NextResponse.json({ error: "Assinatura inválida" }, { status: 401 });

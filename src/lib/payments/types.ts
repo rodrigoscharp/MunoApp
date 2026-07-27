@@ -65,6 +65,23 @@ export interface PaymentProviderMeta {
   // true, o checkout pede o CPF antes de cobrar — e só nesse caso, pra não
   // impor atrito a restaurante cujo gateway não precisa.
   requiresPayerDocument: boolean;
+  // Cor da marca, usada no tile do painel. Aproximação da paleta oficial —
+  // não é asset de marca, é só um identificador visual.
+  brandColor: string;
+  // O passo a passo de configuração, na ordem real em que o lojista precisa
+  // executar. A tela numera e marca o que já está feito.
+  setupSteps: SetupStep[];
+}
+
+export interface SetupStep {
+  title: string;
+  body: string;
+  link?: { label: string; url: string };
+  // Quais campos de credencial este passo entrega. A tela usa isso pra
+  // mostrar o passo como concluído quando o campo já está salvo.
+  fills?: string[];
+  // Passo que consiste em cadastrar a URL de webhook no painel do gateway.
+  showsWebhookUrl?: boolean;
 }
 
 export type CredentialCheck =
@@ -83,11 +100,24 @@ export interface PaymentProvider {
   // fallback para conta da plataforma.
   createCharge(order: ChargeableOrder, connection: PaymentConnection): Promise<Charge>;
 
-  // Recebe a connection porque o segredo de assinatura é de cada lojista.
-  // Recebe Headers inteiro porque cada gateway assina com headers diferentes.
+  // Recebe o corpo CRU, não o JSON parseado: Stripe e Abacate Pay assinam
+  // o texto exato do body, e re-serializar o objeto muda os bytes e quebra
+  // a verificação. Cada adapter faz o próprio parse.
+  // Recebe a connection porque o segredo é de cada lojista, e Headers
+  // inteiro porque cada gateway assina num header diferente.
   handleWebhook(
-    payload: unknown,
+    rawBody: string,
     headers: Headers,
-    connection: PaymentConnection
+    connection: PaymentConnection,
+    url: URL
   ): Promise<WebhookResult | null>;
+}
+
+// Corpo de webhook vem de fora: JSON inválido é 'nada a fazer', não crash.
+export function safeParse(raw: string): unknown | null {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }

@@ -2,11 +2,15 @@ import type { PaymentConnection, PaymentMethod } from "@prisma/client";
 import { prismaUnscoped } from "@/lib/prisma";
 import { MercadoPagoAdapter } from "./mercadopago-adapter";
 import { AsaasAdapter } from "./asaas-adapter";
+import { StripeAdapter } from "./stripe-adapter";
+import { AbacatePayAdapter } from "./abacatepay-adapter";
 import type { PaymentProvider } from "./types";
 
 const adapters: Record<string, PaymentProvider> = {
   mercado_pago: new MercadoPagoAdapter(),
   asaas: new AsaasAdapter(),
+  stripe: new StripeAdapter(),
+  abacate_pay: new AbacatePayAdapter(),
 };
 
 export function listPaymentProviders(): PaymentProvider[] {

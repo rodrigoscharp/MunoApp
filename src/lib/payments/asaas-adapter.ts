@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { PaymentConnection } from "@prisma/client";
 import { decryptCredentials } from "./credentials";
-import { InvalidWebhookSignatureError } from "./types";
+import { InvalidWebhookSignatureError, safeParse } from "./types";
 import type {
   Charge,
   ChargeableOrder,
@@ -81,6 +81,29 @@ export class AsaasAdapter implements PaymentProvider {
     docsUrl: "https://www.asaas.com/customerConfigIntegrations",
     methods: ["PIX", "CREDIT_CARD"],
     requiresPayerDocument: true,
+    brandColor: "#0057FF",
+    setupSteps: [
+      {
+        title: "Gere sua chave de API",
+        body: "No painel do Asaas, abra Integrações e gere uma chave de API. Use sandbox para testar sem mover dinheiro de verdade.",
+        link: { label: "Abrir integrações do Asaas", url: "https://www.asaas.com/customerConfigIntegrations" },
+      },
+      {
+        title: "Escolha o ambiente e cole a chave",
+        body: "A chave precisa ser do mesmo ambiente selecionado. Chave de sandbox em produção não funciona, e vice-versa.",
+        fills: ["apiKey", "environment"],
+      },
+      {
+        title: "Cadastre a URL de webhook",
+        body: "Em Integrações, crie um webhook para eventos de cobrança com a URL abaixo. Defina um token de sua escolha nesse cadastro.",
+        showsWebhookUrl: true,
+      },
+      {
+        title: "Cole o token que você definiu",
+        body: "É o mesmo token do cadastro do webhook. O Asaas devolve ele em toda notificação, e é assim que confirmamos que a notificação é legítima.",
+        fills: ["webhookSecret"],
+      },
+    ],
     credentialFields: [
       {
         key: "apiKey",
@@ -194,14 +217,16 @@ export class AsaasAdapter implements PaymentProvider {
   }
 
   async handleWebhook(
-    payload: unknown,
+    rawBody: string,
     headers: Headers,
     connection: PaymentConnection
   ): Promise<WebhookResult | null> {
-    const body = payload as {
+    // O Asaas autentica por token estático no header, não por assinatura do
+    // corpo — o parse aqui é só pra ler o evento.
+    const body = safeParse(rawBody) as {
       event?: string;
       payment?: { id?: string; externalReference?: string };
-    };
+    } | null;
     if (!body?.event?.startsWith("PAYMENT_") || !body.payment?.id) return null;
 
     const { webhookSecret } = decryptCredentials(connection.credentials);
