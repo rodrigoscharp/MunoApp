@@ -1,9 +1,11 @@
-// Marca visual do gateway. Se existir /public/gateways/<id>.svg, mostra o
-// logo real; senão, um quadrado com a cor da marca e as iniciais.
+// Marca visual do gateway: quadrado na cor da marca com o símbolo em branco
+// por cima. Se não existir /public/gateways/<id>.svg, o quadrado mostra as
+// iniciais — mesma linguagem visual, então a grade não fica desalinhada
+// quando um gateway tem arquivo e outro não.
 //
-// O quadrado é sempre a base, e o logo entra por cima só depois de carregar
-// de verdade — assim um arquivo ausente nunca pisca imagem quebrada, e
-// soltar o SVG na pasta passa a funcionar sem tocar em código.
+// O quadrado é sempre a base e o símbolo entra só depois de carregar de
+// verdade: assim um arquivo ausente nunca pisca imagem quebrada, e soltar o
+// SVG na pasta passa a funcionar sem tocar em código.
 "use client";
 
 import { useState } from "react";
@@ -32,30 +34,30 @@ export function GatewayMark({ id, label, color, size = 44 }: Props) {
 
   return (
     <div
-      className="relative rounded-xl shrink-0 overflow-hidden"
-      style={{ width: size, height: size }}
+      className="relative rounded-xl shrink-0 overflow-hidden flex items-center justify-center"
+      style={{
+        width: size,
+        height: size,
+        background: color,
+        // Sombra na própria cor: liga o quadrado à marca sem virar borda.
+        boxShadow: `0 2px 8px ${color}40`,
+      }}
     >
-      <div
+      <span
         aria-hidden
-        className="absolute inset-0 flex items-center justify-center font-bold text-white transition-opacity"
-        style={{
-          background: color,
-          fontSize: size * 0.34,
-          // Sombra na própria cor: liga o quadrado à marca sem virar borda.
-          boxShadow: `0 2px 8px ${color}40`,
-          opacity: logoLoaded ? 0 : 1,
-        }}
+        className="font-bold text-white transition-opacity"
+        style={{ fontSize: size * 0.34, opacity: logoLoaded ? 0 : 1 }}
       >
         {initials(label)}
-      </div>
+      </span>
 
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={`/gateways/${id}.svg`}
         alt=""
         onLoad={() => setLogoLoaded(true)}
-        className="absolute inset-0 w-full h-full object-contain bg-white transition-opacity"
-        style={{ opacity: logoLoaded ? 1 : 0 }}
+        className="absolute inset-0 w-full h-full object-contain transition-opacity"
+        style={{ padding: size * 0.24, opacity: logoLoaded ? 1 : 0 }}
       />
     </div>
   );
