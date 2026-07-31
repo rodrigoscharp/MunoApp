@@ -8,6 +8,7 @@
     "start": "node node_modules/next/dist/bin/next start",
     "postinstall": "prisma generate && node scripts/fix-lightningcss.js",
     "lint": "eslint",
+    "test": "vitest run",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
@@ -55,6 +56,7 @@
     "eslint-config-next": "16.2.2",
     "prisma": "^6.19.3",
     "tailwindcss": "^4",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.10"
   }
 }
