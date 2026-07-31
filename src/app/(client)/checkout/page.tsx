@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -47,9 +47,16 @@ export default function CheckoutPage() {
   });
 
   // A sessão chega de forma assíncrona, então o prefill é feito por efeito em vez
-  // de defaultValues.
+  // de defaultValues. O ref garante que isso rode uma única vez: o next-auth
+  // refaz a sessão a cada foco na aba, e sem a trava o efeito sobrescreveria um
+  // nome que o cliente tivesse editado.
+  const prefilled = useRef(false);
   useEffect(() => {
-    if (session?.user?.name) setValue("customerName", session.user.name);
+    if (prefilled.current) return;
+    if (session?.user?.name) {
+      setValue("customerName", session.user.name);
+      prefilled.current = true;
+    }
   }, [session, setValue]);
 
   useEffect(() => {
