@@ -27,7 +27,7 @@
 |---|---|---|
 | `src/lib/order-access.ts` | **Novo.** Predicado puro `canViewOrder`. Sem I/O, sem Prisma, sem NextAuth — por isso testável em milissegundos. | 1 |
 | `src/lib/order-access.test.ts` | **Novo.** Testes do predicado. | 1 |
-| `vitest.config.ts` | **Novo.** Restringe a varredura a `src/`. | 1 |
+| `vitest.config.mts` | **Novo.** Restringe a varredura a `src/`. | 1 |
 | `src/app/api/orders/[id]/route.ts` | Aplica o predicado na leitura; 404 quando nega. | 2 |
 | `src/app/api/orders/route.ts` | Gate de criação: 401 fora de DINE_IN, telefone em DELIVERY. | 3 |
 | `src/proxy.ts` | Guard de rota do `/checkout`. | 4 |
@@ -45,14 +45,14 @@ As tarefas 2 e 5 consomem a tarefa 1. As tarefas 3, 4 e 6 são independentes ent
 **Files:**
 - Create: `src/lib/order-access.ts`
 - Create: `src/lib/order-access.test.ts`
-- Create: `vitest.config.ts`
+- Create: `vitest.config.mts`
 - Modify: `package.json` (bloco `scripts`)
 
 **Interfaces:**
 - Consumes: nada.
 - Produces: `canViewOrder(order: { userId: string | null }, viewer: { id: string; role: string } | null): boolean` — usado pelas Tasks 2 e 5.
 
-**Contexto:** o projeto não tem nenhuma infra de teste hoje. Esta tarefa instala o Vitest e cobre só o predicado. O `vitest.config.ts` **é obrigatório**: sem ele o Vitest varre o repositório inteiro e encontra os worktrees em `.claude/worktrees/`, que têm código próprio e dariam falsos positivos.
+**Contexto:** o projeto não tem nenhuma infra de teste hoje. Esta tarefa instala o Vitest e cobre só o predicado. O `vitest.config.mts` **é obrigatório**: sem ele o Vitest varre o repositório inteiro e encontra os worktrees em `.claude/worktrees/`, que têm código próprio e dariam falsos positivos.
 
 - [ ] **Step 1: Instalar o Vitest**
 
@@ -60,9 +60,9 @@ As tarefas 2 e 5 consomem a tarefa 1. As tarefas 3, 4 e 6 são independentes ent
 npm install -D vitest
 ```
 
-- [ ] **Step 2: Criar o `vitest.config.ts`**
+- [ ] **Step 2: Criar o `vitest.config.mts`**
 
-Crie `vitest.config.ts` na raiz:
+Crie `vitest.config.mts` na raiz:
 
 ```ts
 import { defineConfig } from "vitest/config";
