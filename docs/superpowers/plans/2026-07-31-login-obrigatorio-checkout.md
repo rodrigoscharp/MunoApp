@@ -527,15 +527,29 @@ Depois, no `useForm` (linha 43), inclua `setValue` na desestruturação:
   });
 ```
 
-E adicione este efeito logo antes do `useEffect` que busca as zonas de entrega:
+Adicione `useRef` ao import do React da linha 3 (que hoje traz `useState, useEffect`), e coloque
+este efeito logo antes do `useEffect` que busca as zonas de entrega:
 
 ```ts
   // A sessão chega de forma assíncrona, então o prefill é feito por efeito em vez
-  // de defaultValues.
+  // de defaultValues. O ref garante que isso rode uma única vez: o next-auth
+  // refaz a sessão a cada foco na aba, e sem a trava o efeito sobrescreveria um
+  // nome que o cliente tivesse editado.
+  const prefilled = useRef(false);
   useEffect(() => {
-    if (session?.user?.name) setValue("customerName", session.user.name);
+    if (prefilled.current) return;
+    if (session?.user?.name) {
+      setValue("customerName", session.user.name);
+      prefilled.current = true;
+    }
   }, [session, setValue]);
 ```
+
+A trava do `useRef` não é estilo. `SessionProvider` é montado sem props em
+`src/app/layout.tsx:32`, então `refetchOnWindowFocus` fica no padrão `true`: a cada volta de
+foco na aba o next-auth refaz a sessão e entrega um objeto novo, mesmo com o nome idêntico.
+Essa nova referência re-dispara o efeito pela dependência `[session, ...]` e o `setValue`
+apaga o que o cliente tiver digitado.
 
 - [ ] **Step 3: Exigir telefone em DELIVERY**
 
