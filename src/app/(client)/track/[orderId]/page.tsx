@@ -2,10 +2,10 @@ import { prismaUnscoped } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getRequestTenantId } from "@/lib/tenant-request";
+import { canViewOrder } from "@/lib/order-access";
 import { OrderTracker } from "@/components/tracking/OrderTracker";
 import { PixPayment } from "@/components/tracking/PixPayment";
 import { toQrImageSrc } from "@/lib/pix-qr";
-import { LoginPromptBanner } from "@/components/tracking/LoginPromptBanner";
 
 interface Props {
   params: Promise<{ orderId: string }>;
@@ -16,7 +16,6 @@ export default async function TrackPage({ params, searchParams }: Props) {
   const { orderId } = await params;
   const { pix, copy, payment } = await searchParams;
   const session = await auth();
-  const isLoggedIn = !!session?.user;
 
   const tenantId = await getRequestTenantId();
   const order = await prismaUnscoped.order.findUnique({
@@ -27,13 +26,10 @@ export default async function TrackPage({ params, searchParams }: Props) {
     },
   });
 
-  if (!order) notFound();
+  if (!order || !canViewOrder(order, session?.user ?? null)) notFound();
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6">
-      {/* Login prompt — exibido apenas para usuários não autenticados */}
-      {!isLoggedIn && <LoginPromptBanner orderId={orderId} />}
-
       {/* Pix payment display */}
       {order.paymentMethod === "PIX" && order.paymentStatus !== "PAID" && (pix || copy) && (
         <PixPayment qrSrc={toQrImageSrc(pix)} copyPaste={copy ?? ""} />
@@ -56,6 +52,7 @@ export default async function TrackPage({ params, searchParams }: Props) {
         orderId={orderId}
         initialStatus={order.status}
         tenantId={order.tenantId}
+        canChat={!!order.userId && order.userId === session?.user?.id}
         order={{
           id: order.id,
           status: order.status,

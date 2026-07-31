@@ -23,7 +23,12 @@ const orderSchema = z.object({
   deliveryAddress: z.string().optional(),
   deliveryFee: z.number().min(0).optional(),
   tableId: z.string().optional(),
-});
+}).refine(
+  (data) =>
+    data.deliveryType !== "DELIVERY" ||
+    (data.customerPhone?.trim().length ?? 0) >= 8,
+  { path: ["customerPhone"], message: "Telefone é obrigatório para entrega" }
+);
 
 export async function GET(req: NextRequest) {
   const tenantId = getTenantIdFromRequest(req);
@@ -90,6 +95,15 @@ export async function POST(req: NextRequest) {
     }
 
     const { items, paymentMethod, notes, customerName, customerPhone, deliveryType, deliveryAddress, deliveryFee: clientFee, tableId } = parsed.data;
+
+    // Delivery e retirada exigem conta. Mesa (DINE_IN) não: o cliente está no
+    // restaurante e o pedido é identificado pela mesa.
+    if (deliveryType !== "DINE_IN" && !session?.user?.id) {
+      return NextResponse.json(
+        { error: "Faça login para finalizar o pedido" },
+        { status: 401 }
+      );
+    }
 
     // Endpoint público: a UI esconder o botão não impede ninguém de pedir
     // PIX num restaurante que não tem gateway conectado.

@@ -82,6 +82,13 @@ export default auth(async (req) => {
     }
   }
 
+  // Checkout de delivery/retirada exige conta. A comparação exata de path (com
+  // a barra final tolerada) deixa /mesa/{token}/checkout de fora: pedido de
+  // mesa não exige login.
+  if (nextUrl.pathname.replace(/\/$/, "") === "/checkout" && !session) {
+    return NextResponse.redirect(new URL("/login?callbackUrl=/checkout", nextUrl));
+  }
+
   return NextResponse.next(forward);
 });
 

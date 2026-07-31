@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -33,6 +34,7 @@ type DeliveryType = "PICKUP" | "DELIVERY";
 
 export default function CheckoutPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const { items, total, clearCart } = useCart();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[] | null>(null);
@@ -44,9 +46,22 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
+
+  // A sessão chega de forma assíncrona, então o prefill é feito por efeito em vez
+  // de defaultValues. O ref garante que isso rode uma única vez: o next-auth
+  // refaz a sessão a cada foco na aba, e sem a trava o efeito sobrescreveria um
+  // nome que o cliente tivesse editado.
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (prefilled.current) return;
+    if (session?.user?.name) {
+      setValue("customerName", session.user.name);
+      prefilled.current = true;
+    }
+  }, [session, setValue]);
 
   // Quais formas de pagamento este restaurante aceita depende do gateway que
   // ele conectou — sem conexão ativa, só dinheiro na entrega.
@@ -93,6 +108,10 @@ export default function CheckoutPage() {
     if (deliveryType === "DELIVERY") {
       if (!selectedZone) { setError("Selecione o bairro de entrega."); return; }
       if (!data.rua || !data.numero) { setError("Preencha rua e número."); return; }
+      if (!data.customerPhone || data.customerPhone.trim().length < 8) {
+        setError("Informe um telefone para contato na entrega.");
+        return;
+      }
     }
 
     // Só bloqueia quando o gateway do restaurante realmente precisa do CPF
@@ -134,6 +153,14 @@ export default function CheckoutPage() {
           deliveryFee: deliveryType === "DELIVERY" ? selectedZone?.price ?? 0 : 0,
         }),
       });
+
+      // Sessão expirou entre o login e a confirmação. O carrinho sobrevive ao
+      // redirect (zustand/persist), então basta reautenticar e voltar.
+      if (orderRes.status === 401) {
+        setError("Sua sessão expirou. Faça login novamente para concluir o pedido.");
+        router.push("/login?callbackUrl=/checkout");
+        return;
+      }
 
       if (!orderRes.ok) {
         const errBody = await orderRes.json().catch(() => ({}));
@@ -286,12 +313,15 @@ export default function CheckoutPage() {
               {errors.customerName && <p className="text-brand text-xs mt-1">{errors.customerName.message}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Telefone (opcional)</label>
+              <label className="block text-sm font-medium text-neutral-700 mb-1">
+                Telefone {deliveryType === "DELIVERY" ? "*" : "(opcional)"}
+              </label>
               <input
                 {...register("customerPhone")}
                 placeholder="(11) 99999-9999"
                 className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
               />
+              {errors.customerPhone && <p className="text-brand text-xs mt-1">{errors.customerPhone.message}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">Observações (opcional)</label>

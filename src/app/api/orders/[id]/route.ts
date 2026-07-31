@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { broadcastTenantEvent } from "@/lib/realtime";
+import { canViewOrder } from "@/lib/order-access";
 import { z } from "zod";
 
 export async function GET(
@@ -14,6 +15,8 @@ export async function GET(
 
   return withTenant(tenantId, async () => {
     const { id } = await params;
+    const session = await auth();
+
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
@@ -22,7 +25,9 @@ export async function GET(
       },
     });
 
-    if (!order) {
+    // 404 em vez de 403 de propósito: um 403 confirmaria que o pedido existe,
+    // que é metade do valor de um IDOR.
+    if (!order || !canViewOrder(order, session?.user ?? null)) {
       return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
     }
 
