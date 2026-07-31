@@ -37,6 +37,7 @@ interface Props {
   initialStatus: OrderStatus;
   order: OrderSummary;
   tenantId: string;
+  canChat: boolean;
 }
 
 // ─── Configuração dos status ───────────────────────────────────────────────────
@@ -168,7 +169,7 @@ function EtaDisplay({
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 
-export function OrderTracker({ orderId, initialStatus, order, tenantId }: Props) {
+export function OrderTracker({ orderId, initialStatus, order, tenantId, canChat }: Props) {
   const { status: realtimeStatus, estimatedDeliveryAt: realtimeEta } =
     useOrderRealtime(orderId, tenantId);
   const currentStatus = realtimeStatus ?? initialStatus;
@@ -441,7 +442,7 @@ export function OrderTracker({ orderId, initialStatus, order, tenantId }: Props)
         )}
 
         {/* ── Chat com o restaurante ─────────────────────────────────────── */}
-        {!isCancelled && (
+        {!isCancelled && canChat && (
           <Link
             href={`/pedidos/${orderId}/chat`}
             className="flex items-center gap-3 bg-white rounded-3xl border border-neutral-100 px-5 py-4 hover:border-brand/30 hover:shadow-sm transition group"
