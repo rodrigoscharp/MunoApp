@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useCart } from "@/hooks/useCart";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -32,6 +33,7 @@ type DeliveryType = "PICKUP" | "DELIVERY";
 
 export default function CheckoutPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const { items, total, clearCart } = useCart();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("PIX");
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("PICKUP");
@@ -40,9 +42,15 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
+
+  // A sessão chega de forma assíncrona, então o prefill é feito por efeito em vez
+  // de defaultValues.
+  useEffect(() => {
+    if (session?.user?.name) setValue("customerName", session.user.name);
+  }, [session, setValue]);
 
   useEffect(() => {
     fetch("/api/delivery-zones")
@@ -68,6 +76,10 @@ export default function CheckoutPage() {
     if (deliveryType === "DELIVERY") {
       if (!selectedZone) { setError("Selecione o bairro de entrega."); return; }
       if (!data.rua || !data.numero) { setError("Preencha rua e número."); return; }
+      if (!data.customerPhone || data.customerPhone.trim().length < 8) {
+        setError("Informe um telefone para contato na entrega.");
+        return;
+      }
     }
 
     setLoading(true);
@@ -101,6 +113,14 @@ export default function CheckoutPage() {
           deliveryFee: deliveryType === "DELIVERY" ? selectedZone?.price ?? 0 : 0,
         }),
       });
+
+      // Sessão expirou entre o login e a confirmação. O carrinho sobrevive ao
+      // redirect (zustand/persist), então basta reautenticar e voltar.
+      if (orderRes.status === 401) {
+        setError("Sua sessão expirou. Faça login novamente para concluir o pedido.");
+        router.push("/login?callbackUrl=/checkout");
+        return;
+      }
 
       if (!orderRes.ok) {
         const errBody = await orderRes.json().catch(() => ({}));
@@ -238,7 +258,9 @@ export default function CheckoutPage() {
               {errors.customerName && <p className="text-brand text-xs mt-1">{errors.customerName.message}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Telefone (opcional)</label>
+              <label className="block text-sm font-medium text-neutral-700 mb-1">
+                Telefone {deliveryType === "DELIVERY" ? "*" : "(opcional)"}
+              </label>
               <input
                 {...register("customerPhone")}
                 placeholder="(11) 99999-9999"
