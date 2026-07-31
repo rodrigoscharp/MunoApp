@@ -29,7 +29,7 @@
 | `src/lib/order-access.test.ts` | **Novo.** Testes do predicado. | 1 |
 | `vitest.config.ts` | **Novo.** Restringe a varredura a `src/`. | 1 |
 | `src/app/api/orders/[id]/route.ts` | Aplica o predicado na leitura; 404 quando nega. | 2 |
-| `src/app/api/orders/route.ts` | Gate de criação: 401 fora de DINE_IN, mesa válida, telefone em DELIVERY. | 3 |
+| `src/app/api/orders/route.ts` | Gate de criação: 401 fora de DINE_IN, telefone em DELIVERY. | 3 |
 | `src/proxy.ts` | Guard de rota do `/checkout`. | 4 |
 | `src/app/(client)/track/[orderId]/page.tsx` | Aplica o predicado; deixa de renderizar o banner; passa `canChat`. | 5 |
 | `src/components/tracking/LoginPromptBanner.tsx` | **Deletado.** | 5 |
@@ -252,7 +252,9 @@ git commit -m "Restringe leitura de pedido ao dono ou admin"
 - Consumes: nada.
 - Produces: nada.
 
-**Contexto:** esta é a camada que de fato impede um pedido órfão — o guard do proxy (Task 4) é só experiência e não protege contra requisição direta. São três regras. A validação da mesa não é detalhe: sem ela dá para contornar o gate inteiro mandando `deliveryType: "DINE_IN"` com um `tableId` inventado.
+**Contexto:** esta é a camada que de fato impede um pedido órfão de delivery ou retirada — o guard do proxy (Task 4) é só experiência e não protege contra requisição direta. São duas regras.
+
+**O fluxo de mesa não é tocado.** Uma versão anterior deste plano validava que `DINE_IN` viesse com um `tableId` existente. Isso foi removido por decisão do dono do projeto: o checkout de mesa não bloqueia o submit quando `tableInfo` é `null` (`mesa/[token]/checkout/page.tsx:82`, com o fetch de fallback engolindo erro em `.catch(() => {})`), então validar no servidor faria um cliente de rede ruim ver "Mesa inválida" sem saída. Sem a validação, continua possível criar um pedido `DINE_IN` sem sessão — exatamente como hoje, sem regressão. E isso **não** abre caminho para delivery sem login: `deliveryType` diferente de `DINE_IN` cai no 401, e um `DINE_IN` forjado sai com `deliveryAddress: null` e `deliveryFee: 0` (linhas 121-123), então não vira entrega em endereço nenhum.
 
 - [ ] **Step 1: Tornar o telefone obrigatório em DELIVERY no schema**
 
@@ -267,7 +269,7 @@ Em `src/app/api/orders/route.ts`, o `orderSchema` termina hoje em `});` na linha
 );
 ```
 
-- [ ] **Step 2: Adicionar o gate de sessão e a validação da mesa**
+- [ ] **Step 2: Adicionar o gate de sessão**
 
 Em `src/app/api/orders/route.ts`, logo após a linha que desestrutura `parsed.data` (linha 90, a que começa com `const { items, paymentMethod, ...`), insira:
 
@@ -280,20 +282,9 @@ Em `src/app/api/orders/route.ts`, logo após a linha que desestrutura `parsed.da
         { status: 401 }
       );
     }
-
-    // Sem isto o gate acima é contornável: bastaria mandar DINE_IN com um
-    // tableId qualquer para criar pedido sem login.
-    if (deliveryType === "DINE_IN") {
-      const table = tableId
-        ? await prisma.table.findFirst({ where: { id: tableId } })
-        : null;
-      if (!table) {
-        return NextResponse.json({ error: "Mesa inválida" }, { status: 400 });
-      }
-    }
 ```
 
-O `findFirst` acima já está restrito ao tenant da request — `prisma` mescla `tenantId` no `where` automaticamente dentro do `withTenant`. Não adicione `tenantId` à mão.
+Não adicione nenhuma validação de `tableId` — ver o Contexto acima.
 
 - [ ] **Step 3: Verificar que compila e passa no lint**
 
@@ -312,15 +303,15 @@ curl -i -X POST http://localhost:3000/api/orders \
 
 Expected: `401` com `{"error":"Faça login para finalizar o pedido"}`.
 
-Agora a tentativa de contornar via mesa falsa:
+Agora o mesmo com entrega e sem telefone, para conferir o `.refine`:
 
 ```bash
 curl -i -X POST http://localhost:3000/api/orders \
   -H 'Content-Type: application/json' \
-  -d '{"items":[{"menuItemId":"qualquer","quantity":1}],"paymentMethod":"CASH","deliveryType":"DINE_IN","tableId":"nao-existe","customerName":"Teste"}'
+  -d '{"items":[{"menuItemId":"qualquer","quantity":1}],"paymentMethod":"CASH","deliveryType":"DELIVERY","customerName":"Teste"}'
 ```
 
-Expected: `400` com `{"error":"Mesa inválida"}`.
+Expected: `400`, com uma issue de validação apontando para `customerPhone`. O 400 vem antes do 401 porque o Zod roda primeiro — isso é esperado.
 
 Por fim, confirme que o fluxo de mesa real continua funcionando: abra `/mesa/<token>/checkout` no navegador com um token válido de mesa (pegue em `npm run db:studio`, model `Table`, campo `token`) e feche um pedido. Deve criar normalmente e redirecionar para a tela de acompanhamento da mesa.
 

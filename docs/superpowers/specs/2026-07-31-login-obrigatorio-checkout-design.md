@@ -78,10 +78,19 @@ A comparação exata (`===`) já exclui `/mesa/{token}/checkout` — sem regex.
 inclusive contra requisição direta que não passa pela UI:
 
 - `deliveryType !== "DINE_IN"` sem sessão → **401**.
-- `deliveryType === "DINE_IN"` exige `tableId` de uma mesa existente naquele tenant.
-  Sem isso o gate é contornável mandando `DINE_IN` com um `tableId` inventado.
 - `customerPhone` obrigatório quando `deliveryType === "DELIVERY"`. Hoje é opcional no
   schema e no form, o que permite fechar uma entrega sem nenhum canal de contato.
+
+Uma versão anterior desta spec também exigia que `DINE_IN` viesse com um `tableId`
+existente. Removido por decisão do dono do projeto: o fluxo de mesa não deve ser tocado, e
+o checkout de mesa não bloqueia o submit quando `tableInfo` é `null`
+(`mesa/[token]/checkout/page.tsx:82`, com o fallback engolindo erro em `.catch(() => {})`),
+então validar no servidor faria um cliente de rede ruim ver "Mesa inválida" sem saída.
+
+Continua possível criar um pedido `DINE_IN` sem sessão — exatamente como hoje, sem
+regressão. Isso **não** abre caminho para delivery sem login: qualquer `deliveryType`
+diferente de `DINE_IN` cai no 401, e um `DINE_IN` forjado sai com `deliveryAddress: null` e
+`deliveryFee: 0` (`api/orders/route.ts:121-123`), logo não vira entrega em endereço nenhum.
 
 `userId: session?.user.id ?? null` permanece como está — passa a resultar em `null`
 apenas para `DINE_IN`.
