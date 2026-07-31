@@ -51,7 +51,7 @@ export default async function TrackPage({ params, searchParams }: Props) {
         orderId={orderId}
         initialStatus={order.status}
         tenantId={order.tenantId}
-        canChat={order.userId !== null}
+        canChat={!!order.userId && order.userId === session?.user?.id}
         order={{
           id: order.id,
           status: order.status,

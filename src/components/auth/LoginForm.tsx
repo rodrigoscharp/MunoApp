@@ -21,6 +21,9 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/";
+  const registerHref = searchParams.get("callbackUrl")
+    ? `/register?callbackUrl=${encodeURIComponent(searchParams.get("callbackUrl")!)}`
+    : "/register";
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -168,7 +171,7 @@ export function LoginForm() {
 
           <p className="text-center text-sm text-neutral-500 mt-6">
             Não tem conta?{" "}
-            <Link href="/register" className="text-brand hover:text-brand-dark font-semibold">
+            <Link href={registerHref} className="text-brand hover:text-brand-dark font-semibold">
               Cadastre-se grátis
             </Link>
           </p>

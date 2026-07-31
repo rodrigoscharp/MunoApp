@@ -28,6 +28,9 @@ export default function RegisterPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/";
+  const loginHref = searchParams.get("callbackUrl")
+    ? `/login?callbackUrl=${encodeURIComponent(searchParams.get("callbackUrl")!)}`
+    : "/login";
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -208,7 +211,7 @@ export default function RegisterPage() {
 
           <p className="text-center text-sm text-neutral-500 mt-6">
             Já tem conta?{" "}
-            <Link href="/login" className="text-brand hover:text-brand-dark font-semibold">
+            <Link href={loginHref} className="text-brand hover:text-brand-dark font-semibold">
               Entrar
             </Link>
           </p>

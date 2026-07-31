@@ -273,6 +273,7 @@ export default function CheckoutPage() {
                 placeholder="(11) 99999-9999"
                 className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
               />
+              {errors.customerPhone && <p className="text-brand text-xs mt-1">{errors.customerPhone.message}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">Observações (opcional)</label>

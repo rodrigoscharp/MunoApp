@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
 
     // Delivery e retirada exigem conta. Mesa (DINE_IN) não: o cliente está no
     // restaurante e o pedido é identificado pela mesa.
-    if (deliveryType !== "DINE_IN" && !session) {
+    if (deliveryType !== "DINE_IN" && !session?.user?.id) {
       return NextResponse.json(
         { error: "Faça login para finalizar o pedido" },
         { status: 401 }

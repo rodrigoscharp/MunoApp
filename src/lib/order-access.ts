@@ -2,9 +2,10 @@
  * Decide quem pode ver um pedido.
  *
  * A presença do dono é o único sinal. Pedido de delivery/retirada sempre nasce
- * com dono e fica protegido. Pedido de mesa (DINE_IN) nunca tem dono, e pedidos
- * criados antes do login obrigatório também não têm — ambos seguem acessíveis
- * por link direto, como sempre foram.
+ * com dono e fica protegido. Pedidos sem dono são os criados sem sessão — mesa
+ * (DINE_IN) pedida por cliente anônimo, além de pedidos legados de antes do
+ * login obrigatório — e esses seguem acessíveis por link direto, como sempre
+ * foram. Um pedido de mesa feito por cliente logado TEM dono normalmente.
  */
 export function canViewOrder(
   order: { userId: string | null },
