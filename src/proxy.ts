@@ -52,12 +52,23 @@ export default auth(async (req) => {
     // Os endpoints do NextAuth da plataforma são o que sustenta o próprio
     // login: precisam responder sem sessão, exatamente como a tela de login.
     const isPlatformAuthApi = nextUrl.pathname.startsWith("/api/platform/auth");
+    // Arquivo estático (a logo, um ícone, o bundle do Next). Precisa responder
+    // sem sessão: senão a própria tela de login pede a imagem, leva um redirect
+    // para si mesma e renderiza sem a marca.
+    const isEstatico =
+      nextUrl.pathname.startsWith("/_next/") ||
+      /\.[a-z0-9]+$/i.test(nextUrl.pathname);
     const platformSession = await authPlatform();
 
     // Checa user, e não só a sessão: o Auth.js pode devolver um objeto (de erro)
     // em vez de null, e aí `!platformSession` deixaria a requisição passar —
     // o layout e as rotas todas checam session?.user.
-    if (!platformSession?.user && !isPlatformLogin && !isPlatformAuthApi) {
+    if (
+      !platformSession?.user &&
+      !isPlatformLogin &&
+      !isPlatformAuthApi &&
+      !isEstatico
+    ) {
       // Redirecionar uma chamada de API é pior que negá-la: o fetch segue o
       // redirect, recebe o HTML do login com status 200 e a UI comemora um
       // sucesso que nunca aconteceu. API responde 401 em JSON; só página vai
@@ -75,7 +86,13 @@ export default auth(async (req) => {
     // no navegador. Caminhos que já estão certos passam direto: /platform/*
     // (evita prefixar duas vezes) e /api/platform/* (que viraria
     // /platform/api/platform/... — rota inexistente, 404 em toda a API).
-    if (nextUrl.pathname.startsWith("/platform") || isPlatformApi) {
+    // Estático também passa direto: reescrever /muno-marca.png para
+    // /platform/muno-marca.png buscaria um arquivo que não existe.
+    if (
+      nextUrl.pathname.startsWith("/platform") ||
+      isPlatformApi ||
+      isEstatico
+    ) {
       return NextResponse.next();
     }
     return NextResponse.rewrite(urlNoHost(`/platform${nextUrl.pathname}`));
