@@ -7,47 +7,55 @@ export default function PlatformLoginPage() {
   const [erro, formAction, pending] = useActionState(loginPlataforma, undefined);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-neutral-50 px-4">
-      <form
-        action={formAction}
-        className="w-full max-w-sm bg-white rounded-2xl border border-neutral-200 p-6 space-y-4"
-      >
-        <h1 className="text-xl font-bold text-neutral-900">Muno · Plataforma</h1>
-
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">
-            E-mail
-          </label>
-          <input
-            name="email"
-            type="email"
-            required
-            className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
-          />
+    <div className="min-h-screen bg-console-verde flex items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        <div className="mb-6">
+          <p className="text-white font-bold text-lg tracking-tight">MUNO</p>
+          <p className="tabular text-[11px] uppercase tracking-[0.18em] text-white/40">
+            plataforma
+          </p>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">
-            Senha
-          </label>
-          <input
-            name="password"
-            type="password"
-            required
-            className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
-          />
-        </div>
-
-        {erro && <p className="text-sm text-red-600">{erro}</p>}
-
-        <button
-          type="submit"
-          disabled={pending}
-          className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition"
+        <form
+          action={formAction}
+          className="bg-console-cartao rounded-2xl p-6 space-y-4"
         >
-          {pending ? "Entrando..." : "Entrar"}
-        </button>
-      </form>
+          <div>
+            <label className="tabular block text-[11px] uppercase tracking-[0.14em] text-neutral-500 mb-1.5">
+              E-mail
+            </label>
+            <input
+              name="email"
+              type="email"
+              required
+              autoFocus
+              className="w-full px-3.5 py-2.5 rounded-lg border border-console-linha bg-console-fundo text-sm focus:outline-none focus:ring-2 focus:ring-console-verde"
+            />
+          </div>
+
+          <div>
+            <label className="tabular block text-[11px] uppercase tracking-[0.14em] text-neutral-500 mb-1.5">
+              Senha
+            </label>
+            <input
+              name="password"
+              type="password"
+              required
+              className="w-full px-3.5 py-2.5 rounded-lg border border-console-linha bg-console-fundo text-sm focus:outline-none focus:ring-2 focus:ring-console-verde"
+            />
+          </div>
+
+          {erro && <p className="text-sm text-red-600">{erro}</p>}
+
+          <button
+            type="submit"
+            disabled={pending}
+            className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition"
+          >
+            {pending ? "Entrando..." : "Entrar"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
