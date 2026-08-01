@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import { tenantChannelName } from "@/lib/realtime-channel";
+import { KITCHEN_CHANNEL, tenantChannelName } from "@/lib/realtime-channel";
 import { OrderWithItems } from "@/types";
 
 const POLL_INTERVAL = 30_000; // fallback polling a cada 30s
@@ -35,7 +35,7 @@ export function useKitchenOrders(tenantId: string) {
 
     // Tenta Realtime — se falhar, polling assume
     const channel = supabase
-      .channel(tenantChannelName(tenantId, "kitchen-orders"))
+      .channel(tenantChannelName(tenantId, KITCHEN_CHANNEL))
       .on("broadcast", { event: "order-created" }, () => fetchOrders())
       .on("broadcast", { event: "order-updated" }, () => fetchOrders())
       .subscribe((status) => {

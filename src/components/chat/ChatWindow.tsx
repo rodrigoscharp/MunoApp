@@ -11,6 +11,7 @@ export interface QuickReply {
 
 interface Props {
   orderId: string;
+  tenantId: string;
   currentRole: "CUSTOMER" | "ADMIN";
   currentName: string;
   quickReplies?: QuickReply[];
@@ -34,8 +35,8 @@ function formatDayLabel(date: Date | string) {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "long" }).format(d);
 }
 
-export function ChatWindow({ orderId, currentRole, quickReplies }: Props) {
-  const { messages, loading, sending, sendMessage } = useChat(orderId);
+export function ChatWindow({ orderId, tenantId, currentRole, quickReplies }: Props) {
+  const { messages, loading, sending, sendMessage } = useChat(orderId, tenantId);
   const [text, setText] = useState("");
   const [activatingId, setActivatingId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);

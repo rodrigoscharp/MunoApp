@@ -6,6 +6,7 @@ import { formatCurrency } from "@/lib/utils";
 import { MapPin, Clock, Package, ChevronRight, Bike, RefreshCw, Banknote, CreditCard, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { KITCHEN_CHANNEL, tenantChannelName } from "@/lib/realtime-channel";
 
 interface OrderItem {
   name: string;
@@ -33,39 +34,42 @@ interface ActiveDelivery {
 interface Props {
   availableOrders: AvailableOrder[];
   activeDelivery: ActiveDelivery | null;
+  tenantId: string;
 }
 
-export function MotoboyOrdersList({ availableOrders, activeDelivery }: Props) {
+export function MotoboyOrdersList({ availableOrders, activeDelivery, tenantId }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [newOrderAlert, setNewOrderAlert] = useState(false);
 
-  // Escuta novos pedidos READY em tempo real
+  // Escuta a fila do restaurante. Antes era postgres_changes na tabela Order,
+  // que nunca disparou (RLS em Order bloqueia a role anon) — na prática o
+  // motoboy só via pedido novo ao recarregar a página na mão.
   useEffect(() => {
     const channel = supabase
-      .channel("motoboy-orders-watch")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "Order" },
-        (payload) => {
-          const row = payload.new as { status?: string; deliveryType?: string };
-          if (row?.status === "READY" && row?.deliveryType === "DELIVERY") {
-            setNewOrderAlert(true);
-            toast.info("Novo pedido disponível para entrega!", { duration: 5000 });
-          }
-          // Recarrega se algum pedido for aceito por outro motoboy
-          if (row?.status === "OUT_FOR_DELIVERY") {
-            startTransition(() => router.refresh());
-          }
+      .channel(tenantChannelName(tenantId, KITCHEN_CHANNEL))
+      .on("broadcast", { event: "order-updated" }, ({ payload }) => {
+        const status = payload.status as string | undefined;
+        const deliveryType = payload.deliveryType as string | undefined;
+
+        if (status === "READY" && deliveryType === "DELIVERY") {
+          setNewOrderAlert(true);
+          toast.info("Novo pedido disponível para entrega!", { duration: 5000 });
+          startTransition(() => router.refresh());
         }
-      )
+
+        // Recarrega se algum pedido for aceito por outro motoboy
+        if (status === "OUT_FOR_DELIVERY") {
+          startTransition(() => router.refresh());
+        }
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [router]);
+  }, [router, tenantId]);
 
   async function acceptOrder(orderId: string) {
     setAcceptingId(orderId);

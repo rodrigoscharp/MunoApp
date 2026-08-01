@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import { broadcastTenantEvent } from "@/lib/realtime";
+import { orderChannel, userChannel } from "@/lib/realtime-channel";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -80,6 +82,32 @@ export async function POST(req: NextRequest, { params }: Params) {
         content,
       },
     });
+
+    // Só o aviso, sem o conteúdo: canal Broadcast não é autorizado por padrão,
+    // então o texto da conversa continua saindo apenas pelo GET acima, que
+    // confere dono/admin. O assinante recebe o ping e vai buscar.
+    const aviso = {
+      orderId: id,
+      messageId: message.id,
+      senderRole: message.senderRole,
+    };
+
+    await Promise.all([
+      // Canal do pedido: a janela de chat aberta dos dois lados.
+      broadcastTenantEvent(tenantId, orderChannel(id), "chat-message", aviso),
+      // Canal do cliente: o sino, que não tem a conversa aberta. Só faz sentido
+      // quando quem falou foi o restaurante e o pedido tem dono.
+      ...(isAdmin && order.userId
+        ? [
+            broadcastTenantEvent(
+              tenantId,
+              userChannel(order.userId),
+              "chat-message",
+              aviso
+            ),
+          ]
+        : []),
+    ]);
 
     return NextResponse.json(message, { status: 201 });
   });

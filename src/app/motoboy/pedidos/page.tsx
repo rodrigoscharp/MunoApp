@@ -10,7 +10,9 @@ export default async function MotoboyPedidosPage() {
     redirect("/motoboy/login");
   }
 
-  const tenantId = session.user.tenantId;
+  // tenantId é opcional no tipo Session (a de plataforma não tem um); o guard
+  // acima já garantiu sessão de restaurante com papel MOTOBOY ou ADMIN.
+  const tenantId = session.user.tenantId!;
   const [activeDelivery, availableOrders] = await Promise.all([
     prismaUnscoped.order.findFirst({
       where: {
@@ -35,6 +37,7 @@ export default async function MotoboyPedidosPage() {
 
   return (
     <MotoboyOrdersList
+      tenantId={tenantId}
       availableOrders={availableOrders.map((o) => ({
         id: o.id,
         customerName: o.customerName,

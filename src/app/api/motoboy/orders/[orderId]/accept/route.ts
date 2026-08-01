@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
-import { broadcastTenantEvent } from "@/lib/realtime";
+import { broadcastOrderUpdate } from "@/lib/realtime";
 
 interface Params {
   params: Promise<{ orderId: string }>;
@@ -45,12 +45,7 @@ export async function POST(req: Request, { params }: Params) {
       },
     });
 
-    await broadcastTenantEvent(tenantId, `order:${orderId}`, "order-updated", {
-      status: updated.status,
-      updatedAt: updated.updatedAt.toISOString(),
-      estimatedDeliveryAt: updated.estimatedDeliveryAt?.toISOString() ?? null,
-    });
-    await broadcastTenantEvent(tenantId, "kitchen-orders", "order-updated", { orderId });
+    await broadcastOrderUpdate(tenantId, updated);
 
     return NextResponse.json(updated);
   });

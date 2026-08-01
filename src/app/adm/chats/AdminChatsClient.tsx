@@ -140,6 +140,7 @@ export function AdminChatsClient({ orders, adminName, tenantId }: Props) {
               <ChatWindow
                 key={selectedOrder.id}
                 orderId={selectedOrder.id}
+                tenantId={tenantId}
                 currentRole="ADMIN"
                 currentName={adminName}
               />

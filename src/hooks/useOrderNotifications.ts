@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { DeliveryType, OrderStatus, OrderWithItems } from "@/types";
+import { tenantChannelName, userChannel } from "@/lib/realtime-channel";
+import { DeliveryType, OrderStatus } from "@/types";
 
 export interface OrderNotification {
   id: string;
@@ -21,7 +22,11 @@ export interface OrderNotification {
 
 const STORAGE_KEY = "muno-order-notifications";
 const MAX_NOTIFICATIONS = 20;
-const POLL_INTERVAL = 15_000;
+// Rede de segurança, não a fonte principal — o Broadcast em user:<id> é quem
+// entrega a mudança na hora. Cada disparo aqui são duas requisições (pedidos +
+// chat não lido) por cliente com o cardápio aberto: a 15s, era o maior gerador
+// de carga do sistema inteiro.
+const POLL_INTERVAL = 60_000;
 
 // Mensagens com contexto de deliveryType
 function buildMessages(
@@ -111,10 +116,20 @@ function saveToStorage(notifications: OrderNotification[]) {
 
 type OrderMeta = { status: OrderStatus; deliveryType: DeliveryType };
 
+/**
+ * O que GET /api/orders devolve para o cliente. Só estes três campos — o
+ * endpoint deixou de mandar itens e menuItem justamente porque este hook, seu
+ * único consumidor, nunca olhou para eles.
+ */
+type OrderResumo = { id: string } & OrderMeta;
+
 export function useOrderNotifications() {
   const { data: session } = useSession();
   const [notifications, setNotifications] = useState<OrderNotification[]>(loadFromStorage);
   const userId = session?.user?.id;
+  // tenantId é opcional no tipo Session (a de plataforma não tem um), mas todo
+  // cliente logado num restaurante tem — é o que nomeia o canal do Broadcast.
+  const tenantId = session?.user?.tenantId;
 
   // Mapa orderId → { status, deliveryType } dos pedidos do usuário
   const knownOrders = useRef<Map<string, OrderMeta>>(new Map());
@@ -186,7 +201,7 @@ export function useOrderNotifications() {
   );
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !tenantId) return;
 
     // Timestamp da última mensagem de chat vista — inicia com "agora" para não
     // notificar mensagens históricas ao abrir o app
@@ -210,7 +225,7 @@ export function useOrderNotifications() {
       try {
         const res = await fetch("/api/orders");
         if (!res.ok) return;
-        const orders: OrderWithItems[] = await res.json();
+        const orders: OrderResumo[] = await res.json();
 
         for (const order of orders) {
           const prev = knownOrders.current.get(order.id);
@@ -229,7 +244,7 @@ export function useOrderNotifications() {
       try {
         const res = await fetch("/api/orders");
         if (!res.ok) return;
-        const orders: OrderWithItems[] = await res.json();
+        const orders: OrderResumo[] = await res.json();
         orders.forEach((o) =>
           knownOrders.current.set(o.id, {
             status: o.status,
@@ -241,21 +256,38 @@ export function useOrderNotifications() {
 
     initStatuses();
 
+    // Canal do próprio cliente. A versão anterior assinava postgres_changes na
+    // tabela Order inteira e filtrava no navegador — o que, além do fan-out,
+    // nunca chegou a disparar: Order tem RLS e a policy bloqueia a role anon
+    // por inteiro (app.current_tenant não é definido). Na prática o sino vivia
+    // só do polling. Agora o servidor publica direto em user:<id>.
     const channel = supabase
-      .channel(`order-notif-${userId}`)
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "Order" },
-        (payload) => {
-          const row = payload.new as { id: string; status: OrderStatus; deliveryType?: DeliveryType };
-          const prev = knownOrders.current.get(row.id);
-          if (prev === undefined) return; // pedido de outro usuário
-          if (row.status === prev.status) return;
-          const deliveryType = row.deliveryType ?? prev.deliveryType;
-          knownOrders.current.set(row.id, { status: row.status, deliveryType });
-          addNotification(row.id, row.status, deliveryType);
+      .channel(tenantChannelName(tenantId, userChannel(userId)))
+      .on("broadcast", { event: "order-updated" }, ({ payload }) => {
+        const orderId = payload.orderId as string;
+        const status = payload.status as OrderStatus;
+        const prev = knownOrders.current.get(orderId);
+
+        // Pedido ainda desconhecido: registra sem notificar, mesma regra do
+        // polling — não se avisa sobre um pedido que o cliente acabou de criar.
+        if (prev === undefined) {
+          knownOrders.current.set(orderId, {
+            status,
+            deliveryType: payload.deliveryType as DeliveryType,
+          });
+          return;
         }
-      )
+
+        if (status === prev.status) return;
+        const deliveryType = (payload.deliveryType as DeliveryType) ?? prev.deliveryType;
+        knownOrders.current.set(orderId, { status, deliveryType });
+        addNotification(orderId, status, deliveryType);
+      })
+      .on("broadcast", { event: "chat-message" }, ({ payload }) => {
+        // Mensagem do próprio cliente não vira notificação para ele.
+        if (payload.senderRole === "CUSTOMER") return;
+        fetchChatMessages();
+      })
       .subscribe();
 
     const poll = setInterval(fetchAndCompare, POLL_INTERVAL);
@@ -266,7 +298,7 @@ export function useOrderNotifications() {
       clearInterval(poll);
       clearInterval(chatPoll);
     };
-  }, [userId, addNotification, addChatNotification]);
+  }, [userId, tenantId, addNotification, addChatNotification]);
 
   const markAllAsRead = useCallback(() => {
     setNotifications((prev) => {

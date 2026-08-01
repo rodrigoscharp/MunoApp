@@ -1,21 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant-context";
-
-// Models que carregam tenantId e devem ser automaticamente filtrados/preenchidos
-// pelo tenant da request atual (ver src/lib/tenant-context.ts).
-const TENANT_SCOPED_MODELS = new Set([
-  "User",
-  "Category",
-  "MenuItem",
-  "Order",
-  "Table",
-  "Payment",
-  "Setting",
-  "DeliveryZone",
-  "ChatMessage",
-  "PaymentConnection",
-  "PasswordResetToken",
-]);
+import { TENANT_SCOPED_MODELS } from "@/lib/tenant-scoped-models";
 
 const WHERE_OPERATIONS = new Set([
   "findMany",

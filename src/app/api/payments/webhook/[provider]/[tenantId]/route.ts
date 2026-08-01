@@ -3,7 +3,7 @@ import { prisma, prismaUnscoped } from "@/lib/prisma";
 import { runWithTenant } from "@/lib/tenant-context";
 import { getPaymentProvider } from "@/lib/payments/factory";
 import { InvalidWebhookSignatureError } from "@/lib/payments/types";
-import { broadcastTenantEvent } from "@/lib/realtime";
+import { broadcastOrderUpdate } from "@/lib/realtime";
 import { extractErrorMessage } from "@/lib/error-message";
 
 export async function POST(
@@ -80,12 +80,7 @@ export async function POST(
       }
 
       if (order) {
-        await broadcastTenantEvent(tenantId, `order:${result.orderId}`, "order-updated", {
-          status: order.status,
-          updatedAt: order.updatedAt.toISOString(),
-          estimatedDeliveryAt: order.estimatedDeliveryAt?.toISOString() ?? null,
-        });
-        await broadcastTenantEvent(tenantId, "kitchen-orders", "order-updated", { orderId: result.orderId });
+        await broadcastOrderUpdate(tenantId, order);
       }
     });
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
-import { broadcastTenantEvent } from "@/lib/realtime";
+import { broadcastOrderUpdate } from "@/lib/realtime";
 import { canViewOrder } from "@/lib/order-access";
 import { z } from "zod";
 
@@ -69,12 +69,7 @@ export async function PATCH(
       include: { items: { include: { menuItem: true } } },
     });
 
-    await broadcastTenantEvent(tenantId, `order:${id}`, "order-updated", {
-      status: order.status,
-      updatedAt: order.updatedAt.toISOString(),
-      estimatedDeliveryAt: order.estimatedDeliveryAt?.toISOString() ?? null,
-    });
-    await broadcastTenantEvent(tenantId, "kitchen-orders", "order-updated", { orderId: id });
+    await broadcastOrderUpdate(tenantId, order);
 
     return NextResponse.json(order);
   });

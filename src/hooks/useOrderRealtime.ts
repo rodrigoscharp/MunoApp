@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { tenantChannelName } from "@/lib/realtime-channel";
+import { orderChannel, tenantChannelName } from "@/lib/realtime-channel";
 import { OrderStatus } from "@/types";
 import { ORDER_STATUS_LABELS } from "@/lib/utils";
 import { toast } from "sonner";
@@ -14,7 +14,7 @@ export function useOrderRealtime(orderId: string, tenantId: string) {
 
   useEffect(() => {
     const channel = supabase
-      .channel(tenantChannelName(tenantId, `order:${orderId}`))
+      .channel(tenantChannelName(tenantId, orderChannel(orderId)))
       .on("broadcast", { event: "order-updated" }, ({ payload }) => {
         const newStatus = payload.status as OrderStatus;
         setStatus(newStatus);

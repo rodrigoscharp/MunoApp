@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { orderChannel, tenantChannelName } from "@/lib/realtime-channel";
 
 export interface ChatMessageData {
   id: string;
@@ -15,7 +16,11 @@ export interface ChatMessageData {
   failed?: boolean;
 }
 
-const POLL_INTERVAL = 4000; // ms — garante recebimento mesmo sem realtime
+// Rede de segurança, não a fonte principal. Até a migração para Broadcast a
+// assinatura de postgres_changes nunca disparava (RLS em ChatMessage bloqueia a
+// role anon), então o chat inteiro vivia deste intervalo — a 4s ele sozinho
+// gerava 15 requisições por minuto por conversa aberta.
+const POLL_INTERVAL = 15_000;
 
 // Cache em memória por orderId
 const messageCache = new Map<string, ChatMessageData[]>();
@@ -32,7 +37,7 @@ export async function prefetchChat(orderId: string): Promise<void> {
   }
 }
 
-export function useChat(orderId: string) {
+export function useChat(orderId: string, tenantId: string) {
   const cached = messageCache.get(orderId);
   const [messages, setMessages] = useState<ChatMessageData[]>(cached ?? []);
   const [loading, setLoading] = useState(!cached);
@@ -72,30 +77,22 @@ export function useChat(orderId: string) {
     return () => clearInterval(timer);
   }, [orderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Supabase realtime — bônus se a tabela tiver replication habilitada no Supabase
+  // Broadcast no canal do tenant — esta é a fonte principal de novas mensagens.
+  // O evento é só um aviso (id, sem conteúdo); o texto vem do GET protegido.
   useEffect(() => {
     const channel = supabase
-      .channel(`chat-${orderId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "ChatMessage" },
-        (payload) => {
-          const msg = payload.new as ChatMessageData;
-          // Filtra client-side (evita problemas com casing do nome da coluna)
-          if (msg.orderId !== orderId) return;
-          if (seenIds.current.has(msg.id)) return;
-          seenIds.current.add(msg.id);
-          setMessages((prev) => {
-            const updated = [...prev.filter((m) => !m.pending && !m.failed), msg];
-            messageCache.set(orderId, updated);
-            return updated;
-          });
-        }
-      )
+      .channel(tenantChannelName(tenantId, orderChannel(orderId)))
+      .on("broadcast", { event: "chat-message" }, ({ payload }) => {
+        const messageId = payload.messageId as string;
+        // A própria mensagem enviada volta pela resposta do POST; ignorar aqui
+        // evita um fetch redundante por mensagem que o remetente já tem.
+        if (!messageId || seenIds.current.has(messageId)) return;
+        fetchMessages(true);
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [orderId]);
+  }, [orderId, tenantId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function sendMessage(content: string): Promise<boolean> {
     if (!content.trim()) return false;

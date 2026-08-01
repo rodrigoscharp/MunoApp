@@ -8,6 +8,17 @@ import { assertMethodAllowed, PaymentMethodNotAllowedError } from "@/lib/payment
 import { DeliveryFeeError, resolveDeliveryFee } from "@/lib/delivery-fee";
 import { z } from "zod";
 
+// Janela da fila da cozinha. Sem ela, um pedido abandonado (cliente desistiu,
+// PIX nunca pago) fica PENDING para sempre e entra em toda resposta do polling,
+// crescendo mês a mês. 24h corridas é largo o bastante para cobrir a virada da
+// madrugada e nenhum pedido legítimo em preparo. Os antigos continuam visíveis
+// no histórico do admin (/adm/orders), que não filtra por status nem por data.
+const KITCHEN_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// Quantos pedidos recentes o sino de notificações acompanha. Notificação de
+// pedido antigo não existe: o que interessa é o que ainda está em curso.
+const CUSTOMER_ORDERS_LIMIT = 20;
+
 const orderSchema = z.object({
   items: z.array(
     z.object({
@@ -46,7 +57,10 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
       }
       const orders = await prisma.order.findMany({
-        where: { status: { notIn: ["DELIVERED", "CANCELLED"] } },
+        where: {
+          status: { notIn: ["DELIVERED", "CANCELLED"] },
+          createdAt: { gte: new Date(Date.now() - KITCHEN_WINDOW_MS) },
+        },
         include: {
           items: { include: { menuItem: true } },
           user: { select: { id: true, name: true, email: true } },
@@ -74,10 +88,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
+    // Único consumidor deste ramo é o sino de notificações
+    // (useOrderNotifications), que só compara id, status e deliveryType. Antes
+    // daqui saía o histórico inteiro do cliente com todos os itens e o menuItem
+    // completo — descrição, imagem, preço — a cada ciclo de polling. Um cliente
+    // fiel com 200 pedidos recebia os 200, de minuto em minuto.
     const orders = await prisma.order.findMany({
       where: { userId: session.user.id },
-      include: { items: { include: { menuItem: true } } },
+      select: { id: true, status: true, deliveryType: true },
       orderBy: { createdAt: "desc" },
+      take: CUSTOMER_ORDERS_LIMIT,
     });
     return NextResponse.json(orders);
   });
@@ -170,9 +190,12 @@ export async function POST(req: NextRequest) {
         estimatedDeliveryAt,
         userId: session?.user.id ?? null,
         items: {
+          // tenantId explícito: escrita aninhada não passa pela extensão que
+          // preenche o tenant automaticamente (ver src/lib/prisma.ts).
           create: items.map((item) => {
             const menuItem = menuItems.find((m) => m.id === item.menuItemId)!;
             return {
+              tenantId,
               menuItemId: item.menuItemId,
               quantity: item.quantity,
               unitPrice: menuItem.price,

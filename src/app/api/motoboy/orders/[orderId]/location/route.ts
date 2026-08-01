@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { broadcastTenantEvent } from "@/lib/realtime";
+import { orderChannel } from "@/lib/realtime-channel";
+import { canViewOrder } from "@/lib/order-access";
 
 interface Params {
   params: Promise<{ orderId: string }>;
@@ -85,7 +87,18 @@ export async function POST(req: Request, { params }: Params) {
     const tracking = await prisma.deliveryTracking.upsert({
       where: { orderId },
       update: { lat, lng },
-      create: { orderId, motoboyId: session.user.id, lat, lng },
+      create: { tenantId, orderId, motoboyId: session.user.id, lat, lng },
+    });
+
+    // O mapa do cliente lia DeliveryTracking direto por postgres_changes com a
+    // chave anon — único jeito de funcionar, já que a tabela era a única sem
+    // RLS. Publicando aqui, o mapa passa a viver no canal do tenant e a tabela
+    // pode ser fechada.
+    await broadcastTenantEvent(tenantId, orderChannel(orderId), "tracking-updated", {
+      orderId,
+      lat,
+      lng,
+      updatedAt: tracking.updatedAt.toISOString(),
     });
 
     // Na primeira atualização, calcula a previsão pela rota real
@@ -134,7 +147,7 @@ async function recalculateETA(
     data: { estimatedDeliveryAt },
   });
 
-  await broadcastTenantEvent(tenantId, `order:${orderId}`, "order-updated", {
+  await broadcastTenantEvent(tenantId, orderChannel(orderId), "order-updated", {
     status: updated.status,
     updatedAt: updated.updatedAt.toISOString(),
     estimatedDeliveryAt: updated.estimatedDeliveryAt?.toISOString() ?? null,
@@ -142,16 +155,35 @@ async function recalculateETA(
 }
 
 // GET /api/motoboy/orders/[orderId]/location — retorna posição atual
-export async function GET(_req: Request, { params }: Params) {
-  const { orderId } = await params;
+//
+// Quem consome é o mapa do cliente (LiveDeliveryTracker), não o motoboy, então
+// o guard é o mesmo da página de track: canViewOrder. Sem ele, e como o
+// rastreamento é buscado pelo orderId, qualquer id de pedido devolvia a posição
+// GPS ao vivo do motoboy de qualquer restaurante.
+export async function GET(req: Request, { params }: Params) {
+  const tenantId = getTenantIdFromRequest(req);
+  if (!tenantId) return apiError("Tenant não identificado", 400);
 
-  const tracking = await prisma.deliveryTracking.findUnique({
-    where: { orderId },
+  return withTenant(tenantId, async () => {
+    const { orderId } = await params;
+    const session = await auth();
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { userId: true },
+    });
+    if (!order || !canViewOrder(order, session?.user ?? null)) {
+      return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
+    }
+
+    const tracking = await prisma.deliveryTracking.findUnique({
+      where: { orderId },
+    });
+
+    if (!tracking) {
+      return NextResponse.json({ error: "Rastreamento não iniciado" }, { status: 404 });
+    }
+
+    return NextResponse.json(tracking);
   });
-
-  if (!tracking) {
-    return NextResponse.json({ error: "Rastreamento não iniciado" }, { status: 404 });
-  }
-
-  return NextResponse.json(tracking);
 }

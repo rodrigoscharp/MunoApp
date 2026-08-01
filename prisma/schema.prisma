@@ -23,6 +23,8 @@ model Tenant {
   categories        Category[]
   menuItems         MenuItem[]
   orders            Order[]
+  orderItems        OrderItem[]
+  deliveryTrackings DeliveryTracking[]
   tables            Table[]
   payments          Payment[]
   settings          Setting[]
@@ -104,6 +106,7 @@ model MenuItem {
   updatedAt   DateTime    @updatedAt
 
   @@index([tenantId])
+  @@index([categoryId])
 }
 
 model Order {
@@ -134,7 +137,14 @@ model Order {
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
-  @@index([tenantId])
+  // As três consultas quentes. Cada uma começa por tenantId, então elas também
+  // atendem o filtro automático da extensão do Prisma — por isso o @@index
+  // solto em [tenantId] foi removido: virou prefixo redundante.
+  @@index([tenantId, status, createdAt]) // fila da cozinha
+  @@index([tenantId, userId, createdAt]) // histórico do cliente
+  @@index([tenantId, status, deliveryType]) // fila do motoboy
+  @@index([motoboyId])
+  @@index([tableId])
 }
 
 model Table {
@@ -165,6 +175,7 @@ model Payment {
   createdAt DateTime      @default(now())
 
   @@index([tenantId])
+  @@index([tableId])
 }
 
 model Setting {
@@ -193,6 +204,10 @@ model PasswordResetToken {
 
 model DeliveryTracking {
   id        String   @id @default(cuid())
+  // Mesma razão do tenantId em OrderItem: é a posição GPS ao vivo do motoboy,
+  // e sem a coluna qualquer id de pedido lê o rastreamento de outro restaurante.
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
   orderId   String   @unique
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   motoboyId String
@@ -201,6 +216,9 @@ model DeliveryTracking {
   lng       Float
   startedAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([motoboyId])
 }
 
 enum DeliveryType {
@@ -211,6 +229,11 @@ enum DeliveryType {
 
 model OrderItem {
   id         String   @id @default(cuid())
+  // Redundante com order.tenantId de propósito: sem a coluna aqui, este model
+  // fica fora de TENANT_SCOPED_MODELS e agregações diretas (ex.: o groupBy do
+  // topItems em /api/analytics) somam os itens de todos os restaurantes.
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
   quantity   Int
   unitPrice  Decimal  @db.Decimal(10, 2)
   notes      String?
@@ -218,6 +241,10 @@ model OrderItem {
   order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItemId String
   menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@index([tenantId])
+  @@index([orderId])
+  @@index([menuItemId])
 }
 
 enum OrderStatus {

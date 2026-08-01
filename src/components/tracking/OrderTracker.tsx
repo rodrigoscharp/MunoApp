@@ -378,6 +378,7 @@ export function OrderTracker({ orderId, initialStatus, order, tenantId, canChat 
           order.deliveryAddress && (
             <LiveDeliveryTracker
               orderId={orderId}
+              tenantId={tenantId}
               deliveryAddress={order.deliveryAddress}
               initialLat={order.initialLat}
               initialLng={order.initialLng}
