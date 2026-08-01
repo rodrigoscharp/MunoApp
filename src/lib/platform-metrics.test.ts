@@ -45,6 +45,13 @@ describe("montarPauta", () => {
     expect(pauta.map((i) => i.chave)).not.toContain("parados");
   });
 
+  it("não considera parado um lead tocado exatamente há 5 dias", () => {
+    // Esta é a fronteira: a regra é "mais de 5 dias", não "5 ou mais".
+    // Sem este teste, trocar < por <= na implementação passaria despercebido.
+    const pauta = montarPauta([lead({ updatedAt: diasAtras(5) })], AGORA);
+    expect(pauta.map((i) => i.chave)).not.toContain("parados");
+  });
+
   it("ignora fechados e perdidos na contagem de parados", () => {
     const pauta = montarPauta(
       [
@@ -85,6 +92,20 @@ describe("montarPauta", () => {
       AGORA
     );
     expect(dois[0].texto).toContain("2 leads sem contato");
+  });
+
+  it("usa singular e plural em fechados sem cliente", () => {
+    const um = montarPauta([lead({ status: "FECHADO", tenantId: null })], AGORA);
+    expect(um[0].texto).toContain("1 fechado sem");
+
+    const dois = montarPauta(
+      [
+        lead({ status: "FECHADO", tenantId: null }),
+        lead({ status: "FECHADO", tenantId: null }),
+      ],
+      AGORA
+    );
+    expect(dois[0].texto).toContain("2 fechados sem");
   });
 });
 
