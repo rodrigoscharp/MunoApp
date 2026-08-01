@@ -24,7 +24,7 @@ export default async function LeadsPage() {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-neutral-900">Funil</h1>
+        <h1 className="display text-[2rem] leading-none">funil</h1>
         <NovoLeadForm />
       </div>
 
@@ -42,7 +42,7 @@ export default async function LeadsPage() {
                 <Link
                   key={lead.id}
                   href={`/leads/${lead.id}`}
-                  className="block bg-white border border-neutral-200 rounded-xl px-5 py-4 hover:border-brand/40 transition"
+                  className="block bg-console-cartao border border-console-linha rounded-xl px-5 py-4 hover:border-console-campo/40 transition"
                 >
                   <p className="font-semibold text-neutral-900">
                     {lead.restaurante}

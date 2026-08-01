@@ -90,7 +90,7 @@ export function MensalidadeInline({
         onChange={(e) => setValor(e.target.value)}
         autoFocus
         aria-label="Mensalidade"
-        className="tabular w-24 px-2 py-1 rounded border border-console-linha bg-console-fundo text-sm text-right"
+        className="tabular w-24 px-2 py-1 rounded border border-console-linha bg-console-papel text-sm text-right"
       />
       <input
         type="number"
@@ -101,7 +101,7 @@ export function MensalidadeInline({
         onChange={(e) => setDia(e.target.value)}
         aria-label="Dia de vencimento"
         placeholder="dia"
-        className="tabular w-14 px-2 py-1 rounded border border-console-linha bg-console-fundo text-sm text-right"
+        className="tabular w-14 px-2 py-1 rounded border border-console-linha bg-console-papel text-sm text-right"
       />
       <button
         type="submit"

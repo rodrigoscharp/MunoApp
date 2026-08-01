@@ -19,15 +19,20 @@
   --color-forest: #2B5240;
   --color-forest-dark: #1E3D2F;
   --color-forest-light: #E8F0ED;
-  /* Console da plataforma: o salão veste terracota, a sala de máquinas veste
-     verde. Os neutros são FRIOS de propósito — creme aqui puxaria o console
-     para o mesmo lugar do app do cliente. */
-  --color-console-verde: #2B5240;
-  --color-console-verde-esc: #1E3D2F;
-  --color-console-fundo: #F2F3F5;
+  /* Console da plataforma.
+     A lógica vem do logotipo: terracota é o corpo das letras, o verde é o
+     garfo — o detalhe preciso dentro da palavra. Então terracota é campo de
+     marca (barra lateral, tela de entrada) e o verde carrega o dado.
+     O papel é o mesmo creme do app: o console é a Muno por dentro, não outra
+     empresa. */
+  --color-console-campo: #D4612A;
+  --color-console-campo-esc: #B5501F;
+  --color-console-papel: #F5F2EE;
   --color-console-cartao: #FFFFFF;
-  --color-console-linha: #E3E5E9;
-  --color-console-tinta: #17191C;
+  --color-console-linha: #E9E2DB;
+  --color-console-tinta: #23201E;
+  --color-console-dado: #2B5240;
+  --font-display: var(--font-fredoka);
 }
 
 html,
@@ -85,9 +90,26 @@ body {
   background: #9ca3af;
 }
 
-/* Números do console alinham em coluna — é o que faz a interface ler como
-   painel de instrumento em vez de página de marketing. */
+/* Números que alinham em coluna, para listas e tabelas do console. */
 .tabular {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+/* O arco.
+   No logotipo da Muno o m, o n e o o são o mesmo desenho repetido: base reta,
+   topo inteiramente redondo. É a unidade de forma da marca, e aqui ela vira a
+   unidade de layout — os blocos da visão geral não recebem um arco de enfeite,
+   eles SÃO os arcos, apoiados na mesma linha de base como as letras da palavra.
+   Usado uma vez por tela: é a assinatura, não o padrão. */
+.arco {
+  border-radius: 7rem 7rem 1rem 1rem;
+}
+
+/* Tipografia de display: a Fredoka repete a geometria pesada e redonda do
+   logotipo. Só títulos e os números grandes — o corpo do texto continua Geist. */
+.display {
+  font-family: var(--font-fredoka), var(--font-geist-sans), sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.015em;
 }

@@ -19,7 +19,7 @@ export default async function ClientesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4">
-        <h1 className="text-2xl font-bold">Clientes</h1>
+        <h1 className="display text-[2rem] leading-none">clientes</h1>
         <div className="text-right">
           <p className="tabular text-[11px] uppercase tracking-[0.16em] text-neutral-400">
             Receita mensal
@@ -49,7 +49,7 @@ export default async function ClientesPage() {
                   <span
                     className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                       t.status === "active"
-                        ? "bg-forest-light text-console-verde"
+                        ? "bg-forest-light text-console-dado"
                         : "bg-neutral-100 text-neutral-500"
                     }`}
                   >

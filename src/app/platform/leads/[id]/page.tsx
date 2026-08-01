@@ -41,7 +41,7 @@ export default async function LeadPage({
       </Link>
 
       <div>
-        <h1 className="text-2xl font-bold text-neutral-900">
+        <h1 className="display text-[1.75rem] leading-tight">
           {lead.restaurante}
         </h1>
         {contato.length > 0 && (
@@ -49,7 +49,7 @@ export default async function LeadPage({
         )}
       </div>
 
-      <div className="bg-white border border-neutral-200 rounded-xl p-5">
+      <div className="bg-console-cartao border border-console-linha rounded-xl p-5">
         <LeadAcoes leadId={lead.id} statusAtual={lead.status} />
       </div>
 
@@ -80,7 +80,7 @@ export default async function LeadPage({
             {lead.notas.map((nota) => (
               <li
                 key={nota.id}
-                className="bg-white border border-neutral-200 rounded-xl px-4 py-3"
+                className="bg-console-cartao border border-console-linha rounded-xl px-4 py-3"
               >
                 <p className="text-xs text-neutral-400">
                   {nota.createdAt.toLocaleString("pt-BR")}
