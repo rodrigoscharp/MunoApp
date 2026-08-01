@@ -65,10 +65,24 @@ export async function POST(
     if (!vinculado && !aviso) {
       // Perdemos a corrida: outra requisição já converteu este lead. Desfaz o
       // tenant que acabamos de criar para não deixar um restaurante fantasma.
-      await prismaUnscoped.$transaction([
-        prismaUnscoped.user.deleteMany({ where: { tenantId: tenant.id } }),
-        prismaUnscoped.tenant.delete({ where: { id: tenant.id } }),
-      ]);
+      try {
+        await prismaUnscoped.$transaction([
+          prismaUnscoped.user.deleteMany({ where: { tenantId: tenant.id } }),
+          prismaUnscoped.tenant.delete({ where: { id: tenant.id } }),
+        ]);
+      } catch {
+        // Se nem a limpeza funcionou, o fantasma existe de fato. Melhor dizer
+        // exatamente qual é do que devolver um 500 mudo — sem o slug, achar
+        // esse tenant no banco depois vira caça ao tesouro.
+        return NextResponse.json(
+          {
+            error:
+              `Este lead já foi convertido, e não conseguimos remover o restaurante duplicado "${tenant.slug}" que acabou de ser criado. Apague-o manualmente.`,
+          },
+          { status: 409 }
+        );
+      }
+
       return NextResponse.json(
         { error: "Este lead já foi convertido em cliente." },
         { status: 409 }
