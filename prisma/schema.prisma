@@ -14,6 +14,9 @@ model Tenant {
   slug      String             @unique
   plano     String             @default("free")
   status    String             @default("active")
+  // Mensalidade contratada e dia de vencimento (opcionais: tenants existentes não têm esses dados)
+  valorMensal   Decimal? @db.Decimal(10, 2)
+  diaVencimento Int?
   createdAt DateTime           @default(now())
 
   users             User[]
