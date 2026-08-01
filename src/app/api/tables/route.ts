@@ -18,9 +18,21 @@ export async function GET() {
 
     const tables = await prisma.table.findMany({
       orderBy: { number: "asc" },
+      include: {
+        orders: {
+          where: { status: { not: "CANCELLED" }, paymentStatus: "UNPAID" },
+          select: { total: true },
+        },
+      },
     });
 
-    return NextResponse.json(tables);
+    const result = tables.map(({ orders, ...table }) => ({
+      ...table,
+      openOrdersCount: orders.length,
+      openTotal: orders.reduce((sum, o) => sum + Number(o.total), 0),
+    }));
+
+    return NextResponse.json(result);
   });
 }
 

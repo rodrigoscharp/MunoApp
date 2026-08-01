@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus, Trash2, QrCode, Download, X, TableProperties, Receipt, ClipboardList, Check, Printer, Percent, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, QrCode, Download, X, TableProperties, Receipt, ClipboardList, Check, Printer, Percent, ArrowLeft, CircleDot, CircleCheck } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import type { PrinterConfig } from "@/app/api/settings/printer/route";
@@ -13,6 +13,8 @@ interface Table {
   name: string | null;
   token: string;
   active: boolean;
+  openOrdersCount: number;
+  openTotal: number;
 }
 
 interface TableOrderItem {
@@ -266,22 +268,39 @@ export function TableManager() {
   const paymentDiff = closeBillGrandTotal - paymentSum;
   const paymentMatches = Math.abs(paymentDiff) < 0.01;
 
+  const occupiedCount = tables.filter((t) => t.openOrdersCount > 0).length;
+  const freeCount = tables.length - occupiedCount;
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-neutral-900">Mesas</h2>
           <p className="text-sm text-neutral-500 mt-0.5">
-            Gere QR codes para cada mesa do estabelecimento.
+            Gere QR codes e acompanhe o status de cada mesa do estabelecimento.
           </p>
         </div>
-        <button
-          onClick={() => setAdding(true)}
-          className="flex items-center gap-2 bg-brand hover:bg-brand-dark text-white text-sm font-semibold px-4 py-2 rounded-xl transition"
-        >
-          <Plus size={16} />
-          Nova Mesa
-        </button>
+        <div className="flex items-center gap-5">
+          {tables.length > 0 && (
+            <div className="flex items-center gap-4 text-xs font-medium text-neutral-500">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                {freeCount} livre{freeCount !== 1 ? "s" : ""}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                {occupiedCount} em aberto
+              </span>
+            </div>
+          )}
+          <button
+            onClick={() => setAdding(true)}
+            className="flex items-center gap-2 bg-brand hover:bg-brand-dark text-white text-sm font-semibold px-4 py-2 rounded-xl transition shadow-sm"
+          >
+            <Plus size={16} />
+            Nova Mesa
+          </button>
+        </div>
       </div>
 
       {/* Form nova mesa */}
@@ -343,14 +362,36 @@ export function TableManager() {
           {tables.map((table) => {
             const url = `${origin}/mesa/${table.token}`;
             const label = table.name ? `Mesa ${table.number} · ${table.name}` : `Mesa ${table.number}`;
+            const occupied = table.openOrdersCount > 0;
             return (
               <div
                 key={table.id}
-                className="bg-white rounded-xl border border-neutral-200 p-5 flex flex-col gap-4"
+                className={`group relative bg-white rounded-xl border p-5 flex flex-col gap-4 transition-shadow hover:shadow-md ${
+                  occupied ? "border-amber-200" : "border-neutral-200"
+                }`}
               >
-                <div className="flex items-start justify-between">
+                {/* Barra de status */}
+                <span
+                  className={`absolute left-0 top-0 h-full w-1 rounded-l-xl ${
+                    occupied ? "bg-amber-400" : "bg-emerald-400"
+                  }`}
+                />
+
+                <div className="flex items-start justify-between pl-2">
                   <div>
-                    <p className="font-bold text-neutral-900">{label}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-neutral-900">{label}</p>
+                      <span
+                        className={`flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${
+                          occupied
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-emerald-50 text-emerald-700"
+                        }`}
+                      >
+                        {occupied ? <CircleDot size={10} /> : <CircleCheck size={10} />}
+                        {occupied ? "Em aberto" : "Livre"}
+                      </span>
+                    </div>
                     <p className="text-[11px] text-neutral-400 mt-0.5 break-all">{url}</p>
                   </div>
                   <button
@@ -361,6 +402,17 @@ export function TableManager() {
                     <Trash2 size={15} />
                   </button>
                 </div>
+
+                {occupied && (
+                  <div className="ml-2 flex items-center justify-between bg-amber-50 rounded-lg px-3 py-2">
+                    <span className="text-xs font-medium text-amber-800">
+                      {table.openOrdersCount} pedido{table.openOrdersCount !== 1 ? "s" : ""} em aberto
+                    </span>
+                    <span className="text-sm font-bold text-amber-800">
+                      {formatCurrency(table.openTotal)}
+                    </span>
+                  </div>
+                )}
 
                 {/* Hidden QR for download */}
                 <div className="hidden">

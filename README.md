@@ -13,14 +13,17 @@ O **Muno V2** é uma plataforma full-stack para restaurantes que cobre toda a jo
 | Perfil | Funcionalidades |
 |--------|-----------------|
 | **Cliente** | Navegar cardápio, chat com IA para recomendações, carrinho, checkout, pagamento via PIX/Cartão/Dinheiro, rastrear pedido |
-| **Admin** | Dashboard com métricas, gerenciar cardápio/categorias, pedidos, mesas, motoboys, zonas de entrega, horários, configurações |
-| **Cozinha** | Visualizar fila de pedidos e atualizar status de preparo |
+| **Cliente na mesa** | Escaneia o QR Code, pede sem login, acompanha a conta em tempo real |
+| **Admin** | Dashboard com métricas, gerenciar cardápio/categorias, pedidos, mesas (status livre/em aberto, fechar conta), motoboys, zonas de entrega, horários, configurações |
+| **Cozinha** | Visualizar fila de pedidos (com número da mesa) e atualizar status de preparo |
 | **Motoboy** | Aceitar entregas, atualizar localização GPS em tempo real, finalizar entrega |
 
 ### Destaques
 
 - **IA no Cardápio** — Assistente "Muno" powered by Groq LLaMA 3.3 70B que entende restrições alimentares, nível de fome e sugere itens automaticamente
-- **QR Code para Mesas** — Cada mesa tem token único; cliente escaneia e faz pedido sem login
+- **QR Code para Mesas** — Cada mesa tem token único; cliente escaneia, faz pedido sem login e acompanha a própria conta
+- **Gestão de Mesas no Admin** — cards com flag de status (livre/em aberto), quantidade de pedidos e total em aberto por mesa
+- **Fechar Conta** — agrupa os pedidos por cliente, permite 10% de serviço opcional, divide o pagamento em múltiplas formas (Pix/Cartão/Dinheiro) e imprime o recibo
 - **Rastreamento em Tempo Real** — Mapa Leaflet com atualização de GPS do motoboy
 - **Pagamentos Integrados** — PIX (QR Code), Cartão de Crédito (Mercado Pago) e Dinheiro
 
@@ -99,7 +102,9 @@ Principais modelos Prisma:
 - **Order** — status: `PENDING → CONFIRMED → IN_PREPARATION → READY → OUT_FOR_DELIVERY → DELIVERED/CANCELLED`
 - **MenuItem** / **Category**
 - **OrderItem** — com campo `notes` para customizações
-- **Table** — token único para QR Code
+- **Table** — token único para QR Code; pedidos em aberto definem se está livre ou ocupada
+- **Payment** — formas de pagamento usadas no fechamento de conta de uma mesa
+- **ChatMessage** — chat por pedido entre cliente e admin
 - **DeliveryTracking** — lat/lng em tempo real
 - **DeliveryZone** — zonas com preços distintos
 - **Setting** — configurações chave-valor do restaurante
