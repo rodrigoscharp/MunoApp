@@ -27,6 +27,7 @@ model Tenant {
   chatMessages      ChatMessage[]
   paymentConnections PaymentConnection[]
   passwordResetTokens PasswordResetToken[]
+  lead              Lead?
 }
 
 model PaymentConnection {
@@ -266,4 +267,51 @@ model ChatMessage {
 
   @@index([orderId])
   @@index([tenantId])
+}
+
+// Login da área administrativa da plataforma, separado dos usuários de restaurante (User)
+model PlatformAdmin {
+  id        String   @id @default(cuid())
+  nome      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
+
+enum LeadStatus {
+  NOVO
+  CONTATADO
+  NEGOCIACAO
+  FECHADO
+  PERDIDO
+}
+
+// Prospecção de restaurantes (CRM). tenantId é o vínculo com o cliente convertido, não um escopo multi-tenant
+model Lead {
+  id          String     @id @default(cuid())
+  restaurante String
+  contato     String?
+  email       String?
+  telefone    String?
+  cidade      String?
+  origem      String     @default("manual")
+  status      LeadStatus @default(NOVO)
+  motivoPerda String?
+  tenantId    String?    @unique
+  tenant      Tenant?    @relation(fields: [tenantId], references: [id])
+  notas       LeadNote[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([status])
+}
+
+model LeadNote {
+  id        String   @id @default(cuid())
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  texto     String
+  createdAt DateTime @default(now())
+
+  @@index([leadId])
 }
