@@ -30,6 +30,7 @@ export function ConverterLead({
   const [aberto, setAberto] = useState(false);
   const [slug, setSlug] = useState(() => sugerirSlug(restauranteNome));
   const [email, setEmail] = useState("");
+  const [mensalidade, setMensalidade] = useState("");
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(false);
   const [credenciais, setCredenciais] = useState<Credenciais | null>(null);
@@ -43,7 +44,11 @@ export function ConverterLead({
       const res = await fetch(`/api/platform/leads/${leadId}/converter`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug, email }),
+        body: JSON.stringify({
+          slug,
+          email,
+          ...(mensalidade.trim() ? { valorMensal: Number(mensalidade) } : {}),
+        }),
       });
 
       const body = await res.json().catch(() => ({}));
@@ -167,6 +172,20 @@ export function ConverterLead({
           onChange={(e) => setEmail(e.target.value)}
           required
           placeholder="joao@pizzaria.com"
+          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-neutral-700 mb-1">
+          Mensalidade (opcional)
+        </label>
+        <input
+          type="number"
+          step="0.01"
+          value={mensalidade}
+          onChange={(e) => setMensalidade(e.target.value)}
+          placeholder="0,00"
           className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
         />
       </div>

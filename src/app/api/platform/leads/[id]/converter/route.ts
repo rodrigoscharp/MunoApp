@@ -8,6 +8,7 @@ const schema = z.object({
   slug: z.string().min(1),
   email: z.string().email(),
   nome: z.string().min(2).optional(),
+  valorMensal: z.number().min(0).optional(),
 });
 
 export async function POST(
@@ -42,6 +43,15 @@ export async function POST(
       slug: parsed.data.slug,
       email: parsed.data.email,
     });
+
+    // provisionTenant não conhece mensalidade — é compartilhado com o script
+    // de CLI, que não tem noção de cobrança. Gravamos aqui, logo depois.
+    if (parsed.data.valorMensal !== undefined) {
+      await prismaUnscoped.tenant.update({
+        where: { id: tenant.id },
+        data: { valorMensal: parsed.data.valorMensal },
+      });
+    }
 
     // Vínculo atômico: o updateMany só casa se o lead ainda estiver sem tenant.
     // Duas requisições concorrentes chegam aqui cada uma com o seu tenant já
