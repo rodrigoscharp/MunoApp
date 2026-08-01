@@ -46,3 +46,8 @@ next-env.d.ts
 .idea/
 .vscode/
 
+# Worktrees locais do Claude Code. Já estiveram versionadas por engano como
+# gitlink (modo 160000, tipo submódulo) sem .gitmodules, o que num clone novo
+# vira diretório quebrado.
+.claude/worktrees/
+
