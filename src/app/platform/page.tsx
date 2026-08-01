@@ -1,11 +1,13 @@
 import { prismaUnscoped } from "@/lib/prisma";
 import { authPlatform } from "@/lib/auth-platform";
-import { calcularMrr, montarPauta } from "@/lib/platform-metrics";
+import {
+  calcularMrr,
+  contarLeadsAbertos,
+  montarPauta,
+} from "@/lib/platform-metrics";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-
-const ABERTOS = new Set(["NOVO", "CONTATADO", "NEGOCIACAO"]);
 
 export default async function VisaoGeralPage() {
   const session = await authPlatform();
@@ -28,7 +30,7 @@ export default async function VisaoGeralPage() {
 
   const pauta = montarPauta(leads, new Date());
   const mrr = calcularMrr(tenants);
-  const abertos = leads.filter((l) => ABERTOS.has(l.status)).length;
+  const abertos = contarLeadsAbertos(leads);
   const ativos = tenants.filter((t) => t.status === "active").length;
   const comPlano = tenants.filter(
     (t) => t.status === "active" && t.valorMensal != null

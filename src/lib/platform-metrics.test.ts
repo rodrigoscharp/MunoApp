@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calcularMrr, montarPauta } from "./platform-metrics";
+import { calcularMrr, contarLeadsAbertos, montarPauta } from "./platform-metrics";
 
 const AGORA = new Date("2026-08-01T12:00:00Z");
 const diasAtras = (d: number) =>
@@ -145,5 +145,27 @@ describe("calcularMrr", () => {
 
   it("devolve zero sem clientes", () => {
     expect(calcularMrr([])).toBe(0);
+  });
+});
+
+describe("contarLeadsAbertos", () => {
+  it("conta NOVO, CONTATADO e NEGOCIACAO", () => {
+    expect(
+      contarLeadsAbertos([
+        { status: "NOVO" },
+        { status: "CONTATADO" },
+        { status: "NEGOCIACAO" },
+      ])
+    ).toBe(3);
+  });
+
+  it("não conta fechado nem perdido", () => {
+    expect(
+      contarLeadsAbertos([{ status: "FECHADO" }, { status: "PERDIDO" }])
+    ).toBe(0);
+  });
+
+  it("devolve zero sem leads", () => {
+    expect(contarLeadsAbertos([])).toBe(0);
   });
 });

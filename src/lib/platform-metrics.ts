@@ -22,6 +22,14 @@ export type ItemDaPauta = { chave: ChaveDaPauta; texto: string };
 const ABERTOS = new Set(["NOVO", "CONTATADO", "NEGOCIACAO"]);
 const DIAS_SEM_CONTATO = 5;
 
+/**
+ * Um lead "aberto" é o que ainda está em jogo. A definição mora aqui, junto do
+ * montarPauta que também depende dela — duas cópias divergiriam em silêncio.
+ */
+export function contarLeadsAbertos(leads: { status: string }[]): number {
+  return leads.filter((l) => ABERTOS.has(l.status)).length;
+}
+
 export function montarPauta(
   leads: LeadDaPauta[],
   agora: Date
