@@ -5,6 +5,7 @@ import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { broadcastTenantEvent } from "@/lib/realtime";
 import { getEnabledPaymentMethods } from "@/lib/payments/factory";
 import { assertMethodAllowed, PaymentMethodNotAllowedError } from "@/lib/payments/method-guard";
+import { DeliveryFeeError, resolveDeliveryFee } from "@/lib/delivery-fee";
 import { z } from "zod";
 
 const orderSchema = z.object({
@@ -21,7 +22,8 @@ const orderSchema = z.object({
   customerPhone: z.string().optional(),
   deliveryType: z.enum(["PICKUP", "DELIVERY", "DINE_IN"]).default("PICKUP"),
   deliveryAddress: z.string().optional(),
-  deliveryFee: z.number().min(0).optional(),
+  // O id da zona, não o preço: o valor do frete vem do banco, nunca do cliente.
+  deliveryZoneId: z.string().optional(),
   tableId: z.string().optional(),
 }).refine(
   (data) =>
@@ -94,7 +96,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
     }
 
-    const { items, paymentMethod, notes, customerName, customerPhone, deliveryType, deliveryAddress, deliveryFee: clientFee, tableId } = parsed.data;
+    const { items, paymentMethod, notes, customerName, customerPhone, deliveryType, deliveryAddress, deliveryZoneId, tableId } = parsed.data;
 
     // Delivery e retirada exigem conta. Mesa (DINE_IN) não: o cliente está no
     // restaurante e o pedido é identificado pela mesa.
@@ -126,7 +128,23 @@ export async function POST(req: NextRequest) {
       return sum + Number(menuItem.price) * orderItem.quantity;
     }, 0);
 
-    const deliveryFee = deliveryType === "DELIVERY" ? (clientFee ?? 0) : 0;
+    // O frete sai da zona cadastrada, não de um número enviado na requisição.
+    // `prisma` já restringe a busca ao tenant da request, então não dá para
+    // usar a zona barata de outro restaurante.
+    const zona =
+      deliveryType === "DELIVERY" && deliveryZoneId
+        ? await prisma.deliveryZone.findUnique({ where: { id: deliveryZoneId } })
+        : null;
+
+    let deliveryFee: number;
+    try {
+      deliveryFee = resolveDeliveryFee(deliveryType, zona);
+    } catch (err) {
+      if (err instanceof DeliveryFeeError) {
+        return NextResponse.json({ error: err.message }, { status: 400 });
+      }
+      throw err;
+    }
 
     const total = itemsTotal + deliveryFee;
 

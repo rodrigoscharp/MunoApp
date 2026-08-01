@@ -150,7 +150,9 @@ export default function CheckoutPage() {
           customerPhone: data.customerPhone,
           deliveryType,
           deliveryAddress,
-          deliveryFee: deliveryType === "DELIVERY" ? selectedZone?.price ?? 0 : 0,
+          // Manda o id da zona, não o preço: quem decide o valor do frete é o
+          // servidor, a partir do que está cadastrado.
+          deliveryZoneId: deliveryType === "DELIVERY" ? selectedZone?.id : undefined,
         }),
       });
 
