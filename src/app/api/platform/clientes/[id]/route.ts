@@ -6,7 +6,9 @@ import { authPlatform } from "@/lib/auth-platform";
 // Só dinheiro. slug, status e nome ficam de fora de propósito: esta rota não
 // pode virar uma porta lateral para mudar a identidade de um cliente.
 const schema = z.object({
-  valorMensal: z.number().min(0).nullable().optional(),
+  // Teto casa com o DECIMAL(10,2) da coluna: sem ele o Postgres estoura e o
+  // erro chega como 500 em vez de um 400 explicando o que está errado.
+  valorMensal: z.number().min(0).max(99999999.99).nullable().optional(),
   diaVencimento: z.number().int().min(1).max(28).nullable().optional(),
 });
 

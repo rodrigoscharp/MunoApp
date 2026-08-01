@@ -40,7 +40,22 @@ export default async function ClientesPage() {
               className="bg-console-cartao rounded-xl border border-console-linha px-5 py-4 flex items-center justify-between gap-4"
             >
               <div className="min-w-0">
-                <p className="font-semibold truncate">{t.nome}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold truncate">{t.nome}</p>
+                  {/* A receita mensal acima só conta clientes ativos. Sem esta
+                      pastilha, uma linha de R$ 200,00 que não entra na soma
+                      parece erro de conta. Verde discreto, nunca terracota:
+                      terracota é ação, e status não é ação. */}
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                      t.status === "active"
+                        ? "bg-forest-light text-console-verde"
+                        : "bg-neutral-100 text-neutral-500"
+                    }`}
+                  >
+                    {t.status === "active" ? "ativo" : t.status}
+                  </span>
+                </div>
                 <a
                   href={buildTenantBaseUrl(t.slug)}
                   target="_blank"
@@ -65,6 +80,7 @@ export default async function ClientesPage() {
                 <MensalidadeInline
                   tenantId={t.id}
                   valorAtual={t.valorMensal != null ? Number(t.valorMensal) : null}
+                  diaAtual={t.diaVencimento ?? null}
                 />
               </div>
             </li>

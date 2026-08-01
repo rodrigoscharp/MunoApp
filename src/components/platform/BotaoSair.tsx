@@ -6,7 +6,7 @@ export function BotaoSair() {
     <form
       action={async () => {
         "use server";
-        await signOutPlatform({ redirectTo: "/login" });
+        await signOutPlatform({ redirectTo: "/platform/login" });
       }}
     >
       <button

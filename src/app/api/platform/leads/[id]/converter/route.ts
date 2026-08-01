@@ -8,7 +8,9 @@ const schema = z.object({
   slug: z.string().min(1),
   email: z.string().email(),
   nome: z.string().min(2).optional(),
-  valorMensal: z.number().min(0).optional(),
+  // Teto casa com o DECIMAL(10,2) da coluna: acima disso o Postgres estoura
+  // e viraria um 500 no meio da conversão. Melhor recusar já na entrada.
+  valorMensal: z.number().min(0).max(99999999.99).optional(),
 });
 
 export async function POST(
@@ -46,11 +48,21 @@ export async function POST(
 
     // provisionTenant não conhece mensalidade — é compartilhado com o script
     // de CLI, que não tem noção de cobrança. Gravamos aqui, logo depois.
+    //
+    // A senha só existe em memória neste ponto. Falhar aqui e abortar perderia
+    // as credenciais de um restaurante que já foi criado de verdade — o mesmo
+    // motivo pelo qual o vínculo do lead, mais abaixo, também não aborta.
+    let avisoMensalidade: string | undefined;
     if (parsed.data.valorMensal !== undefined) {
-      await prismaUnscoped.tenant.update({
-        where: { id: tenant.id },
-        data: { valorMensal: parsed.data.valorMensal },
-      });
+      try {
+        await prismaUnscoped.tenant.update({
+          where: { id: tenant.id },
+          data: { valorMensal: parsed.data.valorMensal },
+        });
+      } catch {
+        avisoMensalidade =
+          "O restaurante foi criado, mas a mensalidade não foi salva. Ajuste em Clientes.";
+      }
     }
 
     // Vínculo atômico: o updateMany só casa se o lead ainda estiver sem tenant.
@@ -99,9 +111,14 @@ export async function POST(
       );
     }
 
+    // Os dois avisos são independentes e podem acontecer juntos: juntamos num
+    // campo só para que nenhum deles seja engolido pelo outro.
+    const avisoFinal =
+      [avisoMensalidade, aviso].filter(Boolean).join(" ") || undefined;
+
     // Senha devolvida uma única vez: não fica recuperável depois.
     return NextResponse.json(
-      { tenant, url, email: admin.email, senha, aviso },
+      { tenant, url, email: admin.email, senha, aviso: avisoFinal },
       { status: 201 }
     );
   } catch (err) {
