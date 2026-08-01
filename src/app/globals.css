@@ -19,6 +19,16 @@
   --color-forest: #2B5240;
   --color-forest-dark: #1E3D2F;
   --color-forest-light: #E8F0ED;
+  /* Console da plataforma: o salão veste terracota, a sala de máquinas veste
+     verde. Os neutros são FRIOS de propósito — creme aqui puxaria o console
+     para o mesmo lugar do app do cliente. */
+  --color-console-verde: #2B5240;
+  --color-console-verde-esc: #1E3D2F;
+  --color-console-fundo: #F2F3F5;
+  --color-console-cartao: #FFFFFF;
+  --color-console-linha: #E3E5E9;
+  --color-console-tinta: #17191C;
+  --font-mono: var(--font-geist-mono);
 }
 
 html,
@@ -74,4 +84,11 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
+}
+
+/* Números do console alinham em coluna — é o que faz a interface ler como
+   painel de instrumento em vez de página de marketing. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
 }
