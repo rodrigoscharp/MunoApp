@@ -24,23 +24,29 @@ export function NovoLeadForm() {
     setLoading(true);
     setErro("");
 
-    const res = await fetch("/api/platform/leads", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ restaurante, ...extras }),
-    });
+    try {
+      const res = await fetch("/api/platform/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurante, ...extras }),
+      });
 
-    if (!res.ok) {
-      setErro("Não foi possível salvar o lead.");
+      if (!res.ok) {
+        setErro("Não foi possível salvar o lead.");
+        return;
+      }
+
+      setRestaurante("");
+      setExtras({});
+      setAberto(false);
+      router.refresh();
+    } catch {
+      // Rede caiu no meio. Sem isto o botão ficaria travado em "Salvando..."
+      // e o que foi digitado se perderia num reload.
+      setErro("Sem conexão. Verifique a internet e tente de novo.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setRestaurante("");
-    setExtras({});
-    setAberto(false);
-    setLoading(false);
-    router.refresh();
   }
 
   if (!aberto) {

@@ -35,9 +35,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
   }
 
-  const { email, ...resto } = parsed.data;
+  const { restaurante, origem, ...opcionais } = parsed.data;
+
+  // Campo opcional deixado em branco vira null, nunca string vazia: garante
+  // que "não informado" tenha uma representação só no banco.
+  const limpos = Object.fromEntries(
+    Object.entries(opcionais).map(([k, v]) => [k, v?.trim() ? v.trim() : null])
+  );
+
   const lead = await prismaUnscoped.lead.create({
-    data: { ...resto, email: email || null },
+    data: { restaurante, origem, ...limpos },
   });
   return NextResponse.json(lead, { status: 201 });
 }
