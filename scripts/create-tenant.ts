@@ -46,6 +46,9 @@ async function main() {
     console.log(`  URL:    ${url}`);
     console.log(`  Admin:  ${admin.email}`);
     console.log(`  Senha:  ${senha}`);
+    console.log(
+      "\nLembre-se: o subdomínio só responde se o domínio curinga (*.<domínio raiz>) estiver apontado para o projeto na Vercel."
+    );
   } catch (err) {
     if (err instanceof ProvisionError) {
       console.error(err.message);

@@ -30,35 +30,66 @@ export default auth(async (req) => {
   const host = req.headers.get("host") ?? "";
   const resolvedSlug = resolveSlugFromHost(host);
 
+  // O wrapper auth() do NextAuth reescreve a origem de nextUrl para NEXTAUTH_URL
+  // (reqWithEnvURL), então redirect/rewrite montados a partir dele saem para o
+  // host errado — em produção, para fora do subdomínio do cliente.
+  const hostname = host.split(":")[0];
+  const protocolo =
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "127.0.0.1"
+      ? "http"
+      : "https";
+  const urlNoHost = (caminho: string) =>
+    new URL(caminho, `${protocolo}://${host}`);
+
   // A área de plataforma não pertence a nenhum tenant: não resolvemos tenant e
   // não injetamos x-tenant-id, o que obriga o código de lá a usar
   // prismaUnscoped conscientemente em vez de herdar um escopo em silêncio.
   if (resolvedSlug === PLATFORM_SUBDOMAIN) {
     const isPlatformLogin = nextUrl.pathname === "/platform/login";
+    const isPlatformApi = nextUrl.pathname.startsWith("/api/platform");
+    // Os endpoints do NextAuth da plataforma são o que sustenta o próprio
+    // login: precisam responder sem sessão, exatamente como a tela de login.
+    const isPlatformAuthApi = nextUrl.pathname.startsWith("/api/platform/auth");
     const platformSession = await authPlatform();
 
-    if (!platformSession && !isPlatformLogin) {
-      return NextResponse.redirect(new URL("/platform/login", nextUrl));
+    // Checa user, e não só a sessão: o Auth.js pode devolver um objeto (de erro)
+    // em vez de null, e aí `!platformSession` deixaria a requisição passar —
+    // o layout e as rotas todas checam session?.user.
+    if (!platformSession?.user && !isPlatformLogin && !isPlatformAuthApi) {
+      // Redirecionar uma chamada de API é pior que negá-la: o fetch segue o
+      // redirect, recebe o HTML do login com status 200 e a UI comemora um
+      // sucesso que nunca aconteceu. API responde 401 em JSON; só página vai
+      // para o login.
+      if (isPlatformApi) {
+        return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+      }
+      return NextResponse.redirect(urlNoHost("/platform/login"));
     }
-    if (platformSession && isPlatformLogin) {
-      return NextResponse.redirect(new URL("/platform", nextUrl));
+    if (platformSession?.user && isPlatformLogin) {
+      return NextResponse.redirect(urlNoHost("/platform"));
     }
 
     // Reescreve admin.<root>/leads -> /platform/leads, mantendo a URL limpa
-    // no navegador. Evita prefixar duas vezes quando já veio reescrito.
-    if (nextUrl.pathname.startsWith("/platform")) {
+    // no navegador. Caminhos que já estão certos passam direto: /platform/*
+    // (evita prefixar duas vezes) e /api/platform/* (que viraria
+    // /platform/api/platform/... — rota inexistente, 404 em toda a API).
+    if (nextUrl.pathname.startsWith("/platform") || isPlatformApi) {
       return NextResponse.next();
     }
-    return NextResponse.rewrite(
-      new URL(`/platform${nextUrl.pathname}`, nextUrl)
-    );
+    return NextResponse.rewrite(urlNoHost(`/platform${nextUrl.pathname}`));
   }
 
   const slug = resolvedSlug ?? "default";
 
-  // /platform/* só existe sob o subdomínio da plataforma. Sem isto, o CRM
-  // ficaria acessível pelo domínio de qualquer restaurante.
-  if (nextUrl.pathname.startsWith("/platform")) {
+  // /platform/* e /api/platform/* só existem sob o subdomínio da plataforma.
+  // Sem isto, o CRM ficaria acessível pelo domínio de qualquer restaurante — e
+  // a API cairia no pipeline do tenant, rodando com x-tenant-id injetado.
+  if (
+    nextUrl.pathname.startsWith("/platform") ||
+    nextUrl.pathname.startsWith("/api/platform")
+  ) {
     return new NextResponse(null, { status: 404 });
   }
 
@@ -87,7 +118,7 @@ export default auth(async (req) => {
   const tenantMismatch = !!session && session.user.tenantId !== tenant.id;
 
   if (tenantMismatch && !isAuthRoute) {
-    return NextResponse.redirect(new URL("/login", nextUrl));
+    return NextResponse.redirect(urlNoHost("/login"));
   }
 
   const requestHeaders = new Headers(req.headers);
@@ -96,26 +127,26 @@ export default auth(async (req) => {
 
   // Redirect authenticated users away from auth pages
   if (isAuthRoute && session && !tenantMismatch) {
-    return NextResponse.redirect(new URL("/", nextUrl));
+    return NextResponse.redirect(urlNoHost("/"));
   }
 
   // Admin routes: require ADMIN role
   if (isAdminRoute) {
     if (!session) {
-      return NextResponse.redirect(new URL("/login", nextUrl));
+      return NextResponse.redirect(urlNoHost("/login"));
     }
     if (session.user.role !== "ADMIN") {
-      return NextResponse.redirect(new URL("/", nextUrl));
+      return NextResponse.redirect(urlNoHost("/"));
     }
   }
 
   // Kitchen routes: require ADMIN or KITCHEN role
   if (isKitchenRoute) {
     if (!session) {
-      return NextResponse.redirect(new URL("/login", nextUrl));
+      return NextResponse.redirect(urlNoHost("/login"));
     }
     if (session.user.role !== "ADMIN" && session.user.role !== "KITCHEN") {
-      return NextResponse.redirect(new URL("/", nextUrl));
+      return NextResponse.redirect(urlNoHost("/"));
     }
   }
 
@@ -123,7 +154,7 @@ export default auth(async (req) => {
   // a barra final tolerada) deixa /mesa/{token}/checkout de fora: pedido de
   // mesa não exige login.
   if (nextUrl.pathname.replace(/\/$/, "") === "/checkout" && !session) {
-    return NextResponse.redirect(new URL("/login?callbackUrl=/checkout", nextUrl));
+    return NextResponse.redirect(urlNoHost("/login?callbackUrl=/checkout"));
   }
 
   return NextResponse.next(forward);

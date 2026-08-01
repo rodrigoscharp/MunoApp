@@ -54,12 +54,14 @@ export default async function OrderChatPage({ params }: Props) {
     redirect(`/login?callbackUrl=/pedidos/${orderId}/chat`);
   }
 
+  // tenantId é opcional no tipo Session (a sessão de plataforma não tem um);
+  // aqui a sessão é sempre de restaurante, já checada logo acima.
   const [order, restaurant] = await Promise.all([
     prismaUnscoped.order.findUnique({
-      where: { id: orderId, tenantId: session.user.tenantId },
+      where: { id: orderId, tenantId: session.user.tenantId! },
       select: { id: true, userId: true, status: true },
     }),
-    getRestaurantInfo(session.user.tenantId),
+    getRestaurantInfo(session.user.tenantId!),
   ]);
 
   if (!order) notFound();
@@ -98,7 +100,7 @@ export default async function OrderChatPage({ params }: Props) {
         <OrderStatusBadge
           orderId={orderId}
           initialStatus={order.status as OrderStatus}
-          tenantId={session.user.tenantId}
+          tenantId={session.user.tenantId!}
         />
       </header>
 

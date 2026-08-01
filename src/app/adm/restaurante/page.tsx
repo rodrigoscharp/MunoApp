@@ -20,7 +20,9 @@ const DEFAULT_HOURS: WeekSchedule = {
 
 export default async function RestauranteAdminPage() {
   const session = await auth();
-  const tenantId = session!.user.tenantId;
+  // tenantId é opcional no tipo Session (a sessão de plataforma não tem um);
+  // aqui o proxy já garantiu sessão de restaurante com papel ADMIN.
+  const tenantId = session!.user.tenantId!;
 
   const [deliveryTimeSetting, businessHoursSetting, restaurantInfo, deliveryZones, printerSetting] = await Promise.all([
     prismaUnscoped.setting.findUnique({ where: { tenantId_key: { tenantId, key: "delivery_time_minutes" } } }),

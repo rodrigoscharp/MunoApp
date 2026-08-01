@@ -9,7 +9,9 @@
  */
 export function canViewOrder(
   order: { userId: string | null },
-  viewer: { id: string; role: string } | null
+  // role é opcional no tipo Session (a sessão de plataforma não tem papel de
+  // restaurante); um visitante sem papel simplesmente não é ADMIN.
+  viewer: { id: string; role?: string } | null
 ): boolean {
   if (order.userId === null) return true;
   if (!viewer) return false;

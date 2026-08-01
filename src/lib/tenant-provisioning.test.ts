@@ -71,8 +71,15 @@ describe("buildTenantBaseUrl", () => {
     expect(buildTenantBaseUrl("teste")).toBe("http://teste.localhost:3000");
   });
 
-  it("usa https em domínio real e respeita o primeiro da lista", () => {
+  it("usa o domínio nu (o último da lista), não o host de marketing", () => {
+    // O primeiro item é o host institucional; pendurar o tenant nele daria
+    // "teste.www.munoapp.com.br", fora do curinga *.munoapp.com.br.
     process.env.ROOT_DOMAIN = "www.munoapp.com.br,munoapp.com.br";
-    expect(buildTenantBaseUrl("teste")).toBe("https://teste.www.munoapp.com.br");
+    expect(buildTenantBaseUrl("teste")).toBe("https://teste.munoapp.com.br");
+  });
+
+  it("funciona com ROOT_DOMAIN de entrada única", () => {
+    process.env.ROOT_DOMAIN = "munoapp.com.br";
+    expect(buildTenantBaseUrl("teste")).toBe("https://teste.munoapp.com.br");
   });
 });

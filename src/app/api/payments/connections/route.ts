@@ -15,6 +15,9 @@ import { z } from "zod";
 // Tela /adm/pagamentos (Task 6) é a única consumidora — exige ADMIN do
 // próprio tenant em todos os métodos, mesmo padrão da extinta rota
 // /api/payments/connect (recuperada de `git show 35a940e^`).
+// O tenantId é opcional no tipo Session porque a sessão de plataforma não o
+// tem; aqui a sessão é sempre de restaurante (auth() de tenant), então o `!`
+// nos usos abaixo é seguro.
 async function requireAdmin(): Promise<Session | null> {
   const session = await auth();
   if (!session?.user || session.user.role !== "ADMIN") return null;
@@ -67,14 +70,14 @@ export async function GET() {
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
 
-  return NextResponse.json(await buildProvidersPayload(session.user.tenantId));
+  return NextResponse.json(await buildProvidersPayload(session.user.tenantId!));
 }
 
 export async function POST(req: NextRequest) {
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
 
-  const tenantId = session.user.tenantId;
+  const tenantId = session.user.tenantId!;
 
   let body: unknown;
   try {
@@ -161,7 +164,7 @@ export async function DELETE(req: NextRequest) {
   const session = await requireAdmin();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
 
-  const tenantId = session.user.tenantId;
+  const tenantId = session.user.tenantId!;
   const providerId = req.nextUrl.searchParams.get("provider");
   if (!providerId) {
     return NextResponse.json({ error: "Parâmetro provider é obrigatório" }, { status: 400 });

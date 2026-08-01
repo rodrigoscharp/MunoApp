@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
+import { Prisma } from "@prisma/client";
 import type { Tenant, User } from "@prisma/client";
 import { prismaUnscoped } from "@/lib/prisma";
 
@@ -50,7 +51,13 @@ export function gerarSenha(): string {
 }
 
 export function buildTenantBaseUrl(slug: string): string {
-  const rootDomain = (process.env.ROOT_DOMAIN ?? "localhost:3000").split(",")[0];
+  // ROOT_DOMAIN lista os hosts raiz em ordem: os primeiros são os hosts
+  // institucionais/marketing (ex.: www.munoapp.com.br) e o ÚLTIMO é o domínio
+  // nu do qual os tenants pendem. Usar o primeiro geraria
+  // "pizzaria.www.munoapp.com.br" — subdomínio de dois níveis, que o
+  // certificado curinga *.munoapp.com.br não cobre.
+  const roots = (process.env.ROOT_DOMAIN ?? "localhost:3000").split(",");
+  const rootDomain = roots[roots.length - 1].trim();
   const protocol = rootDomain.startsWith("localhost") ? "http" : "https";
   return `${protocol}://${slug}.${rootDomain}`;
 }
@@ -77,9 +84,28 @@ export async function provisionTenant(input: {
       );
     }
 
-    const tenant = await tx.tenant.create({
-      data: { nome: input.nome, slug: input.slug },
-    });
+    // O findUnique acima é só atalho: entre ele e o create cabe outra
+    // transação (READ COMMITTED não impede check-then-act). Quem perde a
+    // corrida bate na constraint única e recebe um P2002 cru, que a rota de
+    // conversão não reconhece e vira 500 — com um tenant real já criado e a
+    // senha só na resposta do vencedor. Traduzimos para o mesmo erro do atalho.
+    let tenant: Tenant;
+    try {
+      tenant = await tx.tenant.create({
+        data: { nome: input.nome, slug: input.slug },
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        throw new ProvisionError(
+          `Já existe um tenant com o slug "${input.slug}".`,
+          "SLUG_EM_USO"
+        );
+      }
+      throw err;
+    }
 
     const admin = await tx.user.create({
       data: {
