@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { calcularMrr, contarLeadsAbertos, montarPauta } from "./platform-metrics";
+import {
+  calcularMrr,
+  contarLeadsAbertos,
+  inicioDaSemana,
+  montarPauta,
+  montarSemanas,
+} from "./platform-metrics";
 
 const AGORA = new Date("2026-08-01T12:00:00Z");
 const diasAtras = (d: number) =>
@@ -167,5 +173,59 @@ describe("contarLeadsAbertos", () => {
 
   it("devolve zero sem leads", () => {
     expect(contarLeadsAbertos([])).toBe(0);
+  });
+});
+
+describe("inicioDaSemana", () => {
+  it("recua uma quarta-feira até a segunda", () => {
+    // 2026-08-05 é uma quarta.
+    const s = inicioDaSemana(new Date(2026, 7, 5, 15, 30));
+    expect(s.getDate()).toBe(3);
+    expect(s.getHours()).toBe(0);
+  });
+
+  it("mantém a segunda no lugar", () => {
+    expect(inicioDaSemana(new Date(2026, 7, 3, 23, 59)).getDate()).toBe(3);
+  });
+
+  it("recua o domingo seis dias, não avança um", () => {
+    // Domingo é o fim da semana, não o começo — o erro clássico aqui.
+    expect(inicioDaSemana(new Date(2026, 7, 9, 12)).getDate()).toBe(3);
+  });
+});
+
+describe("montarSemanas", () => {
+  const QUARTA = new Date(2026, 7, 5, 12);
+
+  it("devolve oito baldes por padrão", () => {
+    expect(montarSemanas([], QUARTA)).toHaveLength(8);
+  });
+
+  it("põe um lead de hoje na última semana", () => {
+    const s = montarSemanas([new Date(2026, 7, 5, 9)], QUARTA);
+    expect(s[7].leads).toBe(1);
+    expect(s.slice(0, 7).every((x) => x.leads === 0)).toBe(true);
+  });
+
+  it("põe um lead de duas semanas atrás no balde certo", () => {
+    const s = montarSemanas([new Date(2026, 6, 22, 9)], QUARTA);
+    expect(s[5].leads).toBe(1);
+    expect(s.reduce((t, x) => t + x.leads, 0)).toBe(1);
+  });
+
+  it("descarta o que é mais antigo que a janela", () => {
+    const s = montarSemanas([new Date(2026, 4, 1)], QUARTA);
+    expect(s.reduce((t, x) => t + x.leads, 0)).toBe(0);
+  });
+
+  it("não conta duas vezes um lead na virada da semana", () => {
+    // Segunda 00:00 pertence à semana que começa, não à que terminou.
+    const s = montarSemanas([new Date(2026, 7, 3, 0, 0, 0)], QUARTA);
+    expect(s.reduce((t, x) => t + x.leads, 0)).toBe(1);
+    expect(s[7].leads).toBe(1);
+  });
+
+  it("rotula a semana com o dia da segunda", () => {
+    expect(montarSemanas([], QUARTA)[7].semana).toBe("03/08");
   });
 });

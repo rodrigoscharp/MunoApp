@@ -4,8 +4,11 @@ import {
   calcularMrr,
   contarLeadsAbertos,
   montarPauta,
+  montarSemanas,
 } from "@/lib/platform-metrics";
 import { formatCurrency } from "@/lib/utils";
+import { FunilBarras } from "@/components/platform/FunilBarras";
+import { LeadsPorSemana } from "@/components/platform/LeadsPorSemana";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
@@ -19,7 +22,12 @@ export default async function VisaoGeralPage() {
 
   const [leads, tenants, pedidos, novosNoMes] = await Promise.all([
     prismaUnscoped.lead.findMany({
-      select: { status: true, tenantId: true, updatedAt: true },
+      select: {
+        status: true,
+        tenantId: true,
+        updatedAt: true,
+        createdAt: true,
+      },
     }),
     prismaUnscoped.tenant.findMany({
       select: { status: true, valorMensal: true },
@@ -37,6 +45,15 @@ export default async function VisaoGeralPage() {
   ).length;
 
   const semLeads = pauta[0].chave === "sem-leads";
+
+  const contagens = leads.reduce<Record<string, number>>((acc, l) => {
+    acc[l.status] = (acc[l.status] ?? 0) + 1;
+    return acc;
+  }, {});
+  const semanas = montarSemanas(
+    leads.map((l) => l.createdAt),
+    new Date()
+  );
 
   return (
     <div className="space-y-10">
@@ -86,6 +103,13 @@ export default async function VisaoGeralPage() {
           apoio={`${comPlano} com plano`}
           compacto
         />
+      </section>
+
+      {/* Os dois gráficos respondem perguntas diferentes: onde os negócios
+          estão emperrados, e se estão entrando. */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <FunilBarras contagens={contagens} />
+        <LeadsPorSemana dados={semanas} />
       </section>
     </div>
   );

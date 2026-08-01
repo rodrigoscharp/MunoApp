@@ -23,11 +23,11 @@ export default function PlatformLoginPage() {
       <div className="relative w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
           <Image
-            src="/munowbg.png"
+            src="/muno-marca.png"
             alt="Muno"
-            width={200}
-            height={75}
-            className="h-12 w-auto object-contain brightness-0 invert"
+            width={682}
+            height={155}
+            className="h-11 w-auto object-contain brightness-0 invert"
             priority
           />
           <p className="text-white/70 text-sm mt-3">plataforma</p>

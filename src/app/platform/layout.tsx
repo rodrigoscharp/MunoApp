@@ -22,11 +22,11 @@ export default async function PlatformLayout({
           {/* A logo da própria Muno, invertida em branco — o mesmo tratamento
               que as telas de conta do app já usam. */}
           <Image
-            src="/munowbg.png"
+            src="/muno-marca.png"
             alt="Muno"
-            width={160}
-            height={60}
-            className="h-9 w-auto object-contain brightness-0 invert"
+            width={682}
+            height={155}
+            className="h-8 w-auto object-contain brightness-0 invert"
             priority
           />
           <p className="text-[13px] text-white/60 mt-2">plataforma</p>
@@ -43,10 +43,10 @@ export default async function PlatformLayout({
       {/* Sair sobe para o topo no celular, onde o rodapé é o menu. */}
       <div className="md:hidden flex items-center justify-between bg-console-campo px-4 py-3">
         <Image
-          src="/munowbg.png"
+          src="/muno-marca.png"
           alt="Muno"
-          width={120}
-          height={45}
+          width={682}
+          height={155}
           className="h-6 w-auto object-contain brightness-0 invert"
           priority
         />

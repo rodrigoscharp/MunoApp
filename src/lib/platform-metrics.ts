@@ -88,3 +88,45 @@ export function calcularMrr(tenants: TenantDoMrr[]): number {
   // Soma de decimais em ponto flutuante: 199.9 + 100.1 dá 300.00000000000006.
   return Math.round(total * 100) / 100;
 }
+
+export type SemanaDoFunil = { semana: string; leads: number };
+
+/** Segunda-feira da semana da data, à meia-noite. */
+export function inicioDaSemana(d: Date): Date {
+  const s = new Date(d);
+  s.setHours(0, 0, 0, 0);
+  // getDay(): 0 é domingo. Recua até a segunda.
+  s.setDate(s.getDate() - ((s.getDay() + 6) % 7));
+  return s;
+}
+
+/**
+ * As 8 semanas até hoje, com quantos leads entraram em cada uma.
+ *
+ * `agora` vem por parâmetro pelo mesmo motivo do montarPauta: aritmética de
+ * data que lê o relógio por dentro não é testável.
+ */
+export function montarSemanas(
+  criacoes: Date[],
+  agora: Date,
+  quantas = 8
+): SemanaDoFunil[] {
+  const atual = inicioDaSemana(agora);
+  const semanas: SemanaDoFunil[] = [];
+
+  for (let i = quantas - 1; i >= 0; i--) {
+    const inicio = new Date(atual);
+    inicio.setDate(inicio.getDate() - i * 7);
+    const fim = new Date(inicio);
+    fim.setDate(fim.getDate() + 7);
+
+    semanas.push({
+      semana: `${String(inicio.getDate()).padStart(2, "0")}/${String(
+        inicio.getMonth() + 1
+      ).padStart(2, "0")}`,
+      leads: criacoes.filter((c) => c >= inicio && c < fim).length,
+    });
+  }
+
+  return semanas;
+}
