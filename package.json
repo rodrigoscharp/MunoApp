@@ -14,6 +14,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "tenant:create": "tsx scripts/create-tenant.ts",
+    "platform:create-admin": "tsx scripts/create-platform-admin.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
