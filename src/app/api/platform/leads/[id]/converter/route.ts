@@ -43,13 +43,43 @@ export async function POST(
       email: parsed.data.email,
     });
 
-    await prismaUnscoped.lead.update({
-      where: { id },
-      data: { tenantId: tenant.id, status: "FECHADO" },
-    });
+    // Vínculo atômico: o updateMany só casa se o lead ainda estiver sem tenant.
+    // Duas requisições concorrentes chegam aqui cada uma com o seu tenant já
+    // criado; só uma consegue o vínculo, e a perdedora desfaz o que criou.
+    let vinculado = false;
+    let aviso: string | undefined;
+
+    try {
+      const { count } = await prismaUnscoped.lead.updateMany({
+        where: { id, tenantId: null },
+        data: { tenantId: tenant.id, status: "FECHADO" },
+      });
+      vinculado = count === 1;
+    } catch {
+      // O restaurante já existe e é válido. A senha só existe nesta variável —
+      // no banco só há o hash — então não podemos abortar e perdê-la.
+      aviso =
+        "O restaurante foi criado, mas não conseguimos marcar o lead como fechado. Anote as credenciais e ajuste o lead manualmente.";
+    }
+
+    if (!vinculado && !aviso) {
+      // Perdemos a corrida: outra requisição já converteu este lead. Desfaz o
+      // tenant que acabamos de criar para não deixar um restaurante fantasma.
+      await prismaUnscoped.$transaction([
+        prismaUnscoped.user.deleteMany({ where: { tenantId: tenant.id } }),
+        prismaUnscoped.tenant.delete({ where: { id: tenant.id } }),
+      ]);
+      return NextResponse.json(
+        { error: "Este lead já foi convertido em cliente." },
+        { status: 409 }
+      );
+    }
 
     // Senha devolvida uma única vez: não fica recuperável depois.
-    return NextResponse.json({ tenant, url, email: admin.email, senha }, { status: 201 });
+    return NextResponse.json(
+      { tenant, url, email: admin.email, senha, aviso },
+      { status: 201 }
+    );
   } catch (err) {
     if (err instanceof ProvisionError) {
       const status = err.code === "SLUG_EM_USO" ? 409 : 400;

@@ -16,6 +16,7 @@ type Credenciais = {
   url: string;
   email: string;
   senha: string;
+  aviso?: string;
 };
 
 export function ConverterLead({
@@ -58,7 +59,12 @@ export function ConverterLead({
 
       // Não chamamos router.refresh() aqui: o refresh re-renderiza a página e
       // apagaria a senha da tela, que não é recuperável depois.
-      setCredenciais({ url: body.url, email: body.email, senha: body.senha });
+      setCredenciais({
+        url: body.url,
+        email: body.email,
+        senha: body.senha,
+        aviso: body.aviso,
+      });
     } catch {
       // Rede caiu no meio da conversão. Sem isto o botão ficaria travado em
       // "Criando..." e o usuário não saberia que o cliente não foi criado.
@@ -88,6 +94,12 @@ export function ConverterLead({
             <dd className="inline font-mono font-bold">{credenciais.senha}</dd>
           </div>
         </dl>
+
+        {credenciais.aviso && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            {credenciais.aviso}
+          </p>
+        )}
 
         <p className="text-xs text-green-700">
           Anote a senha agora — ela aparece uma única vez e não é recuperável.
