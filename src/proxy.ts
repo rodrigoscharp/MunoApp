@@ -1,10 +1,15 @@
 import { auth } from "@/lib/auth";
+import { authPlatform } from "@/lib/auth-platform";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 // Domínios raiz (sem subdomínio de tenant) conhecidos pela plataforma.
 // Em dev, acessar localhost:3000 direto cai no tenant "default".
 const ROOT_DOMAINS = (process.env.ROOT_DOMAIN ?? "localhost:3000").split(",");
+
+// Subdomínio reservado da plataforma. Já consta em RESERVED_SLUGS
+// (src/lib/tenant-provisioning.ts), então nenhum restaurante pode tomá-lo.
+const PLATFORM_SUBDOMAIN = "admin";
 
 function resolveSlugFromHost(host: string): string | null {
   const hostname = host.split(":")[0];
@@ -23,7 +28,39 @@ export default auth(async (req) => {
   const session = req.auth;
 
   const host = req.headers.get("host") ?? "";
-  const slug = resolveSlugFromHost(host) ?? "default";
+  const resolvedSlug = resolveSlugFromHost(host);
+
+  // A área de plataforma não pertence a nenhum tenant: não resolvemos tenant e
+  // não injetamos x-tenant-id, o que obriga o código de lá a usar
+  // prismaUnscoped conscientemente em vez de herdar um escopo em silêncio.
+  if (resolvedSlug === PLATFORM_SUBDOMAIN) {
+    const isPlatformLogin = nextUrl.pathname === "/platform/login";
+    const platformSession = await authPlatform();
+
+    if (!platformSession && !isPlatformLogin) {
+      return NextResponse.redirect(new URL("/platform/login", nextUrl));
+    }
+    if (platformSession && isPlatformLogin) {
+      return NextResponse.redirect(new URL("/platform", nextUrl));
+    }
+
+    // Reescreve admin.<root>/leads -> /platform/leads, mantendo a URL limpa
+    // no navegador. Evita prefixar duas vezes quando já veio reescrito.
+    if (nextUrl.pathname.startsWith("/platform")) {
+      return NextResponse.next();
+    }
+    return NextResponse.rewrite(
+      new URL(`/platform${nextUrl.pathname}`, nextUrl)
+    );
+  }
+
+  const slug = resolvedSlug ?? "default";
+
+  // /platform/* só existe sob o subdomínio da plataforma. Sem isto, o CRM
+  // ficaria acessível pelo domínio de qualquer restaurante.
+  if (nextUrl.pathname.startsWith("/platform")) {
+    return new NextResponse(null, { status: 404 });
+  }
 
   const tenant = await prisma.tenant.findUnique({
     where: { slug },
