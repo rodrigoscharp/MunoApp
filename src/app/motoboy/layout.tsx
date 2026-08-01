@@ -29,7 +29,12 @@ export default async function MotoboyLayout({
           <form
             action={async () => {
               "use server";
-              await signOut({ redirectTo: "/motoboy/login" });
+              // `redirect: false` + redirect relativo: com redirectTo o
+              // NextAuth monta o destino a partir de AUTH_URL/NEXTAUTH_URL,
+              // que em produção aponta para localhost:3000 — o entregador
+              // saía do app para uma porta local.
+              await signOut({ redirect: false });
+              redirect("/motoboy/login");
             }}
           >
             <button
