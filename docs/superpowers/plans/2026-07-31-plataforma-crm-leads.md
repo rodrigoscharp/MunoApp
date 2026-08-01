@@ -1838,3 +1838,41 @@ Depois, com o pré-requisito de infraestrutura já feito, verifique no navegador
 6. Abrir a URL devolvida → o restaurante novo carrega, e o login do admin funciona
 7. `pizzaria.munoapp.com.br/platform` (qualquer tenant) → **404**, a porta dos fundos está trancada
 8. O login de restaurante continua funcionando normalmente e não dá acesso à plataforma
+
+---
+
+## Correções aplicadas durante a execução (2026-08-01)
+
+O código no repositório diverge deste plano nos pontos abaixo. A execução venceu; o plano
+fica como registro do raciocínio, não como fonte da verdade para estes trechos.
+
+**Task 5 — login.** O `POST` direto ao callback foi substituído por server action. Ver a nota
+na própria Task 5.
+
+**Task 6 — formulário de lead.** A submissão ganhou `try/catch/finally`: sem isso, um `fetch`
+rejeitado (offline) travava o botão em "Salvando..." para sempre, justamente no cenário
+celular pós-ligação. E os campos opcionais em branco passaram a virar `null` em vez de string
+vazia, para "não informado" ter uma representação só.
+
+**Task 7 — PATCH parcial.** A normalização vazio→`null` é escopada às chaves presentes no
+corpo. Aplicá-la sobre o schema inteiro apagaria campos não enviados a cada mudança de status.
+
+**Task 8 — conversão.** Duas rodadas de correção: (a) o vínculo virou `updateMany` guardado
+em `tenantId: null`, com rollback do tenant perdedor — a versão original permitia dois cliques
+provisionarem dois restaurantes reais; (b) falha no vínculo passou a devolver 201 com as
+credenciais e um aviso, porque a senha só existe em memória e abortar a perdia; (c) o próprio
+delete compensatório ganhou tratamento, e o 409 nomeia o slug do órfão.
+
+**Revisão final — dois Critical que nenhuma revisão por tarefa viu**, porque só aparecem com
+roteamento e API juntos:
+
+- `/api/platform/*` dava 404 no subdomínio admin: o guard testava `startsWith("/platform")` e
+  as rotas de API começam com `/api`. Todo botão do CRM estava morto.
+- O wrapper `auth()` do NextAuth reescreve a origem de `nextUrl` para `NEXTAUTH_URL`, então
+  redirects e rewrites saíam para o host errado. Agora são montados a partir do header `Host`.
+
+**Correção no pré-requisito de infraestrutura.** `buildTenantBaseUrl` passou a usar a
+**última** entrada de `ROOT_DOMAIN`, não a primeira. Com o valor mandado por esta spec
+(`www.munoapp.com.br,munoapp.com.br`), pegar a primeira gerava `pizzaria.www.munoapp.com.br`
+— subdomínio de dois níveis que um certificado `*.munoapp.com.br` não cobre. O teste original
+travava esse valor errado como correto.
