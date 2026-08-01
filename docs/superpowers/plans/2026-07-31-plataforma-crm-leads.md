@@ -782,74 +782,87 @@ export default async function PlatformLayout({
 
 - [ ] **Step 2: Criar a tela de login**
 
-Crie `src/app/platform/login/page.tsx` como client component, usando `signIn` de
-`next-auth/react` com o `basePath` da instância de plataforma:
+> **CORRIGIDO durante a execução em 2026-08-01.** A versão original desta etapa fazia um
+> `POST` direto para `/api/platform/auth/callback/platform-credentials`. Estava errada por
+> três motivos, todos encontrados lendo o `@auth/core` instalado:
+>
+> 1. **CSRF.** A instância não usa `skipCSRFCheck` e o fetch não buscava o token em
+>    `/api/platform/auth/csrf`, então `validateCSRF` lançaria `MissingCSRF` antes de
+>    `authorize()` rodar.
+> 2. **Falha silenciosa.** Sem o header `X-Auth-Return-Redirect` que o `signIn` do
+>    `next-auth/react` envia, o erro vira um 302 para a página de erro, que o `fetch`
+>    segue e recebe como **200**. `res.ok` daria `true`, a tela redirecionaria para a
+>    home, e o usuário acharia que entrou — sem sessão nenhuma.
+> 3. **Id do provider errado.** O `id` do `CredentialsProvider` é `"credentials"`;
+>    `"platform-credentials"` é só o `name`, um rótulo de exibição.
+>
+> A implementação correta usa server action, que era a alternativa já prevista neste plano.
+> O código abaixo é o que está no repositório.
+
+Crie `src/app/platform/login/actions.ts`:
+
+```ts
+"use server";
+
+import { AuthError } from "next-auth";
+import { signInPlatform } from "@/lib/auth-platform";
+
+export async function loginPlataforma(
+  _anterior: string | undefined,
+  formData: FormData
+): Promise<string | undefined> {
+  try {
+    await signInPlatform("credentials", {
+      email: formData.get("email"),
+      password: formData.get("password"),
+      // Redireciona para a raiz: o proxy reescreve admin.<root>/ para
+      // /platform, então a URL fica limpa no navegador.
+      redirectTo: "/",
+    });
+  } catch (err) {
+    // Só trate falha de credencial. O signIn bem-sucedido lança um
+    // NEXT_REDIRECT que PRECISA propagar — capturá-lo trava o login numa
+    // tela que nunca navega.
+    if (err instanceof AuthError) return "E-mail ou senha inválidos.";
+    throw err;
+  }
+}
+```
+
+E `src/app/platform/login/page.tsx` como client component com `useActionState`:
 
 ```tsx
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState } from "react";
+import { loginPlataforma } from "./actions";
 
 export default function PlatformLoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [senha, setSenha] = useState("");
-  const [erro, setErro] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setErro("");
-
-    // Chama o endpoint da instância de plataforma diretamente: o helper
-    // signIn de next-auth/react aponta para o basePath padrão (/api/auth),
-    // que é o da autenticação de restaurante.
-    const res = await fetch("/api/platform/auth/callback/platform-credentials", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ email, password: senha, redirect: "false" }),
-    });
-
-    if (!res.ok) {
-      setErro("E-mail ou senha inválidos.");
-      setLoading(false);
-      return;
-    }
-    router.push("/");
-    router.refresh();
-  }
+  const [erro, formAction, pending] = useActionState(loginPlataforma, undefined);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-neutral-50 px-4">
       <form
-        onSubmit={onSubmit}
+        action={formAction}
         className="w-full max-w-sm bg-white rounded-2xl border border-neutral-200 p-6 space-y-4"
       >
         <h1 className="text-xl font-bold text-neutral-900">Muno · Plataforma</h1>
 
         <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">
-            E-mail
-          </label>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">E-mail</label>
           <input
+            name="email"
             type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
             required
             className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">
-            Senha
-          </label>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Senha</label>
           <input
+            name="password"
             type="password"
-            value={senha}
-            onChange={(e) => setSenha(e.target.value)}
             required
             className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
           />
@@ -859,20 +872,16 @@ export default function PlatformLoginPage() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={pending}
           className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition"
         >
-          {loading ? "Entrando..." : "Entrar"}
+          {pending ? "Entrando..." : "Entrar"}
         </button>
       </form>
     </div>
   );
 }
 ```
-
-Se o `POST` direto ao callback não estabelecer a sessão nos seus testes, pare e reporte —
-a alternativa é criar um wrapper server action que chame `signInPlatform`, e essa decisão
-merece revisão em vez de tentativa e erro.
 
 - [ ] **Step 3: Verificar**
 
