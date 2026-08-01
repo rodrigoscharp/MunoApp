@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { LeadAcoes } from "@/components/platform/LeadAcoes";
+import { ConverterLead } from "@/components/platform/ConverterLead";
 
 export default async function LeadPage({
   params,
@@ -65,8 +66,7 @@ export default async function LeadPage({
           </a>
         </div>
       ) : (
-        // A Task 8 pendura o botão de conversão aqui.
-        <div id="conversao" />
+        <ConverterLead leadId={lead.id} restauranteNome={lead.restaurante} />
       )}
 
       <section>
