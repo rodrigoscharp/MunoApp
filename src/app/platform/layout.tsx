@@ -1,5 +1,6 @@
 import { authPlatform } from "@/lib/auth-platform";
-import Link from "next/link";
+import { MenuLateral } from "@/components/platform/MenuLateral";
+import { BotaoSair } from "@/components/platform/BotaoSair";
 
 export default async function PlatformLayout({
   children,
@@ -13,16 +14,33 @@ export default async function PlatformLayout({
   if (!session?.user) return <>{children}</>;
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <header className="bg-white border-b border-neutral-200">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="font-bold text-neutral-900">
-            Muno · Plataforma
-          </Link>
-          <span className="text-sm text-neutral-500">{session.user.email}</span>
+    <div className="min-h-screen bg-console-fundo text-console-tinta">
+      {/* Coluna no desktop, barra no rodapé no celular. */}
+      <aside className="bg-console-verde md:fixed md:inset-y-0 md:left-0 md:w-60 md:flex md:flex-col md:p-5 fixed bottom-0 inset-x-0 z-20 px-3 py-2 md:py-5">
+        <div className="hidden md:block mb-8">
+          <p className="text-white font-bold tracking-tight">MUNO</p>
+          <p className="tabular text-[11px] uppercase tracking-[0.18em] text-white/40">
+            plataforma
+          </p>
         </div>
-      </header>
-      <main className="max-w-5xl mx-auto px-4 py-8">{children}</main>
+
+        <MenuLateral />
+
+        <div className="hidden md:block mt-auto pt-5 border-t border-white/10 space-y-1.5">
+          <p className="text-xs text-white/40 truncate">{session.user.email}</p>
+          <BotaoSair />
+        </div>
+      </aside>
+
+      {/* Sair sobe para o topo no celular, onde o rodapé é o menu. */}
+      <div className="md:hidden flex items-center justify-between bg-console-verde px-4 py-3">
+        <p className="text-white font-bold tracking-tight text-sm">MUNO</p>
+        <BotaoSair />
+      </div>
+
+      <main className="md:ml-60 px-4 md:px-8 py-6 md:py-10 pb-24 md:pb-10 max-w-5xl">
+        {children}
+      </main>
     </div>
   );
 }
