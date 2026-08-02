@@ -32,6 +32,7 @@ model Tenant {
   chatMessages      ChatMessage[]
   paymentConnections PaymentConnection[]
   passwordResetTokens PasswordResetToken[]
+  coupons           Coupon[]
   lead              Lead?
 }
 
@@ -124,6 +125,15 @@ model Order {
   deliveryType        DeliveryType      @default(PICKUP)
   deliveryAddress     String?
   deliveryFee         Decimal           @default(0) @db.Decimal(10, 2)
+  // total = subtotal dos itens + deliveryFee - discount. O subtotal não tem
+  // coluna própria: ele sai de (total - deliveryFee + discount), exato inclusive
+  // nos pedidos anteriores ao cupom, onde discount é 0.
+  discount            Decimal           @default(0) @db.Decimal(10, 2)
+  couponId            String?
+  coupon              Coupon?           @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  // Cópia do código no momento do pedido: sobrevive à exclusão do cupom, que é
+  // o que mantém o recibo e o histórico legíveis depois.
+  couponCode          String?
   estimatedDeliveryAt DateTime?
   userId              String?
   user                User?             @relation(fields: [userId], references: [id])
@@ -145,6 +155,7 @@ model Order {
   @@index([tenantId, status, deliveryType]) // fila do motoboy
   @@index([motoboyId])
   @@index([tableId])
+  @@index([couponId, userId]) // "já usei este cupom?" na validação do checkout
 }
 
 model Table {
@@ -281,6 +292,33 @@ model DeliveryZone {
   updatedAt DateTime @updatedAt
 
   @@index([tenantId])
+}
+
+model Coupon {
+  id         String     @id @default(cuid())
+  tenantId   String
+  tenant     Tenant     @relation(fields: [tenantId], references: [id])
+  code       String     // sempre gravado em maiúsculas e sem espaços
+  type       CouponType
+  // Porcentagem quando PERCENT, reais quando FIXED, ignorado em FREE_SHIPPING.
+  value      Decimal    @default(0) @db.Decimal(10, 2)
+  // Comparado contra o subtotal dos itens, sem o frete.
+  minOrder   Decimal    @default(0) @db.Decimal(10, 2)
+  validFrom  DateTime?
+  validUntil DateTime?
+  active     Boolean    @default(true)
+  orders     Order[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
+  FREE_SHIPPING
 }
 
 model ChatMessage {

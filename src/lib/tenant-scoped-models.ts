@@ -22,6 +22,7 @@ export const TENANT_SCOPED_MODELS = new Set([
   "Setting",
   "DeliveryZone",
   "ChatMessage",
+  "Coupon",
   "PaymentConnection",
   "PasswordResetToken",
 ]);
