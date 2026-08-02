@@ -6,6 +6,8 @@ import { broadcastTenantEvent } from "@/lib/realtime";
 import { getEnabledPaymentMethods } from "@/lib/payments/factory";
 import { assertMethodAllowed, PaymentMethodNotAllowedError } from "@/lib/payments/method-guard";
 import { DeliveryFeeError, resolveDeliveryFee } from "@/lib/delivery-fee";
+import { CouponError } from "@/lib/coupon";
+import { aplicarCupom } from "@/lib/coupon-lookup";
 import { z } from "zod";
 
 // Janela da fila da cozinha. Sem ela, um pedido abandonado (cliente desistiu,
@@ -35,6 +37,9 @@ const orderSchema = z.object({
   deliveryAddress: z.string().optional(),
   // O id da zona, não o preço: o valor do frete vem do banco, nunca do cliente.
   deliveryZoneId: z.string().optional(),
+  // Mesma regra do frete: só o código. Não existe campo de desconto aqui, então
+  // um `discount` extra no corpo da requisição é descartado pelo zod.
+  couponCode: z.string().trim().min(1).optional(),
   tableId: z.string().optional(),
 }).refine(
   (data) =>
@@ -116,7 +121,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
     }
 
-    const { items, paymentMethod, notes, customerName, customerPhone, deliveryType, deliveryAddress, deliveryZoneId, tableId } = parsed.data;
+    const { items, paymentMethod, notes, customerName, customerPhone, deliveryType, deliveryAddress, deliveryZoneId, couponCode, tableId } = parsed.data;
 
     // Delivery e retirada exigem conta. Mesa (DINE_IN) não: o cliente está no
     // restaurante e o pedido é identificado pela mesa.
@@ -166,7 +171,28 @@ export async function POST(req: NextRequest) {
       throw err;
     }
 
-    const total = itemsTotal + deliveryFee;
+    // O desconto é recalculado aqui do zero, ignorando o que /api/coupons/validate
+    // mostrou no checkout: aquilo era prévia, isto é o que vai ser cobrado.
+    // aplicarCupom pode zerar o frete (cupom de frete grátis).
+    let cupom;
+    try {
+      cupom = await aplicarCupom({
+        tenantId,
+        code: couponCode,
+        userId: session?.user?.id,
+        deliveryType,
+        itemsTotal,
+        deliveryFee,
+      });
+    } catch (err) {
+      if (err instanceof CouponError) {
+        return NextResponse.json({ error: err.message }, { status: 400 });
+      }
+      throw err;
+    }
+    deliveryFee = cupom.deliveryFee;
+
+    const total = itemsTotal + deliveryFee - cupom.discount;
 
     // Lê o tempo estimado de entrega configurado pelo admin
     const timeSetting = await prisma.setting.findUnique({
@@ -185,6 +211,9 @@ export async function POST(req: NextRequest) {
         deliveryType,
         deliveryAddress: deliveryType === "DELIVERY" ? deliveryAddress : null,
         deliveryFee,
+        discount: cupom.discount,
+        couponId: cupom.couponId,
+        couponCode: cupom.couponCode,
         tableId: deliveryType === "DINE_IN" ? (tableId ?? null) : null,
         total,
         estimatedDeliveryAt,
