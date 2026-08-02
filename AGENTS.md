@@ -21,9 +21,16 @@ npm run db:migrate       cria uma migração nova
 aborta se o `DATABASE_URL` não for localhost. Não contorne a trava: se ela
 disparou, o alvo está errado.
 
-Produção só recebe `npm run db:deploy` (`prisma migrate deploy`), que aplica
-migrações pendentes sem nunca resetar nem derrubar coluna. As credenciais estão
-em `.env.prod`, que nada carrega sozinho.
+Produção migra sozinha: o build da Vercel roda `scripts/migrate-on-deploy.js`,
+que aplica as migrações pendentes com `prisma migrate deploy` antes de publicar.
+Só no deploy de produção — preview builda e não migra, porque preview e produção
+usam o mesmo banco e um PR não pode alterar o schema antes do review. Migração
+que falha derruba o deploy, em vez de publicar código esperando coluna que não
+existe.
+
+Isso significa que **basta commitar a migração junto do código**: não há passo
+manual. Se precisar aplicar fora do deploy, `npm run db:deploy` com as
+credenciais de `.env.prod`, que nada carrega sozinho.
 
 Toda tabela com `tenantId` obrigatório precisa de três coisas, senão vaza entre
 restaurantes: entrada em `src/lib/tenant-scoped-models.ts`, `@@index([tenantId])`
