@@ -9,9 +9,18 @@ const DELIVERY_LABELS: Record<string, string> = {
   DINE_IN: "Mesa",
 };
 
+const brl = (valor: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);
+
 export function printOrder(order: PrintableOrder, paperWidth: "58mm" | "80mm" = "80mm") {
   const width = paperWidth === "58mm" ? "52mm" : "72mm";
   const fontSize = paperWidth === "58mm" ? "11px" : "13px";
+
+  // O subtotal não tem coluna no banco; ele é o total desfeito. Vale para os
+  // pedidos antigos também, onde deliveryFee e discount são 0.
+  const deliveryFee = Number(order.deliveryFee ?? 0);
+  const discount = Number(order.discount ?? 0);
+  const subtotal = Number(order.total) - deliveryFee + discount;
 
   const itemsHtml = order.items
     .map(
@@ -131,9 +140,23 @@ export function printOrder(order: PrintableOrder, paperWidth: "58mm" | "80mm" = 
 
   <hr class="divider" />
 
+  ${
+    deliveryFee > 0 || discount > 0
+      ? `
+  <div class="row"><span>SUBTOTAL</span><span>${brl(subtotal)}</span></div>
+  ${deliveryFee > 0 ? `<div class="row"><span>TAXA ENTREGA</span><span>${brl(deliveryFee)}</span></div>` : ""}
+  ${
+    discount > 0
+      ? `<div class="row"><span>DESCONTO${order.couponCode ? ` (${order.couponCode})` : ""}</span><span>-${brl(discount)}</span></div>`
+      : ""
+  }
+  `
+      : ""
+  }
+
   <div class="row total">
     <span>TOTAL</span>
-    <span>${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(order.total)}</span>
+    <span>${brl(Number(order.total))}</span>
   </div>
 
   <hr class="divider" />

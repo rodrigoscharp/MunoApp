@@ -27,6 +27,9 @@ interface Order {
   paymentStatus: PaymentStatus;
   deliveryType: string;
   total: number;
+  deliveryFee?: number;
+  discount?: number;
+  couponCode?: string | null;
   notes: string | null;
   customerName: string | null;
   customerPhone: string | null;
@@ -226,9 +229,44 @@ export function AdminOrdersTable({ orders }: { orders: Order[] }) {
                 </div>
               )}
 
-              <div className="border-t border-neutral-100 pt-3 flex justify-between">
-                <span className="font-semibold">Total</span>
-                <span className="text-lg font-bold">{formatCurrency(selected.total)}</span>
+              <div className="border-t border-neutral-100 pt-3 space-y-1.5">
+                {(Number(selected.deliveryFee ?? 0) > 0 || Number(selected.discount ?? 0) > 0) && (
+                  <>
+                    <div className="flex justify-between text-sm text-neutral-500">
+                      <span>Subtotal</span>
+                      <span>
+                        {formatCurrency(
+                          Number(selected.total) -
+                            Number(selected.deliveryFee ?? 0) +
+                            Number(selected.discount ?? 0)
+                        )}
+                      </span>
+                    </div>
+                    {Number(selected.deliveryFee ?? 0) > 0 && (
+                      <div className="flex justify-between text-sm text-neutral-500">
+                        <span>Taxa de entrega</span>
+                        <span>{formatCurrency(Number(selected.deliveryFee))}</span>
+                      </div>
+                    )}
+                    {Number(selected.discount ?? 0) > 0 && (
+                      <div className="flex justify-between text-sm text-green-600">
+                        <span>
+                          Desconto
+                          {selected.couponCode && (
+                            <span className="text-green-500 text-xs font-mono ml-1">
+                              · {selected.couponCode}
+                            </span>
+                          )}
+                        </span>
+                        <span>-{formatCurrency(Number(selected.discount))}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="flex justify-between pt-1">
+                  <span className="font-semibold">Total</span>
+                  <span className="text-lg font-bold">{formatCurrency(selected.total)}</span>
+                </div>
               </div>
             </div>
           </div>

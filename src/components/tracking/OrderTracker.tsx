@@ -17,6 +17,9 @@ interface OrderSummary {
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   total: number;
+  deliveryFee?: number;
+  discount?: number;
+  couponCode?: string | null;
   createdAt: Date;
   estimatedDeliveryAt?: Date | null;
   deliveryAddress?: string | null;
@@ -412,6 +415,38 @@ export function OrderTracker({ orderId, initialStatus, order, tenantId, canChat 
               ))}
             </ul>
           </div>
+
+          {/* Taxa e desconto: só aparecem quando existem, para não poluir o
+              recibo de um pedido simples de retirada. */}
+          {(Number(order.deliveryFee ?? 0) > 0 || Number(order.discount ?? 0) > 0) && (
+            <div className="mx-5 mt-4 pt-4 border-t border-neutral-100 space-y-1.5">
+              <div className="flex items-center justify-between text-sm text-neutral-500">
+                <span>Subtotal</span>
+                <span>
+                  {formatCurrency(
+                    order.total - Number(order.deliveryFee ?? 0) + Number(order.discount ?? 0)
+                  )}
+                </span>
+              </div>
+              {Number(order.deliveryFee ?? 0) > 0 && (
+                <div className="flex items-center justify-between text-sm text-neutral-500">
+                  <span>Taxa de entrega</span>
+                  <span>{formatCurrency(Number(order.deliveryFee))}</span>
+                </div>
+              )}
+              {Number(order.discount ?? 0) > 0 && (
+                <div className="flex items-center justify-between text-sm text-green-600">
+                  <span className="flex items-center gap-1">
+                    Desconto
+                    {order.couponCode && (
+                      <span className="text-green-500 text-xs font-mono">· {order.couponCode}</span>
+                    )}
+                  </span>
+                  <span>-{formatCurrency(Number(order.discount))}</span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Total */}
           <div className="mx-5 my-4 pt-4 border-t border-neutral-100 flex items-center justify-between">

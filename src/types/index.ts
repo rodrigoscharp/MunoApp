@@ -60,7 +60,12 @@ export interface OrderWithItems {
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   deliveryType: DeliveryType;
+  // total = subtotal dos itens + deliveryFee - discount. O subtotal não é
+  // gravado: sai de (total - deliveryFee + discount).
   total: number;
+  deliveryFee?: number;
+  discount?: number;
+  couponCode?: string | null;
   notes: string | null;
   customerName: string | null;
   customerPhone: string | null;
