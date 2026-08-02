@@ -10,10 +10,11 @@ import type { PaymentConnection } from "@prisma/client";
 // (1) que uma notificação válida é processada de fato (não só "não lança"),
 // e (2) que a consulta usa o access token do LOJISTA, nunca um token de
 // plataforma — a exigência central desta task.
-const { mockConfigCtor, mockPaymentCtor, mockPaymentGet } = vi.hoisted(() => ({
+const { mockConfigCtor, mockPaymentCtor, mockPaymentGet, mockPreferenceCreate } = vi.hoisted(() => ({
   mockConfigCtor: vi.fn(),
   mockPaymentCtor: vi.fn(),
   mockPaymentGet: vi.fn(),
+  mockPreferenceCreate: vi.fn(),
 }));
 
 vi.mock("mercadopago", () => {
@@ -30,7 +31,11 @@ vi.mock("mercadopago", () => {
       return mockPaymentGet(args);
     }
   }
-  class MockPreference {}
+  class MockPreference {
+    create(args: unknown) {
+      return mockPreferenceCreate(args);
+    }
+  }
   return {
     MercadoPagoConfig: MockMercadoPagoConfig,
     Payment: MockPayment,
@@ -65,6 +70,41 @@ function signedHeaders(secret: string, requestId = "req-1", ts = "1700000000"): 
 
 const payload = JSON.stringify({ type: "payment", data: { id: DATA_ID } });
 const adapter = new MercadoPagoAdapter();
+
+describe("createCharge no cartão — valor cobrado", () => {
+  // A preference do MP não tem campo de total: o Checkout Pro cobra a soma dos
+  // items. Enquanto ela era montada item a item, a taxa de entrega não era
+  // cobrada — e o desconto de um cupom seria ignorado do mesmo jeito, cobrando
+  // o cliente por um valor diferente do pedido que ele fechou.
+  const pedidoComFreteEDesconto = {
+    id: "order-abc123",
+    total: 87.5, // 90 de itens + 7,50 de frete - 10 de desconto
+    customerName: "Cliente Teste",
+    paymentMethod: "CREDIT_CARD" as const,
+    items: [
+      { menuItemId: "m1", name: "Pizza", quantity: 2, unitPrice: 45 },
+    ],
+  };
+
+  beforeEach(() => {
+    mockPreferenceCreate.mockReset();
+    mockPreferenceCreate.mockResolvedValue({ id: "pref-1", init_point: "https://mp/checkout" });
+  });
+
+  it("cobra order.total, não a soma dos itens", async () => {
+    const connection = connectionWith({ accessToken: "APP_USR-1" });
+
+    await adapter.createCharge(pedidoComFreteEDesconto, connection);
+
+    const body = mockPreferenceCreate.mock.calls[0][0].body;
+    const somaCobrada = body.items.reduce(
+      (total: number, item: { quantity: number; unit_price: number }) =>
+        total + item.quantity * item.unit_price,
+      0
+    );
+    expect(somaCobrada).toBe(87.5);
+  });
+});
 
 describe("handleWebhook — assinatura", () => {
   it("RECUSA quando o lojista não configurou webhook secret", async () => {

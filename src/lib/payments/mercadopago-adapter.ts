@@ -172,16 +172,24 @@ export class MercadoPagoAdapter implements PaymentProvider {
     }
 
     // CREDIT_CARD: Preference (Checkout Pro, redireciona pro checkout do MP)
+    //
+    // Uma linha só com o total, como no adapter da Stripe. A preference não tem
+    // campo de valor: o MP cobra a SOMA dos items. Mandar o cardápio item a item
+    // cobrava só o subtotal — a taxa de entrega ficava de fora, e com cupom o
+    // desconto também sumiria, cobrando o cliente por um valor que não é o do
+    // pedido. order.total já vem com frete somado e desconto abatido.
     const preferenceApi = new Preference(mp);
     const preference = await preferenceApi.create({
       body: {
-        items: order.items.map((item) => ({
-          id: item.menuItemId,
-          title: item.name,
-          quantity: item.quantity,
-          unit_price: item.unitPrice,
-          currency_id: "BRL",
-        })),
+        items: [
+          {
+            id: order.id,
+            title: `Pedido MUNO #${order.id.slice(-6).toUpperCase()}`,
+            quantity: 1,
+            unit_price: order.total,
+            currency_id: "BRL",
+          },
+        ],
         payer: { name: order.customerName },
         external_reference: order.id,
         notification_url: notificationUrl(connection),
