@@ -11,13 +11,21 @@ import { formatCurrency } from "@/lib/utils";
 import { PaymentMethodSelector } from "@/components/checkout/PaymentMethodSelector";
 import { PaymentMethod } from "@/types";
 import { isValidCpf, formatCpf, stripCpf } from "@/lib/cpf";
-import { ArrowLeft, Store, Truck, MapPin } from "lucide-react";
+import { ArrowLeft, Store, Truck, MapPin, TicketPercent, X } from "lucide-react";
 import Link from "next/link";
 
 interface DeliveryZone {
   id: string;
   name: string;
   price: number;
+}
+
+// O que /api/coupons/validate devolve. É prévia: quem decide o desconto de
+// verdade é o POST /api/orders, que revalida tudo antes de gravar o total.
+interface AppliedCoupon {
+  code: string;
+  discount: number;
+  freeShipping: boolean;
 }
 
 const schema = z.object({
@@ -43,6 +51,10 @@ export default function CheckoutPage() {
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("PICKUP");
   const [selectedZone, setSelectedZone] = useState<DeliveryZone | null>(null);
   const [zones, setZones] = useState<DeliveryZone[]>([]);
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
+  const [couponError, setCouponError] = useState("");
+  const [checkingCoupon, setCheckingCoupon] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -91,6 +103,15 @@ export default function CheckoutPage() {
       .catch(() => {});
   }, []);
 
+  // Trocar entrega por retirada derruba um cupom de frete grátis, e mexer no
+  // carrinho pode derrubar o pedido mínimo. Em vez de adivinhar qual regra caiu,
+  // solta o cupom e deixa o cliente aplicar de novo — assim o valor na tela
+  // nunca fica prometendo um desconto que o servidor vai recusar no submit.
+  useEffect(() => {
+    setAppliedCoupon(null);
+    setCouponError("");
+  }, [items, deliveryType]);
+
   if (items.length === 0) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
@@ -101,8 +122,55 @@ export default function CheckoutPage() {
   }
 
   const itemsTotal = total();
-  const deliveryFee = deliveryType === "DELIVERY" ? (selectedZone?.price ?? 0) : 0;
-  const grandTotal = itemsTotal + deliveryFee;
+  const baseFee = deliveryType === "DELIVERY" ? (selectedZone?.price ?? 0) : 0;
+  const deliveryFee = appliedCoupon?.freeShipping ? 0 : baseFee;
+  const discount = appliedCoupon?.discount ?? 0;
+  const grandTotal = itemsTotal + deliveryFee - discount;
+
+  async function aplicarCupom() {
+    const code = couponCode.trim();
+    if (!code) return;
+
+    setCheckingCoupon(true);
+    setCouponError("");
+
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          items: items.map((item) => ({ menuItemId: item.id, quantity: item.quantity })),
+          deliveryType,
+          deliveryZoneId: deliveryType === "DELIVERY" ? selectedZone?.id : undefined,
+        }),
+      });
+
+      const json = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setAppliedCoupon(null);
+        setCouponError(json?.error ?? "Não foi possível aplicar este cupom.");
+        return;
+      }
+
+      setAppliedCoupon({
+        code: json.code,
+        discount: Number(json.discount),
+        freeShipping: Boolean(json.freeShipping),
+      });
+      setCouponCode("");
+    } catch {
+      setCouponError("Não foi possível validar o cupom agora.");
+    } finally {
+      setCheckingCoupon(false);
+    }
+  }
+
+  function removerCupom() {
+    setAppliedCoupon(null);
+    setCouponError("");
+  }
 
   async function onSubmit(data: FormData) {
     if (deliveryType === "DELIVERY") {
@@ -153,6 +221,9 @@ export default function CheckoutPage() {
           // Manda o id da zona, não o preço: quem decide o valor do frete é o
           // servidor, a partir do que está cadastrado.
           deliveryZoneId: deliveryType === "DELIVERY" ? selectedZone?.id : undefined,
+          // Mesma coisa com o cupom: vai o código, não o desconto. O que está
+          // na tela veio de /api/coupons/validate e é só prévia.
+          couponCode: appliedCoupon?.code,
         }),
       });
 
@@ -367,6 +438,63 @@ export default function CheckoutPage() {
               )}
           </div>
 
+          {/* Cupom de desconto */}
+          <div className="bg-white rounded-xl border border-neutral-200 p-5">
+            <h2 className="font-semibold text-neutral-900 mb-3 flex items-center gap-2">
+              <TicketPercent size={17} className="text-neutral-400" />
+              Cupom de desconto
+            </h2>
+
+            {appliedCoupon ? (
+              <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5">
+                <span className="font-mono text-sm font-semibold tracking-wide text-green-800">
+                  {appliedCoupon.code}
+                </span>
+                <span className="text-sm text-green-700 flex-1 truncate">
+                  {appliedCoupon.freeShipping
+                    ? "frete grátis aplicado"
+                    : `${formatCurrency(appliedCoupon.discount)} de desconto`}
+                </span>
+                <button
+                  type="button"
+                  onClick={removerCupom}
+                  aria-label="Remover cupom"
+                  className="text-green-700 hover:text-green-900 p-1 shrink-0"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value)}
+                  // Enter dentro do form dispararia o submit do pedido; aqui ele
+                  // só aplica o cupom.
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      aplicarCupom();
+                    }
+                  }}
+                  placeholder="Digite seu cupom"
+                  autoCapitalize="characters"
+                  className="flex-1 min-w-0 px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm uppercase font-mono tracking-wide focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
+                />
+                <button
+                  type="button"
+                  onClick={aplicarCupom}
+                  disabled={checkingCoupon || !couponCode.trim()}
+                  className="px-4 py-2.5 rounded-lg border border-neutral-200 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0"
+                >
+                  {checkingCoupon ? "..." : "Aplicar"}
+                </button>
+              </div>
+            )}
+
+            {couponError && <p className="text-brand text-xs mt-2">{couponError}</p>}
+          </div>
+
           {error && (
             <div className="bg-brand-light border border-brand-muted rounded-lg px-4 py-3">
               <p className="text-brand-dark text-sm">{error}</p>
@@ -409,7 +537,29 @@ export default function CheckoutPage() {
                   Taxa de entrega
                   {selectedZone && <span className="text-neutral-400 text-xs">· {selectedZone.name}</span>}
                 </span>
-                <span>{selectedZone ? formatCurrency(selectedZone.price) : <span className="italic text-xs">selecione o bairro</span>}</span>
+                <span>
+                  {!selectedZone ? (
+                    <span className="italic text-xs">selecione o bairro</span>
+                  ) : appliedCoupon?.freeShipping ? (
+                    <>
+                      <span className="line-through text-neutral-400 mr-1.5">{formatCurrency(baseFee)}</span>
+                      <span className="text-green-600 font-medium">Grátis</span>
+                    </>
+                  ) : (
+                    formatCurrency(baseFee)
+                  )}
+                </span>
+              </div>
+            )}
+            {discount > 0 && (
+              <div className="flex items-center justify-between text-sm text-green-600">
+                <span className="flex items-center gap-1">
+                  Desconto
+                  {appliedCoupon && (
+                    <span className="text-green-500 text-xs font-mono">· {appliedCoupon.code}</span>
+                  )}
+                </span>
+                <span>-{formatCurrency(discount)}</span>
               </div>
             )}
             <div className="flex items-center justify-between pt-1">
