@@ -37,14 +37,31 @@ foi não gastar por ora. A rede é um dump lógico em `backups/` (gitignored: o
 arquivo tem telefone e endereço de cliente):
 
 ```
-npm run db:backup        dump avulso
+npm run db:backup        dump de produção + envio para o Blob
+npm run db:recuperar     lista os dumps na nuvem; com argumento, baixa um
 npm run db:espelhar      traz produção para o banco local, anonimizada
 npm run db:deploy        migra produção, com backup obrigatório antes
 ```
 
-Um agendamento do launchd roda `scripts/backup-producao.sh` todo dia às 03:00 e
-mantém 7 dias; o log fica em `backups/agendamento.log`. Como roda nesta máquina,
-só acontece com ela ligada — é a limitação de não ter backup no servidor.
+Um agendamento do launchd roda `scripts/backup-producao.sh` todo dia às 03:00,
+mantém 7 dias em `backups/` e sobe cada dump comprimido para um store **privado**
+do Vercel Blob — a cópia versionada que sobrevive à perda da máquina. Log em
+`backups/agendamento.log`. Como o gatilho é local, só roda com a máquina ligada.
+
+Recuperar numa máquina zerada: clonar o repo, `vercel link`, `vercel env pull
+.env.local --yes`, apagar dali `DATABASE_URL`/`DIRECT_URL` (ver o aviso abaixo) e
+`npm run db:recuperar`.
+
+## A armadilha do .env.local
+
+`vercel env pull`, `vercel link` e `vercel blob create-store` escrevem
+`DATABASE_URL` **de produção** no `.env.local`, e o Next carrega esse arquivo com
+prioridade sobre o `.env`. Sem perceber, o desenvolvimento inteiro passa a rodar
+contra o banco dos restaurantes. Já aconteceu uma vez, em 02/08/2026.
+
+Por isso `npm run dev` também passa pelo `guard-local-db.js` e se recusa a subir
+apontando para fora de localhost. Depois de qualquer comando da Vercel, confira
+o `.env.local`: só devem sobrar `BLOB_READ_WRITE_TOKEN` e `VERCEL_OIDC_TOKEN`.
 
 **Para investigar problema de cliente, use `db:espelhar`, não produção.** Ele
 restaura o dump mais recente no banco local e apaga nome, telefone, e-mail,

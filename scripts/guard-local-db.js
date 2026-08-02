@@ -59,22 +59,35 @@ try {
 const LOCAIS = new Set(["localhost", "127.0.0.1", "::1", "0.0.0.0", "host.docker.internal", "db"]);
 
 if (!LOCAIS.has(host)) {
+  const modoDev = process.argv.includes("--dev");
+
+  const porque = modoDev
+    ? `  Você estaria desenvolvendo em cima do banco dos restaurantes:
+  um seed, um teste de formulário ou um clique errado no /adm
+  mexem em pedido de verdade.`
+    : `  'migrate dev' e 'db push' são ferramentas de desenvolvimento: o
+  primeiro oferece resetar o banco quando acha drift, o segundo
+  derruba coluna para o schema bater. Contra o banco dos
+  restaurantes, os dois apagam pedido de cliente.`;
+
   console.error(`
   ┌───────────────────────────────────────────────────────────────┐
-  │  BLOQUEADO: este comando pode apagar o banco inteiro.         │
+  │  BLOQUEADO: ${modoDev ? "isto rodaria contra produção.       " : "este comando pode apagar o banco inteiro."}      │
   └───────────────────────────────────────────────────────────────┘
 
   DATABASE_URL aponta para:  ${host}
   Esperado:                  localhost
 
-  'migrate dev' e 'db push' são ferramentas de desenvolvimento: o
-  primeiro oferece resetar o banco quando acha drift, o segundo
-  derruba coluna para o schema bater. Contra o banco dos
-  restaurantes, os dois apagam pedido de cliente.
+${porque}
+
+  Causa mais provável: o CLI da Vercel escreveu DATABASE_URL no
+  .env.local, que tem prioridade sobre o .env. Acontece depois de
+  'vercel env pull', 'vercel link' e 'vercel blob create-store'.
+  Apague as linhas DATABASE_URL e DIRECT_URL do .env.local.
 
   Para desenvolver:
       docker compose up -d
-      npm run db:reset
+      npm run db:espelhar     (dados de produção, anonimizados)
 
   Para migrar produção (nunca reseta, nunca destrói):
       npm run db:deploy

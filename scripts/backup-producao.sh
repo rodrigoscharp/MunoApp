@@ -96,3 +96,11 @@ if [ -n "$EXCEDENTE" ]; then
   echo "$EXCEDENTE" | xargs rm -f
   echo "Removidos $(echo "$EXCEDENTE" | wc -l | tr -d ' ') dump(s) antigos (mantendo $MANTER)."
 fi
+
+# Sobe para o Vercel Blob: é o que faz o backup sobreviver à perda da máquina.
+# Falha aqui não invalida o dump local, que já está gravado e íntegro — por isso
+# o '|| true'. O que não pode é a cópia local sumir por causa de rede.
+if ! npx tsx scripts/enviar-backup.ts; then
+  echo "aviso: envio para o Blob falhou. O dump local está íntegro em $ARQUIVO," >&2
+  echo "       mas ainda só existe nesta máquina." >&2
+fi
