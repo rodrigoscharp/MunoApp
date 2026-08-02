@@ -51,3 +51,6 @@ next-env.d.ts
 # vira diretório quebrado.
 .claude/worktrees/
 
+
+# dumps do banco de produção — contêm dado de cliente
+backups/

@@ -32,6 +32,11 @@ Isso significa que **basta commitar a migração junto do código**: não há pa
 manual. Se precisar aplicar fora do deploy, `npm run db:deploy` com as
 credenciais de `.env.prod`, que nada carrega sozinho.
 
+Não há Point-in-Time Recovery contratado no Supabase, então a única rede é
+`./scripts/backup-producao.sh`, que tira um dump lógico para `backups/`
+(gitignored — o arquivo tem telefone e endereço de cliente). Rode antes de
+qualquer migração que remova ou altere coluna.
+
 Toda tabela com `tenantId` obrigatório precisa de três coisas, senão vaza entre
 restaurantes: entrada em `src/lib/tenant-scoped-models.ts`, `@@index([tenantId])`
 no schema, e a policy RLS na migração (copiar de
