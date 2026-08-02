@@ -14,6 +14,7 @@
     "db:reset": "node scripts/guard-local-db.js && prisma migrate reset --force",
     "db:deploy": "./scripts/deploy-migracao.sh",
     "db:backup": "./scripts/backup-producao.sh",
+    "db:espelhar": "tsx scripts/espelhar-producao.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "tenant:create": "tsx scripts/create-tenant.ts",

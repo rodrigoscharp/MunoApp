@@ -38,13 +38,21 @@ arquivo tem telefone e endereço de cliente):
 
 ```
 npm run db:backup        dump avulso
+npm run db:espelhar      traz produção para o banco local, anonimizada
 npm run db:deploy        migra produção, com backup obrigatório antes
 ```
 
 Um agendamento do launchd roda `scripts/backup-producao.sh` todo dia às 03:00 e
-mantém os 30 dumps mais recentes; o log fica em `backups/agendamento.log`. Como
-roda nesta máquina, só acontece com ela ligada — essa é a limitação de não ter
-backup no servidor.
+mantém 7 dias; o log fica em `backups/agendamento.log`. Como roda nesta máquina,
+só acontece com ela ligada — é a limitação de não ter backup no servidor.
+
+**Para investigar problema de cliente, use `db:espelhar`, não produção.** Ele
+restaura o dump mais recente no banco local e apaga nome, telefone, e-mail,
+endereço, conteúdo de chat e credencial de gateway, preservando volume,
+relacionamentos e status. Você fica com a forma real dos dados sem carregar dado
+pessoal. As senhas viram `dev123`. O script se recusa a rodar contra qualquer
+host que não seja localhost, porque ele derruba o banco de destino antes de
+restaurar.
 
 Toda tabela com `tenantId` obrigatório precisa de três coisas, senão vaza entre
 restaurantes: entrada em `src/lib/tenant-scoped-models.ts`, `@@index([tenantId])`

@@ -22,8 +22,14 @@
 # Testado de ponta a ponta em 02/08/2026: dump de produção restaurado num banco
 # limpo devolveu as mesmas contagens de Order, Tenant, MenuItem, Coupon e User.
 #
-# O arquivo tem pedido, telefone e endereço de cliente. backups/ está no
-# .gitignore; se mover o dump, mova com esse cuidado.
+# O arquivo tem pedido, telefone e endereço de cliente. Em repouso ele fica
+# protegido pelo FileVault do disco, então laptop perdido não entrega nada — mas
+# isso vale só enquanto o arquivo estiver AQUI. Copiar para pendrive, anexar num
+# chat ou sincronizar backups/ com nuvem tira o dado dessa proteção. Para
+# desenvolver com dados de verdade existe `npm run db:espelhar`, que restaura
+# no banco local já anonimizado.
+#
+# backups/ está no .gitignore.
 
 set -euo pipefail
 
@@ -80,9 +86,11 @@ TABELAS=$(grep -c "^COPY " "$ARQUIVO" || true)
 
 echo "Pronto: $ARQUIVO ($TAMANHO, $TABELAS tabelas com dados)"
 
-# Retenção: guarda os 30 mais recentes. Sem isso o diretório cresce para sempre
-# e ninguém percebe até o disco encher.
-MANTER=30
+# Retenção: 7 dias. Cada dump é uma cópia de telefone e endereço de cliente, e a
+# janela útil de um backup diário é curta — um erro que ninguém notou em uma
+# semana não vai ser desfeito restaurando. Guardar 30 era um mês de dado pessoal
+# parado no disco para cobrir um cenário que não existe.
+MANTER=7
 EXCEDENTE=$(ls -t "$DESTINO"/muno-*.sql 2>/dev/null | tail -n +$((MANTER + 1)) || true)
 if [ -n "$EXCEDENTE" ]; then
   echo "$EXCEDENTE" | xargs rm -f
