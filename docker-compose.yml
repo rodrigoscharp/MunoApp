@@ -1,0 +1,38 @@
+# Postgres de desenvolvimento.
+#
+# Existe porque o DATABASE_URL do .env apontava para o mesmo banco Supabase que
+# atende os restaurantes em produção. `prisma migrate dev` oferece resetar o
+# banco quando detecta drift, e `prisma db push` derruba coluna para fazer o
+# schema bater — as duas coisas, contra produção, apagam pedido de cliente.
+#
+#   docker compose up -d      sobe o banco
+#   npm run db:reset          aplica as migrações e popula com o seed
+#   docker compose down       para (os dados ficam no volume)
+#   docker compose down -v    para e apaga tudo
+#
+# Versão espelha a de produção (PostgreSQL 17.6 no Supabase) para que uma
+# migração que passa aqui não encontre outro comportamento lá.
+
+services:
+  db:
+    image: postgres:17
+    container_name: muno-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: muno
+      POSTGRES_PASSWORD: muno
+      POSTGRES_DB: muno
+    ports:
+      # 5433 e não 5432: se você tiver um Postgres instalado na máquina, os dois
+      # convivem sem disputar a porta.
+      - "5433:5432"
+    volumes:
+      - muno-db-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U muno -d muno"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  muno-db-dev:
