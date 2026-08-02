@@ -4,6 +4,7 @@ import { DeliveryTimeControl } from "@/components/adm/DeliveryTimeControl";
 import { BusinessHoursControl, WeekSchedule } from "@/components/adm/BusinessHoursControl";
 import { RestaurantInfoControl } from "@/components/adm/RestaurantInfoControl";
 import { DeliveryZonesControl } from "@/components/adm/DeliveryZonesControl";
+import { CouponsControl } from "@/components/adm/CouponsControl";
 import { PrinterControl } from "@/components/adm/PrinterControl";
 import { getRestaurantInfo } from "@/lib/restaurant";
 import type { PrinterConfig } from "@/app/api/settings/printer/route";
@@ -24,12 +25,17 @@ export default async function RestauranteAdminPage() {
   // aqui o proxy já garantiu sessão de restaurante com papel ADMIN.
   const tenantId = session!.user.tenantId!;
 
-  const [deliveryTimeSetting, businessHoursSetting, restaurantInfo, deliveryZones, printerSetting] = await Promise.all([
+  const [deliveryTimeSetting, businessHoursSetting, restaurantInfo, deliveryZones, printerSetting, coupons] = await Promise.all([
     prismaUnscoped.setting.findUnique({ where: { tenantId_key: { tenantId, key: "delivery_time_minutes" } } }),
     prismaUnscoped.setting.findUnique({ where: { tenantId_key: { tenantId, key: "business_hours" } } }),
     getRestaurantInfo(tenantId),
     prismaUnscoped.deliveryZone.findMany({ where: { active: true, tenantId }, orderBy: { position: "asc" } }),
     prismaUnscoped.setting.findUnique({ where: { tenantId_key: { tenantId, key: "printer_config" } } }),
+    prismaUnscoped.coupon.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: "desc" },
+      include: { _count: { select: { orders: true } } },
+    }),
   ]);
 
   const printerConfig: PrinterConfig = printerSetting
@@ -59,6 +65,15 @@ export default async function RestauranteAdminPage() {
           <BusinessHoursControl initialSchedule={schedule} />
           <DeliveryZonesControl
             initialZones={deliveryZones.map((z) => ({ ...z, price: Number(z.price) }))}
+          />
+          <CouponsControl
+            initialCoupons={coupons.map((c) => ({
+              ...c,
+              value: Number(c.value),
+              minOrder: Number(c.minOrder),
+              validFrom: c.validFrom?.toISOString() ?? null,
+              validUntil: c.validUntil?.toISOString() ?? null,
+            }))}
           />
         </div>
       </div>
