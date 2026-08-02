@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node scripts/fix-lightningcss.js && node node_modules/next/dist/bin/next dev --webpack",
-    "build": "prisma generate && node node_modules/next/dist/bin/next build --webpack",
+    "build": "prisma generate && node scripts/migrate-on-deploy.js && node node_modules/next/dist/bin/next build --webpack",
     "start": "node node_modules/next/dist/bin/next start",
     "postinstall": "prisma generate && node scripts/fix-lightningcss.js",
     "lint": "eslint",
