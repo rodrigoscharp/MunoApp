@@ -84,19 +84,28 @@ async function main() {
 
   if (enviados === 0) console.log("  nada novo para enviar");
 
-  // Retenção remota espelha a local: 7 dias. Sem isto o store cresce para
-  // sempre, e cada arquivo a mais é uma cópia a mais de dado pessoal.
-  const atuais = new Set(locais.map((f) => path.basename(f) + ".gz"));
-  const sobrando = remotos.blobs.filter((b) => !atuais.has(path.basename(b.pathname)));
+  // Retenção remota: os MANTER mais recentes por nome, que já é a data.
+  //
+  // Deliberadamente NÃO é "apagar o que não existe em backups/". O backup roda
+  // no GitHub Actions, onde o repositório é clonado limpo e só existe o dump do
+  // dia — espelhar o diretório local ali apagaria os outros seis da nuvem toda
+  // madrugada, deixando um único ponto no tempo. A nuvem é a cópia boa e manda
+  // na própria retenção.
+  const depoisDoEnvio = await list({ prefix: PREFIXO });
+  const excedente = depoisDoEnvio.blobs
+    .sort((a, b) => b.pathname.localeCompare(a.pathname))
+    .slice(MANTER);
 
-  if (sobrando.length > 0) {
-    await del(sobrando.map((b) => b.url));
-    console.log(`  removidos ${sobrando.length} dump(s) antigos do Blob`);
+  if (excedente.length > 0) {
+    await del(excedente.map((b) => b.url));
+    console.log(`  removidos ${excedente.length} dump(s) antigos do Blob`);
   }
 
-  const final = await list({ prefix: PREFIXO });
-  const total = final.blobs.reduce((s, b) => s + b.size, 0);
-  console.log(`  Blob: ${final.blobs.length} dump(s), ${Math.round(total / 1024)} KB`);
+  const restantes = depoisDoEnvio.blobs.length - excedente.length;
+  const total = depoisDoEnvio.blobs
+    .filter((b) => !excedente.includes(b))
+    .reduce((s, b) => s + b.size, 0);
+  console.log(`  Blob: ${restantes} dump(s), ${Math.round(total / 1024)} KB`);
 }
 
 main().catch((err) => {

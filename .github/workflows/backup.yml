@@ -1,0 +1,50 @@
+name: Backup do banco de produção
+
+# O agendamento morava num launchd na máquina do desenvolvedor, então só rodava
+# com o laptop ligado: uma viagem de uma semana era uma semana sem cópia nova.
+# Aqui o gatilho é do GitHub e não depende de ninguém.
+#
+# Precisa de dois secrets no repositório:
+#   DIRECT_URL             conexão direta do Supabase (porta 5432, não a 6543)
+#   BLOB_READ_WRITE_TOKEN  token do store privado muno-backups
+on:
+  schedule:
+    # 06:00 UTC = 03:00 em Brasília. O cron do GitHub trabalha só em UTC e pode
+    # atrasar alguns minutos em horário de pico — para backup diário, tanto faz.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+# Duas execuções ao mesmo tempo brigariam pela retenção no Blob e uma apagaria o
+# dump que a outra acabou de subir.
+concurrency:
+  group: backup-producao
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Dump de produção e envio para o Blob
+        env:
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+        run: ./scripts/backup-producao.sh
+
+      # O runner é descartado no fim, então o dump só existe de verdade depois
+      # de estar no Blob. Falhar aqui é falhar o job inteiro — silêncio seria
+      # pior que erro, porque backup que ninguém sabe que parou não é backup.
+      - name: Confirmar que o dump chegou na nuvem
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+        run: npx tsx scripts/recuperar-backup.ts

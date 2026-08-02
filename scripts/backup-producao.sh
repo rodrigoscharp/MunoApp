@@ -38,23 +38,16 @@ cd "$(dirname "$0")/.."
 DESTINO="${1:-backups}"
 CONTAINER="muno-db-dev"
 
-if [ ! -f .env.prod ]; then
-  echo "erro: .env.prod não encontrado — é de lá que saem as credenciais de produção." >&2
-  exit 1
+# No GitHub Actions as credenciais chegam por secret, já no ambiente. Só cai no
+# .env.prod quando roda na máquina do desenvolvedor.
+if [ -z "${DIRECT_URL:-}" ] && [ -f .env.prod ]; then
+  # shellcheck disable=SC1091
+  set -a; . ./.env.prod; set +a
 fi
-
-# shellcheck disable=SC1091
-set -a; . ./.env.prod; set +a
 
 if [ -z "${DIRECT_URL:-}" ]; then
-  echo "erro: DIRECT_URL não definida em .env.prod." >&2
+  echo "erro: DIRECT_URL não definida (nem no ambiente, nem em .env.prod)." >&2
   echo "      O dump precisa da conexão direta (5432), não do pooler de transação (6543)." >&2
-  exit 1
-fi
-
-if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
-  echo "erro: container $CONTAINER não está de pé. Rode 'docker compose up -d'." >&2
-  echo "      (é dele que sai o pg_dump, para não exigir cliente Postgres instalado)" >&2
   exit 1
 fi
 
@@ -63,10 +56,19 @@ ARQUIVO="$DESTINO/muno-$(date +%Y%m%d-%H%M%S).sql"
 
 echo "Copiando produção para $ARQUIVO ..."
 
+# O pg_dump sai de um container postgres:17 — mesma major do servidor, sem
+# exigir cliente Postgres instalado. Na máquina do desenvolvedor reaproveita o
+# container que já está de pé; no CI sobe um descartável.
+if docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+  PGDUMP=(docker exec -i "$CONTAINER" pg_dump)
+else
+  PGDUMP=(docker run --rm -i postgres:17 pg_dump)
+fi
+
 # --no-owner e --no-acl: o dump volta em qualquer banco, sem depender das roles
 # que o Supabase cria. -n public: só o schema da aplicação, sem os internos do
 # Supabase (auth, storage), que não são nossos para restaurar.
-docker exec -i "$CONTAINER" pg_dump \
+"${PGDUMP[@]}" \
   --no-owner --no-acl --schema=public \
   "$DIRECT_URL" > "$ARQUIVO"
 

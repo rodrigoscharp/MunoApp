@@ -43,10 +43,19 @@ npm run db:espelhar      traz produção para o banco local, anonimizada
 npm run db:deploy        migra produção, com backup obrigatório antes
 ```
 
-Um agendamento do launchd roda `scripts/backup-producao.sh` todo dia às 03:00,
-mantém 7 dias em `backups/` e sobe cada dump comprimido para um store **privado**
-do Vercel Blob — a cópia versionada que sobrevive à perda da máquina. Log em
-`backups/agendamento.log`. Como o gatilho é local, só roda com a máquina ligada.
+O backup diário roda no **GitHub Actions** (`.github/workflows/backup.yml`, 06:00
+UTC), não nesta máquina: dump de produção, compressão e envio para um store
+**privado** do Vercel Blob, mantendo os 7 mais recentes. Depende dos secrets
+`DIRECT_URL` e `BLOB_READ_WRITE_TOKEN` no repositório. Para disparar na mão:
+`gh workflow run backup.yml`.
+
+Rodar `npm run db:backup` localmente faz a mesma coisa e também sobe para o
+Blob — o script funciona nos dois ambientes, usando `docker exec` quando o
+container de dev está de pé e `docker run postgres:17` quando não está.
+
+A retenção no Blob é por contagem de arquivos remotos, nunca por comparação com
+`backups/`. No CI o repositório vem limpo e só existe o dump do dia; espelhar o
+diretório local apagaria os outros seis da nuvem toda madrugada.
 
 Recuperar numa máquina zerada: clonar o repo, `vercel link`, `vercel env pull
 .env.local --yes`, apagar dali `DATABASE_URL`/`DIRECT_URL` (ver o aviso abaixo) e
