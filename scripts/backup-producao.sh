@@ -64,7 +64,27 @@ docker exec -i "$CONTAINER" pg_dump \
   --no-owner --no-acl --schema=public \
   "$DIRECT_URL" > "$ARQUIVO"
 
-TAMANHO=$(du -h "$ARQUIVO" | cut -f1)
-LINHAS=$(grep -c "^COPY " "$ARQUIVO" || true)
+# Um dump truncado por queda de rede é pior que dump nenhum: parece proteção e
+# não é. O pg_dump fecha com esta linha, então a ausência dela condena o arquivo.
+# tail -20 e não -5: o marcador não é a última linha. O pg_dump 17.6 passou a
+# emitir um '\unrestrict' depois dele, e com uma margem apertada a checagem
+# passaria a reprovar dump bom no dia que a próxima versão acrescentar mais uma.
+if ! tail -20 "$ARQUIVO" | grep -q "PostgreSQL database dump complete"; then
+  echo "erro: dump incompleto, descartando $ARQUIVO" >&2
+  mv "$ARQUIVO" "$ARQUIVO.incompleto"
+  exit 1
+fi
 
-echo "Pronto: $ARQUIVO ($TAMANHO, $LINHAS tabelas com dados)"
+TAMANHO=$(du -h "$ARQUIVO" | cut -f1)
+TABELAS=$(grep -c "^COPY " "$ARQUIVO" || true)
+
+echo "Pronto: $ARQUIVO ($TAMANHO, $TABELAS tabelas com dados)"
+
+# Retenção: guarda os 30 mais recentes. Sem isso o diretório cresce para sempre
+# e ninguém percebe até o disco encher.
+MANTER=30
+EXCEDENTE=$(ls -t "$DESTINO"/muno-*.sql 2>/dev/null | tail -n +$((MANTER + 1)) || true)
+if [ -n "$EXCEDENTE" ]; then
+  echo "$EXCEDENTE" | xargs rm -f
+  echo "Removidos $(echo "$EXCEDENTE" | wc -l | tr -d ' ') dump(s) antigos (mantendo $MANTER)."
+fi
