@@ -46,16 +46,23 @@ async function main() {
     create: { tenantId, name: "Bebidas", slug: "bebidas", position: 3 },
   });
 
+  // As fotos são os mesmos arquivos de public/ que produção referencia. Sem
+  // imageUrl o cardápio nasce sem foto nenhuma, e aí o dev depois do reset não
+  // se parece com o que o cliente vê.
+  const LANCHE = "/lanche.jpg";
+  const PORCAO = "/porcao.svg";
+  const BEBIDA = "/refri.jpeg";
+
   const items = [
-    { name: "X-Burguer", description: "Pão brioche, hambúrguer 150g, queijo, alface e tomate", price: 22.9, categoryId: lanches.id },
-    { name: "X-Bacon", description: "Pão brioche, hambúrguer 150g, queijo, bacon crocante e maionese", price: 26.9, categoryId: lanches.id },
-    { name: "X-Tudo", description: "Pão brioche, hambúrguer 150g, ovo, queijo, bacon, alface e tomate", price: 31.9, categoryId: lanches.id },
-    { name: "Batata Frita P", description: "Porção pequena de batata frita crocante (200g)", price: 14.9, categoryId: porcoes.id },
-    { name: "Batata Frita G", description: "Porção grande de batata frita crocante (400g)", price: 22.9, categoryId: porcoes.id },
-    { name: "Onion Rings", description: "Anéis de cebola empanados e fritos (200g)", price: 18.9, categoryId: porcoes.id },
-    { name: "Refrigerante Lata", description: "Coca-Cola, Guaraná ou Sprite 350ml", price: 6.9, categoryId: bebidas.id },
-    { name: "Suco Natural", description: "Laranja, limão ou maracujá 400ml", price: 9.9, categoryId: bebidas.id },
-    { name: "Água Mineral", description: "500ml com ou sem gás", price: 4.9, categoryId: bebidas.id },
+    { name: "X-Burguer", description: "Pão brioche, hambúrguer 150g, queijo, alface e tomate", price: 22.9, imageUrl: LANCHE, categoryId: lanches.id },
+    { name: "X-Bacon", description: "Pão brioche, hambúrguer 150g, queijo, bacon crocante e maionese", price: 40.0, imageUrl: LANCHE, categoryId: lanches.id },
+    { name: "X-Tudo", description: "Pão brioche, hambúrguer 150g, ovo, queijo, bacon, alface e tomate", price: 31.9, imageUrl: LANCHE, categoryId: lanches.id },
+    { name: "Batata Frita P", description: "Porção pequena de batata frita crocante (200g)", price: 14.9, imageUrl: PORCAO, categoryId: porcoes.id },
+    { name: "Batata Frita G", description: "Porção grande de batata frita crocante (400g)", price: 22.9, imageUrl: PORCAO, categoryId: porcoes.id },
+    { name: "Onion Rings", description: "Anéis de cebola empanados e fritos (200g)", price: 18.9, imageUrl: PORCAO, categoryId: porcoes.id },
+    { name: "Refrigerante Lata", description: "Coca-Cola, Guaraná ou Sprite 350ml", price: 6.9, imageUrl: BEBIDA, categoryId: bebidas.id },
+    { name: "Suco Natural", description: "Laranja, limão ou maracujá 400ml", price: 9.9, imageUrl: BEBIDA, categoryId: bebidas.id },
+    { name: "Água Mineral", description: "500ml com ou sem gás", price: 4.9, imageUrl: BEBIDA, categoryId: bebidas.id },
   ];
 
   for (const item of items) {
