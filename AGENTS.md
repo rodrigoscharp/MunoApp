@@ -96,3 +96,26 @@ restaurantes: entrada em `src/lib/tenant-scoped-models.ts`, `@@index([tenantId])
 no schema, e a policy RLS na migração (copiar de
 `20260801193000_rls_em_orderitem_e_deliverytracking`). O teste
 `src/lib/tenant-scoped-models.test.ts` cobre a primeira.
+
+## Remover um cliente
+
+```
+npm run tenant:remove -- --slug "x"                      mostra o que seria apagado
+npm run tenant:remove -- --slug "x" --confirmar "x"      apaga (banco do .env)
+npm run tenant:remove:prod -- --slug "x" --confirmar "x" produção, com backup antes
+```
+
+Sem `--confirmar` repetindo o slug, o comando só conta e sai — a confirmação
+existe para pegar o erro de ter escolhido o tenant errado, e para isso é preciso
+ler o nome na tela.
+
+Nenhuma relação com `Tenant` tem `onDelete: Cascade`, de propósito: assim um
+`tenant.delete()` acidental não leva os pedidos de um restaurante junto. O preço
+é que apagar de verdade é apagar model por model, na ordem das foreign keys —
+`ORDEM_DE_EXCLUSAO` em `src/lib/tenant-removal.ts`. O teste ao lado confere a
+lista nos dois eixos, cobertura e ordem, lendo as relações do próprio
+`schema.prisma`: **model novo com `tenantId` quebra o teste, não a remoção**.
+
+O `Lead` é a exceção — ele só perde o vínculo. Lead é registro de prospecção da
+plataforma, não dado do restaurante, e apagá-lo junto reescreveria o histórico
+comercial por causa de um cliente que saiu.

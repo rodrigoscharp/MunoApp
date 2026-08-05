@@ -1,0 +1,198 @@
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { TENANT_SCOPED_MODELS } from "./tenant-scoped-models";
+
+// --- mocks -----------------------------------------------------------------
+
+const chamadas: { modelo: string; operacao: string; args: unknown }[] = [];
+
+function delegateFalso(modelo: string) {
+  return {
+    deleteMany: (args: unknown) => {
+      chamadas.push({ modelo, operacao: "deleteMany", args });
+      return Promise.resolve({ count: 0 });
+    },
+    count: (args: unknown) => {
+      chamadas.push({ modelo, operacao: "count", args });
+      return Promise.resolve(0);
+    },
+    updateMany: (args: unknown) => {
+      chamadas.push({ modelo, operacao: "updateMany", args });
+      return Promise.resolve({ count: 0 });
+    },
+    delete: (args: unknown) => {
+      chamadas.push({ modelo, operacao: "delete", args });
+      return Promise.resolve({});
+    },
+  };
+}
+
+const findUniqueTenant = vi.fn();
+
+// Um Proxy responde por qualquer model que o código pedir: assim o teste não
+// precisa ser atualizado quando um model novo entra na ordem de exclusão — é o
+// próprio teste de cobertura abaixo que cobra isso.
+const clienteFalso = new Proxy({} as Record<string, unknown>, {
+  get(_alvo, prop: string) {
+    if (prop === "$transaction") {
+      return (fn: (tx: unknown) => Promise<unknown>) => fn(clienteFalso);
+    }
+    if (prop === "tenant") {
+      return {
+        ...delegateFalso("tenant"),
+        findUnique: (args: unknown) => findUniqueTenant(args),
+      };
+    }
+    return delegateFalso(prop);
+  },
+});
+
+vi.mock("@/lib/prisma", () => ({ prismaUnscoped: clienteFalso }));
+
+const { ORDEM_DE_EXCLUSAO, RemocaoError, removeTenant } = await import(
+  "./tenant-removal"
+);
+
+// --- helpers ---------------------------------------------------------------
+
+function blocosDoSchema(): Map<string, string> {
+  const schema = readFileSync(
+    join(process.cwd(), "prisma", "schema.prisma"),
+    "utf8"
+  );
+  const blocos = new Map<string, string>();
+  for (const [, nome, corpo] of schema.matchAll(
+    /^model\s+(\w+)\s*\{([\s\S]*?)^\}/gm
+  )) {
+    blocos.set(nome, corpo);
+  }
+  return blocos;
+}
+
+/** Models que `modelo` referencia por foreign key, exceto Tenant. */
+function referenciasDe(corpo: string): string[] {
+  const alvos: string[] = [];
+  for (const [, tipo] of corpo.matchAll(
+    /^\s*\w+\s+(\w+)\??\s+@relation\([^)]*fields:/gm
+  )) {
+    if (tipo !== "Tenant") alvos.push(tipo);
+  }
+  return alvos;
+}
+
+const TENANT = { id: "tenant-1", slug: "cantina-teste", nome: "Cantina Teste" };
+
+beforeEach(() => {
+  chamadas.length = 0;
+  findUniqueTenant.mockReset();
+  findUniqueTenant.mockResolvedValue(TENANT);
+});
+
+// --- testes ----------------------------------------------------------------
+
+/**
+ * O risco que estes dois primeiros testes cobrem: nenhuma relação com Tenant
+ * tem `onDelete` no schema, então apagar um tenant é apagar model por model, na
+ * mão, na ordem certa. Um model novo com tenantId que não entre em
+ * ORDEM_DE_EXCLUSAO não quebra teste nenhum de comportamento — só falha na hora
+ * da remoção, com foreign key violation e a transação já no meio.
+ */
+describe("ORDEM_DE_EXCLUSAO", () => {
+  it("cobre exatamente os models escopados por tenant", () => {
+    expect([...ORDEM_DE_EXCLUSAO].sort()).toEqual(
+      [...TENANT_SCOPED_MODELS].sort()
+    );
+  });
+
+  it("põe todo model antes daquele que ele referencia por foreign key", () => {
+    const blocos = blocosDoSchema();
+    const posicao = new Map(ORDEM_DE_EXCLUSAO.map((m, i) => [m as string, i]));
+
+    // Sanidade: se a regex de relações parar de casar, o laço roda vazio e o
+    // teste passaria sem verificar nada.
+    let conferidas = 0;
+
+    for (const modelo of ORDEM_DE_EXCLUSAO) {
+      const corpo = blocos.get(modelo);
+      expect(corpo, `model ${modelo} não existe no schema`).toBeDefined();
+
+      for (const alvo of referenciasDe(corpo!)) {
+        if (!posicao.has(alvo)) continue; // fora do escopo de tenant
+        conferidas++;
+        expect(
+          posicao.get(modelo)!,
+          `${modelo} referencia ${alvo} e precisa ser apagado antes dele`
+        ).toBeLessThan(posicao.get(alvo)!);
+      }
+    }
+
+    expect(conferidas).toBeGreaterThan(5);
+  });
+});
+
+describe("removeTenant", () => {
+  it("apaga na ordem declarada, sempre filtrando pelo tenantId", async () => {
+    await removeTenant("cantina-teste");
+
+    const apagados = chamadas
+      .filter((c) => c.operacao === "deleteMany")
+      .map((c) => c.modelo);
+
+    expect(apagados).toEqual(
+      ORDEM_DE_EXCLUSAO.map((m) => m[0].toLowerCase() + m.slice(1))
+    );
+
+    for (const c of chamadas.filter((c) => c.operacao === "deleteMany")) {
+      expect(c.args).toEqual({ where: { tenantId: TENANT.id } });
+    }
+  });
+
+  it("apaga o tenant só depois de todos os filhos", async () => {
+    await removeTenant("cantina-teste");
+
+    const ultima = chamadas[chamadas.length - 1];
+    expect(ultima.modelo).toBe("tenant");
+    expect(ultima.operacao).toBe("delete");
+    expect(ultima.args).toEqual({ where: { id: TENANT.id } });
+  });
+
+  it("desvincula o lead em vez de apagá-lo", async () => {
+    await removeTenant("cantina-teste");
+
+    const noLead = chamadas.filter((c) => c.modelo === "lead");
+    expect(noLead).toHaveLength(1);
+    expect(noLead[0].operacao).toBe("updateMany");
+    expect(noLead[0].args).toEqual({
+      where: { tenantId: TENANT.id },
+      data: { tenantId: null },
+    });
+  });
+
+  it("recusa o tenant default, que é o site institucional", async () => {
+    findUniqueTenant.mockResolvedValue({ ...TENANT, slug: "default" });
+
+    await expect(removeTenant("default")).rejects.toMatchObject({
+      code: "TENANT_PROTEGIDO",
+    });
+    expect(chamadas.filter((c) => c.operacao === "deleteMany")).toHaveLength(0);
+  });
+
+  it("recusa slug que não existe, em vez de sair apagando nada", async () => {
+    findUniqueTenant.mockResolvedValue(null);
+
+    await expect(removeTenant("nao-existe")).rejects.toBeInstanceOf(
+      RemocaoError
+    );
+    expect(chamadas.filter((c) => c.operacao === "deleteMany")).toHaveLength(0);
+  });
+
+  it("devolve o resumo do que apagou", async () => {
+    const resumo = await removeTenant("cantina-teste");
+
+    expect(resumo.tenant.slug).toBe("cantina-teste");
+    expect(Object.keys(resumo.contagens).sort()).toEqual(
+      [...ORDEM_DE_EXCLUSAO].sort()
+    );
+  });
+});

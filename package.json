@@ -20,6 +20,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "tenant:create": "tsx scripts/create-tenant.ts",
+    "tenant:remove": "tsx scripts/remove-tenant.ts",
+    "tenant:remove:prod": "./scripts/remover-tenant-producao.sh",
     "platform:create-admin": "tsx scripts/create-platform-admin.ts",
     "test:watch": "vitest"
   },
