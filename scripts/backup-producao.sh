@@ -38,9 +38,16 @@ cd "$(dirname "$0")/.."
 DESTINO="${1:-backups}"
 CONTAINER="muno-db-dev"
 
-# No GitHub Actions as credenciais chegam por secret, já no ambiente. Só cai no
-# .env.prod quando roda na máquina do desenvolvedor.
-if [ -z "${DIRECT_URL:-}" ] && [ -f .env.prod ]; then
+# Na máquina do desenvolvedor, .env.prod MANDA — mesmo que já exista DIRECT_URL
+# no ambiente. Herdar a variável parecia inofensivo e não era: quem chama este
+# script de dentro de outro (db:espelhar --agora) chega aqui com o DIRECT_URL do
+# .env, que aponta para o Postgres local. O dump saía do banco de
+# desenvolvimento, ia para backups/ com nome de produção, subia para o Blob e
+# empurrava um backup de verdade para fora da retenção.
+#
+# No GitHub Actions não existe .env.prod e as credenciais chegam por secret, já
+# no ambiente — lá o comportamento continua o mesmo.
+if [ -f .env.prod ]; then
   # shellcheck disable=SC1091
   set -a; . ./.env.prod; set +a
 fi
@@ -50,6 +57,19 @@ if [ -z "${DIRECT_URL:-}" ]; then
   echo "      O dump precisa da conexão direta (5432), não do pooler de transação (6543)." >&2
   exit 1
 fi
+
+# Segunda trava, para o caso de o .env.prod um dia apontar para o lugar errado:
+# backup de produção que sai do localhost é backup de nada, e o pior é que ele
+# tem a mesma cara de um bom.
+HOST_DUMP=$(node -e 'process.stdout.write(new URL(process.argv[1]).hostname)' "$DIRECT_URL" 2>/dev/null || echo "")
+case "$HOST_DUMP" in
+  localhost|127.0.0.1|::1|0.0.0.0|db|host.docker.internal|"")
+    echo "erro: DIRECT_URL aponta para \"$HOST_DUMP\", que não é produção." >&2
+    echo "      Este script copia o banco dos restaurantes; um dump do banco local" >&2
+    echo "      ocuparia a vaga de um backup real na retenção do Blob." >&2
+    exit 1
+    ;;
+esac
 
 mkdir -p "$DESTINO"
 ARQUIVO="$DESTINO/muno-$(date +%Y%m%d-%H%M%S).sql"
@@ -68,9 +88,18 @@ fi
 # --no-owner e --no-acl: o dump volta em qualquer banco, sem depender das roles
 # que o Supabase cria. -n public: só o schema da aplicação, sem os internos do
 # Supabase (auth, storage), que não são nossos para restaurar.
-"${PGDUMP[@]}" \
+# O redirecionamento cria o arquivo antes de o pg_dump escrever qualquer coisa,
+# então falha de conexão deixa um .sql de 0 byte para trás. Ele não é inofensivo:
+# o envio para o Blob varre backups/ por nome e subia esse vazio como se fosse
+# dump, gastando uma das 7 vagas da retenção e empurrando um backup bom para
+# fora. Some com ele aqui, onde ainda se sabe que houve erro.
+if ! "${PGDUMP[@]}" \
   --no-owner --no-acl --schema=public \
-  "$DIRECT_URL" > "$ARQUIVO"
+  "$DIRECT_URL" > "$ARQUIVO"; then
+  rm -f "$ARQUIVO"
+  echo "erro: pg_dump falhou. Nenhum arquivo foi mantido." >&2
+  exit 1
+fi
 
 # Um dump truncado por queda de rede é pior que dump nenhum: parece proteção e
 # não é. O pg_dump fecha com esta linha, então a ausência dela condena o arquivo.

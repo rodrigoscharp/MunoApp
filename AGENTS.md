@@ -53,6 +53,17 @@ Rodar `npm run db:backup` localmente faz a mesma coisa e também sobe para o
 Blob — o script funciona nos dois ambientes, usando `docker exec` quando o
 container de dev está de pé e `docker run postgres:17` quando não está.
 
+Na sua máquina o `.env.prod` **manda**, mesmo que já exista `DIRECT_URL` no
+ambiente, e o script recusa qualquer host local. Os dois vieram do mesmo susto
+em 05/08/2026: chamado de dentro do `db:espelhar --agora`, que já tinha
+carregado o `.env`, o backup herdava o `DIRECT_URL` do Postgres de
+desenvolvimento e ia dumpar o banco errado — com nome de produção, subindo para
+o Blob e ocupando uma vaga da retenção. No CI não há `.env.prod` e nada muda.
+
+Dump que falha não deixa arquivo, e o envio ignora `.sql` sem a linha final do
+`pg_dump`. Um dump truncado na nuvem parece proteção e só se revela no dia da
+restauração.
+
 A retenção no Blob é por contagem de arquivos remotos, nunca por comparação com
 `backups/`. No CI o repositório vem limpo e só existe o dump do dia; espelhar o
 diretório local apagaria os outros seis da nuvem toda madrugada.
