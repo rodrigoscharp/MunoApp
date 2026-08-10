@@ -5,6 +5,14 @@ import type { Tenant, User } from "@prisma/client";
 import { prismaUnscoped } from "@/lib/prisma";
 
 // Subdomínios que a plataforma usa e nenhum restaurante pode tomar.
+//
+// "join" não é servido por este projeto: é a landing de vendas, que mora em
+// outro repositório e tem o domínio apontado para lá na Vercel. Por isso ela
+// não aparece em lugar nenhum daqui — e é justamente esse o risco. Provisionar
+// um tenant com esse slug faria buildTenantBaseUrl entregar
+// join.munoapp.com.br ao restaurante, host que a Vercel resolve para a página
+// de preços: o cliente ficaria inacessível e quem abrisse o link dele veria a
+// landing.
 export const RESERVED_SLUGS = new Set([
   "www",
   "api",
@@ -12,6 +20,7 @@ export const RESERVED_SLUGS = new Set([
   "admin",
   "app",
   "default",
+  "join",
   "mail",
   "static",
 ]);

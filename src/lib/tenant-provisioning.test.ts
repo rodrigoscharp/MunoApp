@@ -36,6 +36,21 @@ describe("validateSlug", () => {
     }
   });
 
+  // Cada um destes já é um host de verdade. Provisionar um tenant com o slug
+  // devolveria a ele uma URL que a plataforma serve com outra coisa — o
+  // restaurante ficaria inacessível e o cliente veria a página errada.
+  it.each(["join", "www", "admin"])(
+    "rejeita %s, que já é um host da plataforma",
+    (slug) => {
+      try {
+        validateSlug(slug);
+        throw new Error("deveria ter lançado");
+      } catch (err) {
+        expect((err as ProvisionError).code).toBe("SLUG_RESERVADO");
+      }
+    }
+  );
+
   it("distingue slug inválido de slug reservado", () => {
     try {
       validateSlug("Admin");
