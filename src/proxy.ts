@@ -125,6 +125,17 @@ export default auth(async (req) => {
     return NextResponse.next();
   }
 
+  // Cron da Vercel, pelo mesmo motivo e com a mesma consequência: o job dispara
+  // contra o domínio do deploy, que não é subdomínio de restaurante nenhum.
+  // Pelo caminho normal ele resolveria o slug "default" e tomaria 404 —
+  // silencioso, todo dia às 9h UTC, até a primeira mensalidade faltar.
+  //
+  // Sem x-tenant-id injetado: quem cobra é a plataforma, e o job usa
+  // prismaUnscoped conscientemente. A porta é o CRON_SECRET, não o proxy.
+  if (nextUrl.pathname.startsWith("/api/cron/")) {
+    return NextResponse.next();
+  }
+
   const tenant = await prisma.tenant.findUnique({
     where: { slug },
     select: { id: true, status: true },
