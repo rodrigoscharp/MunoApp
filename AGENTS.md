@@ -119,3 +119,51 @@ lista nos dois eixos, cobertura e ordem, lendo as relações do próprio
 O `Lead` é a exceção — ele só perde o vínculo. Lead é registro de prospecção da
 plataforma, não dado do restaurante, e apagá-lo junto reescreveria o histórico
 comercial por causa de um cliente que saiu.
+
+# Os domínios
+
+Desde 10/08/2026, o domínio raiz **não é servido por este projeto**:
+
+```
+munoapp.com.br         landing de vendas (outro repo: MUNO-Landing-Page)
+www.  / join.          a mesma landing, 308 para o apex
+app.munoapp.com.br     ESTE projeto — é onde a API pública atende
+admin.munoapp.com.br   ESTE projeto — plataforma/CRM
+<slug>.munoapp.com.br  ESTE projeto — restaurantes
+```
+
+Na Vercel, `*.munoapp.com.br` pertence ao projeto `muno` e o apex/`www`/`join`
+ao `muno-landing-page`. O curinga é o que sustenta tudo daqui; mover o raiz de
+volta para cá quebraria a landing, e mover o curinga quebraria todos os
+restaurantes de uma vez.
+
+Antes de 10/08/2026 o raiz caía em `slug = "default"` e servia o restaurante do
+seed — quem ouvia a marca e digitava o endereço encontrava uma hamburgueria em
+Ubatuba e concluía que a Muno era isso. O tenant `default` continua existindo,
+agora só em `default.munoapp.com.br`.
+
+**`ROOT_DOMAIN` continua `www.munoapp.com.br,munoapp.com.br` mesmo o app não
+servindo mais esses hosts.** Não é sobra: `buildTenantBaseUrl`
+(`src/lib/tenant-provisioning.ts`) usa a **última** entrada para montar a URL do
+restaurante, e encurtar a lista geraria `pizzaria.www.munoapp.com.br` — dois
+níveis, fora do certificado curinga.
+
+## A captação de lead atravessa os dois repositórios
+
+A landing grava lead chamando `app.munoapp.com.br/api/leads/publico`. Três
+coisas precisam continuar verdadeiras, e nenhuma é óbvia lendo só um lado:
+
+1. **A rota responde em qualquer subdomínio** porque a guarda em `src/proxy.ts`
+   sai do pipeline **antes** do `findUnique` do tenant. Foi feita assim de
+   propósito: pelo caminho normal a rota dependeria de um tenant existir, e
+   morreria junto com o `default` no dia em que ele for removido.
+2. **`LANDING_ORIGIN` é lista separada por vírgula** (mesmo formato de
+   `ROOT_DOMAIN`), hoje com apex, `www` e `join`. Sem a variável, produção
+   recusa toda origem cross-site — falha fechada, e a landing para de gravar sem
+   nada quebrar visivelmente.
+3. **`app` e `join` estão em `RESERVED_SLUGS`**, senão um restaurante
+   provisionado com esses slugs receberia uma URL que a Vercel resolve para
+   outro projeto.
+
+Mexer em domínio aqui pede o roteiro de `docs/superpowers/specs/2026-08-10-porta-de-entrada-no-dominio-raiz.md`,
+que explica por que a ordem dos passos importa.
