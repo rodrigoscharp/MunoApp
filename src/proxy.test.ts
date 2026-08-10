@@ -128,7 +128,17 @@ describe("proxy: inadimplência bloqueia gestão, nunca operação", () => {
 });
 
 describe("proxy: bloqueio da área de gestão", () => {
-  it.each(["/adm", "/adm/menu", "/adm/pagamentos"])(
+  it.each([
+    "/adm",
+    "/adm/menu",
+    "/adm/pagamentos",
+    "/adm/mesas",
+    "/adm/restaurante",
+    // O cadastro de motoboys é gestão e fica bloqueado. O app do entregador
+    // (/motoboy/pedidos) não mora aqui e segue de pé — está na lista de
+    // operação lá em cima.
+    "/adm/motoboys",
+  ])(
     "assinatura BLOQUEADA redireciona %s para /adm/assinatura",
     async (caminho) => {
       comAssinatura("BLOQUEADA");
@@ -141,17 +151,43 @@ describe("proxy: bloqueio da área de gestão", () => {
     }
   );
 
-  it("/adm/assinatura escapa do bloqueio", async () => {
-    // Senão o dono é mandado em loop para longe da única página que o deixa
-    // resolver a pendência.
+  // O critério da lista de escape é uma pergunta só: algum cliente do
+  // restaurante sofre se isto for bloqueado? Pedido que chegou e ninguém está
+  // olhando é pedido perdido; mensagem sem resposta é um cliente no vácuo.
+  // Isso não é pressão sobre o dono, é dano colateral em quem nunca deveu nada.
+  it.each([
+    // A página que resolve a pendência: sem ela o dono é mandado em loop para
+    // longe da única tela que o desbloqueia.
+    "/adm/assinatura",
+    "/adm/assinatura/pagar",
+    "/adm/orders",
+    "/adm/orders/pedido-1",
+    "/adm/chats",
+    "/adm/chats/pedido-1",
+  ])("%s escapa do bloqueio", async (caminho) => {
     comAssinatura("BLOQUEADA");
 
-    const res = await proxy(requisicao("/adm/assinatura", DONO));
+    const res = await proxy(requisicao(caminho, DONO));
 
     expect(destino(res)).toBeNull();
     expect(res.status).toBe(200);
     expect(tenantInjetado(res)).toBe(TENANT_ID);
   });
+
+  it.each(["/adm/ordersettings", "/adm/chatsapp", "/adm/assinaturas-antigas"])(
+    "%s não escapa por parecer com uma rota liberada",
+    async (caminho) => {
+      // Rotas que ainda não existem, e é exatamente esse o ponto: o escape
+      // casa por segmento de caminho, não por texto. Um startsWith cru
+      // liberaria qualquer rota futura que só comece com o mesmo prefixo — um
+      // relatório de pedidos chamado /adm/ordersRelatorio entraria de carona.
+      comAssinatura("BLOQUEADA");
+
+      const res = await proxy(requisicao(caminho, DONO));
+
+      expect(destino(res)).toBe(`http://${HOST}/adm/assinatura`);
+    }
+  );
 
   it.each(["ATIVA", "INADIMPLENTE"])("status %s não bloqueia o /adm", async (status) => {
     // INADIMPLENTE avisa na tela, não impede: sete dias de atraso não podem

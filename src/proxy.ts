@@ -11,6 +11,31 @@ const ROOT_DOMAINS = (process.env.ROOT_DOMAIN ?? "localhost:3000").split(",");
 // (src/lib/tenant-provisioning.ts), então nenhum restaurante pode tomá-lo.
 const PLATFORM_SUBDOMAIN = "admin";
 
+// Rotas de /adm que a inadimplência NÃO fecha. O critério para entrar nesta
+// lista é uma pergunta só: **algum cliente do restaurante sofre se isto for
+// bloqueado?** Se sim, escapa.
+//
+// - /adm/assinatura é a página que resolve a pendência. Bloqueá-la manda o
+//   dono em loop para longe da única tela que o desbloqueia.
+// - /adm/orders e /adm/chats porque pedido que chegou e ninguém está olhando é
+//   pedido perdido, e mensagem sem resposta é um cliente no vácuo. Isso não é
+//   pressão sobre o dono: é dano colateral em quem nunca deveu nada.
+//
+// Do outro lado da linha fica gestão de verdade — cardápio, mesas, motoboys,
+// pagamentos, cadastro do restaurante, e o que vier depois: o dono sente o
+// bloqueio, o cliente dele não.
+const ADM_LIVRE_DE_BLOQUEIO = ["/adm/assinatura", "/adm/orders", "/adm/chats"];
+
+// Casa por segmento de caminho, e não por texto. Um startsWith cru liberaria
+// qualquer rota futura que apenas comece igual: um /adm/ordersRelatorio (ou o
+// /adm/assinaturas de um dia em que existam várias) entraria de carona numa
+// lista que ninguém releu.
+function escapaDoBloqueio(pathname: string): boolean {
+  return ADM_LIVRE_DE_BLOQUEIO.some(
+    (base) => pathname === base || pathname.startsWith(`${base}/`)
+  );
+}
+
 function resolveSlugFromHost(host: string): string | null {
   const hostname = host.split(":")[0];
   for (const root of ROOT_DOMAINS) {
@@ -201,11 +226,11 @@ export default auth(async (req) => {
     // cobrança não é atraso, e o erro para o outro lado tranca o dono para
     // fora da própria gestão.
     //
-    // A própria tela de assinatura escapa, senão o dono é redirecionado em
-    // loop para longe da página que precisa ver para resolver.
+    // Nem todo /adm é gestão: ADM_LIVRE_DE_BLOQUEIO guarda as telas em que
+    // quem pagaria a conta seria o cliente do restaurante, e o porquê de cada
+    // uma.
     const bloqueada = tenant.assinatura?.status === "BLOQUEADA";
-    const ehTelaDeAssinatura = nextUrl.pathname.startsWith("/adm/assinatura");
-    if (bloqueada && !ehTelaDeAssinatura) {
+    if (bloqueada && !escapaDoBloqueio(nextUrl.pathname)) {
       return NextResponse.redirect(urlNoHost("/adm/assinatura"));
     }
   }
