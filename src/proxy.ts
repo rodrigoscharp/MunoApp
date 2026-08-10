@@ -138,7 +138,14 @@ export default auth(async (req) => {
 
   const tenant = await prisma.tenant.findUnique({
     where: { slug },
-    select: { id: true, status: true },
+    // A assinatura vem junto, na mesma consulta: o proxy roda em toda
+    // requisição, e uma segunda ida ao banco por causa da cobrança sairia caro
+    // em cada carregamento de cardápio.
+    select: {
+      id: true,
+      status: true,
+      assinatura: { select: { status: true } },
+    },
   });
 
   if (!tenant || tenant.status !== "active") {
@@ -180,6 +187,26 @@ export default auth(async (req) => {
     }
     if (session.user.role !== "ADMIN") {
       return NextResponse.redirect(urlNoHost("/"));
+    }
+
+    // Inadimplência bloqueia gestão, nunca operação. A checagem mora DENTRO de
+    // isAdminRoute de propósito: cardápio, checkout, mesa, cozinha e motoboy
+    // não têm como cair por causa de uma fatura — o código nem chega perto
+    // deles. src/proxy.test.ts existe para manter isso verdadeiro.
+    //
+    // Só BLOQUEADA (15 dias de atraso) fecha a porta: INADIMPLENTE avisa na
+    // tela e CANCELADA é a plataforma dizendo que o cliente não paga
+    // mensalidade, não que ele está devendo. Tenant sem assinatura nenhuma
+    // (implantação, cortesia, anterior à régua) também passa: ausência de
+    // cobrança não é atraso, e o erro para o outro lado tranca o dono para
+    // fora da própria gestão.
+    //
+    // A própria tela de assinatura escapa, senão o dono é redirecionado em
+    // loop para longe da página que precisa ver para resolver.
+    const bloqueada = tenant.assinatura?.status === "BLOQUEADA";
+    const ehTelaDeAssinatura = nextUrl.pathname.startsWith("/adm/assinatura");
+    if (bloqueada && !ehTelaDeAssinatura) {
+      return NextResponse.redirect(urlNoHost("/adm/assinatura"));
     }
   }
 
