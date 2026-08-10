@@ -78,7 +78,18 @@ export default async function ClientesPage() {
         </p>
       ) : (
         <ul className="space-y-2">
-          {tenants.map((t) => (
+          {tenants.map((t) => {
+            // A cobrança em aberto mais antiga manda em tudo nesta linha: é
+            // ela que a régua mede e é nela que a baixa é dada. As demais em
+            // aberto ficam para a próxima baixa — uma de cada vez, na ordem do
+            // vencimento, é como a conta se acerta.
+            const maisAntiga = t.assinatura?.cobrancas[0] ?? null;
+            const dias = maisAntiga ? diasDeAtraso(maisAntiga.vencimento, agora) : 0;
+            const situacao = t.assinatura
+              ? situacaoDaAssinatura(t.assinatura.status, dias)
+              : null;
+
+            return (
             <li
               key={t.id}
               className="bg-console-cartao rounded-xl border border-console-linha px-5 py-4 flex items-center justify-between gap-4"
@@ -121,6 +132,37 @@ export default async function ClientesPage() {
                   </p>
                   <p className="text-[11px] text-neutral-400">desde</p>
                 </div>
+
+                {/* A situação da cobrança. Fica visível em qualquer largura,
+                    ao contrário de pedidos e desde: é por ela que o operador
+                    varre a lista quando cai um PIX. */}
+                {situacao && (
+                  <div className="text-right">
+                    <p className={`text-sm font-medium ${situacao.classe}`}>
+                      {situacao.texto}
+                    </p>
+                    <p className="text-[11px] text-neutral-400">
+                      {dias >= 1
+                        ? dias === 1
+                          ? "vencida há 1 dia"
+                          : `vencida há ${dias} dias`
+                        : maisAntiga
+                          ? "cobrança em aberto"
+                          : "nada em aberto"}
+                    </p>
+                  </div>
+                )}
+
+                {maisAntiga && (
+                  // Decimal do Prisma não atravessa a fronteira do Server
+                  // Component — vai como número, igual à mensalidade acima.
+                  <DarBaixa
+                    cobrancaId={maisAntiga.id}
+                    valor={Number(maisAntiga.valor)}
+                    competencia={maisAntiga.competencia}
+                  />
+                )}
+
                 <MensalidadeInline
                   tenantId={t.id}
                   valorAtual={
@@ -130,7 +172,8 @@ export default async function ClientesPage() {
                 />
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </div>
