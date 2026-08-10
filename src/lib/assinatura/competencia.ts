@@ -53,3 +53,44 @@ export function vencimentoDaCompetencia(
   const [, ano, mes] = casa;
   return new Date(Date.UTC(Number(ano), Number(mes) - 1, diaVencimento));
 }
+
+/**
+ * A data que a tela do restaurante mostra como "próximo vencimento".
+ *
+ * Não é a mesma pergunta que o job faz. O job só quer saber se já pode cobrar
+ * a competência de hoje; a tela precisa responder "quando eu pago de novo?"
+ * também para quem está em dia (aí é o mês que vem) e para quem ainda está na
+ * cortesia (aí é o primeiro vencimento, que ainda não virou cobrança nenhuma).
+ *
+ * `vencimentoEmAberto` é o vencimento da cobrança em aberto mais antiga, ou
+ * null. Ele vem primeiro mesmo quando já passou: uma fatura vencida não deixa
+ * de ser o próximo pagamento por estar atrasada, e apontar para o mês que vem
+ * esconderia justamente a dívida.
+ */
+export function proximoVencimento(
+  assinatura: { diaVencimento: number; inicioCobranca: Date },
+  vencimentoEmAberto: Date | null,
+  agora: Date
+): Date {
+  if (vencimentoEmAberto) return vencimentoEmAberto;
+
+  // Cortesia: a assinatura existe e o job não cobra enquanto inicioCobranca
+  // não chega (ver /api/cron/assinaturas). A primeira cobrança é essa data.
+  if (assinatura.inicioCobranca > agora) return assinatura.inicioCobranca;
+
+  const candidato = vencimentoDaCompetencia(
+    competenciaDe(agora),
+    assinatura.diaVencimento
+  );
+  // Sem cobrança em aberto e com o vencimento do mês já passado (ou hoje), o
+  // mês corrente está pago: o próximo é o do mês seguinte.
+  if (candidato.getTime() > agora.getTime()) return candidato;
+
+  const seguinte = new Date(
+    Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth() + 1, 1)
+  );
+  return vencimentoDaCompetencia(
+    competenciaDe(seguinte),
+    assinatura.diaVencimento
+  );
+}
