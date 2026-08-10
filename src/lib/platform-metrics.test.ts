@@ -116,40 +116,47 @@ describe("montarPauta", () => {
 });
 
 describe("calcularMrr", () => {
-  it("soma a mensalidade dos clientes ativos", () => {
+  it("soma a mensalidade das assinaturas", () => {
     expect(
       calcularMrr([
-        { status: "active", valorMensal: 199.9 },
-        { status: "active", valorMensal: 100.1 },
+        { status: "ATIVA", valorMensal: 199.9 },
+        { status: "ATIVA", valorMensal: 100.1 },
       ])
     ).toBe(300);
   });
 
   it("aceita Decimal do Prisma", () => {
     expect(
-      calcularMrr([{ status: "active", valorMensal: { toString: () => "149.90" } }])
+      calcularMrr([{ status: "ATIVA", valorMensal: { toString: () => "149.90" } }])
     ).toBe(149.9);
   });
 
-  it("ignora cliente inativo", () => {
+  /**
+   * As duas metades da regra, uma em cada teste. O inadimplente é o que muda em
+   * relação ao MRR antigo, que somava tenant ativo: quem está atrasado continua
+   * devendo, e tirá-lo da soma faria a receita contratada cair justamente
+   * quando a inadimplência sobe — escondendo o número que precisa ser visto.
+   */
+  it("mantém assinatura inadimplente e bloqueada na soma", () => {
     expect(
       calcularMrr([
-        { status: "active", valorMensal: 100 },
-        { status: "suspended", valorMensal: 999 },
+        { status: "ATIVA", valorMensal: 100 },
+        { status: "INADIMPLENTE", valorMensal: 200 },
+        { status: "BLOQUEADA", valorMensal: 300 },
+      ])
+    ).toBe(600);
+  });
+
+  it("tira da soma só a assinatura cancelada", () => {
+    expect(
+      calcularMrr([
+        { status: "ATIVA", valorMensal: 100 },
+        { status: "CANCELADA", valorMensal: 999 },
       ])
     ).toBe(100);
   });
 
-  it("ignora cliente sem mensalidade definida", () => {
-    expect(
-      calcularMrr([
-        { status: "active", valorMensal: null },
-        { status: "active", valorMensal: 50 },
-      ])
-    ).toBe(50);
-  });
-
-  it("devolve zero sem clientes", () => {
+  it("devolve zero sem assinaturas", () => {
     expect(calcularMrr([])).toBe(0);
   });
 });

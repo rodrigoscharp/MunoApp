@@ -139,13 +139,35 @@ describe("removeTenant", () => {
       .filter((c) => c.operacao === "deleteMany")
       .map((c) => c.modelo);
 
-    expect(apagados).toEqual(
-      ORDEM_DE_EXCLUSAO.map((m) => m[0].toLowerCase() + m.slice(1))
-    );
+    expect(apagados).toEqual([
+      ...ORDEM_DE_EXCLUSAO.map((m) => m[0].toLowerCase() + m.slice(1)),
+      // Fora de ORDEM_DE_EXCLUSAO por não serem dados do restaurante, mas
+      // apagados aqui: a foreign key da assinatura segura o tenant.
+      "cobranca",
+      "assinatura",
+    ]);
 
-    for (const c of chamadas.filter((c) => c.operacao === "deleteMany")) {
+    for (const c of chamadas.filter(
+      (c) => c.operacao === "deleteMany" && c.modelo !== "cobranca"
+    )) {
       expect(c.args).toEqual({ where: { tenantId: TENANT.id } });
     }
+  });
+
+  /**
+   * Cobranca é a única que não tem tenantId: ela pende da assinatura, e é por
+   * ela que se chega ao tenant. Um filtro errado aqui apagaria cobrança de
+   * outro restaurante, que é o pior erro possível numa remoção.
+   */
+  it("apaga a cobrança pela assinatura do tenant, não solta", async () => {
+    await removeTenant("cantina-teste");
+
+    const cobranca = chamadas.find(
+      (c) => c.modelo === "cobranca" && c.operacao === "deleteMany"
+    );
+    expect(cobranca?.args).toEqual({
+      where: { assinatura: { tenantId: TENANT.id } },
+    });
   });
 
   it("apaga o tenant só depois de todos os filhos", async () => {
@@ -192,7 +214,7 @@ describe("removeTenant", () => {
 
     expect(resumo.tenant.slug).toBe("cantina-teste");
     expect(Object.keys(resumo.contagens).sort()).toEqual(
-      [...ORDEM_DE_EXCLUSAO].sort()
+      [...ORDEM_DE_EXCLUSAO, "Cobranca", "Assinatura"].sort()
     );
   });
 });

@@ -20,7 +20,7 @@ export default async function VisaoGeralPage() {
   inicioDoMes.setDate(1);
   inicioDoMes.setHours(0, 0, 0, 0);
 
-  const [leads, tenants, pedidos, novosNoMes] = await Promise.all([
+  const [leads, tenants, assinaturas, pedidos, novosNoMes] = await Promise.all([
     prismaUnscoped.lead.findMany({
       select: {
         status: true,
@@ -30,6 +30,9 @@ export default async function VisaoGeralPage() {
       },
     }),
     prismaUnscoped.tenant.findMany({
+      select: { status: true },
+    }),
+    prismaUnscoped.assinatura.findMany({
       select: { status: true, valorMensal: true },
     }),
     prismaUnscoped.order.count(),
@@ -37,12 +40,12 @@ export default async function VisaoGeralPage() {
   ]);
 
   const pauta = montarPauta(leads, new Date());
-  const mrr = calcularMrr(tenants);
+  const mrr = calcularMrr(assinaturas);
   const abertos = contarLeadsAbertos(leads);
   const ativos = tenants.filter((t) => t.status === "active").length;
-  const comPlano = tenants.filter(
-    (t) => t.status === "active" && t.valorMensal != null
-  ).length;
+  // Quem entra na soma do MRR — mesma regra do calcularMrr, para o apoio do
+  // arco não contar um conjunto diferente do número que ele explica.
+  const comPlano = assinaturas.filter((a) => a.status !== "CANCELADA").length;
 
   const semLeads = pauta[0].chave === "sem-leads";
 

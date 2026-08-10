@@ -9,31 +9,29 @@ datasource db {
 }
 
 model Tenant {
-  id        String             @id @default(cuid())
+  id        String   @id @default(cuid())
   nome      String
-  slug      String             @unique
-  plano     String             @default("free")
-  status    String             @default("active")
-  // Mensalidade contratada e dia de vencimento (opcionais: tenants existentes não têm esses dados)
-  valorMensal   Decimal? @db.Decimal(10, 2)
-  diaVencimento Int?
-  createdAt DateTime           @default(now())
+  slug      String   @unique
+  plano     String   @default("free")
+  status    String   @default("active")
+  createdAt DateTime @default(now())
 
-  users             User[]
-  categories        Category[]
-  menuItems         MenuItem[]
-  orders            Order[]
-  orderItems        OrderItem[]
-  deliveryTrackings DeliveryTracking[]
-  tables            Table[]
-  payments          Payment[]
-  settings          Setting[]
-  deliveryZones     DeliveryZone[]
-  chatMessages      ChatMessage[]
-  paymentConnections PaymentConnection[]
+  users               User[]
+  categories          Category[]
+  menuItems           MenuItem[]
+  orders              Order[]
+  orderItems          OrderItem[]
+  deliveryTrackings   DeliveryTracking[]
+  tables              Table[]
+  payments            Payment[]
+  settings            Setting[]
+  deliveryZones       DeliveryZone[]
+  chatMessages        ChatMessage[]
+  paymentConnections  PaymentConnection[]
   passwordResetTokens PasswordResetToken[]
-  coupons           Coupon[]
-  lead              Lead?
+  coupons             Coupon[]
+  lead                Lead?
+  assinatura          Assinatura?
 }
 
 model PaymentConnection {
@@ -389,4 +387,52 @@ model LeadNote {
   createdAt DateTime @default(now())
 
   @@index([leadId])
+}
+
+enum AssinaturaStatus {
+  ATIVA
+  INADIMPLENTE
+  BLOQUEADA
+  CANCELADA
+}
+
+enum CobrancaStatus {
+  PENDENTE
+  PAGA
+  VENCIDA
+  CANCELADA
+}
+
+// Relação comercial entre a plataforma e o restaurante. Não é modelo
+// tenant-scoped: quem lê é a plataforma, sempre por prismaUnscoped, como o Lead.
+model Assinatura {
+  id             String           @id @default(cuid())
+  tenantId       String           @unique
+  tenant         Tenant           @relation(fields: [tenantId], references: [id])
+  valorMensal    Decimal          @db.Decimal(10, 2)
+  diaVencimento  Int
+  // Primeiro vencimento. Durante a cortesia a assinatura existe e não cobra.
+  inicioCobranca DateTime
+  status         AssinaturaStatus @default(ATIVA)
+  cobrancas      Cobranca[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model Cobranca {
+  id           String         @id @default(cuid())
+  assinaturaId String
+  assinatura   Assinatura     @relation(fields: [assinaturaId], references: [id])
+  competencia  String
+  valor        Decimal        @db.Decimal(10, 2)
+  vencimento   DateTime
+  status       CobrancaStatus @default(PENDENTE)
+  pagoEm       DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // A idempotência do job diário mora aqui, no banco, e não no código que
+  // chama: rodar duas vezes no mesmo mês não gera duas cobranças.
+  @@unique([assinaturaId, competencia])
+  @@index([status, vencimento])
 }

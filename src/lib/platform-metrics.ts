@@ -74,16 +74,24 @@ export function montarPauta(
   return itens;
 }
 
-export type TenantDoMrr = {
+export type AssinaturaDoMrr = {
   status: string;
-  valorMensal: number | { toString(): string } | null;
+  valorMensal: number | { toString(): string };
 };
 
-/** Receita contratada: o que os clientes ativos somam por mês. Não é o que foi recebido. */
-export function calcularMrr(tenants: TenantDoMrr[]): number {
-  const total = tenants
-    .filter((t) => t.status === "active" && t.valorMensal != null)
-    .reduce((soma, t) => soma + Number(t.valorMensal!.toString()), 0);
+/**
+ * Receita contratada: o que as assinaturas somam por mês. Não é o que foi
+ * recebido.
+ *
+ * Soma assinatura não cancelada — e não "tenant ativo", como era antes das
+ * assinaturas existirem. A diferença importa: restaurante inadimplente ainda
+ * deve, e tirá-lo da soma esconderia exatamente o número que você precisa ver
+ * quando a inadimplência cresce.
+ */
+export function calcularMrr(assinaturas: AssinaturaDoMrr[]): number {
+  const total = assinaturas
+    .filter((a) => a.status !== "CANCELADA")
+    .reduce((soma, a) => soma + Number(a.valorMensal.toString()), 0);
 
   // Soma de decimais em ponto flutuante: 199.9 + 100.1 dá 300.00000000000006.
   return Math.round(total * 100) / 100;

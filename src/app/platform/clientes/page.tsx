@@ -10,11 +10,15 @@ export default async function ClientesPage() {
   if (!session?.user) return null;
 
   const tenants = await prismaUnscoped.tenant.findMany({
-    include: { _count: { select: { orders: true } } },
+    include: { _count: { select: { orders: true } }, assinatura: true },
     orderBy: { createdAt: "desc" },
   });
 
-  const mrr = calcularMrr(tenants);
+  // A assinatura é 1:1 com o tenant, então somar as assinaturas desta lista é
+  // somar todas — não há assinatura sem restaurante.
+  const mrr = calcularMrr(
+    tenants.flatMap((t) => (t.assinatura ? [t.assinatura] : []))
+  );
 
   return (
     <div className="space-y-6">
@@ -42,10 +46,10 @@ export default async function ClientesPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="font-semibold truncate">{t.nome}</p>
-                  {/* A receita mensal acima só conta clientes ativos. Sem esta
-                      pastilha, uma linha de R$ 200,00 que não entra na soma
-                      parece erro de conta. Verde discreto, nunca terracota:
-                      terracota é ação, e status não é ação. */}
+                  {/* Status do restaurante, não da assinatura: um cliente
+                      suspenso continua na receita mensal acima enquanto a
+                      assinatura não for cancelada. Verde discreto, nunca
+                      terracota: terracota é ação, e status não é ação. */}
                   <span
                     className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                       t.status === "active"
@@ -79,8 +83,10 @@ export default async function ClientesPage() {
                 </div>
                 <MensalidadeInline
                   tenantId={t.id}
-                  valorAtual={t.valorMensal != null ? Number(t.valorMensal) : null}
-                  diaAtual={t.diaVencimento ?? null}
+                  valorAtual={
+                    t.assinatura ? Number(t.assinatura.valorMensal) : null
+                  }
+                  diaAtual={t.assinatura?.diaVencimento ?? null}
                 />
               </div>
             </li>

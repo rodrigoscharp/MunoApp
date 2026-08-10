@@ -3,6 +3,11 @@ import { z } from "zod";
 import { prismaUnscoped } from "@/lib/prisma";
 import { authPlatform } from "@/lib/auth-platform";
 import { ProvisionError, provisionTenant } from "@/lib/tenant-provisioning";
+import {
+  DIA_VENCIMENTO_PADRAO,
+  competenciaDe,
+  vencimentoDaCompetencia,
+} from "@/lib/assinatura/competencia";
 
 const schema = z.object({
   slug: z.string().min(1),
@@ -47,7 +52,8 @@ export async function POST(
     });
 
     // provisionTenant não conhece mensalidade — é compartilhado com o script
-    // de CLI, que não tem noção de cobrança. Gravamos aqui, logo depois.
+    // de CLI, que não tem noção de cobrança. Criamos a assinatura aqui, logo
+    // depois.
     //
     // A senha só existe em memória neste ponto. Falhar aqui e abortar perderia
     // as credenciais de um restaurante que já foi criado de verdade — o mesmo
@@ -55,9 +61,16 @@ export async function POST(
     let avisoMensalidade: string | undefined;
     if (parsed.data.valorMensal !== undefined) {
       try {
-        await prismaUnscoped.tenant.update({
-          where: { id: tenant.id },
-          data: { valorMensal: parsed.data.valorMensal },
+        await prismaUnscoped.assinatura.create({
+          data: {
+            tenantId: tenant.id,
+            valorMensal: parsed.data.valorMensal,
+            diaVencimento: DIA_VENCIMENTO_PADRAO,
+            inicioCobranca: vencimentoDaCompetencia(
+              competenciaDe(new Date()),
+              DIA_VENCIMENTO_PADRAO
+            ),
+          },
         });
       } catch {
         avisoMensalidade =
@@ -89,6 +102,12 @@ export async function POST(
       // tenant que acabamos de criar para não deixar um restaurante fantasma.
       try {
         await prismaUnscoped.$transaction([
+          // A assinatura pode ter acabado de ser criada logo acima, e a foreign
+          // key dela impede o delete do tenant. Ainda não existe cobrança:
+          // nenhuma foi emitida entre a criação e esta linha.
+          prismaUnscoped.assinatura.deleteMany({
+            where: { tenantId: tenant.id },
+          }),
           prismaUnscoped.user.deleteMany({ where: { tenantId: tenant.id } }),
           prismaUnscoped.tenant.delete({ where: { id: tenant.id } }),
         ]);

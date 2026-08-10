@@ -100,6 +100,13 @@ export async function contarDadosDoTenant(
     });
   }
 
+  contagens.Cobranca = await prismaUnscoped.cobranca.count({
+    where: { assinatura: { tenantId: tenant.id } },
+  });
+  contagens.Assinatura = await prismaUnscoped.assinatura.count({
+    where: { tenantId: tenant.id },
+  });
+
   const leadsDesvinculados = await prismaUnscoped.lead.count({
     where: { tenantId: tenant.id },
   });
@@ -130,6 +137,25 @@ export async function removeTenant(slug: string): Promise<ResumoDaRemocao> {
       });
       contagens[modelo] = count;
     }
+
+    // A assinatura e as cobranças ficam fora de ORDEM_DE_EXCLUSAO de propósito:
+    // não são dados do restaurante, e sim o contrato comercial da plataforma
+    // com ele — por isso também não estão em TENANT_SCOPED_MODELS, como o Lead.
+    //
+    // Ao contrário do Lead, porém, o tenantId da assinatura é obrigatório: ela
+    // não pode ficar solta, e a foreign key dela segura o tenant. Ou some
+    // junto, ou a remoção falha no último passo, com a transação já no meio.
+    //
+    // Cobranca vem antes por apontar para Assinatura. Apagar cobrança dói — é
+    // histórico financeiro —, mas o que sobrasse não teria a quem pertencer.
+    contagens.Cobranca = (
+      await tx.cobranca.deleteMany({
+        where: { assinatura: { tenantId: tenant.id } },
+      })
+    ).count;
+    contagens.Assinatura = (
+      await tx.assinatura.deleteMany({ where: { tenantId: tenant.id } })
+    ).count;
 
     const { count: leadsDesvinculados } = await tx.lead.updateMany({
       where: { tenantId: tenant.id },

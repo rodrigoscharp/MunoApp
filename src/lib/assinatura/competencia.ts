@@ -16,6 +16,14 @@
  */
 export const DIA_VENCIMENTO_MAX = 28;
 
+/**
+ * Dia usado quando a plataforma grava uma mensalidade sem escolher vencimento.
+ * É o mesmo que o backfill da migração deu a quem já era cliente: sem um padrão
+ * único, cada caminho de criação inventaria o seu e clientes iguais venceriam
+ * em dias diferentes.
+ */
+export const DIA_VENCIMENTO_PADRAO = 10;
+
 const FORMATO = /^(\d{4})-(\d{2})$/;
 
 export function competenciaDe(data: Date): string {

@@ -37,6 +37,20 @@ function modelsComTenantIdObrigatorio(): string[] {
   return modelos;
 }
 
+/**
+ * A exceção à regra acima: model de plataforma cujo tenantId é obrigatório.
+ *
+ * Assinatura aponta para o restaurante, mas não é dado dele — é o contrato
+ * comercial entre a plataforma e ele, lido no console por prismaUnscoped, como
+ * o Lead. Escopá-la ligaria o filtro automático numa tabela que nenhum
+ * restaurante consulta, e o console passaria a enxergar só a assinatura do
+ * tenant da requisição, que no console não existe.
+ *
+ * Toda entrada aqui é um model fora do filtro automático, então a lista se
+ * paga em revisão: só entra o que a plataforma lê e o restaurante não.
+ */
+const MODELS_DA_PLATAFORMA = new Set(["Assinatura"]);
+
 describe("TENANT_SCOPED_MODELS", () => {
   it("cobre todo model do schema que tem coluna tenantId", () => {
     const doSchema = modelsComTenantIdObrigatorio();
@@ -45,8 +59,16 @@ describe("TENANT_SCOPED_MODELS", () => {
     // protegeria nada.
     expect(doSchema.length).toBeGreaterThan(10);
 
-    const faltando = doSchema.filter((m) => !TENANT_SCOPED_MODELS.has(m));
+    const faltando = doSchema.filter(
+      (m) => !TENANT_SCOPED_MODELS.has(m) && !MODELS_DA_PLATAFORMA.has(m)
+    );
     expect(faltando).toEqual([]);
+  });
+
+  it("só isenta model de plataforma que ainda existe no schema", () => {
+    const doSchema = new Set(modelsComTenantIdObrigatorio());
+    const fantasmas = [...MODELS_DA_PLATAFORMA].filter((m) => !doSchema.has(m));
+    expect(fantasmas).toEqual([]);
   });
 
   it("não lista model que não existe mais ou que não tem tenantId", () => {
@@ -63,6 +85,8 @@ describe("TENANT_SCOPED_MODELS", () => {
   it("não escopa models de plataforma, que são cross-tenant por natureza", () => {
     expect(TENANT_SCOPED_MODELS.has("Tenant")).toBe(false);
     expect(TENANT_SCOPED_MODELS.has("PlatformAdmin")).toBe(false);
+    expect(TENANT_SCOPED_MODELS.has("Assinatura")).toBe(false);
+    expect(TENANT_SCOPED_MODELS.has("Cobranca")).toBe(false);
   });
 
   it("deixa Lead de fora mesmo tendo tenantId, porque o dele é opcional", () => {
