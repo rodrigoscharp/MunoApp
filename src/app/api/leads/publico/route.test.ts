@@ -90,6 +90,40 @@ describe("POST /api/leads/publico", () => {
     expect(create).toHaveBeenCalledTimes(1);
   });
 
+  it("busca candidatos de dedupe com limite e do mais recente para o mais antigo", async () => {
+    // Rota pública sem índice em origem/createdAt: sem take/orderBy, um bot
+    // que furou o limitador por IP pode ter deixado tantas linhas na janela
+    // de 24h que essa busca escala com esse volume a cada envio legítimo.
+    await POST(requisicao(VALIDO));
+
+    expect(findMany).toHaveBeenCalledTimes(1);
+    expect(findMany.mock.calls[0][0]).toMatchObject({
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
+  });
+
+  it("normaliza plano vazio para null ao criar", async () => {
+    // Mesma regra do campo digitado à mão: string vazia não é um plano, é
+    // ausência de resposta — create e update precisam concordar nisso.
+    const res = await POST(requisicao({ ...VALIDO, plano: "" }));
+
+    expect(res.status).toBe(201);
+    expect(create.mock.calls[0][0].data).toMatchObject({ plano: null });
+  });
+
+  it("devolve 500 com cabeçalho de CORS quando o Prisma falha", async () => {
+    // Sem os cabeçalhos de CORS na resposta de erro, o navegador da landing
+    // reporta isto como bloqueio de CORS, não como falha de servidor — más
+    // diagnósticos justo no caminho em que a verdade importa.
+    create.mockRejectedValue(new Error("conexão recusada"));
+
+    const res = await POST(requisicao(VALIDO));
+
+    expect(res.status).toBe(500);
+    expect(res.headers.get("access-control-allow-origin")).toBe(ORIGEM_OK);
+  });
+
   it("recusa payload inválido com 400 e sem detalhe de campo", async () => {
     const res = await POST(requisicao({ restaurante: "x", telefone: "((((" }));
     const corpo = await res.json();

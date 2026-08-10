@@ -127,28 +127,56 @@ export async function POST(req: NextRequest) {
   }
 
   const agora = new Date();
-  const candidatos = await prismaUnscoped.lead.findMany({
-    where: {
-      origem: ORIGEM_LANDING,
-      createdAt: { gte: new Date(agora.getTime() - JANELA_DEDUPE_MS) },
-    },
-    select: { id: true, telefone: true, origem: true, createdAt: true },
-  });
 
-  const decisao = decidirGravacao(candidatos, telefone, agora);
+  try {
+    // Rota pública sem autenticação, e o limitador é por IP: um bot
+    // distribuído rotacionando IP furou o teto e pode ter deixado muitas
+    // linhas na janela de 24h. `origem`/`createdAt` não têm índice (só
+    // `status` tem, em schema.prisma) — sem limite, essa consulta escala
+    // com esse volume, e cada envio legítimo seguinte paga o full scan.
+    // `decidirGravacao` só quer o candidato mais recente por telefone, então
+    // ordenar por createdAt desc e truncar em 200 preserva exatamente os
+    // candidatos capazes de vencer a decisão; o pior caso do corte é um lead
+    // duplicado ocasional, o que é estritamente melhor que travar a rota.
+    const candidatos = await prismaUnscoped.lead.findMany({
+      where: {
+        origem: ORIGEM_LANDING,
+        createdAt: { gte: new Date(agora.getTime() - JANELA_DEDUPE_MS) },
+      },
+      select: { id: true, telefone: true, origem: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    });
 
-  if (decisao.acao === "atualizar") {
-    // status fica de fora de propósito: reenvio não desfaz o lead que você já
-    // moveu no funil. plano segue a mesma regra: um reenvio sem o campo não
-    // pode apagar o plano que uma primeira submissão já tinha capturado.
-    await prismaUnscoped.lead.update({
-      where: { id: decisao.id },
-      data: { restaurante, ...(plano ? { plano } : {}) },
-    });
-  } else {
-    await prismaUnscoped.lead.create({
-      data: { restaurante, telefone, plano: plano ?? null, origem: ORIGEM_LANDING },
-    });
+    const decisao = decidirGravacao(candidatos, telefone, agora);
+
+    if (decisao.acao === "atualizar") {
+      // status fica de fora de propósito: reenvio não desfaz o lead que você
+      // já moveu no funil. plano segue a mesma regra: um reenvio sem o campo
+      // não pode apagar o plano que uma primeira submissão já tinha
+      // capturado.
+      await prismaUnscoped.lead.update({
+        where: { id: decisao.id },
+        data: { restaurante, ...(plano ? { plano } : {}) },
+      });
+    } else {
+      await prismaUnscoped.lead.create({
+        // "" normaliza para null, como o campo digitado à mão: string vazia
+        // não é um plano, é ausência de resposta.
+        data: { restaurante, telefone, plano: plano || null, origem: ORIGEM_LANDING },
+      });
+    }
+  } catch (erro) {
+    // 500 com os mesmos cabeçalhos de CORS das outras respostas: sem eles, o
+    // navegador da landing reporta isto como falha de CORS, e quem investiga
+    // não consegue distinguir "o servidor quebrou" de "fui bloqueado". O
+    // corpo fica genérico — o detalhe vai para o log do servidor, não para
+    // quem chamou.
+    console.error("Falha ao gravar lead da landing:", erro);
+    return NextResponse.json(
+      { error: "Erro ao processar o pedido" },
+      { status: 500, headers: cors }
+    );
   }
 
   return NextResponse.json({ ok: true }, { status: 201, headers: cors });
