@@ -30,6 +30,7 @@ export const ORDEM_DE_EXCLUSAO = [
   "PasswordResetToken",
   "DeliveryZone",
   "User",
+  "Assinatura",
 ] as const;
 
 // Tenants que a plataforma não pode perder. `default` é quem responde por
@@ -100,11 +101,9 @@ export async function contarDadosDoTenant(
     });
   }
 
+  // Fora do laço pelo mesmo motivo da remoção: Cobranca não tem tenantId.
   contagens.Cobranca = await prismaUnscoped.cobranca.count({
     where: { assinatura: { tenantId: tenant.id } },
-  });
-  contagens.Assinatura = await prismaUnscoped.assinatura.count({
-    where: { tenantId: tenant.id },
   });
 
   const leadsDesvinculados = await prismaUnscoped.lead.count({
@@ -128,6 +127,17 @@ export async function removeTenant(slug: string): Promise<ResumoDaRemocao> {
   return prismaUnscoped.$transaction(async (tx) => {
     const contagens: Record<string, number> = {};
 
+    // Cobranca sai antes do laço porque a Assinatura, que ela referencia, está
+    // dentro dele. Fora de ORDEM_DE_EXCLUSAO por não ter coluna tenantId: o
+    // caminho até o tenant passa pela assinatura, e o laço só sabe filtrar por
+    // tenantId. Apagar cobrança dói — é histórico financeiro —, mas o que
+    // sobrasse não teria a quem pertencer.
+    contagens.Cobranca = (
+      await tx.cobranca.deleteMany({
+        where: { assinatura: { tenantId: tenant.id } },
+      })
+    ).count;
+
     for (const modelo of ORDEM_DE_EXCLUSAO) {
       const delegate = (tx as unknown as Record<string, Delegate>)[
         delegateDe(modelo)
@@ -137,25 +147,6 @@ export async function removeTenant(slug: string): Promise<ResumoDaRemocao> {
       });
       contagens[modelo] = count;
     }
-
-    // A assinatura e as cobranças ficam fora de ORDEM_DE_EXCLUSAO de propósito:
-    // não são dados do restaurante, e sim o contrato comercial da plataforma
-    // com ele — por isso também não estão em TENANT_SCOPED_MODELS, como o Lead.
-    //
-    // Ao contrário do Lead, porém, o tenantId da assinatura é obrigatório: ela
-    // não pode ficar solta, e a foreign key dela segura o tenant. Ou some
-    // junto, ou a remoção falha no último passo, com a transação já no meio.
-    //
-    // Cobranca vem antes por apontar para Assinatura. Apagar cobrança dói — é
-    // histórico financeiro —, mas o que sobrasse não teria a quem pertencer.
-    contagens.Cobranca = (
-      await tx.cobranca.deleteMany({
-        where: { assinatura: { tenantId: tenant.id } },
-      })
-    ).count;
-    contagens.Assinatura = (
-      await tx.assinatura.deleteMany({ where: { tenantId: tenant.id } })
-    ).count;
 
     const { count: leadsDesvinculados } = await tx.lead.updateMany({
       where: { tenantId: tenant.id },

@@ -140,11 +140,10 @@ describe("removeTenant", () => {
       .map((c) => c.modelo);
 
     expect(apagados).toEqual([
-      ...ORDEM_DE_EXCLUSAO.map((m) => m[0].toLowerCase() + m.slice(1)),
-      // Fora de ORDEM_DE_EXCLUSAO por não serem dados do restaurante, mas
-      // apagados aqui: a foreign key da assinatura segura o tenant.
+      // Fora de ORDEM_DE_EXCLUSAO por não ter tenantId, e antes do laço porque
+      // referencia a Assinatura, que está dentro dele.
       "cobranca",
-      "assinatura",
+      ...ORDEM_DE_EXCLUSAO.map((m) => m[0].toLowerCase() + m.slice(1)),
     ]);
 
     for (const c of chamadas.filter(
@@ -214,7 +213,7 @@ describe("removeTenant", () => {
 
     expect(resumo.tenant.slug).toBe("cantina-teste");
     expect(Object.keys(resumo.contagens).sort()).toEqual(
-      [...ORDEM_DE_EXCLUSAO, "Cobranca", "Assinatura"].sort()
+      [...ORDEM_DE_EXCLUSAO, "Cobranca"].sort()
     );
   });
 });

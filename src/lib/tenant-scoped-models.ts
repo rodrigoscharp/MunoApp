@@ -25,4 +25,9 @@ export const TENANT_SCOPED_MODELS = new Set([
   "Coupon",
   "PaymentConnection",
   "PasswordResetToken",
+  // A plataforma lê assinatura por prismaUnscoped, que não passa por esta lista.
+  // Ela entra aqui pelo outro lado: o /adm do restaurante lê a própria
+  // assinatura, e é essa consulta que precisa ser corrigida sozinha quando
+  // alguém esquecer o tenantId no where.
+  "Assinatura",
 ]);
