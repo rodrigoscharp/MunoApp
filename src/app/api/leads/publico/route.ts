@@ -35,9 +35,27 @@ const schema = z.object({
   website: z.string().max(200).optional(),
 });
 
+// LANDING_ORIGIN aceita uma origem ou várias separadas por vírgula, no mesmo
+// formato que ROOT_DOMAIN já usa em src/proxy.ts. A lista existe porque a
+// landing responde em mais de um endereço enquanto o domínio raiz muda de
+// projeto: com um valor só, uma das origens tomaria 403 e perderia lead em
+// silêncio no meio da transição.
+//
+// O filtro de vazio não é decoração. Sem ele, "a,,b" produziria uma entrada ""
+// que casaria com requisição sem Origin.
+function origensPermitidas(): string[] {
+  return (process.env.LANDING_ORIGIN ?? "")
+    .split(",")
+    .map((entrada) => entrada.trim())
+    .filter((entrada) => entrada !== "");
+}
+
 function origemPermitida(origem: string | null): origem is string {
   if (!origem) return false;
-  if (process.env.LANDING_ORIGIN && origem === process.env.LANDING_ORIGIN) {
+  // Comparação exata por item, nunca prefixo: "munoapp.com.br.attacker.com"
+  // começa com uma origem permitida, e um startsWith entregaria o endpoint a
+  // quem registrasse esse nome.
+  if (origensPermitidas().includes(origem)) {
     return true;
   }
   // Em desenvolvimento, a landing roda de um servidor local. Restrito a fora

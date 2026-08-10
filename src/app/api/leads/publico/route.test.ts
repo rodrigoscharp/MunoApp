@@ -149,6 +149,85 @@ describe("POST /api/leads/publico", () => {
     expect(res.headers.get("vary")).toContain("Origin");
   });
 
+  // A landing existe em mais de um endereço enquanto o domínio raiz muda de
+  // projeto. Com um valor só, uma das origens tomaria 403 e perderia lead em
+  // silêncio bem no meio da transição.
+  describe("LANDING_ORIGIN com mais de uma origem", () => {
+    const LISTA =
+      "https://munoapp.com.br,https://www.munoapp.com.br,https://join.munoapp.com.br";
+
+    it.each([
+      "https://munoapp.com.br",
+      "https://www.munoapp.com.br",
+      "https://join.munoapp.com.br",
+    ])("aceita %s, esteja onde estiver na lista", async (origem) => {
+      process.env.LANDING_ORIGIN = LISTA;
+
+      const res = await POST(requisicao(VALIDO, { origem }));
+
+      expect(res.status).toBe(201);
+      expect(res.headers.get("access-control-allow-origin")).toBe(origem);
+    });
+
+    it("recusa origem fora da lista", async () => {
+      process.env.LANDING_ORIGIN = LISTA;
+
+      const res = await POST(
+        requisicao(VALIDO, { origem: "https://site-aleatorio.example" })
+      );
+
+      expect(res.status).toBe(403);
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it("tolera espaço em volta das vírgulas", async () => {
+      process.env.LANDING_ORIGIN =
+        "https://munoapp.com.br , https://join.munoapp.com.br";
+
+      const res = await POST(
+        requisicao(VALIDO, { origem: "https://join.munoapp.com.br" })
+      );
+
+      expect(res.status).toBe(201);
+    });
+
+    it("mantém o formato de valor único funcionando", async () => {
+      // É o formato que está em produção agora. A variável só muda depois do
+      // deploy: se o parsing quebrasse o formato antigo, a captação cairia
+      // entre um passo e outro.
+      process.env.LANDING_ORIGIN = "https://join.munoapp.com.br";
+
+      const res = await POST(
+        requisicao(VALIDO, { origem: "https://join.munoapp.com.br" })
+      );
+
+      expect(res.status).toBe(201);
+    });
+
+    it("item vazio na lista não libera origem vazia", async () => {
+      process.env.LANDING_ORIGIN = "https://munoapp.com.br,,https://join.munoapp.com.br";
+
+      const res = await POST(requisicao(VALIDO, { origem: "" }));
+
+      expect(res.status).toBe(403);
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it("não libera sufixo — comparação é exata por item", async () => {
+      // "munoapp.com.br.attacker.com" contém a origem permitida como prefixo.
+      // Um startsWith aqui entregaria o endpoint a qualquer domínio que
+      // registrasse esse nome.
+      process.env.LANDING_ORIGIN = LISTA;
+
+      const res = await POST(
+        requisicao(VALIDO, { origem: "https://munoapp.com.br.attacker.com" })
+      );
+
+      expect(res.status).toBe(403);
+      expect(create).not.toHaveBeenCalled();
+    });
+  });
+
   it("atualiza em vez de criar quando a lib decide atualizar", async () => {
     findMany.mockResolvedValue([
       {
