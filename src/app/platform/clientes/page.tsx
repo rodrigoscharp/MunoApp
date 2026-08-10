@@ -3,16 +3,56 @@ import { authPlatform } from "@/lib/auth-platform";
 import { calcularMrr } from "@/lib/platform-metrics";
 import { buildTenantBaseUrl } from "@/lib/tenant-provisioning";
 import { formatCurrency } from "@/lib/utils";
+import { diasDeAtraso, type StatusAssinatura } from "@/lib/assinatura/regua";
 import { MensalidadeInline } from "@/components/platform/MensalidadeInline";
+import { DarBaixa } from "@/components/platform/DarBaixa";
+
+/**
+ * A situação de cobrança na lista, decidida pelo status da assinatura **e**
+ * pelo atraso da cobrança em aberto mais antiga.
+ *
+ * Ler só o status deixaria a coluna dizendo "em dia" nos seis primeiros dias
+ * de atraso, que é justamente quando um telefonema ainda resolve sem atrito
+ * (ver statusPelaRegua: até o sétimo dia o status segue ATIVA de propósito).
+ */
+function situacaoDaAssinatura(
+  status: StatusAssinatura,
+  dias: number
+): { texto: string; classe: string } {
+  if (status === "CANCELADA") return { texto: "cancelada", classe: "text-neutral-400" };
+  if (status === "BLOQUEADA") return { texto: "bloqueada", classe: "text-red-600" };
+  if (status === "INADIMPLENTE")
+    return { texto: "inadimplente", classe: "text-orange-500" };
+  return dias >= 1
+    ? { texto: "em atraso", classe: "text-amber-600" }
+    : { texto: "em dia", classe: "text-neutral-500" };
+}
 
 export default async function ClientesPage() {
   const session = await authPlatform();
   if (!session?.user) return null;
 
   const tenants = await prismaUnscoped.tenant.findMany({
-    include: { _count: { select: { orders: true } }, assinatura: true },
+    include: {
+      _count: { select: { orders: true } },
+      assinatura: {
+        include: {
+          // Só o que está em aberto, do mais antigo para o mais novo: é a
+          // primeira linha que manda na régua e é nela que a baixa é dada.
+          // Puxar o histórico inteiro de todo cliente para exibir uma cobrança
+          // seria carregar a lista com dado que a tela não mostra.
+          cobrancas: {
+            where: { status: { in: ["PENDENTE", "VENCIDA"] } },
+            orderBy: { vencimento: "asc" },
+            select: { id: true, competencia: true, valor: true, vencimento: true },
+          },
+        },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
+
+  const agora = new Date();
 
   // A assinatura é 1:1 com o tenant, então somar as assinaturas desta lista é
   // somar todas — não há assinatura sem restaurante.
