@@ -26,9 +26,13 @@ export default async function LeadPage({
 
   if (!lead) notFound();
 
-  const contato = [lead.contato, lead.telefone, lead.email, lead.cidade].filter(
-    Boolean
-  );
+  const contato = [
+    lead.contato,
+    lead.telefone,
+    lead.email,
+    lead.cidade,
+    lead.plano,
+  ].filter(Boolean);
 
   return (
     <div className="space-y-6">

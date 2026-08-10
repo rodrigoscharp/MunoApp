@@ -48,7 +48,9 @@ export default async function LeadsPage() {
                     {lead.restaurante}
                   </p>
                   <p className="text-xs text-neutral-400 mt-1">
-                    {[lead.cidade, lead.origem].filter(Boolean).join(" · ")}
+                    {[lead.cidade, lead.origem, lead.plano]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </p>
                 </Link>
               ))}

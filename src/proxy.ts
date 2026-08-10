@@ -110,6 +110,21 @@ export default auth(async (req) => {
     return new NextResponse(null, { status: 404 });
   }
 
+  // Captura de lead da landing. Espelho da guarda logo acima, na direção
+  // oposta: aquela nega o que é da plataforma quando vem de fora dela; esta
+  // libera o que não pertence a tenant nenhum.
+  //
+  // Sair ANTES do findUnique é o ponto. Pelo caminho normal a rota resolveria
+  // o slug "default" e morreria junto com o restaurante de demonstração no dia
+  // em que ele for removido — em silêncio, com 404, sem ninguém relacionar uma
+  // coisa à outra.
+  //
+  // Sem x-tenant-id injetado, o que obriga a rota a usar prismaUnscoped
+  // conscientemente, como a área de plataforma.
+  if (nextUrl.pathname === "/api/leads/publico") {
+    return NextResponse.next();
+  }
+
   const tenant = await prisma.tenant.findUnique({
     where: { slug },
     select: { id: true, status: true },
