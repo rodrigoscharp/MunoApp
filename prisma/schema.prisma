@@ -363,6 +363,13 @@ model Lead {
   telefone    String?
   cidade      String?
   origem      String     @default("manual")
+  // Nulável e sem default: lead digitado à mão fica sem plano, e isso é
+  // informação — significa "não perguntei", não "não quis". Um default faria o
+  // CRM afirmar sobre todo lead histórico algo que ninguém perguntou.
+  // String livre, não enum: os dois repositórios são publicados separadamente,
+  // e um enum transformaria a próxima mudança no select da landing em 400
+  // silencioso, perdendo o lead.
+  plano       String?
   status      LeadStatus @default(NOVO)
   motivoPerda String?
   tenantId    String?    @unique
