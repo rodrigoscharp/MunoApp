@@ -1,0 +1,69 @@
+-- Fecha a Cobranca, que nasceu nesta branch (20260810183522) sem RLS e por isso
+-- está aberta para a chave anon do Supabase. É o mesmo buraco de
+-- 20260810200000, agora na tabela que guarda o faturamento.
+--
+-- `anon` e `authenticated` têm SELECT, INSERT, UPDATE, DELETE e TRUNCATE em
+-- TODAS as tabelas do schema public — é o grant padrão do Supabase, verificado
+-- em produção em 10/08/2026. A API REST responde com a anon key, que vai no
+-- bundle do navegador de todo cardápio. Tabela em public sem RLS é, na prática,
+-- tabela pública para leitura e escrita.
+--
+-- O estrago aqui é maior do que nas outras quatro, por dois caminhos:
+--
+--   * ler a Cobranca inteira é ler valor, vencimento e status de fatura de
+--     todos os clientes. Em agregado, isso é o faturamento e a taxa de
+--     inadimplência da Muno na mão de qualquer visitante;
+--   * escrever é pior. O bloqueio do /adm por atraso (Task 5) vai depender
+--     deste status: um UPDATE para 'PAGA' desfaz o bloqueio, e quem lê o
+--     código-fonte da página do cardápio tem tudo o que precisa para isso.
+--     Uma trava de cobrança que o próprio devedor pode destravar não é trava.
+--
+-- Ligar RLS SEM policy nenhuma fecha quem não tem BYPASSRLS. A aplicação
+-- conecta como `postgres` (rolbypassrls = t) e não sente nada; `anon` e
+-- `authenticated` não têm bypass e ficam sem linha alguma.
+--
+-- POR QUE SEM POLICY, e não uma policy de tenant como a que a Assinatura ganhou
+-- na migração anterior:
+--
+-- Cobranca não tem tenantId — ela só chega ao tenant através de
+-- Assinatura.tenantId. A forma equivalente às outras quinze exigiria
+-- subconsulta, coisa que este projeto nunca usou:
+--
+--   USING (EXISTS (SELECT 1 FROM "Assinatura" a
+--                   WHERE a.id = "Cobranca"."assinaturaId"
+--                     AND a."tenantId" = current_setting('app.current_tenant', true)))
+--
+-- Descartada por três motivos, nesta ordem:
+--
+--   1. Não existe leitura de Cobranca por conexão sem bypass, nem hoje nem
+--      planejada. Quem lê hoje é a plataforma, por `prismaUnscoped`
+--      (src/lib/tenant-removal.ts). A tela que vai listar as faturas do próprio
+--      restaurante (/adm/assinatura, Task 6) segue a convenção de todo /adm
+--      deste projeto: `prismaUnscoped` com tenantId explícito no where — é
+--      assim em todas as páginas de src/app/adm/, nenhuma usa o cliente
+--      escopado.
+--
+--   2. Mesmo que usasse o cliente escopado, nada mudaria. `prisma` e
+--      `prismaUnscoped` (src/lib/prisma.ts) abrem a MESMA DATABASE_URL, com o
+--      mesmo papel de banco. O escopo por tenant é uma extensão de query do
+--      Prisma Client, não um papel do Postgres — os dois clientes têm bypass e
+--      RLS não alcança nenhum deles. "Ler pelo cliente escopado" não é o mesmo
+--      que "ler sem bypass".
+--
+--   3. `app.current_tenant` não é definido em lugar nenhum do código — só
+--      aparece dentro das próprias policies. A policy com subconsulta devolveria
+--      zero linha para todo mundo sem bypass, exatamente como a ausência de
+--      policy, mas parecendo prometer um escopo por tenant que ninguém
+--      implementa. Custo de leitura e manutenção sem ganho de segurança.
+--
+-- Cobranca é tabela da plataforma, como Tenant, Lead, LeadNote e PlatformAdmin:
+-- descreve a relação comercial entre a Muno e o restaurante, e
+-- src/lib/tenant-scoped-models.test.ts afirma isso explicitamente
+-- (TENANT_SCOPED_MODELS.has("Cobranca") === false). O fechamento que combina com
+-- ela é o mesmo daquelas quatro.
+--
+-- Se um dia a aplicação passar a conectar com papel sem bypass, esta linha vira
+-- o ponto onde a policy correta deve nascer — junto com o código que finalmente
+-- define `app.current_tenant`. Uma sem a outra não protege nada.
+
+ALTER TABLE "Cobranca" ENABLE ROW LEVEL SECURITY;
