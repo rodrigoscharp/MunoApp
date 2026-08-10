@@ -101,6 +101,28 @@ aceitável, e a implementação precisa garantir as três:
 `inicioCobranca` dos tenants migrados recebe o próximo `diaVencimento` a partir da data da
 migração — eles já são clientes, então não ganham cortesia retroativa.
 
+### Os sete consumidores que vêm junto
+
+Derrubar as colunas não é uma linha de SQL: sete lugares leem ou escrevem esses campos hoje,
+e todos passam a falar com `Assinatura`. A migração e o refactor são a **mesma tarefa** — se
+forem separados, existe um commit em que o projeto não compila.
+
+| Arquivo | O que faz hoje |
+|---|---|
+| `src/lib/platform-metrics.ts` | `calcularMrr` soma `valorMensal` de tenants ativos |
+| `src/app/platform/page.tsx` | dashboard, seleciona `valorMensal` para a receita |
+| `src/app/platform/clientes/page.tsx` | mostra valor e dia por cliente |
+| `src/app/api/platform/clientes/[id]/route.ts` | PATCH de valor e dia |
+| `src/app/api/platform/leads/[id]/converter/route.ts` | grava `valorMensal` na conversão |
+| `src/components/platform/MensalidadeInline.tsx` | edição inline na lista |
+| `src/components/platform/ConverterLead.tsx` | campo de mensalidade na conversão |
+
+O MRR é o que merece atenção: hoje ele soma tenant ativo com `valorMensal` não nulo. Com
+`Assinatura`, a pergunta certa passa a ser outra — soma assinatura **não cancelada**, e o
+`status` do tenant deixa de participar da conta. São definições diferentes de receita
+recorrente, e a nova é a correta: restaurante inadimplente ainda deve, e sair da soma
+esconderia justamente o que você precisa ver.
+
 ## A régua
 
 Função pura em `src/lib/assinatura/regua.ts`. Recebe a cobrança em aberto mais antiga e a
@@ -138,12 +160,15 @@ Roda diariamente. Se falhar num dia, o dia seguinte corrige tudo — nenhuma das
 operações depende de ter rodado ontem. Essa propriedade é deliberada: job de cobrança que
 acumula estado é job que erra depois de um incidente.
 
-### O dia 31 que não existe
+### O dia 31 não é problema, e é de propósito
 
-`diaVencimento = 31` em fevereiro precisa de regra explícita, senão vira data inválida ou
-pula para março. O vencimento é **fixado no último dia do mês quando o dia contratado não
-existe** — 31 em fevereiro vence dia 28, ou 29 em bissexto. É a convenção que o cliente
-espera e a que não adia receita.
+A primeira versão deste spec especificava uma regra de fim de mês para `diaVencimento = 31`
+em fevereiro. Ela não é necessária: `src/app/api/platform/clientes/[id]/route.ts` já valida
+`min(1).max(28)`, então nenhum vencimento pode cair num dia que não existe em algum mês.
+
+**O teto de 28 é mantido**, e a `Assinatura` valida igual. Custa ao cliente não poder vencer
+dia 30, e elimina uma classe inteira de bug de data — troca que vale, ainda mais num número
+que vira fatura.
 
 ## O bloqueio
 
