@@ -35,7 +35,7 @@ const schema = z.object({
   website: z.string().max(200).optional(),
 });
 
-function origemPermitida(origem: string | null): boolean {
+function origemPermitida(origem: string | null): origem is string {
   if (!origem) return false;
   if (process.env.LANDING_ORIGIN && origem === process.env.LANDING_ORIGIN) {
     return true;
@@ -70,7 +70,7 @@ export async function OPTIONS(req: NextRequest) {
   }
   return new NextResponse(null, {
     status: 204,
-    headers: cabecalhosCors(origem as string),
+    headers: cabecalhosCors(origem),
   });
 }
 
@@ -79,8 +79,16 @@ export async function POST(req: NextRequest) {
   if (!origemPermitida(origem)) {
     return NextResponse.json({ error: "Origem não permitida" }, { status: 403 });
   }
-  const cors = cabecalhosCors(origem as string);
+  const cors = cabecalhosCors(origem);
 
+  // Em geral o primeiro valor de X-Forwarded-For é o menos confiável — quem
+  // ataca controla a própria requisição e pode escrever o que quiser antes do
+  // IP real. Mas a Vercel sobrescreve este cabeçalho na borda, em vez de
+  // acrescentar a ele: o que chega aqui é sempre o IP público do cliente,
+  // nunca algo que o requisitante tenha inserido. Por isso confiar no
+  // primeiro valor é seguro nesta plataforma — e deixaria de ser atrás de um
+  // proxy que faz append (nginx, outro CDN), onde o primeiro valor volta a
+  // ser escrita livre de quem chamou.
   const ip = (req.headers.get("x-forwarded-for") ?? "desconhecido")
     .split(",")[0]
     .trim();
@@ -100,8 +108,12 @@ export async function POST(req: NextRequest) {
 
   const parsed = schema.safeParse(corpo);
   if (!parsed.success) {
+    // Mensagem genérica de propósito: devolver parsed.error.issues incluiria
+    // o path do campo que falhou, e um "website" no path entregaria ao bot
+    // qual campo é o honeypot — a mesma fuga de informação que o 201 do
+    // honeypot existe para evitar.
     return NextResponse.json(
-      { error: parsed.error.issues },
+      { error: "Dados inválidos" },
       { status: 400, headers: cors }
     );
   }
@@ -127,10 +139,11 @@ export async function POST(req: NextRequest) {
 
   if (decisao.acao === "atualizar") {
     // status fica de fora de propósito: reenvio não desfaz o lead que você já
-    // moveu no funil.
+    // moveu no funil. plano segue a mesma regra: um reenvio sem o campo não
+    // pode apagar o plano que uma primeira submissão já tinha capturado.
     await prismaUnscoped.lead.update({
       where: { id: decisao.id },
-      data: { restaurante, plano: plano ?? null },
+      data: { restaurante, ...(plano ? { plano } : {}) },
     });
   } else {
     await prismaUnscoped.lead.create({

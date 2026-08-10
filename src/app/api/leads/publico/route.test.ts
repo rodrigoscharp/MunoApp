@@ -90,11 +90,15 @@ describe("POST /api/leads/publico", () => {
     expect(create).toHaveBeenCalledTimes(1);
   });
 
-  it("recusa payload inválido com 400", async () => {
+  it("recusa payload inválido com 400 e sem detalhe de campo", async () => {
     const res = await POST(requisicao({ restaurante: "x", telefone: "((((" }));
+    const corpo = await res.json();
 
     expect(res.status).toBe(400);
     expect(create).not.toHaveBeenCalled();
+    // A mensagem não pode citar qual campo falhou: um path "website" no erro
+    // entregaria ao bot qual campo é o honeypot.
+    expect(JSON.stringify(corpo)).not.toContain("website");
   });
 
   it("recusa origem não permitida com 403", async () => {
@@ -146,6 +150,24 @@ describe("POST /api/leads/publico", () => {
     expect(update.mock.calls[0][0].data).not.toHaveProperty("status");
   });
 
+  it("preserva o plano existente quando o reenvio não informa plano", async () => {
+    // Mesmo raciocínio do status: um reenvio sem `plano` não pode apagar o
+    // que uma submissão anterior já tinha capturado.
+    findMany.mockResolvedValue([
+      {
+        id: "lead-42",
+        telefone: "11999999999",
+        origem: "landing",
+        createdAt: new Date(),
+      },
+    ]);
+
+    const { plano: _plano, ...semPlano } = VALIDO;
+    await POST(requisicao(semPlano));
+
+    expect(update.mock.calls[0][0].data).not.toHaveProperty("plano");
+  });
+
   it("barra com 429 ao estourar o teto do mesmo IP", async () => {
     // IP fixo e fora da faixa que o helper gera, para não colidir com os
     // outros casos deste arquivo.
@@ -158,6 +180,27 @@ describe("POST /api/leads/publico", () => {
     const barrado = await POST(requisicao(VALIDO, { ip }));
     expect(barrado.status).toBe(429);
     expect(create).toHaveBeenCalledTimes(5);
+  });
+
+  it("em produção, sem LANDING_ORIGIN configurado, recusa origem localhost", async () => {
+    // O atalho de localhost em origemPermitida é só para desenvolvimento. Se
+    // essa guarda regredir, a rota fica aberta a qualquer página local — este
+    // teste existe para pegar exatamente essa regressão.
+    const nodeEnvOriginal = process.env.NODE_ENV;
+    delete process.env.LANDING_ORIGIN;
+    vi.stubEnv("NODE_ENV", "production");
+
+    try {
+      const res = await POST(
+        requisicao(VALIDO, { origem: "http://localhost:3000" })
+      );
+
+      expect(res.status).toBe(403);
+      expect(create).not.toHaveBeenCalled();
+    } finally {
+      vi.stubEnv("NODE_ENV", nodeEnvOriginal ?? "test");
+      process.env.LANDING_ORIGIN = ORIGEM_OK;
+    }
   });
 });
 
