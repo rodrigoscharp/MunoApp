@@ -360,6 +360,8 @@ model Lead {
   email       String?
   telefone    String?
   cidade      String?
+  endereco    String?
+  logoUrl     String?
   origem      String     @default("manual")
   // Nulável e sem default: lead digitado à mão fica sem plano, e isso é
   // informação — significa "não perguntei", não "não quis". Um default faria o

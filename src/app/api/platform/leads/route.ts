@@ -9,6 +9,8 @@ const createSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
   telefone: z.string().optional(),
   cidade: z.string().optional(),
+  endereco: z.string().optional(),
+  logoUrl: z.string().optional(),
   origem: z.string().default("manual"),
 });
 
