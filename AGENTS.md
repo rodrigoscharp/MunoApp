@@ -91,11 +91,45 @@ pessoal. As senhas viram `dev123`. O script se recusa a rodar contra qualquer
 host que não seja localhost, porque ele derruba o banco de destino antes de
 restaurar.
 
-Toda tabela com `tenantId` obrigatório precisa de três coisas, senão vaza entre
-restaurantes: entrada em `src/lib/tenant-scoped-models.ts`, `@@index([tenantId])`
-no schema, e a policy RLS na migração (copiar de
+Toda tabela com `tenantId` obrigatório precisa de três coisas: entrada em
+`src/lib/tenant-scoped-models.ts`, `@@index([tenantId])` no schema, e a policy
+RLS na migração (copiar de
 `20260801193000_rls_em_orderitem_e_deliverytracking`). O teste
 `src/lib/tenant-scoped-models.test.ts` cobre a primeira.
+
+**As três não fazem a mesma coisa, e confundi-las custa caro.** Quem separa um
+restaurante do outro é a **extensão do Prisma** em `src/lib/prisma.ts`, guiada
+pela lista de `tenant-scoped-models.ts`: é ela que injeta `tenantId` no `where`.
+O RLS **não** escopa nada — as policies comparam com
+`current_setting('app.current_tenant')`, e **essa variável nunca é definida em
+lugar nenhum do código**. Sempre nula, a comparação é sempre falsa, e o efeito
+real de toda policy é negar tudo para quem não tem `BYPASSRLS`.
+
+Isso é o comportamento desejado, mas por um motivo diferente do que o nome
+sugere. O RLS aqui é a trava contra a **chave pública do Supabase**, não contra
+um tenant enxergar o outro:
+
+* `anon` e `authenticated` recebem `SELECT, INSERT, UPDATE, DELETE, TRUNCATE`
+  em todo o schema `public` por padrão do Supabase, e a API REST responde com a
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY`, que vai no bundle do navegador de todo
+  cardápio.
+* A aplicação conecta como `postgres`, que tem `BYPASSRLS` — por isso ligar RLS
+  não muda nada para ela.
+* **Tabela nova em `public` sem RLS nasce aberta para a internet inteira, com
+  escrita.** Foi o que aconteceu com `Tenant`, `Lead`, `LeadNote` e
+  `PlatformAdmin` até 10/08/2026: dava para ler os administradores da
+  plataforma e inserir um novo, o que entrega o console. Fechado na migração
+  `20260810200000_rls_nas_tabelas_de_plataforma`.
+
+Duas consequências práticas:
+
+1. **Toda tabela nova precisa de RLS, tenha `tenantId` ou não.** Se não tiver
+   como escopar, ligue sem policy nenhuma — nega tudo para `anon` e não afeta a
+   aplicação.
+2. **Não confie no RLS para pegar bug de escopo entre tenants.** Ele não pega.
+   Uma consulta que esqueceu o `tenantId` e usou `prismaUnscoped` devolve dado
+   de outro restaurante sem o banco reclamar. O que protege é a lista de
+   modelos, o cliente certo, e o teste ao lado.
 
 ## Remover um cliente
 
