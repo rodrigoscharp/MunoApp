@@ -182,6 +182,17 @@ export default auth(async (req) => {
   const isAuthRoute =
     nextUrl.pathname === "/login" || nextUrl.pathname === "/register";
 
+  // Os endpoints do NextAuth sustentam o próprio login e precisam responder
+  // mesmo com uma sessão de outro tenant no cookie — exatamente como a tela de
+  // login. A barra final evita casar com algo como /api/authorize.
+  //
+  // O ramo da plataforma já isenta /api/platform/auth pelo mesmo motivo; este
+  // aqui não isentava, e o resultado era um impasse fechado: o SessionProvider
+  // pedia /api/auth/session e recebia o HTML do login, o signIn era
+  // redirecionado antes de chegar ao servidor, e não havia como trocar o
+  // cookie velho por um bom. A única saída era limpar cookie na mão.
+  const isAuthApi = nextUrl.pathname.startsWith("/api/auth/");
+
   // Sessão criada em outro subdomínio/tenant não é válida aqui (ex.: o tenant
   // foi recriado/resetado e o JWT antigo no navegador ainda referencia o id
   // velho). NÃO dá pra confiar em limpar o cookie aqui: o wrapper auth() do
@@ -192,7 +203,7 @@ export default auth(async (req) => {
   // bateria de novo lá) ou que o bounce pro "/" abaixo reabra o loop.
   const tenantMismatch = !!session && session.user.tenantId !== tenant.id;
 
-  if (tenantMismatch && !isAuthRoute) {
+  if (tenantMismatch && !isAuthRoute && !isAuthApi) {
     return NextResponse.redirect(urlNoHost("/login"));
   }
 

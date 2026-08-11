@@ -270,3 +270,39 @@ describe("proxy: rotas que não pertencem a tenant nenhum", () => {
     }
   );
 });
+
+describe("proxy: sessão de outro tenant não pode trancar o NextAuth", () => {
+  // Cookie carregando um tenantId que não existe mais. Acontece sempre que um
+  // tenant é recriado, e no desenvolvimento a cada reset do banco.
+  const DE_OUTRO_TENANT: Sessao = {
+    user: { id: "user-9", role: "ADMIN", tenantId: "tenant-que-nao-existe-mais" },
+  };
+
+  it("manda a navegação para o login quando a sessão é de outro tenant", async () => {
+    comAssinatura(null);
+
+    const res = await proxy(requisicao("/", DE_OUTRO_TENANT));
+
+    expect(destino(res)).toBe(`http://${HOST}/login`);
+  });
+
+  it.each([
+    "/api/auth/session",
+    "/api/auth/callback/credentials",
+    "/api/auth/csrf",
+  ])("%s responde em vez de ser redirecionada", async (caminho) => {
+    // Sem esta isenção o impasse é fechado: o SessionProvider pede
+    // /api/auth/session, recebe o HTML do login e estoura ClientFetchError; o
+    // signIn posta na callback e é redirecionado antes de chegar ao servidor.
+    // Não há como trocar o cookie velho por um bom, e a única saída vira
+    // limpar cookie na mão — coisa que cliente de restaurante não faz.
+    //
+    // O ramo da plataforma já isenta /api/platform/auth pelo mesmo motivo.
+    comAssinatura(null);
+
+    const res = await proxy(requisicao(caminho, DE_OUTRO_TENANT));
+
+    expect(destino(res)).toBeNull();
+    expect(res.status).toBe(200);
+  });
+});
