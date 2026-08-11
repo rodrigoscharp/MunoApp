@@ -18,6 +18,7 @@ import {
   TableProperties,
   MessageSquare,
   CreditCard,
+  Receipt,
 } from "lucide-react";
 
 const NAV_GROUPS = [
@@ -37,6 +38,10 @@ const NAV_GROUPS = [
       { href: "/adm/motoboys",    label: "Motoboys",      icon: Bike,            exact: false },
       { href: "/adm/mesas",       label: "Mesas (QR)",    icon: TableProperties, exact: false },
       { href: "/adm/pagamentos",  label: "Pagamentos",    icon: CreditCard,      exact: false },
+      // Sem esta entrada a tela da mensalidade só existiria depois do atraso,
+      // pela faixa de aviso ou pelo redirecionamento do bloqueio. Quem está em
+      // dia também precisa achar o próprio extrato.
+      { href: "/adm/assinatura",  label: "Assinatura",    icon: Receipt,         exact: false },
     ],
   },
 ];

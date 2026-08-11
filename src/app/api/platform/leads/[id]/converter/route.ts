@@ -3,6 +3,11 @@ import { z } from "zod";
 import { prismaUnscoped } from "@/lib/prisma";
 import { authPlatform } from "@/lib/auth-platform";
 import { ProvisionError, provisionTenant } from "@/lib/tenant-provisioning";
+import {
+  DIA_VENCIMENTO_MAX,
+  DIA_VENCIMENTO_PADRAO,
+} from "@/lib/assinatura/competencia";
+import { CORTESIA_MAX_DIAS, inicioDaCobranca } from "@/lib/assinatura/inicio";
 
 const schema = z.object({
   slug: z.string().min(1),
@@ -11,6 +16,11 @@ const schema = z.object({
   // Teto casa com o DECIMAL(10,2) da coluna: acima disso o Postgres estoura
   // e viraria um 500 no meio da conversão. Melhor recusar já na entrada.
   valorMensal: z.number().min(0).max(99999999.99).optional(),
+  diaVencimento: z.number().int().min(1).max(DIA_VENCIMENTO_MAX).optional(),
+  // Cortesia negociada caso a caso. Zero é resposta válida e diferente de
+  // omitir: zero é "começa cobrando", omitir é "não me perguntaram" — e as
+  // duas caem no mesmo lugar hoje, mas só porque o padrão é não dar cortesia.
+  diasDeCortesia: z.number().int().min(0).max(CORTESIA_MAX_DIAS).optional(),
 });
 
 export async function POST(
@@ -47,7 +57,8 @@ export async function POST(
     });
 
     // provisionTenant não conhece mensalidade — é compartilhado com o script
-    // de CLI, que não tem noção de cobrança. Gravamos aqui, logo depois.
+    // de CLI, que não tem noção de cobrança. Criamos a assinatura aqui, logo
+    // depois.
     //
     // A senha só existe em memória neste ponto. Falhar aqui e abortar perderia
     // as credenciais de um restaurante que já foi criado de verdade — o mesmo
@@ -55,9 +66,24 @@ export async function POST(
     let avisoMensalidade: string | undefined;
     if (parsed.data.valorMensal !== undefined) {
       try {
-        await prismaUnscoped.tenant.update({
-          where: { id: tenant.id },
-          data: { valorMensal: parsed.data.valorMensal },
+        const diaVencimento =
+          parsed.data.diaVencimento ?? DIA_VENCIMENTO_PADRAO;
+        await prismaUnscoped.assinatura.create({
+          data: {
+            tenantId: tenant.id,
+            valorMensal: parsed.data.valorMensal,
+            diaVencimento,
+            // inicioDaCobranca garante data no futuro. A versão anterior usava
+            // o dia contratado do mês corrente, que já podia ter passado — o
+            // cliente nascia vencido e o job diário o bloquearia em duas
+            // semanas por uma fatura que ele nunca recebeu. É o mesmo defeito
+            // que o backfill da migração teve, e a correção é a mesma.
+            inicioCobranca: inicioDaCobranca(
+              new Date(),
+              parsed.data.diasDeCortesia ?? 0,
+              diaVencimento
+            ),
+          },
         });
       } catch {
         avisoMensalidade =
@@ -89,6 +115,12 @@ export async function POST(
       // tenant que acabamos de criar para não deixar um restaurante fantasma.
       try {
         await prismaUnscoped.$transaction([
+          // A assinatura pode ter acabado de ser criada logo acima, e a foreign
+          // key dela impede o delete do tenant. Ainda não existe cobrança:
+          // nenhuma foi emitida entre a criação e esta linha.
+          prismaUnscoped.assinatura.deleteMany({
+            where: { tenantId: tenant.id },
+          }),
           prismaUnscoped.user.deleteMany({ where: { tenantId: tenant.id } }),
           prismaUnscoped.tenant.delete({ where: { id: tenant.id } }),
         ]);

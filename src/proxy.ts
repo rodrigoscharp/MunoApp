@@ -11,6 +11,31 @@ const ROOT_DOMAINS = (process.env.ROOT_DOMAIN ?? "localhost:3000").split(",");
 // (src/lib/tenant-provisioning.ts), então nenhum restaurante pode tomá-lo.
 const PLATFORM_SUBDOMAIN = "admin";
 
+// Rotas de /adm que a inadimplência NÃO fecha. O critério para entrar nesta
+// lista é uma pergunta só: **algum cliente do restaurante sofre se isto for
+// bloqueado?** Se sim, escapa.
+//
+// - /adm/assinatura é a página que resolve a pendência. Bloqueá-la manda o
+//   dono em loop para longe da única tela que o desbloqueia.
+// - /adm/orders e /adm/chats porque pedido que chegou e ninguém está olhando é
+//   pedido perdido, e mensagem sem resposta é um cliente no vácuo. Isso não é
+//   pressão sobre o dono: é dano colateral em quem nunca deveu nada.
+//
+// Do outro lado da linha fica gestão de verdade — cardápio, mesas, motoboys,
+// pagamentos, cadastro do restaurante, e o que vier depois: o dono sente o
+// bloqueio, o cliente dele não.
+const ADM_LIVRE_DE_BLOQUEIO = ["/adm/assinatura", "/adm/orders", "/adm/chats"];
+
+// Casa por segmento de caminho, e não por texto. Um startsWith cru liberaria
+// qualquer rota futura que apenas comece igual: um /adm/ordersRelatorio (ou o
+// /adm/assinaturas de um dia em que existam várias) entraria de carona numa
+// lista que ninguém releu.
+function escapaDoBloqueio(pathname: string): boolean {
+  return ADM_LIVRE_DE_BLOQUEIO.some(
+    (base) => pathname === base || pathname.startsWith(`${base}/`)
+  );
+}
+
 function resolveSlugFromHost(host: string): string | null {
   const hostname = host.split(":")[0];
   for (const root of ROOT_DOMAINS) {
@@ -125,9 +150,27 @@ export default auth(async (req) => {
     return NextResponse.next();
   }
 
+  // Cron da Vercel, pelo mesmo motivo e com a mesma consequência: o job dispara
+  // contra o domínio do deploy, que não é subdomínio de restaurante nenhum.
+  // Pelo caminho normal ele resolveria o slug "default" e tomaria 404 —
+  // silencioso, todo dia às 9h UTC, até a primeira mensalidade faltar.
+  //
+  // Sem x-tenant-id injetado: quem cobra é a plataforma, e o job usa
+  // prismaUnscoped conscientemente. A porta é o CRON_SECRET, não o proxy.
+  if (nextUrl.pathname.startsWith("/api/cron/")) {
+    return NextResponse.next();
+  }
+
   const tenant = await prisma.tenant.findUnique({
     where: { slug },
-    select: { id: true, status: true },
+    // A assinatura vem junto, na mesma consulta: o proxy roda em toda
+    // requisição, e uma segunda ida ao banco por causa da cobrança sairia caro
+    // em cada carregamento de cardápio.
+    select: {
+      id: true,
+      status: true,
+      assinatura: { select: { status: true } },
+    },
   });
 
   if (!tenant || tenant.status !== "active") {
@@ -139,6 +182,17 @@ export default auth(async (req) => {
   const isAuthRoute =
     nextUrl.pathname === "/login" || nextUrl.pathname === "/register";
 
+  // Os endpoints do NextAuth sustentam o próprio login e precisam responder
+  // mesmo com uma sessão de outro tenant no cookie — exatamente como a tela de
+  // login. A barra final evita casar com algo como /api/authorize.
+  //
+  // O ramo da plataforma já isenta /api/platform/auth pelo mesmo motivo; este
+  // aqui não isentava, e o resultado era um impasse fechado: o SessionProvider
+  // pedia /api/auth/session e recebia o HTML do login, o signIn era
+  // redirecionado antes de chegar ao servidor, e não havia como trocar o
+  // cookie velho por um bom. A única saída era limpar cookie na mão.
+  const isAuthApi = nextUrl.pathname.startsWith("/api/auth/");
+
   // Sessão criada em outro subdomínio/tenant não é válida aqui (ex.: o tenant
   // foi recriado/resetado e o JWT antigo no navegador ainda referencia o id
   // velho). NÃO dá pra confiar em limpar o cookie aqui: o wrapper auth() do
@@ -149,7 +203,7 @@ export default auth(async (req) => {
   // bateria de novo lá) ou que o bounce pro "/" abaixo reabra o loop.
   const tenantMismatch = !!session && session.user.tenantId !== tenant.id;
 
-  if (tenantMismatch && !isAuthRoute) {
+  if (tenantMismatch && !isAuthRoute && !isAuthApi) {
     return NextResponse.redirect(urlNoHost("/login"));
   }
 
@@ -169,6 +223,26 @@ export default auth(async (req) => {
     }
     if (session.user.role !== "ADMIN") {
       return NextResponse.redirect(urlNoHost("/"));
+    }
+
+    // Inadimplência bloqueia gestão, nunca operação. A checagem mora DENTRO de
+    // isAdminRoute de propósito: cardápio, checkout, mesa, cozinha e motoboy
+    // não têm como cair por causa de uma fatura — o código nem chega perto
+    // deles. src/proxy.test.ts existe para manter isso verdadeiro.
+    //
+    // Só BLOQUEADA (15 dias de atraso) fecha a porta: INADIMPLENTE avisa na
+    // tela e CANCELADA é a plataforma dizendo que o cliente não paga
+    // mensalidade, não que ele está devendo. Tenant sem assinatura nenhuma
+    // (implantação, cortesia, anterior à régua) também passa: ausência de
+    // cobrança não é atraso, e o erro para o outro lado tranca o dono para
+    // fora da própria gestão.
+    //
+    // Nem todo /adm é gestão: ADM_LIVRE_DE_BLOQUEIO guarda as telas em que
+    // quem pagaria a conta seria o cliente do restaurante, e o porquê de cada
+    // uma.
+    const bloqueada = tenant.assinatura?.status === "BLOQUEADA";
+    if (bloqueada && !escapaDoBloqueio(nextUrl.pathname)) {
+      return NextResponse.redirect(urlNoHost("/adm/assinatura"));
     }
   }
 

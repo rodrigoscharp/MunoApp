@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
+import { DIA_VENCIMENTO_MAX } from "@/lib/assinatura/competencia";
 
 export function MensalidadeInline({
   tenantId,
@@ -96,7 +97,7 @@ export function MensalidadeInline({
         type="number"
         step="1"
         min="1"
-        max="28"
+        max={DIA_VENCIMENTO_MAX}
         value={dia}
         onChange={(e) => setDia(e.target.value)}
         aria-label="Dia de vencimento"

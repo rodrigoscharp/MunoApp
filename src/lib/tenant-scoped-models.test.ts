@@ -63,6 +63,18 @@ describe("TENANT_SCOPED_MODELS", () => {
   it("não escopa models de plataforma, que são cross-tenant por natureza", () => {
     expect(TENANT_SCOPED_MODELS.has("Tenant")).toBe(false);
     expect(TENANT_SCOPED_MODELS.has("PlatformAdmin")).toBe(false);
+    // Cobranca pende da assinatura e não tem coluna tenantId: não há por onde
+    // a extensão filtrar. Quem a protege é a assinatura, um nível acima.
+    expect(TENANT_SCOPED_MODELS.has("Cobranca")).toBe(false);
+  });
+
+  /**
+   * A assinatura entra na lista porque o /adm do restaurante vai ler a própria
+   * (Task 6). O console não perde nada com isso: ele lê por prismaUnscoped, que
+   * é um PrismaClient cru, sem a extensão que consulta esta lista.
+   */
+  it("escopa a Assinatura, que o restaurante lê no próprio /adm", () => {
+    expect(TENANT_SCOPED_MODELS.has("Assinatura")).toBe(true);
   });
 
   it("deixa Lead de fora mesmo tendo tenantId, porque o dele é opcional", () => {

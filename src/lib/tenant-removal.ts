@@ -30,6 +30,7 @@ export const ORDEM_DE_EXCLUSAO = [
   "PasswordResetToken",
   "DeliveryZone",
   "User",
+  "Assinatura",
 ] as const;
 
 // Tenants que a plataforma não pode perder. `default` é quem responde por
@@ -100,6 +101,11 @@ export async function contarDadosDoTenant(
     });
   }
 
+  // Fora do laço pelo mesmo motivo da remoção: Cobranca não tem tenantId.
+  contagens.Cobranca = await prismaUnscoped.cobranca.count({
+    where: { assinatura: { tenantId: tenant.id } },
+  });
+
   const leadsDesvinculados = await prismaUnscoped.lead.count({
     where: { tenantId: tenant.id },
   });
@@ -120,6 +126,17 @@ export async function removeTenant(slug: string): Promise<ResumoDaRemocao> {
 
   return prismaUnscoped.$transaction(async (tx) => {
     const contagens: Record<string, number> = {};
+
+    // Cobranca sai antes do laço porque a Assinatura, que ela referencia, está
+    // dentro dele. Fora de ORDEM_DE_EXCLUSAO por não ter coluna tenantId: o
+    // caminho até o tenant passa pela assinatura, e o laço só sabe filtrar por
+    // tenantId. Apagar cobrança dói — é histórico financeiro —, mas o que
+    // sobrasse não teria a quem pertencer.
+    contagens.Cobranca = (
+      await tx.cobranca.deleteMany({
+        where: { assinatura: { tenantId: tenant.id } },
+      })
+    ).count;
 
     for (const modelo of ORDEM_DE_EXCLUSAO) {
       const delegate = (tx as unknown as Record<string, Delegate>)[
