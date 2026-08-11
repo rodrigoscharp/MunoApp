@@ -5,9 +5,8 @@ import { authPlatform } from "@/lib/auth-platform";
 import {
   DIA_VENCIMENTO_MAX,
   DIA_VENCIMENTO_PADRAO,
-  competenciaDe,
-  vencimentoDaCompetencia,
 } from "@/lib/assinatura/competencia";
+import { inicioDaCobranca } from "@/lib/assinatura/inicio";
 
 // Só dinheiro. slug, status e nome ficam de fora de propósito: esta rota não
 // pode virar uma porta lateral para mudar a identidade de um cliente.
@@ -76,10 +75,13 @@ export async function PATCH(
           tenantId: id,
           valorMensal,
           diaVencimento: dia,
-          inicioCobranca: vencimentoDaCompetencia(
-            competenciaDe(new Date()),
-            dia
-          ),
+          // Terceiro caminho que cria assinatura, e o último a receber esta
+          // correção. Usar a competência corrente devolvia o dia contratado
+          // deste mês, que já pode ter passado: o cliente nascia vencido e o
+          // job diário o bloquearia em duas semanas por uma fatura que nunca
+          // foi enviada. Os outros dois caminhos (o backfill da migração e a
+          // conversão de lead) já usam inicioDaCobranca pelo mesmo motivo.
+          inicioCobranca: inicioDaCobranca(new Date(), 0, dia),
         },
       })
     );
@@ -96,8 +98,19 @@ export async function PATCH(
         // Gravar um valor de novo é o gesto de recontratar. Só reativa quem
         // estava cancelado: INADIMPLENTE e BLOQUEADA são da régua, e voltar
         // para ATIVA aqui apagaria um atraso que ninguém pagou.
+        // Reativar exige recomeçar o relógio junto. Uma assinatura cancelada
+        // meses atrás carrega um inicioCobranca no passado, e voltar para
+        // ATIVA sem mexer nele faria o job cobrar o mês corrente com
+        // vencimento já vencido — recontratado hoje, inadimplente amanhã.
         ...(assinatura.status === "CANCELADA"
-          ? { status: "ATIVA" as const }
+          ? {
+              status: "ATIVA" as const,
+              inicioCobranca: inicioDaCobranca(
+                new Date(),
+                0,
+                diaVencimento ?? assinatura.diaVencimento
+              ),
+            }
           : {}),
       },
     })
