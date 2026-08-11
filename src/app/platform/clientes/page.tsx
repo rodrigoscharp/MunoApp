@@ -92,7 +92,7 @@ export default async function ClientesPage() {
             return (
             <li
               key={t.id}
-              className="bg-console-cartao rounded-xl border border-console-linha px-5 py-4 flex items-center justify-between gap-4"
+              className="bg-console-cartao rounded-2xl border border-console-linha px-5 py-4 flex items-center justify-between gap-4"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2">

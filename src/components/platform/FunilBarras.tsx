@@ -33,11 +33,11 @@ export function FunilBarras({
   const total = ESTAGIOS.reduce((s, e) => s + (contagens[e.chave] ?? 0), 0);
 
   return (
-    <section className="bg-console-cartao rounded-2xl border border-console-linha px-6 py-5">
+    <section className="bg-console-cartao rounded-2xl border border-console-linha px-5 py-4 h-full">
       <div className="flex items-baseline justify-between mb-5">
-        <p className="text-[13px] text-neutral-400">funil</p>
+        <p className="text-[13px] text-console-tinta/45">funil</p>
         {total > 0 && (
-          <p className="text-[13px] text-neutral-400">
+          <p className="text-[13px] text-console-tinta/45">
             {total} {total === 1 ? "lead" : "leads"}
           </p>
         )}

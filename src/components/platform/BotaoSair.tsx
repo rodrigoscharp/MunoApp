@@ -17,7 +17,7 @@ export function BotaoSair() {
     >
       <button
         type="submit"
-        className="flex items-center gap-2 text-sm text-white/60 hover:text-white transition"
+        className="flex items-center gap-2 px-2 text-sm text-console-tinta/50 hover:text-console-campo transition"
       >
         <LogOut size={15} />
         Sair

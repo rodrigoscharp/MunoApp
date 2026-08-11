@@ -42,7 +42,7 @@ export default async function LeadsPage() {
                 <Link
                   key={lead.id}
                   href={`/leads/${lead.id}`}
-                  className="block bg-console-cartao border border-console-linha rounded-xl px-5 py-4 hover:border-console-campo/40 transition"
+                  className="block bg-console-cartao border border-console-linha rounded-2xl px-5 py-4 hover:border-console-campo/40 transition"
                 >
                   <p className="font-semibold text-neutral-900">
                     {lead.restaurante}

@@ -27,14 +27,22 @@ export function MenuLateral() {
             key={href}
             href={href}
             aria-current={ativo ? "page" : undefined}
-            // O campo inteiro já é terracota, então o item ativo se destaca
-            // invertendo — papel sobre a cor da marca.
-            className={`flex-1 md:flex-none flex flex-col md:flex-row items-center md:gap-3 gap-1 px-3 md:px-4 py-2.5 rounded-full transition ${
+            // O item ativo é marcado por uma barra, não por inversão de cor.
+            // A barra é terracota porque no sistema daqui terracota é ação e
+            // verde é dado — navegar é ação. Verde aqui competiria com os
+            // números da tela, que são o que a pessoa veio ver.
+            className={`relative flex-1 md:flex-none flex flex-col md:flex-row items-center md:gap-3 gap-1 px-3 md:px-4 py-2.5 md:rounded-xl transition ${
               ativo
-                ? "bg-console-papel text-console-campo font-semibold"
-                : "text-white/70 hover:text-white hover:bg-white/10"
+                ? "md:bg-console-campo/8 text-console-campo font-semibold"
+                : "text-console-tinta/55 hover:text-console-tinta hover:md:bg-console-tinta/4"
             }`}
           >
+            {ativo && (
+              <span
+                aria-hidden
+                className="absolute md:left-0 md:top-1/2 md:-translate-y-1/2 md:h-5 md:w-[3px] md:rounded-r bg-console-campo left-1/2 -translate-x-1/2 md:translate-x-0 top-0 h-[3px] w-8 rounded-b md:rounded-b-none"
+              />
+            )}
             <Icone size={18} strokeWidth={ativo ? 2.4 : 2} />
             <span className="text-[11px] md:text-[15px]">{rotulo}</span>
           </Link>
