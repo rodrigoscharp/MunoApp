@@ -31,6 +31,8 @@ export function ConverterLead({
   const [slug, setSlug] = useState(() => sugerirSlug(restauranteNome));
   const [email, setEmail] = useState("");
   const [mensalidade, setMensalidade] = useState("");
+  const [diaVencimento, setDiaVencimento] = useState("");
+  const [diasDeCortesia, setDiasDeCortesia] = useState("");
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(false);
   const [credenciais, setCredenciais] = useState<Credenciais | null>(null);
@@ -48,6 +50,15 @@ export function ConverterLead({
           slug,
           email,
           ...(mensalidade.trim() ? { valorMensal: Number(mensalidade) } : {}),
+          // Só vão junto se houver mensalidade: sem valor não se cria
+          // assinatura, e mandar vencimento solto faria a rota receber campo
+          // que ela não tem onde guardar.
+          ...(mensalidade.trim() && diaVencimento.trim()
+            ? { diaVencimento: Number(diaVencimento) }
+            : {}),
+          ...(mensalidade.trim() && diasDeCortesia.trim()
+            ? { diasDeCortesia: Number(diasDeCortesia) }
+            : {}),
         }),
       });
 
@@ -189,6 +200,49 @@ export function ConverterLead({
           className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
         />
       </div>
+
+      {/* Vencimento e cortesia só aparecem quando há mensalidade: sem valor não
+          existe assinatura para eles configurarem, e dois campos mortos no
+          formulário fazem quem converte um lead sem cobrança se perguntar o que
+          deixou de preencher. */}
+      {mensalidade.trim() !== "" && (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
+              Dia do vencimento
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={28}
+              value={diaVencimento}
+              onChange={(e) => setDiaVencimento(e.target.value)}
+              placeholder="10"
+              className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+            />
+            {/* O teto de 28 não é arbitrário: é o maior dia que existe em todo
+                mês, e é o que dispensa regra de fim de fevereiro. */}
+            <p className="mt-1 text-[11px] text-neutral-400">de 1 a 28</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
+              Dias de cortesia
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={365}
+              value={diasDeCortesia}
+              onChange={(e) => setDiasDeCortesia(e.target.value)}
+              placeholder="0"
+              className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+            />
+            <p className="mt-1 text-[11px] text-neutral-400">
+              antes da primeira cobrança
+            </p>
+          </div>
+        </div>
+      )}
 
       {erro && <p className="text-sm text-red-600">{erro}</p>}
 

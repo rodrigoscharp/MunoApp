@@ -4,10 +4,10 @@ import { prismaUnscoped } from "@/lib/prisma";
 import { authPlatform } from "@/lib/auth-platform";
 import { ProvisionError, provisionTenant } from "@/lib/tenant-provisioning";
 import {
+  DIA_VENCIMENTO_MAX,
   DIA_VENCIMENTO_PADRAO,
-  competenciaDe,
-  vencimentoDaCompetencia,
 } from "@/lib/assinatura/competencia";
+import { CORTESIA_MAX_DIAS, inicioDaCobranca } from "@/lib/assinatura/inicio";
 
 const schema = z.object({
   slug: z.string().min(1),
@@ -16,6 +16,11 @@ const schema = z.object({
   // Teto casa com o DECIMAL(10,2) da coluna: acima disso o Postgres estoura
   // e viraria um 500 no meio da conversão. Melhor recusar já na entrada.
   valorMensal: z.number().min(0).max(99999999.99).optional(),
+  diaVencimento: z.number().int().min(1).max(DIA_VENCIMENTO_MAX).optional(),
+  // Cortesia negociada caso a caso. Zero é resposta válida e diferente de
+  // omitir: zero é "começa cobrando", omitir é "não me perguntaram" — e as
+  // duas caem no mesmo lugar hoje, mas só porque o padrão é não dar cortesia.
+  diasDeCortesia: z.number().int().min(0).max(CORTESIA_MAX_DIAS).optional(),
 });
 
 export async function POST(
@@ -61,14 +66,22 @@ export async function POST(
     let avisoMensalidade: string | undefined;
     if (parsed.data.valorMensal !== undefined) {
       try {
+        const diaVencimento =
+          parsed.data.diaVencimento ?? DIA_VENCIMENTO_PADRAO;
         await prismaUnscoped.assinatura.create({
           data: {
             tenantId: tenant.id,
             valorMensal: parsed.data.valorMensal,
-            diaVencimento: DIA_VENCIMENTO_PADRAO,
-            inicioCobranca: vencimentoDaCompetencia(
-              competenciaDe(new Date()),
-              DIA_VENCIMENTO_PADRAO
+            diaVencimento,
+            // inicioDaCobranca garante data no futuro. A versão anterior usava
+            // o dia contratado do mês corrente, que já podia ter passado — o
+            // cliente nascia vencido e o job diário o bloquearia em duas
+            // semanas por uma fatura que ele nunca recebeu. É o mesmo defeito
+            // que o backfill da migração teve, e a correção é a mesma.
+            inicioCobranca: inicioDaCobranca(
+              new Date(),
+              parsed.data.diasDeCortesia ?? 0,
+              diaVencimento
             ),
           },
         });
