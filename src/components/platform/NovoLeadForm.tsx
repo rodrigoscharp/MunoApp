@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import Image from "next/image";
+import { Plus, Upload } from "lucide-react";
+import { uploadLogo } from "@/lib/upload-logo";
 
 const CAMPOS = [
   { name: "contato", label: "Nome do contato" },
   { name: "telefone", label: "Telefone" },
   { name: "email", label: "E-mail" },
   { name: "cidade", label: "Cidade" },
+  { name: "endereco", label: "Endereço" },
 ] as const;
 
 export function NovoLeadForm() {
@@ -18,6 +21,21 @@ export function NovoLeadForm() {
   const [extras, setExtras] = useState<Record<string, string>>({});
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(false);
+  const [enviandoLogo, setEnviandoLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  async function onLogoSelecionada(file: File) {
+    setEnviandoLogo(true);
+    setErro("");
+    try {
+      const url = await uploadLogo(file);
+      setExtras((prev) => ({ ...prev, logoUrl: url }));
+    } catch {
+      setErro("Erro ao enviar a logo.");
+    } finally {
+      setEnviandoLogo(false);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -97,6 +115,44 @@ export function NovoLeadForm() {
             />
           </div>
         ))}
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-neutral-600 mb-1">
+          Logo (opcional)
+        </label>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => logoInputRef.current?.click()}
+            disabled={enviandoLogo}
+            className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 transition"
+          >
+            <Upload size={12} />
+            {enviandoLogo ? "Enviando..." : "Escolher arquivo"}
+          </button>
+          {extras.logoUrl && (
+            <div className="relative w-8 h-8 rounded border border-neutral-200 overflow-hidden shrink-0">
+              <Image
+                src={extras.logoUrl}
+                alt="Preview da logo"
+                fill
+                unoptimized
+                className="object-contain"
+              />
+            </div>
+          )}
+        </div>
+        <input
+          ref={logoInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onLogoSelecionada(f);
+          }}
+        />
       </div>
 
       {erro && <p className="text-sm text-red-600">{erro}</p>}
