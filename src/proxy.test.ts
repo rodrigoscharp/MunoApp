@@ -69,13 +69,10 @@ function requisicao(caminho: string, sessao: Sessao = null): NextRequest {
 
 const ADMIN_HOST = "admin.localhost:3000";
 
-function requisicaoPlataforma(
-  caminho: string,
-  init?: RequestInit
-): NextRequest {
+function requisicaoPlataforma(caminho: string, method = "GET"): NextRequest {
   const req = new NextRequest(`http://${ADMIN_HOST}${caminho}`, {
     headers: { host: ADMIN_HOST },
-    ...init,
+    method,
   });
   (req as unknown as { auth: Sessao }).auth = null;
   return req;
@@ -100,6 +97,7 @@ const tenantInjetado = (res: Response) =>
 beforeEach(() => {
   vi.clearAllMocks();
   comAssinatura("ATIVA");
+  vi.mocked(authPlatform).mockResolvedValue(null as never);
 });
 
 // --- testes ----------------------------------------------------------------
@@ -328,7 +326,7 @@ describe("proxy: upload de logo funciona a partir da plataforma", () => {
       user: { id: "admin-1" },
     } as never);
 
-    const res = await proxy(requisicaoPlataforma("/api/upload", { method: "POST" }));
+    const res = await proxy(requisicaoPlataforma("/api/upload", "POST"));
 
     expect(res.headers.get("x-middleware-rewrite")).toBeNull();
     expect(res.status).not.toBe(404);
@@ -342,5 +340,15 @@ describe("proxy: upload de logo funciona a partir da plataforma", () => {
     const res = await proxy(requisicaoPlataforma("/leads"));
 
     expect(res.headers.get("x-middleware-rewrite")).toContain("/platform/leads");
+  });
+
+  // authPlatform já volta null por padrão (beforeEach do arquivo), então esta
+  // requisição chega sem sessão nenhuma — o caso de uma sessão de plataforma
+  // expirada no meio do formulário de lead.
+  it("POST /api/upload sem sessão responde 401 em JSON, não redireciona", async () => {
+    const res = await proxy(requisicaoPlataforma("/api/upload", "POST"));
+
+    expect(res.status).toBe(401);
+    expect(destino(res)).toBeNull();
   });
 });
