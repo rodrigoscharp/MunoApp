@@ -1,8 +1,29 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+
+const tenantFindUnique = vi.fn();
+const tenantCreate = vi.fn();
+const userCreate = vi.fn();
+const settingCreate = vi.fn();
+
+vi.mock("@/lib/prisma", () => ({
+  prismaUnscoped: {
+    $transaction: (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        tenant: {
+          findUnique: (...a: unknown[]) => tenantFindUnique(...a),
+          create: (...a: unknown[]) => tenantCreate(...a),
+        },
+        user: { create: (...a: unknown[]) => userCreate(...a) },
+        setting: { create: (...a: unknown[]) => settingCreate(...a) },
+      }),
+  },
+}));
+
 import {
   ProvisionError,
   buildTenantBaseUrl,
   gerarSenha,
+  provisionTenant,
   validateSlug,
 } from "./tenant-provisioning";
 
@@ -96,5 +117,64 @@ describe("buildTenantBaseUrl", () => {
   it("funciona com ROOT_DOMAIN de entrada única", () => {
     process.env.ROOT_DOMAIN = "munoapp.com.br";
     expect(buildTenantBaseUrl("teste")).toBe("https://teste.munoapp.com.br");
+  });
+});
+
+describe("provisionTenant — restaurant_info", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tenantFindUnique.mockResolvedValue(null);
+    tenantCreate.mockImplementation(
+      async (args: { data: { nome: string; slug: string } }) => ({
+        id: "tenant-1",
+        ...args.data,
+      })
+    );
+    userCreate.mockImplementation(
+      async (args: { data: Record<string, unknown> }) => ({
+        id: "user-1",
+        ...args.data,
+      })
+    );
+    settingCreate.mockResolvedValue({});
+    process.env.ROOT_DOMAIN = "munoapp.com.br";
+  });
+
+  it("cria o Setting com o nome do tenant e o resto no DEFAULT quando nada mais foi informado", async () => {
+    await provisionTenant({
+      nome: "Pizzaria do João",
+      slug: "pizzaria-joao",
+      email: "dono@exemplo.com",
+    });
+
+    expect(settingCreate).toHaveBeenCalledTimes(1);
+    const { data } = settingCreate.mock.calls[0][0];
+    expect(data.tenantId).toBe("tenant-1");
+    expect(data.key).toBe("restaurant_info");
+    expect(JSON.parse(data.value)).toEqual({
+      name: "Pizzaria do João",
+      address: "Rua Paraty 1772, Ubatuba-SP",
+      phone: "(12) 99999-0000",
+      logoUrl: "/munowbg.png",
+    });
+  });
+
+  it("usa endereco/telefone/logoUrl do input quando informados", async () => {
+    await provisionTenant({
+      nome: "Pizzaria do João",
+      slug: "pizzaria-joao",
+      email: "dono@exemplo.com",
+      endereco: "Rua das Flores, 100",
+      telefone: "(12) 98888-7777",
+      logoUrl: "https://cdn.example/logo.png",
+    });
+
+    const { data } = settingCreate.mock.calls[0][0];
+    expect(JSON.parse(data.value)).toEqual({
+      name: "Pizzaria do João",
+      address: "Rua das Flores, 100",
+      phone: "(12) 98888-7777",
+      logoUrl: "https://cdn.example/logo.png",
+    });
   });
 });

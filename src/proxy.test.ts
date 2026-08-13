@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
+import { authPlatform } from "@/lib/auth-platform";
 
 /**
  * O primeiro teste do proxy — e ele existe para uma pergunta só:
@@ -66,6 +67,17 @@ function requisicao(caminho: string, sessao: Sessao = null): NextRequest {
   return req;
 }
 
+const ADMIN_HOST = "admin.localhost:3000";
+
+function requisicaoPlataforma(caminho: string, method = "GET"): NextRequest {
+  const req = new NextRequest(`http://${ADMIN_HOST}${caminho}`, {
+    headers: { host: ADMIN_HOST },
+    method,
+  });
+  (req as unknown as { auth: Sessao }).auth = null;
+  return req;
+}
+
 /** Status da assinatura do tenant; `null` = tenant sem assinatura nenhuma. */
 function comAssinatura(status: string | null) {
   findUnique.mockResolvedValue({
@@ -85,6 +97,7 @@ const tenantInjetado = (res: Response) =>
 beforeEach(() => {
   vi.clearAllMocks();
   comAssinatura("ATIVA");
+  vi.mocked(authPlatform).mockResolvedValue(null as never);
 });
 
 // --- testes ----------------------------------------------------------------
@@ -304,5 +317,38 @@ describe("proxy: sessão de outro tenant não pode trancar o NextAuth", () => {
 
     expect(destino(res)).toBeNull();
     expect(res.status).toBe(200);
+  });
+});
+
+describe("proxy: upload de logo funciona a partir da plataforma", () => {
+  it("não reescreve POST /api/upload — bateria em /platform/api/upload, rota inexistente", async () => {
+    vi.mocked(authPlatform).mockResolvedValue({
+      user: { id: "admin-1" },
+    } as never);
+
+    const res = await proxy(requisicaoPlataforma("/api/upload", "POST"));
+
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+    expect(res.status).not.toBe(404);
+  });
+
+  it("continua reescrevendo uma rota de página comum, ex. /leads", async () => {
+    vi.mocked(authPlatform).mockResolvedValue({
+      user: { id: "admin-1" },
+    } as never);
+
+    const res = await proxy(requisicaoPlataforma("/leads"));
+
+    expect(res.headers.get("x-middleware-rewrite")).toContain("/platform/leads");
+  });
+
+  // authPlatform já volta null por padrão (beforeEach do arquivo), então esta
+  // requisição chega sem sessão nenhuma — o caso de uma sessão de plataforma
+  // expirada no meio do formulário de lead.
+  it("POST /api/upload sem sessão responde 401 em JSON, não redireciona", async () => {
+    const res = await proxy(requisicaoPlataforma("/api/upload", "POST"));
+
+    expect(res.status).toBe(401);
+    expect(destino(res)).toBeNull();
   });
 });

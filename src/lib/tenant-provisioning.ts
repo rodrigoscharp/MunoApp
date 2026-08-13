@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { Tenant, User } from "@prisma/client";
 import { prismaUnscoped } from "@/lib/prisma";
+import { DEFAULT as RESTAURANT_INFO_DEFAULT } from "@/lib/restaurant";
 
 // Subdomínios que a plataforma usa e nenhum restaurante pode tomar.
 //
@@ -76,6 +77,9 @@ export async function provisionTenant(input: {
   slug: string;
   email: string;
   senha?: string;
+  endereco?: string;
+  telefone?: string;
+  logoUrl?: string;
 }): Promise<{ tenant: Tenant; admin: User; url: string; senha: string }> {
   validateSlug(input.slug);
 
@@ -123,6 +127,22 @@ export async function provisionTenant(input: {
         email: input.email,
         password: hashedPassword,
         role: "ADMIN",
+      },
+    });
+
+    // Todo tenant nasce com o Setting já preenchido: sem isto, o storefront
+    // dele mostra "Muno Food Restaurante" em Ubatuba até o cliente editar na
+    // mão — nome errado incluído, já que ele é sempre conhecido aqui.
+    await tx.setting.create({
+      data: {
+        tenantId: tenant.id,
+        key: "restaurant_info",
+        value: JSON.stringify({
+          name: input.nome,
+          address: input.endereco?.trim() || RESTAURANT_INFO_DEFAULT.address,
+          phone: input.telefone?.trim() || RESTAURANT_INFO_DEFAULT.phone,
+          logoUrl: input.logoUrl?.trim() || RESTAURANT_INFO_DEFAULT.logoUrl,
+        }),
       },
     });
 

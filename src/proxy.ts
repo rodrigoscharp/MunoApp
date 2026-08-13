@@ -83,6 +83,12 @@ export default auth(async (req) => {
     const isEstatico =
       nextUrl.pathname.startsWith("/_next/") ||
       /\.[a-z0-9]+$/i.test(nextUrl.pathname);
+    // A rota de upload (src/app/api/upload/route.ts) não é exclusiva da
+    // plataforma — tenant ADMIN também a usa — então ela não mora sob
+    // /api/platform. Sem esta linha ela cairia no rewrite genérico abaixo e
+    // viraria /platform/api/upload, rota inexistente: o botão de logo do
+    // cadastro de lead (NovoLeadForm.tsx) responderia 500 em produção.
+    const isApiUpload = nextUrl.pathname === "/api/upload";
     const platformSession = await authPlatform();
 
     // Checa user, e não só a sessão: o Auth.js pode devolver um objeto (de erro)
@@ -97,8 +103,9 @@ export default auth(async (req) => {
       // Redirecionar uma chamada de API é pior que negá-la: o fetch segue o
       // redirect, recebe o HTML do login com status 200 e a UI comemora um
       // sucesso que nunca aconteceu. API responde 401 em JSON; só página vai
-      // para o login.
-      if (isPlatformApi) {
+      // para o login. isApiUpload entra aqui pelo mesmo motivo: é API, não
+      // página — mesmo fora de /api/platform.
+      if (isPlatformApi || isApiUpload) {
         return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
       }
       return NextResponse.redirect(urlNoHost("/platform/login"));
@@ -116,6 +123,7 @@ export default auth(async (req) => {
     if (
       nextUrl.pathname.startsWith("/platform") ||
       isPlatformApi ||
+      isApiUpload ||
       isEstatico
     ) {
       return NextResponse.next();

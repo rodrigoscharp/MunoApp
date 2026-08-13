@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Store, Check, Upload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { RestaurantInfo } from "@/lib/restaurant";
+import { uploadLogo } from "@/lib/upload-logo";
 
 interface Props {
   initial: RestaurantInfo;
@@ -22,17 +23,15 @@ export function RestaurantInfoControl({ initial }: Props) {
     setSaved(false);
   }
 
-  async function uploadLogo(file: File) {
+  async function handleLogoSelected(file: File) {
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      if (!res.ok) { toast.error("Erro ao enviar imagem"); return; }
-      const { url } = await res.json() as { url: string };
+      const url = await uploadLogo(file);
       setInfo((prev) => ({ ...prev, logoUrl: url }));
       setSaved(false);
       toast.success("Logo carregada");
+    } catch {
+      toast.error("Erro ao enviar imagem");
     } finally {
       setUploading(false);
     }
@@ -89,7 +88,7 @@ export function RestaurantInfoControl({ initial }: Props) {
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); }}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleLogoSelected(f); }}
           />
         </div>
       </div>

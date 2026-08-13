@@ -9,7 +9,7 @@ export interface RestaurantInfo {
   logoUrl: string;
 }
 
-const DEFAULT: RestaurantInfo = {
+export const DEFAULT: RestaurantInfo = {
   name: "Muno Food Restaurante",
   address: "Rua Paraty 1772, Ubatuba-SP",
   phone: "(12) 99999-0000",
