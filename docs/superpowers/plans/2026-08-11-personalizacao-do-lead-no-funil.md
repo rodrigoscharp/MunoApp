@@ -1050,3 +1050,137 @@ Expected: PASS — nenhuma regressão nos testes das Tasks 1-5 nem nos demais te
 git add src/app/api/platform/leads/[id]/converter/route.ts "src/app/api/platform/leads/[id]/converter/route.test.ts"
 git commit -m "Propaga endereço/telefone/logo do lead na conversão e corrige limpeza do tenant fantasma"
 ```
+
+---
+
+### Task 7: `POST /api/upload` funciona a partir do subdomínio da plataforma
+
+> Adicionada por ruling após a revisão da Task 4: o formulário de novo lead (Task 4) chama
+> `uploadLogo()` a partir de `admin.<root>`, mas `src/proxy.ts` reescreve toda requisição desse
+> subdomínio que não comece com `/platform`, `/api/platform` ou estático, prefixando-a com
+> `/platform`. `POST /api/upload` vira `POST /platform/api/upload` — rota inexistente —, então o
+> botão de logo do cadastro de lead responde 500 em qualquer ambiente real, apesar da rota em si
+> (Task 2) já aceitar sessão de plataforma corretamente. Isso é gap do spec/plano, não da Task 4
+> nem da Task 2: nenhum dos dois documentos previu que o proxy intercepta a chamada antes dela
+> chegar na rota.
+
+**Files:**
+- Modify: `src/proxy.ts:76-124` (ramo `resolvedSlug === PLATFORM_SUBDOMAIN`)
+- Test: `src/proxy.test.ts` (arquivo existente, ampliar)
+
+**Interfaces:**
+- Nenhuma interface nova. `POST /api/upload` (Task 2) já aceita sessão de plataforma; esta task só
+  garante que a requisição chega até ela sem ser reescrita.
+
+- [ ] **Step 1: Escrever o teste (ainda falhando)**
+
+Em `src/proxy.test.ts`, adicione um `describe` novo perto do de "rotas que não pertencem a tenant
+nenhum" (linha 256). Siga o padrão de mock já usado no arquivo: `authPlatform` é mockado no topo
+(linha 33) sempre retornando `null` — para este teste, sobrescreva o mock nos casos que precisam
+de sessão. O host de plataforma é `admin.localhost:3000` (mesmo padrão de `HOST` na linha 53, mas
+com o subdomínio reservado em vez de `burguer`).
+
+```ts
+import { authPlatform } from "@/lib/auth-platform";
+
+const ADMIN_HOST = "admin.localhost:3000";
+
+function requisicaoPlataforma(
+  caminho: string,
+  init?: RequestInit
+): NextRequest {
+  const req = new NextRequest(`http://${ADMIN_HOST}${caminho}`, {
+    headers: { host: ADMIN_HOST },
+    ...init,
+  });
+  (req as unknown as { auth: Sessao }).auth = null;
+  return req;
+}
+
+describe("proxy: upload de logo funciona a partir da plataforma", () => {
+  it("não reescreve POST /api/upload — bateria em /platform/api/upload, rota inexistente", async () => {
+    vi.mocked(authPlatform).mockResolvedValue({
+      user: { id: "admin-1" },
+    } as never);
+
+    const res = await proxy(requisicaoPlataforma("/api/upload", { method: "POST" }));
+
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+    expect(res.status).not.toBe(404);
+  });
+
+  it("continua reescrevendo uma rota de página comum, ex. /leads", async () => {
+    vi.mocked(authPlatform).mockResolvedValue({
+      user: { id: "admin-1" },
+    } as never);
+
+    const res = await proxy(requisicaoPlataforma("/leads"));
+
+    expect(res.headers.get("x-middleware-rewrite")).toContain("/platform/leads");
+  });
+});
+```
+
+Ajuste os detalhes do teste (nomes de helper, forma de mockar `authPlatform`) ao que já existe no
+arquivo se algo aqui não bater exatamente com o padrão local — o importante é a asserção: uma
+requisição para `/api/upload` no subdomínio da plataforma não pode ser reescrita com prefixo
+`/platform`, e uma rota comum (ex. `/leads`) continua sendo.
+
+- [ ] **Step 2: Rodar o teste e confirmar que falha**
+
+Run: `npx vitest run src/proxy.test.ts`
+Expected: FAIL no primeiro caso novo — hoje `/api/upload` cai no `NextResponse.rewrite` genérico
+do fim do bloco (linha 123) porque não bate em nenhuma das condições de passagem direta
+(`isPlatformApi`, `isEstatico`, `pathname.startsWith("/platform")`).
+
+- [ ] **Step 3: Ajustar o proxy**
+
+Em `src/proxy.ts`, dentro do ramo `resolvedSlug === PLATFORM_SUBDOMAIN` (a partir da linha 74),
+adicione uma constante ao lado de `isPlatformApi`/`isEstatico` (linha 76-84):
+
+```ts
+    const isPlatformApi = nextUrl.pathname.startsWith("/api/platform");
+    // A rota de upload (src/app/api/upload/route.ts) não é exclusiva da
+    // plataforma — tenant ADMIN também a usa — então ela não mora sob
+    // /api/platform. Sem esta linha ela cairia no rewrite genérico abaixo e
+    // viraria /platform/api/upload, rota inexistente: o botão de logo do
+    // cadastro de lead (NovoLeadForm.tsx) responderia 500 em produção.
+    const isApiUpload = nextUrl.pathname === "/api/upload";
+```
+
+E inclua `isApiUpload` na condição de passagem direta (linha 116-124):
+
+```ts
+    if (
+      nextUrl.pathname.startsWith("/platform") ||
+      isPlatformApi ||
+      isApiUpload ||
+      isEstatico
+    ) {
+      return NextResponse.next();
+    }
+    return NextResponse.rewrite(urlNoHost(`/platform${nextUrl.pathname}`));
+```
+
+Não mude a checagem de sessão logo acima (linha 87-105): `isApiUpload` não entra nela, então uma
+chamada sem sessão de plataforma continua caindo no `401` json de lá antes de chegar na rota —
+`/api/upload` já faz sua própria checagem de auth (Task 2), então a dupla proteção é redundante,
+mas não incorreta.
+
+- [ ] **Step 4: Rodar o teste e confirmar que passa**
+
+Run: `npx vitest run src/proxy.test.ts`
+Expected: PASS em todos os casos, novos e antigos (nenhuma regressão nas outras `describe`s do
+arquivo).
+
+- [ ] **Step 5: Rodar a suíte inteira**
+
+Run: `npx vitest run`
+Expected: PASS — nenhuma regressão nas Tasks 1-6.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/proxy.ts src/proxy.test.ts
+git commit -m "Corrige upload de logo 500 no subdomínio da plataforma"
+```
