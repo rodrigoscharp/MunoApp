@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
+import { authPlatform } from "@/lib/auth-platform";
 
 /**
  * O primeiro teste do proxy — e ele existe para uma pergunta só:
@@ -63,6 +64,20 @@ function requisicao(caminho: string, sessao: Sessao = null): NextRequest {
     headers: { host: HOST },
   });
   (req as unknown as { auth: Sessao }).auth = sessao;
+  return req;
+}
+
+const ADMIN_HOST = "admin.localhost:3000";
+
+function requisicaoPlataforma(
+  caminho: string,
+  init?: RequestInit
+): NextRequest {
+  const req = new NextRequest(`http://${ADMIN_HOST}${caminho}`, {
+    headers: { host: ADMIN_HOST },
+    ...init,
+  });
+  (req as unknown as { auth: Sessao }).auth = null;
   return req;
 }
 
@@ -304,5 +319,28 @@ describe("proxy: sessão de outro tenant não pode trancar o NextAuth", () => {
 
     expect(destino(res)).toBeNull();
     expect(res.status).toBe(200);
+  });
+});
+
+describe("proxy: upload de logo funciona a partir da plataforma", () => {
+  it("não reescreve POST /api/upload — bateria em /platform/api/upload, rota inexistente", async () => {
+    vi.mocked(authPlatform).mockResolvedValue({
+      user: { id: "admin-1" },
+    } as never);
+
+    const res = await proxy(requisicaoPlataforma("/api/upload", { method: "POST" }));
+
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+    expect(res.status).not.toBe(404);
+  });
+
+  it("continua reescrevendo uma rota de página comum, ex. /leads", async () => {
+    vi.mocked(authPlatform).mockResolvedValue({
+      user: { id: "admin-1" },
+    } as never);
+
+    const res = await proxy(requisicaoPlataforma("/leads"));
+
+    expect(res.headers.get("x-middleware-rewrite")).toContain("/platform/leads");
   });
 });
