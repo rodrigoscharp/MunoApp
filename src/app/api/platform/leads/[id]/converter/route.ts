@@ -54,6 +54,9 @@ export async function POST(
       nome: parsed.data.nome ?? lead.restaurante,
       slug: parsed.data.slug,
       email: parsed.data.email,
+      endereco: lead.endereco ?? undefined,
+      telefone: lead.telefone ?? undefined,
+      logoUrl: lead.logoUrl ?? undefined,
     });
 
     // provisionTenant não conhece mensalidade — é compartilhado com o script
@@ -119,6 +122,12 @@ export async function POST(
           // key dela impede o delete do tenant. Ainda não existe cobrança:
           // nenhuma foi emitida entre a criação e esta linha.
           prismaUnscoped.assinatura.deleteMany({
+            where: { tenantId: tenant.id },
+          }),
+          // provisionTenant sempre cria o Setting("restaurant_info") agora —
+          // sem FK cascade (nenhuma relação com Tenant tem, de propósito) —
+          // e ele bloqueia o delete do tenant do mesmo jeito se não for limpo.
+          prismaUnscoped.setting.deleteMany({
             where: { tenantId: tenant.id },
           }),
           prismaUnscoped.user.deleteMany({ where: { tenantId: tenant.id } }),
