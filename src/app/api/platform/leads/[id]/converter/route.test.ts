@@ -135,6 +135,12 @@ describe("POST /api/platform/leads/[id]/converter", () => {
       where: { tenantId: "tenant-1" },
     });
     expect(tenantDelete).toHaveBeenCalledWith({ where: { id: "tenant-1" } });
+    // A ordem importa: o delete do Setting precisa acontecer antes do delete
+    // do Tenant, senão a FK sem cascade (de propósito, ver AGENTS.md) rejeita
+    // o tenant.delete. toHaveBeenCalledWith sozinho não pega uma reordenação.
+    expect(settingDeleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+      tenantDelete.mock.invocationCallOrder[0]
+    );
   });
 
   it("recusa sem sessão de plataforma", async () => {
