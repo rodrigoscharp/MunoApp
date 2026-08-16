@@ -44,6 +44,8 @@ export async function PATCH(
       data: {
         active: body.active !== undefined ? body.active : undefined,
         name: body.name !== undefined ? body.name : undefined,
+        posX: body.posX !== undefined ? body.posX : undefined,
+        posY: body.posY !== undefined ? body.posY : undefined,
       },
     });
 
