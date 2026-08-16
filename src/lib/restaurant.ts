@@ -7,6 +7,7 @@ export interface RestaurantInfo {
   address: string;
   phone: string;
   logoUrl: string;
+  floorPlanImageUrl: string | null;
 }
 
 export const DEFAULT: RestaurantInfo = {
@@ -14,6 +15,7 @@ export const DEFAULT: RestaurantInfo = {
   address: "Rua Paraty 1772, Ubatuba-SP",
   phone: "(12) 99999-0000",
   logoUrl: "/munowbg.png",
+  floorPlanImageUrl: null,
 };
 
 // tenantId entra como argumento para que o unstable_cache diferencie o
