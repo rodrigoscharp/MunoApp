@@ -164,6 +164,8 @@ model Table {
   name      String?
   token     String    @default(cuid())
   active    Boolean   @default(true)
+  posX      Float?
+  posY      Float?
   orders    Order[]
   payments  Payment[]
   createdAt DateTime  @default(now())
