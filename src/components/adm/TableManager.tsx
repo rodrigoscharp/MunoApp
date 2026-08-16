@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Plus, Trash2, QrCode, Download, X, TableProperties, Receipt, ClipboardList, Check, Printer, Percent, ArrowLeft, CircleDot, CircleCheck } from "lucide-react";
+import { Plus, Trash2, QrCode, Download, X, TableProperties, Receipt, ClipboardList, Check, Printer, Percent, ArrowLeft, CircleDot, CircleCheck, LayoutGrid, Map as MapIcon } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import type { PrinterConfig } from "@/app/api/settings/printer/route";
+import { TableMapView } from "./TableMapView";
 
 interface Table {
   id: string;
@@ -15,6 +16,8 @@ interface Table {
   active: boolean;
   openOrdersCount: number;
   openTotal: number;
+  posX: number | null;
+  posY: number | null;
 }
 
 interface TableOrderItem {
@@ -69,6 +72,7 @@ function buildPersonGroups(orders: TableOrder[]): BillPersonGroup[] {
 export function TableManager() {
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<"lista" | "mapa">("lista");
   const [adding, setAdding] = useState(false);
   const [newNumber, setNewNumber] = useState("");
   const [newName, setNewName] = useState("");
@@ -137,6 +141,10 @@ export function TableManager() {
     if (!confirm("Excluir esta mesa?")) return;
     await fetch(`/api/tables/${id}`, { method: "DELETE" });
     await load();
+  }
+
+  function handlePositionChange(id: string, posX: number, posY: number) {
+    setTables((prev) => prev.map((t) => (t.id === id ? { ...t, posX, posY } : t)));
   }
 
   async function openCloseBill(table: Table) {
@@ -293,6 +301,26 @@ export function TableManager() {
               </span>
             </div>
           )}
+          <div className="flex items-center bg-neutral-100 rounded-lg p-0.5 text-xs font-semibold">
+            <button
+              onClick={() => setView("lista")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition ${
+                view === "lista" ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+              }`}
+            >
+              <LayoutGrid size={13} />
+              Lista
+            </button>
+            <button
+              onClick={() => setView("mapa")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition ${
+                view === "mapa" ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-700"
+              }`}
+            >
+              <MapIcon size={13} />
+              Mapa
+            </button>
+          </div>
           <button
             onClick={() => setAdding(true)}
             className="flex items-center gap-2 bg-brand hover:bg-brand-dark text-white text-sm font-semibold px-4 py-2 rounded-xl transition shadow-sm"
@@ -348,7 +376,7 @@ export function TableManager() {
         </div>
       )}
 
-      {/* Lista de mesas */}
+      {/* Lista / Mapa de mesas */}
       {loading ? (
         <div className="text-center py-12 text-neutral-400 text-sm">Carregando mesas...</div>
       ) : tables.length === 0 ? (
@@ -357,6 +385,8 @@ export function TableManager() {
           <p className="text-sm">Nenhuma mesa cadastrada.</p>
           <p className="text-xs">Clique em "Nova Mesa" para começar.</p>
         </div>
+      ) : view === "mapa" ? (
+        <TableMapView tables={tables} onPositionChange={handlePositionChange} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {tables.map((table) => {
