@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidateTag } from "next/cache";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import { DEFAULT } from "@/lib/restaurant";
 
 const KEY = "restaurant_info";
 
@@ -12,7 +13,7 @@ export async function GET(req: NextRequest) {
 
   return withTenant(tenantId, async () => {
     const setting = await prisma.setting.findUnique({ where: { tenantId_key: { tenantId, key: KEY } } });
-    return NextResponse.json(setting ? JSON.parse(setting.value) : {});
+    return NextResponse.json(setting ? { ...DEFAULT, ...JSON.parse(setting.value) } : DEFAULT);
   });
 }
 
