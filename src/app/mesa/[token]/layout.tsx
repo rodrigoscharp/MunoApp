@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import { prismaUnscoped } from "@/lib/prisma";
-import { getRequestTenantId } from "@/lib/tenant-request";
+import { getRequestTenantId, getRequestTenantPlano } from "@/lib/tenant-request";
 import { getRestaurantInfo } from "@/lib/restaurant";
 import { MesaHeader } from "@/components/mesa/MesaHeader";
+import { MesaIndisponivel } from "@/components/mesa/MesaIndisponivel";
+import { tenantTemMesaQr } from "@/lib/plans";
 
 export default async function MesaLayout({
   children,
@@ -12,6 +14,14 @@ export default async function MesaLayout({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
+
+  // Antes de qualquer query: custo zero (só header), e evita revelar se o
+  // token existe ou não pra um plano que nem tem acesso à feature.
+  const plano = await getRequestTenantPlano();
+  if (!tenantTemMesaQr(plano)) {
+    return <MesaIndisponivel />;
+  }
+
   const tenantId = await getRequestTenantId();
 
   // Nota: consultas diretas (fora de unstable_cache/Route Handlers) usam

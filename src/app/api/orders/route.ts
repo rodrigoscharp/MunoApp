@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import { apiError, getPlanoFromRequest, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import { tenantTemMesaQr } from "@/lib/plans";
 import { broadcastTenantEvent } from "@/lib/realtime";
 import { getEnabledPaymentMethods } from "@/lib/payments/factory";
 import { assertMethodAllowed, PaymentMethodNotAllowedError } from "@/lib/payments/method-guard";
@@ -122,6 +123,13 @@ export async function POST(req: NextRequest) {
     }
 
     const { items, paymentMethod, notes, customerName, customerPhone, deliveryType, deliveryAddress, deliveryZoneId, couponCode, tableId } = parsed.data;
+
+    // Defesa em profundidade: a tela de /mesa/[token] já não renderiza pra
+    // quem não tem o plano, mas um checkout aberto no navegador antes de um
+    // downgrade ainda conseguiria bater direto aqui.
+    if (deliveryType === "DINE_IN" && !tenantTemMesaQr(getPlanoFromRequest(req))) {
+      return apiError("Recurso não disponível neste plano", 403);
+    }
 
     // Delivery e retirada exigem conta. Mesa (DINE_IN) não: o cliente está no
     // restaurante e o pedido é identificado pela mesa.

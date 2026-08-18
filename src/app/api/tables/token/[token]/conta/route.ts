@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import { apiError, getPlanoFromRequest, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import { tenantTemMesaQr } from "@/lib/plans";
 
 export async function GET(
   req: NextRequest,
@@ -8,6 +9,9 @@ export async function GET(
 ) {
   const tenantId = getTenantIdFromRequest(req);
   if (!tenantId) return apiError("Tenant não identificado", 400);
+  if (!tenantTemMesaQr(getPlanoFromRequest(req))) {
+    return apiError("Recurso não disponível neste plano", 403);
+  }
 
   return withTenant(tenantId, async () => {
     const { token } = await params;
