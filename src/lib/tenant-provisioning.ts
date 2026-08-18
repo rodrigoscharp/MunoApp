@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 import { Prisma } from "@prisma/client";
-import type { Tenant, User } from "@prisma/client";
+import type { PlanoTenant, Tenant, User } from "@prisma/client";
 import { prismaUnscoped } from "@/lib/prisma";
 import { DEFAULT as RESTAURANT_INFO_DEFAULT } from "@/lib/restaurant";
 
@@ -80,6 +80,7 @@ export async function provisionTenant(input: {
   endereco?: string;
   telefone?: string;
   logoUrl?: string;
+  plano?: PlanoTenant;
 }): Promise<{ tenant: Tenant; admin: User; url: string; senha: string }> {
   validateSlug(input.slug);
 
@@ -105,7 +106,7 @@ export async function provisionTenant(input: {
     let tenant: Tenant;
     try {
       tenant = await tx.tenant.create({
-        data: { nome: input.nome, slug: input.slug },
+        data: { nome: input.nome, slug: input.slug, plano: input.plano ?? "MEMBRO" },
       });
     } catch (err) {
       if (

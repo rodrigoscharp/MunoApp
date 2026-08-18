@@ -177,4 +177,25 @@ describe("provisionTenant — restaurant_info", () => {
       logoUrl: "https://cdn.example/logo.png",
     });
   });
+
+  it("nasce MEMBRO quando plano não é informado", async () => {
+    await provisionTenant({
+      nome: "Pizzaria do João",
+      slug: "pizzaria-joao",
+      email: "dono@exemplo.com",
+    });
+
+    expect(tenantCreate.mock.calls[0][0].data.plano).toBe("MEMBRO");
+  });
+
+  it("respeita o plano informado", async () => {
+    await provisionTenant({
+      nome: "Pizzaria do João",
+      slug: "pizzaria-joao",
+      email: "dono@exemplo.com",
+      plano: "MEMBRO_MESA_QR",
+    });
+
+    expect(tenantCreate.mock.calls[0][0].data.plano).toBe("MEMBRO_MESA_QR");
+  });
 });
