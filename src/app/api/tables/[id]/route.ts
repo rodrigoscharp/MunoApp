@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import { apiError, getPlanoFromRequest, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import { tenantTemMesaQr } from "@/lib/plans";
 
 export async function DELETE(
   req: NextRequest,
@@ -9,6 +10,9 @@ export async function DELETE(
 ) {
   const tenantId = getTenantIdFromRequest(req);
   if (!tenantId) return apiError("Tenant não identificado", 400);
+  if (!tenantTemMesaQr(getPlanoFromRequest(req))) {
+    return apiError("Recurso não disponível neste plano", 403);
+  }
 
   return withTenant(tenantId, async () => {
     const session = await auth();
@@ -29,6 +33,9 @@ export async function PATCH(
 ) {
   const tenantId = getTenantIdFromRequest(req);
   if (!tenantId) return apiError("Tenant não identificado", 400);
+  if (!tenantTemMesaQr(getPlanoFromRequest(req))) {
+    return apiError("Recurso não disponível neste plano", 403);
+  }
 
   return withTenant(tenantId, async () => {
     const session = await auth();

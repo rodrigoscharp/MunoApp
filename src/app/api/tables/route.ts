@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import { apiError, getPlanoFromRequest, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import { tenantTemMesaQr } from "@/lib/plans";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -12,6 +13,9 @@ const createSchema = z.object({
 export async function GET(req: NextRequest) {
   const tenantId = getTenantIdFromRequest(req);
   if (!tenantId) return apiError("Tenant não identificado", 400);
+  if (!tenantTemMesaQr(getPlanoFromRequest(req))) {
+    return apiError("Recurso não disponível neste plano", 403);
+  }
 
   return withTenant(tenantId, async () => {
     const session = await auth();
@@ -42,6 +46,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const tenantId = getTenantIdFromRequest(req);
   if (!tenantId) return apiError("Tenant não identificado", 400);
+  if (!tenantTemMesaQr(getPlanoFromRequest(req))) {
+    return apiError("Recurso não disponível neste plano", 403);
+  }
 
   return withTenant(tenantId, async () => {
     const session = await auth();

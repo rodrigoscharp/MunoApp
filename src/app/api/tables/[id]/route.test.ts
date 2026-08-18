@@ -19,10 +19,14 @@ vi.mock("@/lib/prisma", () => ({
 
 import { PATCH } from "./route";
 
-function req(body: unknown) {
+function req(body: unknown, plano = "MEMBRO_MESA_QR") {
   return new NextRequest("http://localhost/api/tables/table-1", {
     method: "PATCH",
-    headers: { "x-tenant-id": TENANT, "Content-Type": "application/json" },
+    headers: {
+      "x-tenant-id": TENANT,
+      "x-tenant-plano": plano,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(body),
   });
 }
@@ -44,5 +48,12 @@ describe("PATCH /api/tables/[id]", () => {
       where: { id: TABLE_ID },
       data: expect.objectContaining({ posX: 0.42, posY: 0.75 }),
     });
+  });
+
+  it("recusa quando o tenant não tem o plano com mesas", async () => {
+    const res = await PATCH(req({ posX: 0.42, posY: 0.75 }, "MEMBRO"), params);
+
+    expect(res.status).toBe(403);
+    expect(tableUpdate).not.toHaveBeenCalled();
   });
 });

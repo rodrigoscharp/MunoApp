@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   BarChart2,
   UtensilsCrossed,
@@ -21,46 +21,55 @@ import {
   Receipt,
 } from "lucide-react";
 
-const NAV_GROUPS = [
-  {
-    label: "Resultados",
-    items: [
-      { href: "/adm",        label: "Dashboard", icon: BarChart2,       exact: true  },
-      { href: "/adm/orders", label: "Pedidos",   icon: ShoppingBag,     exact: false },
-      { href: "/adm/chats",  label: "Chats",     icon: MessageSquare,   exact: false },
-    ],
-  },
-  {
-    label: "Restaurante",
-    items: [
-      { href: "/adm/restaurante", label: "Gerenciamento", icon: Store,           exact: false },
-      { href: "/adm/menu",        label: "Cardápio",      icon: UtensilsCrossed, exact: false },
-      { href: "/adm/motoboys",    label: "Motoboys",      icon: Bike,            exact: false },
-      { href: "/adm/mesas",       label: "Mesas (QR)",    icon: TableProperties, exact: false },
-      { href: "/adm/pagamentos",  label: "Pagamentos",    icon: CreditCard,      exact: false },
-      // Sem esta entrada a tela da mensalidade só existiria depois do atraso,
-      // pela faixa de aviso ou pelo redirecionamento do bloqueio. Quem está em
-      // dia também precisa achar o próprio extrato.
-      { href: "/adm/assinatura",  label: "Assinatura",    icon: Receipt,         exact: false },
-    ],
-  },
-];
-
-const ALL_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
+// Função pura (não um valor fixo) porque "Mesas (QR)" só entra no grupo
+// "Restaurante" para quem tem o plano — sem o plano, o item nem existe na
+// lista, não fica escondido/desabilitado.
+function buildNavGroups(temMesaQr: boolean) {
+  return [
+    {
+      label: "Resultados",
+      items: [
+        { href: "/adm",        label: "Dashboard", icon: BarChart2,       exact: true  },
+        { href: "/adm/orders", label: "Pedidos",   icon: ShoppingBag,     exact: false },
+        { href: "/adm/chats",  label: "Chats",     icon: MessageSquare,   exact: false },
+      ],
+    },
+    {
+      label: "Restaurante",
+      items: [
+        { href: "/adm/restaurante", label: "Gerenciamento", icon: Store,           exact: false },
+        { href: "/adm/menu",        label: "Cardápio",      icon: UtensilsCrossed, exact: false },
+        { href: "/adm/motoboys",    label: "Motoboys",      icon: Bike,            exact: false },
+        ...(temMesaQr
+          ? [{ href: "/adm/mesas", label: "Mesas (QR)", icon: TableProperties, exact: false }]
+          : []),
+        { href: "/adm/pagamentos",  label: "Pagamentos",    icon: CreditCard,      exact: false },
+        // Sem esta entrada a tela da mensalidade só existiria depois do atraso,
+        // pela faixa de aviso ou pelo redirecionamento do bloqueio. Quem está em
+        // dia também precisa achar o próprio extrato.
+        { href: "/adm/assinatura",  label: "Assinatura",    icon: Receipt,         exact: false },
+      ],
+    },
+  ];
+}
 
 interface Props {
   user: { name: string; email: string };
+  temMesaQr: boolean;
 }
 
-export function AdminSidebar({ user }: Props) {
+export function AdminSidebar({ user, temMesaQr }: Props) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const navGroups = useMemo(() => buildNavGroups(temMesaQr), [temMesaQr]);
+  const allItems = useMemo(() => navGroups.flatMap((g) => g.items), [navGroups]);
 
   function isActive(href: string, exact: boolean) {
     return exact ? pathname === href : pathname.startsWith(href);
   }
 
-  const currentItem = ALL_ITEMS.find((i) => isActive(i.href, i.exact));
+  const currentItem = allItems.find((i) => isActive(i.href, i.exact));
 
   return (
     <>
@@ -74,7 +83,7 @@ export function AdminSidebar({ user }: Props) {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
-          {NAV_GROUPS.map((group) => (
+          {navGroups.map((group) => (
             <div key={group.label}>
               <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
                 {group.label}
@@ -158,7 +167,7 @@ export function AdminSidebar({ user }: Props) {
 
             {/* Nav */}
             <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
-              {NAV_GROUPS.map((group) => (
+              {navGroups.map((group) => (
                 <div key={group.label}>
                   <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
                     {group.label}
@@ -205,7 +214,7 @@ export function AdminSidebar({ user }: Props) {
 
       {/* ── Mobile bottom nav ───────────────────────────────────────── */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-neutral-200 flex">
-        {ALL_ITEMS.map(({ href, label, icon: Icon, exact }) => {
+        {allItems.map(({ href, label, icon: Icon, exact }) => {
           const active = isActive(href, exact);
           return (
             <Link

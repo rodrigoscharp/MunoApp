@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 import { AdminSidebar } from "@/components/adm/AdminSidebar";
 import { AvisoDeCobranca } from "@/components/adm/AvisoDeCobranca";
 import { prisma } from "@/lib/prisma";
-import { withRequestTenant } from "@/lib/tenant-request";
+import { withRequestTenant, getRequestTenantPlano } from "@/lib/tenant-request";
 import { avisoDeAtraso } from "@/lib/assinatura/aviso";
+import { tenantTemMesaQr } from "@/lib/plans";
 
 export default async function AdminLayout({
   children,
@@ -34,9 +35,14 @@ export default async function AdminLayout({
     return avisoDeAtraso(cobranca?.vencimento ?? null, new Date());
   });
 
+  const plano = await getRequestTenantPlano();
+
   return (
     <div className="min-h-screen flex bg-neutral-100">
-      <AdminSidebar user={{ name: session.user.name ?? "", email: session.user.email ?? "" }} />
+      <AdminSidebar
+        user={{ name: session.user.name ?? "", email: session.user.email ?? "" }}
+        temMesaQr={tenantTemMesaQr(plano)}
+      />
       <main className="flex-1 overflow-auto pt-14 pb-20 lg:pt-0 lg:pb-0">
         <div className="max-w-6xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
           {aviso && <AvisoDeCobranca tom={aviso.tom} dias={aviso.dias} />}
