@@ -79,10 +79,11 @@ function requisicaoPlataforma(caminho: string, method = "GET"): NextRequest {
 }
 
 /** Status da assinatura do tenant; `null` = tenant sem assinatura nenhuma. */
-function comAssinatura(status: string | null) {
+function comAssinatura(status: string | null, plano: string = "MEMBRO") {
   findUnique.mockResolvedValue({
     id: TENANT_ID,
     status: "active",
+    plano,
     assinatura: status === null ? null : { status },
   });
 }
@@ -93,6 +94,10 @@ const destino = (res: Response) => res.headers.get("location");
 /** x-tenant-id que o proxy injetou no request encaminhado, se injetou. */
 const tenantInjetado = (res: Response) =>
   res.headers.get("x-middleware-request-x-tenant-id");
+
+/** x-tenant-plano que o proxy injetou no request encaminhado, se injetou. */
+const planoInjetado = (res: Response) =>
+  res.headers.get("x-middleware-request-x-tenant-plano");
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -261,8 +266,17 @@ describe("proxy: bloqueio da área de gestão", () => {
 
     expect(findUnique).toHaveBeenCalledTimes(1);
     expect(findUnique.mock.calls[0][0].select).toMatchObject({
+      plano: true,
       assinatura: { select: { status: true } },
     });
+  });
+
+  it("injeta o plano do tenant no request encaminhado", async () => {
+    comAssinatura("ATIVA", "MEMBRO_MESA_QR");
+
+    const res = await proxy(requisicao("/", DONO));
+
+    expect(planoInjetado(res)).toBe("MEMBRO_MESA_QR");
   });
 });
 

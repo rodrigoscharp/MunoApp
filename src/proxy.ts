@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { authPlatform } from "@/lib/auth-platform";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { TENANT_PLANO_HEADER } from "@/lib/plans";
 
 // Domínios raiz (sem subdomínio de tenant) conhecidos pela plataforma.
 // Em dev, acessar localhost:3000 direto cai no tenant "default".
@@ -177,6 +178,7 @@ export default auth(async (req) => {
     select: {
       id: true,
       status: true,
+      plano: true,
       assinatura: { select: { status: true } },
     },
   });
@@ -217,6 +219,7 @@ export default auth(async (req) => {
 
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-tenant-id", tenant.id);
+  requestHeaders.set(TENANT_PLANO_HEADER, tenant.plano);
   const forward = { request: { headers: requestHeaders } };
 
   // Redirect authenticated users away from auth pages
