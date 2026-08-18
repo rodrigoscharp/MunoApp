@@ -13,6 +13,7 @@ const schema = z.object({
   slug: z.string().min(1),
   email: z.string().email(),
   nome: z.string().min(2).optional(),
+  plano: z.enum(["MEMBRO", "MEMBRO_MESA_QR"]).default("MEMBRO"),
   // Teto casa com o DECIMAL(10,2) da coluna: acima disso o Postgres estoura
   // e viraria um 500 no meio da conversão. Melhor recusar já na entrada.
   valorMensal: z.number().min(0).max(99999999.99).optional(),
@@ -57,6 +58,7 @@ export async function POST(
       endereco: lead.endereco ?? undefined,
       telefone: lead.telefone ?? undefined,
       logoUrl: lead.logoUrl ?? undefined,
+      plano: parsed.data.plano,
     });
 
     // provisionTenant não conhece mensalidade — é compartilhado com o script

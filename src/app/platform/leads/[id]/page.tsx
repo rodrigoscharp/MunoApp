@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { LeadAcoes } from "@/components/platform/LeadAcoes";
 import { ConverterLead } from "@/components/platform/ConverterLead";
+import { PlanoInline } from "@/components/platform/PlanoInline";
 
 export default async function LeadPage({
   params,
@@ -58,7 +59,7 @@ export default async function LeadPage({
       </div>
 
       {lead.tenant ? (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-5">
+        <div className="bg-green-50 border border-green-200 rounded-xl p-5 space-y-3">
           <p className="font-semibold text-green-800">Cliente criado</p>
           <a
             href={buildTenantBaseUrl(lead.tenant.slug)}
@@ -68,6 +69,7 @@ export default async function LeadPage({
           >
             {buildTenantBaseUrl(lead.tenant.slug)}
           </a>
+          <PlanoInline leadId={lead.id} planoAtual={lead.tenant.plano} />
         </div>
       ) : (
         <ConverterLead leadId={lead.id} restauranteNome={lead.restaurante} />

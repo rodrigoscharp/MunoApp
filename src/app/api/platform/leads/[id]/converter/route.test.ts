@@ -103,6 +103,7 @@ describe("POST /api/platform/leads/[id]/converter", () => {
       endereco: "Rua das Flores, 100",
       telefone: "(12) 98888-7777",
       logoUrl: "https://cdn.example/logo.png",
+      plano: "MEMBRO",
     });
   });
 
@@ -119,7 +120,23 @@ describe("POST /api/platform/leads/[id]/converter", () => {
       endereco: undefined,
       telefone: undefined,
       logoUrl: undefined,
+      plano: "MEMBRO",
     });
+  });
+
+  it("repassa o plano escolhido no fechamento pra provisionTenant", async () => {
+    await POST(
+      requisicao({
+        slug: "pizzaria-joao",
+        email: "dono@exemplo.com",
+        plano: "MEMBRO_MESA_QR",
+      }),
+      params
+    );
+
+    expect(provisionTenant).toHaveBeenCalledWith(
+      expect.objectContaining({ plano: "MEMBRO_MESA_QR" })
+    );
   });
 
   it("corrida perdida: desfaz o setting junto com assinatura e user antes de apagar o tenant", async () => {

@@ -2,6 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import type { PlanoTenant } from "@prisma/client";
+import { PLANO_LABELS } from "@/lib/plans";
+
+// Só uma sugestão de preenchimento pro campo de mensalidade — a régua de
+// preço em si não vive aqui, e o operador pode sempre editar por cima
+// (desconto, negociação caso a caso).
+const MENSALIDADE_SUGERIDA: Record<PlanoTenant, string> = {
+  MEMBRO: "99",
+  MEMBRO_MESA_QR: "150",
+};
 
 function sugerirSlug(nome: string): string {
   return nome
@@ -30,12 +40,23 @@ export function ConverterLead({
   const [aberto, setAberto] = useState(false);
   const [slug, setSlug] = useState(() => sugerirSlug(restauranteNome));
   const [email, setEmail] = useState("");
+  const [plano, setPlano] = useState<PlanoTenant>("MEMBRO");
   const [mensalidade, setMensalidade] = useState("");
+  // Uma vez que o operador digitou a mensalidade na mão (desconto, valor
+  // negociado), trocar de plano não pode mais sobrescrever o que ele digitou.
+  const [mensalidadeTocada, setMensalidadeTocada] = useState(false);
   const [diaVencimento, setDiaVencimento] = useState("");
   const [diasDeCortesia, setDiasDeCortesia] = useState("");
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(false);
   const [credenciais, setCredenciais] = useState<Credenciais | null>(null);
+
+  function escolherPlano(novoPlano: PlanoTenant) {
+    setPlano(novoPlano);
+    if (!mensalidadeTocada) {
+      setMensalidade(MENSALIDADE_SUGERIDA[novoPlano]);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -49,6 +70,7 @@ export function ConverterLead({
         body: JSON.stringify({
           slug,
           email,
+          plano,
           ...(mensalidade.trim() ? { valorMensal: Number(mensalidade) } : {}),
           // Só vão junto se houver mensalidade: sem valor não se cria
           // assinatura, e mandar vencimento solto faria a rota receber campo
@@ -189,13 +211,38 @@ export function ConverterLead({
 
       <div>
         <label className="block text-sm font-medium text-neutral-700 mb-1">
+          Plano
+        </label>
+        <div className="flex gap-2">
+          {(Object.keys(PLANO_LABELS) as PlanoTenant[]).map((opcao) => (
+            <button
+              key={opcao}
+              type="button"
+              onClick={() => escolherPlano(opcao)}
+              className={`flex-1 px-3 py-2.5 rounded-lg border text-sm font-medium transition ${
+                plano === opcao
+                  ? "border-brand bg-brand-light text-brand-dark"
+                  : "border-neutral-200 bg-neutral-50 text-neutral-600"
+              }`}
+            >
+              {PLANO_LABELS[opcao]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-neutral-700 mb-1">
           Mensalidade (opcional)
         </label>
         <input
           type="number"
           step="0.01"
           value={mensalidade}
-          onChange={(e) => setMensalidade(e.target.value)}
+          onChange={(e) => {
+            setMensalidadeTocada(true);
+            setMensalidade(e.target.value);
+          }}
           placeholder="0,00"
           className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
         />
