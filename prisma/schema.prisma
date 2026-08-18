@@ -8,13 +8,18 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum PlanoTenant {
+  MEMBRO
+  MEMBRO_MESA_QR
+}
+
 model Tenant {
-  id        String   @id @default(cuid())
+  id        String      @id @default(cuid())
   nome      String
-  slug      String   @unique
-  plano     String   @default("free")
-  status    String   @default("active")
-  createdAt DateTime @default(now())
+  slug      String      @unique
+  plano     PlanoTenant @default(MEMBRO)
+  status    String      @default("active")
+  createdAt DateTime    @default(now())
 
   users               User[]
   categories          Category[]
