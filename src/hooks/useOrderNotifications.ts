@@ -111,7 +111,15 @@ function loadFromStorage(): OrderNotification[] {
 
 function saveToStorage(notifications: OrderNotification[]) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+  } catch {
+    // `setItem` lança com a cota estourada e no modo privado do Safari, onde a
+    // API existe e recusa escrita. A leitura já era protegida; a escrita não
+    // era, e a exceção subia de dentro de um setState — derrubando o sino, e
+    // com ele o cardápio, por não conseguir gravar um histórico que é
+    // conveniência. Perder a persistência é aceitável; perder a tela não.
+  }
 }
 
 type OrderMeta = { status: OrderStatus; deliveryType: DeliveryType };
