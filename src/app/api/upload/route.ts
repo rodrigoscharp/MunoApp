@@ -19,8 +19,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 });
   }
 
-  const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-  if (!allowedTypes.includes(file.type)) {
+  // A extensão sai DAQUI, do tipo já validado — nunca do nome enviado. Antes
+  // era `file.name.split(".").pop()`: o cliente escolhia o sufixo do arquivo
+  // gravado no bucket (ou nenhum, e o nome terminava em ".undefined"), e o
+  // Content-Type declarado não tinha relação nenhuma com ele.
+  const EXTENSAO_POR_TIPO: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+  };
+
+  const ext = EXTENSAO_POR_TIPO[file.type];
+  if (!ext) {
     return NextResponse.json({ error: "Tipo de arquivo não permitido" }, { status: 400 });
   }
 
@@ -28,7 +39,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Arquivo muito grande (máx. 5MB)" }, { status: 400 });
   }
 
-  const ext = file.name.split(".").pop();
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
   const arrayBuffer = await file.arrayBuffer();
