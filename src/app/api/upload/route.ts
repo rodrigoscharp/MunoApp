@@ -12,7 +12,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const formData = await req.formData();
+  // formData() lança TypeError quando o Content-Type não é multipart. Sem esta
+  // guarda o erro subia e a rota respondia 500 — um pedido malformado
+  // registrado como falha do servidor, no log junto com as falhas de verdade.
+  let formData: FormData;
+  try {
+    formData = await req.formData();
+  } catch {
+    return NextResponse.json(
+      { error: "Envie o arquivo como multipart/form-data" },
+      { status: 400 }
+    );
+  }
+
   const file = formData.get("file") as File | null;
 
   if (!file) {

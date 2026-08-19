@@ -80,3 +80,34 @@ describe("POST /api/upload", () => {
     expect(upload).not.toHaveBeenCalled();
   });
 });
+
+describe("POST /api/upload com corpo que não é multipart", () => {
+  // req.formData() lança TypeError quando o Content-Type não é multipart, e a
+  // chamada não estava protegida: a rota respondia 500, escondendo o que na
+  // verdade é um pedido malformado.
+  it("responde 400 em vez de 500", async () => {
+    auth.mockResolvedValue({ user: { role: "ADMIN" } });
+
+    const res = await POST(
+      new NextRequest("http://localhost/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file: "nem tento" }),
+      })
+    );
+
+    expect(res.status).toBe(400);
+  });
+
+  it("não deixa o corpo malformado passar por cima da autorização", async () => {
+    const res = await POST(
+      new NextRequest("http://localhost/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      })
+    );
+
+    expect(res.status).toBe(403);
+  });
+});
