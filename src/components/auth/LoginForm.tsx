@@ -8,7 +8,9 @@ import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mail, Lock, AlertCircle, MapPin, Clock, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { AuthBrandPanel } from "@/components/auth/AuthBrandPanel";
+import type { RestaurantInfo } from "@/lib/restaurant";
 
 const schema = z.object({
   email: z.string().email("Email inválido"),
@@ -17,7 +19,7 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-export function LoginForm() {
+export function LoginForm({ restaurantInfo }: { restaurantInfo: RestaurantInfo }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/";
@@ -56,38 +58,10 @@ export function LoginForm() {
 
   return (
     <div className="min-h-screen flex">
-      {/* Left panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-brand flex-col items-center justify-center p-12 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-brand via-brand to-brand-dark opacity-90" />
-        <div className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-white/5" />
-        <div className="absolute -top-16 -right-16 w-72 h-72 rounded-full bg-white/5" />
-
-        <div className="relative z-10 flex flex-col items-center text-center gap-6 max-w-sm">
-          <Image
-            src="/munowbg.png"
-            alt="Muno Food"
-            width={200}
-            height={75}
-            className="h-20 w-auto object-contain brightness-0 invert"
-          />
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Muno Food Restaurante</h1>
-            <p className="text-white/70 text-base leading-relaxed">
-              Sabor e qualidade em cada prato. Faça seu pedido online com facilidade.
-            </p>
-          </div>
-          <div className="w-full border-t border-white/20 pt-6 flex flex-col gap-3 text-white/70 text-sm">
-            <div className="flex items-center gap-2">
-              <MapPin size={14} className="text-white/50 shrink-0" />
-              <span>Rua Paraty 1772, Ubatuba-SP</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Clock size={14} className="text-white/50 shrink-0" />
-              <span>Seg–Sex 11h–22h &nbsp;|&nbsp; Sáb–Dom 11h–23h</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <AuthBrandPanel
+        restaurantInfo={restaurantInfo}
+        descricao="Sabor e qualidade em cada prato. Faça seu pedido online com facilidade."
+      />
 
       {/* Right panel */}
       <div className="flex-1 flex items-start lg:items-center justify-center px-6 pt-8 pb-12 lg:py-12 bg-neutral-50">
@@ -95,7 +69,14 @@ export function LoginForm() {
 
           {/* Mobile logo */}
           <div className="flex justify-center mb-8 lg:hidden">
-            <Image src="/munowbg.png" alt="MUNO" width={160} height={60} className="h-16 w-auto object-contain" />
+            <Image
+              src={restaurantInfo.logoUrl}
+              alt={restaurantInfo.name}
+              width={160}
+              height={60}
+              className="h-16 w-auto object-contain"
+              unoptimized={restaurantInfo.logoUrl.startsWith("http")}
+            />
           </div>
 
           <div className="mb-8">

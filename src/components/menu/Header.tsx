@@ -50,10 +50,15 @@ export function Header({ restaurantInfo }: HeaderProps) {
             <Image src={restaurantInfo.logoUrl} alt={restaurantInfo.name} width={180} height={68} className="h-10 sm:h-16 w-auto object-contain" loading="eager" fetchPriority="high" unoptimized={restaurantInfo.logoUrl.startsWith("http")} />
             <div className="flex flex-col justify-center leading-tight">
               <span className="text-sm sm:text-base font-bold text-neutral-900 tracking-tight">{restaurantInfo.name}</span>
-              <span className="text-[11px] sm:text-xs text-neutral-500 flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-                {restaurantInfo.address}
-              </span>
+              {/* Sem endereço cadastrado não se mostra o pino sozinho — e desde
+                  que o fallback deixou de ser o restaurante do seed, "vazio" é
+                  um estado real de tenant recém-criado. */}
+              {restaurantInfo.address && (
+                <span className="text-[11px] sm:text-xs text-neutral-500 flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                  {restaurantInfo.address}
+                </span>
+              )}
             </div>
           </Link>
 

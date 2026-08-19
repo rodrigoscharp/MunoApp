@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { PlanoTenant, Tenant, User } from "@prisma/client";
 import { prismaUnscoped } from "@/lib/prisma";
-import { DEFAULT as RESTAURANT_INFO_DEFAULT } from "@/lib/restaurant";
+import { SEM_CADASTRO } from "@/lib/restaurant";
 
 // Subdomínios que a plataforma usa e nenhum restaurante pode tomar.
 //
@@ -131,18 +131,23 @@ export async function provisionTenant(input: {
       },
     });
 
-    // Todo tenant nasce com o Setting já preenchido: sem isto, o storefront
-    // dele mostra "Muno Food Restaurante" em Ubatuba até o cliente editar na
-    // mão — nome errado incluído, já que ele é sempre conhecido aqui.
+    // Todo tenant nasce com o Setting já preenchido: o nome é sempre conhecido
+    // aqui, e sem o registro o storefront ficaria sem identidade até o cliente
+    // editar na mão.
+    //
+    // Endereço e telefone caem para VAZIO quando o lead não os trouxe, nunca
+    // para um exemplo. Antes eles herdavam os do restaurante do seed, e o
+    // cardápio do cliente novo nascia publicando o endereço e o telefone de uma
+    // hamburgueria em Ubatuba — gravados no banco dele, não só exibidos.
     await tx.setting.create({
       data: {
         tenantId: tenant.id,
         key: "restaurant_info",
         value: JSON.stringify({
           name: input.nome,
-          address: input.endereco?.trim() || RESTAURANT_INFO_DEFAULT.address,
-          phone: input.telefone?.trim() || RESTAURANT_INFO_DEFAULT.phone,
-          logoUrl: input.logoUrl?.trim() || RESTAURANT_INFO_DEFAULT.logoUrl,
+          address: input.endereco?.trim() || SEM_CADASTRO.address,
+          phone: input.telefone?.trim() || SEM_CADASTRO.phone,
+          logoUrl: input.logoUrl?.trim() || SEM_CADASTRO.logoUrl,
         }),
       },
     });

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidateTag } from "next/cache";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
-import { DEFAULT } from "@/lib/restaurant";
+import { getRestaurantInfo } from "@/lib/restaurant";
 
 const KEY = "restaurant_info";
 
@@ -11,10 +11,13 @@ export async function GET(req: NextRequest) {
   const tenantId = getTenantIdFromRequest(req);
   if (!tenantId) return apiError("Tenant não identificado", 400);
 
-  return withTenant(tenantId, async () => {
-    const setting = await prisma.setting.findUnique({ where: { tenantId_key: { tenantId, key: KEY } } });
-    return NextResponse.json(setting ? { ...DEFAULT, ...JSON.parse(setting.value) } : DEFAULT);
-  });
+  // Uma fonte só para o cadastro do restaurante. Esta rota reimplementava a
+  // leitura — mesmo merge, mesmo default — e por isso continuaria devolvendo o
+  // fallback antigo depois de ele ter sido corrigido em um lugar só. Também
+  // ganha o cache e o `JSON.parse` protegido de graça.
+  return withTenant(tenantId, async () =>
+    NextResponse.json(await getRestaurantInfo(tenantId))
+  );
 }
 
 export async function PUT(req: NextRequest) {

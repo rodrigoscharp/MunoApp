@@ -140,7 +140,12 @@ describe("provisionTenant — restaurant_info", () => {
     process.env.ROOT_DOMAIN = "munoapp.com.br";
   });
 
-  it("cria o Setting com o nome do tenant e o resto no DEFAULT quando nada mais foi informado", async () => {
+  // Regressão: até 18/08/2026 este teste exigia o contrário — endereço e
+  // telefone caindo para os do restaurante do seed ("Rua Paraty 1772,
+  // Ubatuba-SP"). Não era fallback de exibição: o provisionamento GRAVAVA
+  // aquilo no Setting do cliente novo, e o cardápio dele publicava o contato de
+  // outro negócio para os próprios clientes até alguém reparar.
+  it("deixa endereço e telefone vazios quando o lead não os trouxe", async () => {
     await provisionTenant({
       nome: "Pizzaria do João",
       slug: "pizzaria-joao",
@@ -153,8 +158,8 @@ describe("provisionTenant — restaurant_info", () => {
     expect(data.key).toBe("restaurant_info");
     expect(JSON.parse(data.value)).toEqual({
       name: "Pizzaria do João",
-      address: "Rua Paraty 1772, Ubatuba-SP",
-      phone: "(12) 99999-0000",
+      address: "",
+      phone: "",
       logoUrl: "/munowbg.png",
     });
   });

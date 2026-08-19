@@ -65,14 +65,21 @@ export function Footer({ restaurantInfo, schedule }: FooterProps) {
           <div className="flex flex-col gap-3">
             <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Contato</h3>
             <ul className="space-y-2 text-sm">
-              <li className="flex items-start gap-2">
-                <MapPin size={14} className="text-brand mt-0.5 shrink-0" />
-                <span>{restaurantInfo.address}</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <Phone size={14} className="text-brand shrink-0" />
-                <span>{restaurantInfo.phone}</span>
-              </li>
+              {/* Só o que existe. Ver a nota em src/lib/restaurant.ts: contato
+                  ausente virou ausente de verdade, em vez de herdar o do
+                  restaurante do seed. */}
+              {restaurantInfo.address && (
+                <li className="flex items-start gap-2">
+                  <MapPin size={14} className="text-brand mt-0.5 shrink-0" />
+                  <span>{restaurantInfo.address}</span>
+                </li>
+              )}
+              {restaurantInfo.phone && (
+                <li className="flex items-center gap-2">
+                  <Phone size={14} className="text-brand shrink-0" />
+                  <span>{restaurantInfo.phone}</span>
+                </li>
+              )}
             </ul>
           </div>
 
