@@ -1,34 +1,27 @@
 import { prismaUnscoped } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { formatCurrency } from "@/lib/utils";
+import { FILTRO_DE_RECEITA, inicioDoDiaBRT, inicioDoMesBRT } from "@/lib/faturamento";
 import { AdminCharts } from "@/components/adm/AdminCharts";
 
 export default async function AdminDashboard() {
   const session = await auth();
   const tenantId = session!.user.tenantId;
-  // Usa UTC-3 (BRT) para calcular "hoje" e "início do mês" corretamente
-  const nowBRT = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  const todayBRT = new Date(nowBRT);
-  todayBRT.setUTCHours(3, 0, 0, 0); // meia-noite BRT = 03:00 UTC
-  const startOfMonthBRT = new Date(Date.UTC(nowBRT.getUTCFullYear(), nowBRT.getUTCMonth(), 1, 3, 0, 0, 0));
-
-  // Receita = pedidos ENTREGUES (dinheiro recebido) OU pré-pagos (PIX/cartão PAID)
-  const revenueFilter = {
-    OR: [
-      { status: "DELIVERED" as const },
-      { paymentStatus: "PAID" as const },
-    ],
-    NOT: { status: "CANCELLED" as const },
-  };
+  // "Hoje" e "receita" vêm de src/lib/faturamento.ts, o mesmo módulo que
+  // /api/analytics usa: os cards e o gráfico logo abaixo deles precisam
+  // responder a mesma pergunta do mesmo jeito.
+  const agora = new Date();
+  const todayBRT = inicioDoDiaBRT(agora);
+  const startOfMonthBRT = inicioDoMesBRT(agora);
 
   const [todayStats, monthStats, menuItemCount, pendingOrders] = await Promise.all([
     prismaUnscoped.order.aggregate({
-      where: { tenantId, createdAt: { gte: todayBRT }, ...revenueFilter },
+      where: { tenantId, createdAt: { gte: todayBRT }, ...FILTRO_DE_RECEITA },
       _sum: { total: true },
       _count: true,
     }),
     prismaUnscoped.order.aggregate({
-      where: { tenantId, createdAt: { gte: startOfMonthBRT }, ...revenueFilter },
+      where: { tenantId, createdAt: { gte: startOfMonthBRT }, ...FILTRO_DE_RECEITA },
       _sum: { total: true },
       _count: true,
     }),

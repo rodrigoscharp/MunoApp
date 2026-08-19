@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import {
+  FILTRO_DE_RECEITA,
+  diaBRT,
+  inicioDeDiasAtrasBRT,
+  inicioDoDiaBRT,
+  inicioDoMesBRT,
+} from "@/lib/faturamento";
 
 export async function GET(req: NextRequest) {
   const tenantId = getTenantIdFromRequest(req);
@@ -13,33 +20,35 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
     }
 
+    // Tudo em fuso de Brasília, e com a mesma definição de receita dos cards de
+    // /adm (src/lib/faturamento.ts). Antes daqui, `setHours(0,0,0,0)` num
+    // servidor em UTC punha "hoje" três horas adiantado, e o filtro contava só
+    // pedido pré-pago — dinheiro recebido na entrega não entrava no gráfico.
     const now = new Date();
-    const startOfToday = new Date(now);
-    startOfToday.setHours(0, 0, 0, 0);
-
-    const startOf30DaysAgo = new Date(now);
-    startOf30DaysAgo.setDate(now.getDate() - 30);
-    startOf30DaysAgo.setHours(0, 0, 0, 0);
-
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfToday = inicioDoDiaBRT(now);
+    const startOf30DaysAgo = inicioDeDiasAtrasBRT(now, 30);
+    const startOfMonth = inicioDoMesBRT(now);
 
     const [todayStats, monthStats, last30Days, topItems, todayPayments, monthPayments] = await Promise.all([
       prisma.order.aggregate({
-        where: { createdAt: { gte: startOfToday }, paymentStatus: "PAID" },
+        where: { createdAt: { gte: startOfToday }, ...FILTRO_DE_RECEITA },
         _sum: { total: true },
         _count: true,
       }),
       prisma.order.aggregate({
-        where: { createdAt: { gte: startOfMonth }, paymentStatus: "PAID" },
+        where: { createdAt: { gte: startOfMonth }, ...FILTRO_DE_RECEITA },
         _sum: { total: true },
         _count: true,
       }),
       prisma.order.findMany({
-        where: { createdAt: { gte: startOf30DaysAgo }, paymentStatus: "PAID" },
+        where: { createdAt: { gte: startOf30DaysAgo }, ...FILTRO_DE_RECEITA },
         select: { createdAt: true, total: true },
       }),
+      // Itens de pedido cancelado não foram vendidos. Sem o filtro, um pedido
+      // grande cancelado empurrava o prato para o topo do ranking.
       prisma.orderItem.groupBy({
         by: ["menuItemId"],
+        where: { order: { status: { not: "CANCELLED" } } },
         _sum: { quantity: true },
         orderBy: { _sum: { quantity: "desc" } },
         take: 10,
@@ -62,14 +71,17 @@ export async function GET(req: NextRequest) {
       PIX: Number(rows.find((r) => r.method === "PIX")?._sum.amount ?? 0),
     });
 
+    // As chaves são dias do calendário de Brasília nas duas pontas. Antes, os
+    // baldes eram criados por `setDate` no fuso do servidor e os pedidos
+    // classificados por `toISOString()` em UTC: o movimento das 21h à
+    // meia-noite caía na barra do dia seguinte.
     const dailyMap: Record<string, number> = {};
+    const UM_DIA_MS = 24 * 60 * 60 * 1000;
     for (let i = 0; i < 30; i++) {
-      const d = new Date(startOf30DaysAgo);
-      d.setDate(startOf30DaysAgo.getDate() + i);
-      dailyMap[d.toISOString().split("T")[0]] = 0;
+      dailyMap[diaBRT(new Date(startOf30DaysAgo.getTime() + i * UM_DIA_MS))] = 0;
     }
     last30Days.forEach((order) => {
-      const key = new Date(order.createdAt).toISOString().split("T")[0];
+      const key = diaBRT(new Date(order.createdAt));
       if (key in dailyMap) dailyMap[key] += Number(order.total);
     });
     const dailySales = Object.entries(dailyMap).map(([date, revenue]) => ({ date, revenue }));
