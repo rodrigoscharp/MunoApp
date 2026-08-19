@@ -1,246 +1,433 @@
-# Muno V2 — Plataforma de Pedidos e Delivery
+<div align="center">
 
-> "Bateu fome né?" — Sistema completo de gestão de restaurante com delivery, cardápio digital, rastreamento em tempo real e IA integrada.
+<img src="public/muno-marca.png" alt="Muno" width="300">
 
----
+**A plataforma que põe o restaurante inteiro numa URL.**
 
-## Visão Geral
+Cardápio digital, pedido por QR na mesa, cozinha, entrega com GPS, pagamento
+no gateway do próprio dono — e o CRM que vende tudo isso.
 
-O **Muno V2** é uma plataforma full-stack para restaurantes que cobre toda a jornada do pedido: do cardápio digital com recomendações por IA até a entrega com rastreamento GPS em tempo real.
+<br>
 
-### Funcionalidades por perfil
+![Next.js](https://img.shields.io/badge/Next.js-16-23201E?style=flat-square&labelColor=23201E&color=D4612A)
+![React](https://img.shields.io/badge/React-19-23201E?style=flat-square&labelColor=23201E&color=D4612A)
+![TypeScript](https://img.shields.io/badge/TypeScript-6-23201E?style=flat-square&labelColor=23201E&color=D4612A)
+![Prisma](https://img.shields.io/badge/Prisma-6-23201E?style=flat-square&labelColor=23201E&color=2B5240)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-23201E?style=flat-square&labelColor=23201E&color=2B5240)
+![Tailwind](https://img.shields.io/badge/Tailwind-4-23201E?style=flat-square&labelColor=23201E&color=2B5240)
+![Testes](https://img.shields.io/badge/testes-448-23201E?style=flat-square&labelColor=23201E&color=2B5240)
 
-| Perfil | Funcionalidades |
-|--------|-----------------|
-| **Cliente** | Navegar cardápio, chat com IA para recomendações, carrinho, checkout, pagamento via PIX/Cartão/Dinheiro, rastrear pedido |
-| **Cliente na mesa** | Escaneia o QR Code, pede sem login, acompanha a conta em tempo real |
-| **Admin** | Dashboard com métricas, gerenciar cardápio/categorias, pedidos, mesas (status livre/em aberto, fechar conta), motoboys, zonas de entrega, horários, configurações |
-| **Cozinha** | Visualizar fila de pedidos (com número da mesa) e atualizar status de preparo |
-| **Motoboy** | Aceitar entregas, atualizar localização GPS em tempo real, finalizar entrega |
-
-### Destaques
-
-- **IA no Cardápio** — Assistente "Muno" powered by Groq LLaMA 3.3 70B que entende restrições alimentares, nível de fome e sugere itens automaticamente
-- **QR Code para Mesas** — Cada mesa tem token único; cliente escaneia, faz pedido sem login e acompanha a própria conta
-- **Gestão de Mesas no Admin** — cards com flag de status (livre/em aberto), quantidade de pedidos e total em aberto por mesa
-- **Fechar Conta** — agrupa os pedidos por cliente, permite 10% de serviço opcional, divide o pagamento em múltiplas formas (Pix/Cartão/Dinheiro) e imprime o recibo
-- **Rastreamento em Tempo Real** — Mapa Leaflet com atualização de GPS do motoboy
-- **Pagamentos self-service** — cada restaurante conecta o próprio gateway em `/adm/pagamentos` e recebe direto na conta dele. Sem gateway conectado, só dinheiro na entrega.
+</div>
 
 ---
 
-## Stack Tecnológica
+## O que é
 
-- **Framework:** Next.js 16 (App Router) + React 19
-- **Linguagem:** TypeScript 6
-- **Estilização:** Tailwind CSS 4
-- **Banco de Dados:** PostgreSQL via Supabase
-- **ORM:** Prisma 6
-- **Autenticação:** NextAuth v5 (JWT + Credentials)
-- **Estado:** Zustand
-- **Formulários/Validação:** React Hook Form + Zod
-- **Pagamentos:** adapters por gateway (Mercado Pago hoje), credencial por restaurante
-- **E-mail:** Resend
-- **IA:** Groq API (LLaMA 3.3 70B)
-- **Mapas:** Leaflet + React Leaflet
-- **Gráficos:** Recharts
-- **Armazenamento de Imagens:** Supabase Storage
-- **Deploy:** Vercel (região São Paulo)
+A Muno é **multi-tenant de verdade**: um deploy só atende todos os restaurantes,
+e cada um vive no próprio subdomínio com o próprio cardápio, os próprios
+clientes e o próprio gateway de pagamento. O dinheiro do pedido cai direto na
+conta do restaurante — a Muno nunca é parte da transação.
+
+```
+munoapp.com.br              landing de vendas (repositório separado)
+app.munoapp.com.br          API pública (captação de lead da landing)
+admin.munoapp.com.br        console da plataforma — CRM e cobrança
+<slug>.munoapp.com.br       o restaurante: cardápio, painel, cozinha, entrega
+```
+
+O `src/proxy.ts` resolve o tenant pelo subdomínio a cada requisição e injeta
+`x-tenant-id` no pipeline. Daí para dentro, uma extensão do Prisma escopa
+**toda** consulta automaticamente — quem esquecer o `tenantId` não vaza dado de
+outro restaurante, porque não tem como.
 
 ---
 
-## Estrutura do Projeto
+## Funcionalidades
+
+### Cardápio digital — o cliente
+
+| | |
+|---|---|
+| **Cardápio por categorias** | Navegação com âncora por seção, busca visual, foto por item |
+| **Assistente de IA** | O "Muno" (Groq / LLaMA 3.3 70B) lê o cardápio e recomenda por nível de fome e restrição alimentar — vegano, sem glúten, sem lactose. Responde com os itens já prontos para adicionar ao carrinho |
+| **Carrinho persistente** | Sobrevive a recarregar a página e ao redirect do login (Zustand + localStorage) |
+| **Upsell no carrinho** | Sugere o item mais barato de categorias que ainda não estão no pedido |
+| **Cupom de desconto** | Percentual, valor fixo ou frete grátis. Prévia no checkout, recálculo do zero no servidor |
+| **Entrega ou retirada** | Frete pela zona cadastrada, escolhida pelo bairro — o preço vem do banco, nunca da requisição |
+| **Pagamento** | PIX com QR e copia-e-cola, cartão via checkout do gateway, ou dinheiro na entrega |
+| **Acompanhamento ao vivo** | Linha do tempo do status, previsão de entrega calculada por rota real (OSRM) e mapa com o motoboy em movimento |
+| **Chat com o restaurante** | Por pedido, com respostas rápidas que mudam conforme o status |
+| **Sino de notificações** | Avisa mudança de status e mensagem nova, com histórico local |
+| **Horário de funcionamento** | Faixa no topo com aberto/fechado calculado em horário de Brasília |
+| **Conta e histórico** | Cadastro, login, recuperação de senha por e-mail, pedidos anteriores |
+
+### Mesa por QR Code
+
+Cada mesa tem um token próprio. O cliente aponta a câmera e cai direto no
+cardápio daquela mesa — **sem login**.
+
+- Pedido identificado pela mesa, com o nome de quem pediu
+- Vários pedidos na mesma mesa, de pessoas diferentes, na mesma conta
+- Tela de conta ao vivo, agrupada por pessoa, atualizando sozinha
+- Fechamento no balcão: 10% de serviço opcional, divisão em várias formas de
+  pagamento e recibo impresso
+
+> Exclusivo do plano **Membro + Mesas QR**. A trava é verificada na tela, na API
+> e no `proxy` — não só escondendo o botão.
+
+### Painel do restaurante — `/adm`
+
+**Resultados**
+- Dashboard com receita do dia e do mês, pedidos em aberto e itens no cardápio
+- Gráfico de vendas dos últimos 30 dias, ranking de pratos e quebra por forma de
+  pagamento — tudo no calendário de Brasília e com uma definição única de receita
+- Lista completa de pedidos com itens, cliente, mesa e status
+- Central de chats, com todas as conversas abertas
+
+**Restaurante**
+- **Cardápio** — categorias com ordenação, itens com foto, preço, descrição e
+  disponibilidade; upload de imagem direto para o Supabase Storage
+- **Mesas (QR)** — cadastro, QR pronto para imprimir, mapa do salão com as mesas
+  posicionadas por arrastar sobre a planta, e status livre/ocupada com total em
+  aberto
+- **Motoboys** — cria o acesso do entregador e gerencia quem pode entrar
+- **Pagamentos** — conecta o próprio gateway, em duas etapas, com validação da
+  credencial contra a API antes de salvar
+- **Gerenciamento** — nome, endereço, telefone, logo, planta do salão, tempo
+  estimado de entrega, horário por dia da semana, zonas de entrega com preço,
+  cupons e configuração de impressora
+- **Assinatura** — a própria fatura: valor, vencimento, histórico e situação
+
+### Cozinha — `/dashboard`
+
+Quadro Kanban em quatro colunas (Pendente → Confirmado → Em preparo → Pronto),
+com o pedido avançando e voltando por clique. Mostra número da mesa, tipo de
+entrega e observação de cada item. Atualiza por Broadcast em tempo real, com
+polling de 30s como rede de segurança.
+
+### Entregador — `/motoboy`
+
+- Lista de entregas disponíveis, com endereço e itens
+- Aceitar corrida é atômico: dois entregadores nunca saem para o mesmo pedido
+- Envio contínuo da posição GPS, que alimenta o mapa do cliente
+- Mapa com a rota até o destino e conclusão da entrega
+
+### Console da plataforma — `admin.munoapp.com.br`
+
+O lado comercial da Muno, com login separado (cookie próprio, `PlatformAdmin`).
+
+- **Visão geral** — MRR, leads da semana, funil por etapa e cobranças a receber
+- **Leads** — captação automática pela landing (com dedupe por telefone,
+  honeypot e limite por IP) ou cadastro manual; funil
+  `NOVO → CONTATADO → NEGOCIAÇÃO → FECHADO / PERDIDO`, notas por lead e motivo
+  de perda
+- **Conversão em um clique** — provisiona o tenant inteiro: cria o restaurante,
+  o usuário admin com senha gerada, o cadastro inicial, o plano contratado e a
+  assinatura com dias de cortesia negociados. Devolve a URL pronta
+- **Clientes** — todos os restaurantes ativos, com plano e mensalidade
+- **Cobrança** — assinatura com valor e dia de vencimento, geração automática da
+  fatura do mês por job diário, baixa manual do PIX e régua de inadimplência
+
+**A régua**, que roda todo dia às 9h UTC:
+
+| Atraso | Situação | O que acontece |
+|---|---|---|
+| 1 a 6 dias | `ATIVA` | Faixa informativa no `/adm` |
+| 7 a 14 dias | `INADIMPLENTE` | Faixa firme |
+| 15 dias ou mais | `BLOQUEADA` | Gestão fecha — cardápio, checkout, mesa, cozinha e entrega **continuam de pé** |
+
+Inadimplência nunca derruba o storefront. E mesmo bloqueado, o dono continua
+alcançando pedidos, chats e a própria fatura: quem pagaria o preço de fechar
+essas telas seria o cliente do restaurante, que não deve nada a ninguém.
+
+---
+
+## Planos
+
+| | Membro | Membro + Mesas QR |
+|---|:---:|:---:|
+| Cardápio digital, carrinho, checkout | ✓ | ✓ |
+| Assistente de IA | ✓ | ✓ |
+| Delivery com GPS e retirada | ✓ | ✓ |
+| Cozinha, chat, cupons, analytics | ✓ | ✓ |
+| Gateway de pagamento próprio | ✓ | ✓ |
+| **Pedido por QR na mesa** | — | ✓ |
+| **Mapa do salão e fechamento de conta** | — | ✓ |
+
+O plano viaja no header `x-tenant-plano` junto com o tenant, e
+`src/lib/plans.ts` é o único lugar que decide o que cada um libera. Header
+ausente ou desconhecido cai para `MEMBRO` — nunca libera a feature paga por
+omissão.
+
+---
+
+## Pagamentos
+
+Cada restaurante conecta o **próprio** gateway em `/adm/pagamentos` e recebe
+direto na conta dele. A Muno não intermedia dinheiro de pedido.
+
+| Gateway | PIX | Cartão |
+|---|:---:|:---:|
+| Mercado Pago | ✓ | ✓ |
+| Asaas | ✓ | ✓ |
+| PagBank | ✓ | — |
+| Abacate Pay | ✓ | — |
+| Stripe | — | ✓ |
+
+- Credencial validada contra a API do gateway **antes** de entrar no banco
+- Guardada criptografada com AES-256-GCM; nenhuma resposta devolve o token em
+  claro, nem para o admin dono da conta
+- Webhook por tenant (`/api/payments/webhook/[gateway]/[tenantId]`), autenticado
+  pela assinatura daquele lojista — a URL é pública e não autentica nada
+- Sem gateway conectado, o checkout oferece só dinheiro na entrega
+
+Gateway novo é um arquivo em `src/lib/payments/` implementando `PaymentProvider`,
+mais uma linha no `factory.ts`.
+
+---
+
+## Arquitetura
+
+**Isolamento entre restaurantes.** Três coisas trabalham juntas, e elas não
+fazem a mesma coisa:
+
+1. A **extensão do Prisma** (`src/lib/prisma.ts`), guiada por
+   `tenant-scoped-models.ts`, injeta `tenantId` no `where` de toda operação.
+   É ela que separa um restaurante do outro.
+2. O **RLS** no Postgres é a trava contra a chave pública do Supabase, que vai
+   no bundle de todo cardápio. Tabela nova em `public` sem RLS nasce aberta para
+   a internet — com escrita.
+3. Os **testes** ao lado (`tenant-scoped-models.test.ts`, `tenant-removal.test.ts`)
+   leem o próprio `schema.prisma` e quebram quando um model novo esquece de
+   entrar na lista.
+
+**Tempo real sem expor o banco.** O servidor publica no canal Broadcast do
+tenant depois de cada escrita relevante; o navegador assina o canal e busca o
+conteúdo pela API protegida. As assinaturas antigas de `postgres_changes` liam
+tabela direto com a chave `anon` e foram removidas.
+
+**Segurança.** Senha com bcrypt custo 12 · sessão JWT com tenant embutido ·
+sessão de outro tenant tratada como deslogada · rotas de API com 404 em vez de
+403 onde um 403 confirmaria a existência do recurso · HSTS com `includeSubDomains`,
+`X-Frame-Options`, `nosniff` e `Permissions-Policy`.
+
+---
+
+## Stack
+
+| Camada | Escolha |
+|---|---|
+| Framework | Next.js 16 (App Router, React Server Components) |
+| Interface | React 19, Tailwind CSS 4, Lucide, Sonner |
+| Linguagem | TypeScript 6, modo estrito |
+| Banco | PostgreSQL 17 (Supabase em produção, Docker no desenvolvimento) |
+| ORM | Prisma 6, com extensão de tenant |
+| Autenticação | NextAuth v5 — duas instâncias, restaurante e plataforma |
+| Estado | Zustand com persistência |
+| Formulários | React Hook Form + Zod |
+| Tempo real | Supabase Realtime (Broadcast) |
+| Mapas | Leaflet, OpenStreetMap, Nominatim e OSRM |
+| Gráficos | Recharts |
+| IA | Groq — LLaMA 3.3 70B |
+| E-mail | Resend |
+| Arquivos | Supabase Storage (imagens) e Vercel Blob (backups) |
+| Testes | Vitest — 448 testes |
+| Deploy | Vercel, região `gru1` (São Paulo) |
+
+---
+
+## Estrutura
 
 ```
 src/
+├── proxy.ts                    # resolve o tenant pelo subdomínio, roteia e protege
 ├── app/
-│   ├── api/                    # API Routes (REST)
-│   │   ├── ai/                 # Recomendações via Groq
-│   │   ├── auth/               # Registro, reset de senha
-│   │   ├── categories/
-│   │   ├── delivery-zones/
-│   │   ├── menu/
-│   │   ├── motoboy/orders/
-│   │   ├── orders/
-│   │   ├── payments/           # cobrança, webhook por tenant, conexões
-│   │   ├── settings/
-│   │   ├── tables/
-│   │   └── users/motoboys/
-│   ├── (client)/               # Páginas do cliente
-│   │   ├── login/ register/
-│   │   ├── cart/ checkout/
-│   │   ├── pedidos/            # Histórico de pedidos
-│   │   ├── track/[orderId]/    # Rastreamento
-│   │   └── esqueci-senha/ redefinir-senha/
-│   ├── adm/                    # Painel administrativo
-│   │   ├── menu/ orders/ mesas/ motoboys/ restaurante/
-│   ├── mesa/[token]/           # Experiência de mesa (QR Code)
-│   │   ├── cardapio/ checkout/ pedido/[orderId]/
-│   ├── motoboy/                # Páginas do entregador
-│   │   └── login/ pedidos/ delivery/[orderId]/
-│   └── dashboard/               # Painel da cozinha (KDS)
-├── components/
-│   ├── adm/                    # Componentes do painel admin
-│   ├── menu/                   # Cardápio + IA Assistant
-│   ├── kitchen/                 # Kanban de pedidos (usado por app/dashboard)
-│   └── cart/ checkout/ tracking/ motoboy/ mesa/ auth/ chat/
-├── hooks/                      # useCart, useKitchenOrders, useDeliveryTracking...
-├── lib/                        # auth, prisma, supabase, mercadopago, resend...
-└── types/                      # Tipos compartilhados (OrderStatus, Role, etc.)
+│   ├── (client)/               # cardápio, carrinho, checkout, pedidos, rastreio
+│   ├── (chat)/                 # chat do pedido
+│   ├── mesa/[token]/           # experiência de mesa por QR
+│   ├── adm/                    # painel do restaurante
+│   ├── dashboard/              # cozinha (KDS)
+│   ├── motoboy/                # app do entregador
+│   ├── platform/               # console da plataforma (CRM e cobrança)
+│   └── api/
+│       ├── orders/ menu/ categories/ coupons/ tables/ delivery-zones/
+│       ├── payments/           # cobrança, conexões, webhook por tenant
+│       ├── motoboy/ chat/ analytics/ settings/ upload/ ai/
+│       ├── platform/           # leads, clientes, cobranças
+│       ├── leads/publico/      # captação vinda da landing
+│       └── cron/assinaturas/   # job diário de cobrança
+├── components/                 # por área: adm, menu, mesa, kitchen, motoboy, platform…
+├── hooks/                      # carrinho, chat, cozinha, rastreio, notificações
+└── lib/
+    ├── prisma.ts               # cliente com escopo automático de tenant
+    ├── tenant-*.ts             # contexto, provisionamento, remoção, URLs
+    ├── payments/               # um adapter por gateway + fábrica
+    ├── assinatura/             # régua de inadimplência, competência, baixa
+    └── coupon, delivery-fee, faturamento, plans, realtime, business-hours…
 prisma/
-├── schema.prisma               # Schema do banco (9 modelos)
-└── seed.ts                     # Dados de demonstração
+├── schema.prisma               # 20 models
+├── migrations/                 # 15 migrações, RLS incluído
+└── seed.ts
 ```
 
 ---
 
-## Banco de Dados
+## Modelo de dados
 
-Principais modelos Prisma:
+**O restaurante**
+`Tenant` — a raiz. Nome, slug, plano e situação.
 
-- **User** — roles: `CUSTOMER`, `ADMIN`, `KITCHEN`, `MOTOBOY`
-- **Order** — status: `PENDING → CONFIRMED → IN_PREPARATION → READY → OUT_FOR_DELIVERY → DELIVERED/CANCELLED`
-- **MenuItem** / **Category**
-- **OrderItem** — com campo `notes` para customizações
-- **Table** — token único para QR Code; pedidos em aberto definem se está livre ou ocupada
-- **Payment** — formas de pagamento usadas no fechamento de conta de uma mesa
-- **ChatMessage** — chat por pedido entre cliente e admin
-- **DeliveryTracking** — lat/lng em tempo real
-- **DeliveryZone** — zonas com preços distintos
-- **Setting** — configurações chave-valor do restaurante
-- **PasswordResetToken**
+**Dele** (toda consulta escopada por `tenantId`, automaticamente)
+`User` · `Category` · `MenuItem` · `Order` · `OrderItem` · `Table` · `Payment` ·
+`Coupon` · `DeliveryZone` · `DeliveryTracking` · `ChatMessage` · `Setting` ·
+`PasswordResetToken` · `PaymentConnection`
+
+**Da plataforma**
+`PlatformAdmin` · `Lead` · `LeadNote` · `Assinatura` · `Cobranca`
+
+Ciclo do pedido:
+
+```
+PENDING → CONFIRMED → IN_PREPARATION → READY → OUT_FOR_DELIVERY → DELIVERED
+                                                                 ↘ CANCELLED
+```
 
 ---
 
-## Instalação e Configuração
+## Começando
 
 ### Pré-requisitos
 
-- Node.js 20+
-- Conta no Supabase (banco + storage)
-- Conta num gateway de pagamento (cada restaurante conecta a própria, pelo painel)
-- Conta no Resend (e-mails)
-- Conta no Groq (IA)
+Node.js 20+ e Docker. As contas de Supabase, Resend e Groq só são necessárias
+para as features que dependem delas — o cardápio e os pedidos rodam sem nenhuma.
 
-### 1. Clone e instale dependências
+### 1. Instale
 
 ```bash
-git clone <repo-url>
-cd Muno-V2
-npm install
-```
-
-O `postinstall` gera o cliente Prisma e aplica fixes de build automaticamente.
-
-### 2. Configure as variáveis de ambiente
-
-Copie o arquivo de exemplo e preencha com suas credenciais:
-
-```bash
+git clone https://github.com/rodrigoscharp/MunoApp.git
+cd MunoApp
+npm install          # o postinstall já gera o cliente Prisma
 cp .env.example .env
 ```
 
-```env
-# Banco de dados (Supabase)
-DATABASE_URL="postgresql://postgres:[SENHA]@db.[PROJETO].supabase.co:5432/postgres"
-DIRECT_URL="postgresql://postgres:[SENHA]@db.[PROJETO].supabase.co:5432/postgres"
+### 2. Suba o banco local
 
-# Supabase (armazenamento de imagens)
-NEXT_PUBLIC_SUPABASE_URL="https://[PROJETO].supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY=""
-SUPABASE_SERVICE_ROLE_KEY=""
-
-# Autenticação
-NEXTAUTH_SECRET=""        # gerar com: openssl rand -base64 32
-NEXTAUTH_URL="http://localhost:3000"
-
-# Pagamentos — a plataforma NÃO tem conta de gateway.
-# Cada restaurante cola a própria credencial em /adm/pagamentos, e ela é
-# gravada criptografada com esta chave (32 bytes hex: openssl rand -hex 32).
-PAYMENT_TOKEN_ENCRYPTION_KEY=""
-
-# E-mail (Resend)
-RESEND_API_KEY=""
-
-# IA (Groq — tier gratuito: 14.400 req/dia)
-GROQ_API_KEY=""
-
-# URL da aplicação
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-```
-
-### 3. Configure o banco de dados
+> **O desenvolvimento roda contra um Postgres local, nunca contra produção.**
+> Até 02/08/2026 o `DATABASE_URL` do `.env` apontava para o banco dos
+> restaurantes, e `prisma migrate dev` ali é um reset a um prompt de distância.
+> Por isso `db:migrate`, `db:push`, `db:reset` e o próprio `npm run dev` passam
+> por `scripts/guard-local-db.js`, que aborta se o alvo não for localhost.
 
 ```bash
-# Aplicar schema
-npm run db:push
-
-# (Opcional) Popular com dados de demonstração
-npm run db:seed
+docker compose up -d     # Postgres 17 na porta 5433
+npm run db:reset         # aplica as migrações e popula com o seed
 ```
 
-### 4. Inicie o servidor
+Aponte o `.env` para ele:
+
+```env
+DATABASE_URL="postgresql://muno:muno@localhost:5433/muno"
+DIRECT_URL="postgresql://muno:muno@localhost:5433/muno"
+```
+
+### 3. Rode
 
 ```bash
 npm run dev
 ```
 
-Acesse [http://localhost:3000](http://localhost:3000).
+`http://localhost:3000` cai no tenant `default` do seed. Para testar outro
+restaurante, use `<slug>.localhost:3000`.
+
+### Variáveis de ambiente
+
+| Variável | Para quê |
+|---|---|
+| `DATABASE_URL`, `DIRECT_URL` | Postgres. Em desenvolvimento, sempre localhost |
+| `NEXTAUTH_SECRET`, `NEXTAUTH_URL` | Sessão. Gere com `openssl rand -base64 32` |
+| `ROOT_DOMAIN` | Domínios raiz, separados por vírgula, para resolver o subdomínio |
+| `NEXT_PUBLIC_APP_URL` | Base das URLs de webhook mostradas ao lojista |
+| `PAYMENT_TOKEN_ENCRYPTION_KEY` | Criptografia das credenciais de gateway. `openssl rand -hex 32` |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Realtime e imagens no navegador |
+| `SUPABASE_SERVICE_ROLE_KEY` | Upload e publicação no Broadcast, no servidor |
+| `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | E-mail de recuperação de senha |
+| `GROQ_API_KEY` | Assistente de IA do cardápio |
+| `CRON_SECRET` | Autentica o job diário de cobrança |
+| `LANDING_ORIGIN` | Origens autorizadas a gravar lead. Sem ela, produção recusa todas |
+| `BLOB_READ_WRITE_TOKEN` | Envio dos backups |
+
+> Cuidado com o `.env.local`: `vercel env pull` e `vercel link` escrevem o
+> `DATABASE_URL` **de produção** nele, e o Next o carrega com prioridade sobre o
+> `.env`. Depois de qualquer comando da Vercel, confira que só sobraram
+> `BLOB_READ_WRITE_TOKEN` e `VERCEL_OIDC_TOKEN`.
 
 ---
 
-## Scripts Disponíveis
+## Comandos
 
+**Desenvolvimento**
 ```bash
-npm run dev          # Servidor de desenvolvimento
-npm run build        # Build de produção
-npm run start        # Servidor de produção
-npm run lint         # Verificação ESLint
-
-npm run db:migrate   # Criar e aplicar migrations
-npm run db:push      # Push do schema sem migration (dev)
-npm run db:seed      # Popular banco com dados demo
-npm run db:studio    # Abrir Prisma Studio (localhost:5555)
+npm run dev              # servidor local (passa pela trava de banco)
+npm run build            # build de produção
+npm test                 # 448 testes
+npm run test:watch
+npm run lint
 ```
 
----
+**Banco**
+```bash
+npm run db:reset         # recria o schema e roda o seed
+npm run db:migrate       # cria uma migração nova
+npm run db:seed
+npm run db:studio        # Prisma Studio
+npm run db:espelhar      # traz produção para o local, anonimizada
+```
 
-## Fluxo de Autenticação
-
-1. Registro via `POST /api/auth/register` (senha hasheada com bcrypt, custo 12)
-2. Login com e-mail + senha via NextAuth Credentials
-3. JWT com `id` e `role` do usuário
-4. Rotas protegidas verificam `session?.user?.role`
-5. Recuperação de senha via e-mail (Resend + token temporário)
-
----
-
-## Integrações
-
-| Serviço | Finalidade |
-|---------|-----------|
-| **Supabase** | PostgreSQL gerenciado + armazenamento de imagens |
-| **Gateway de pagamento** | Conectado por cada restaurante em `/adm/pagamentos`. O dinheiro cai direto na conta dele — a Muno nunca é parte da transação. |
-| **Resend** | E-mails transacionais (reset de senha) |
-| **Groq** | LLM para o assistente de cardápio (gratuito) |
-| **Leaflet / OSM** | Mapas de rastreamento de entrega |
+**Operação**
+```bash
+npm run tenant:create           # provisiona um restaurante
+npm run tenant:remove -- --slug "x"       # mostra o que seria apagado
+npm run platform:create-admin             # cria um admin da plataforma
+npm run db:backup               # dump de produção + envio para o Blob
+npm run db:recuperar            # lista e baixa os dumps da nuvem
+npm run db:deploy               # migra produção, com backup obrigatório antes
+```
 
 ---
 
 ## Deploy
 
-O projeto está configurado para deploy no **Vercel** (região `gru1` — São Paulo):
+Push na `main` publica na Vercel. O build roda `scripts/migrate-on-deploy.js`,
+que aplica as migrações pendentes com `prisma migrate deploy` **antes** de
+publicar — migração que falha derruba o deploy em vez de subir código esperando
+coluna que não existe. Preview builda e não migra, porque preview e produção
+usam o mesmo banco.
 
-```bash
-npm run build
-```
+Basta commitar a migração junto do código: não há passo manual.
 
-Configure todas as variáveis de ambiente no painel da Vercel antes do deploy.
-
-O webhook **não** é configurado pela plataforma: cada restaurante cadastra, no painel do próprio gateway, a URL que aparece em `/adm/pagamentos` — `https://[dominio-do-tenant]/api/payments/webhook/[gateway]/[tenantId]` — e cola de volta a chave secreta que o gateway gerar.
+**Backup** roda no GitHub Actions todo dia às 6h UTC — dump de produção,
+compressão e envio para um store privado do Vercel Blob, mantendo os 7 mais
+recentes. Não há Point-in-Time Recovery contratado; o dump é a rede.
 
 ---
 
-## Licença
+## Documentação
 
-Projeto privado — todos os direitos reservados.
+- **[`AGENTS.md`](AGENTS.md)** — o banco, os domínios, o isolamento entre
+  restaurantes e as armadilhas que já custaram caro. Leitura obrigatória antes
+  de mexer em qualquer uma dessas três coisas.
+- **[`docs/superpowers/specs/`](docs/superpowers/specs/)** — as decisões de
+  arquitetura, com o porquê de cada ordem de passos.
+- **[`public/gateways/README.md`](public/gateways/README.md)** — como adicionar
+  o logo de um gateway novo.
+
+O código é comentado no mesmo espírito: os comentários explicam a **decisão** e
+o que ela custou, não o que a linha faz.
+
+---
+
+<div align="center">
+
+**Muno** — projeto privado, todos os direitos reservados.
+
+</div>
