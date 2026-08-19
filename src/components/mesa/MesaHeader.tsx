@@ -5,9 +5,10 @@ import Image from "next/image";
 import { useCart } from "@/hooks/useCart";
 import { CartFlyAnimation } from "@/components/menu/CartFlyAnimation";
 import { MesaCartDrawer } from "@/components/mesa/MesaCartDrawer";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { ShoppingCart, UtensilsCrossed, Receipt } from "lucide-react";
 import type { RestaurantInfo } from "@/lib/restaurant";
+import { useAnimacaoAoMudar } from "@/hooks/useAnimacaoAoMudar";
 
 interface MesaHeaderProps {
   restaurantInfo: RestaurantInfo;
@@ -22,18 +23,8 @@ export function MesaHeader({ restaurantInfo, tableNumber, tableName, token }: Me
   );
 
   const [cartOpen, setCartOpen] = useState(false);
-  const [bounce, setBounce] = useState(false);
-  const prevCount = useRef(itemCount);
-
-  useEffect(() => {
-    if (itemCount > prevCount.current) {
-      setBounce(true);
-      const t = setTimeout(() => setBounce(false), 400);
-      prevCount.current = itemCount;
-      return () => clearTimeout(t);
-    }
-    prevCount.current = itemCount;
-  }, [itemCount]);
+  // Ver a nota em useAnimacaoAoMudar: remontar reinicia a animação do CSS.
+  const bounceKey = useAnimacaoAoMudar(itemCount, { apenasAoCrescer: true });
 
   const tableLabel = tableName || `Mesa ${tableNumber}`;
 
@@ -87,8 +78,8 @@ export function MesaHeader({ restaurantInfo, tableNumber, tableName, token }: Me
               <ShoppingCart size={20} className="text-neutral-700" />
               {itemCount > 0 && (
                 <span
-                  key={itemCount}
-                  className={`absolute -top-0.5 -right-0.5 bg-brand text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none ${bounce ? "animate-cart-bounce" : ""}`}
+                  key={bounceKey}
+                  className={`absolute -top-0.5 -right-0.5 bg-brand text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none ${bounceKey > 0 ? "animate-cart-bounce" : ""}`}
                 >
                   {itemCount > 9 ? "9+" : itemCount}
                 </span>

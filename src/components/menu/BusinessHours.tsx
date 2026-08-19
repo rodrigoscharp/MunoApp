@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { Clock } from "lucide-react";
 import type { WeekSchedule } from "@/lib/business-hours";
 
@@ -78,14 +78,38 @@ interface Props {
   schedule: WeekSchedule;
 }
 
-export function BusinessHours({ schedule }: Props) {
-  const [status, setStatus] = useState<{ isOpen: boolean; label: string } | null>(null);
+const MINUTO_MS = 60_000;
 
-  useEffect(() => {
-    setStatus(getStatus(schedule));
-    const timer = setInterval(() => setStatus(getStatus(schedule)), 60_000);
-    return () => clearInterval(timer);
-  }, [schedule]);
+/**
+ * O relógio como fonte externa, que é o que ele sempre foi.
+ *
+ * A versão anterior guardava o status em `useState` e o recalculava dentro de
+ * um `useEffect` — inclusive uma vez logo na montagem, só para sair do `null`
+ * inicial. Chamar `setState` no corpo de um efeito provoca uma segunda
+ * renderização em cascata a cada minuto e é erro de lint no React 19.
+ * `useSyncExternalStore` diz exatamente a mesma coisa sem estado nenhum: o
+ * componente assina o passar do minuto e re-renderiza quando ele vira.
+ *
+ * `getServerSnapshot` devolve null porque no servidor não existe "agora" do
+ * visitante: renderizar "Aberto" no HTML e "Fechado" depois da hidratação é
+ * divergência de hidratação, e sobre um dado que o cliente lê para decidir se
+ * vale a pena pedir.
+ */
+function assinarMinuto(aoMudar: () => void): () => void {
+  const timer = setInterval(aoMudar, MINUTO_MS);
+  return () => clearInterval(timer);
+}
+
+const minutoAtual = (): number => Math.floor(Date.now() / MINUTO_MS);
+const semRelogioNoServidor = (): null => null;
+
+export function BusinessHours({ schedule }: Props) {
+  const minuto = useSyncExternalStore(
+    assinarMinuto,
+    minutoAtual,
+    semRelogioNoServidor
+  );
+  const status = minuto === null ? null : getStatus(schedule);
 
   const groups = groupDays(schedule);
 

@@ -1,13 +1,13 @@
 "use client";
 
 import { useOrderRealtime } from "@/hooks/useOrderRealtime";
-import { formatCurrency, ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/utils";
+import { formatCurrency, PAYMENT_METHOD_LABELS } from "@/lib/utils";
 import { OrderStatus, PaymentMethod, PaymentStatus } from "@/types";
 import { LiveDeliveryTracker } from "@/components/delivery/LiveDeliveryTracker";
-import { useEffect, useState, useRef } from "react";
-import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { MessageSquare } from "lucide-react";
+import { useAnimacaoAoMudar } from "@/hooks/useAnimacaoAoMudar";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -187,17 +187,9 @@ export function OrderTracker({ orderId, initialStatus, order, tenantId, canChat 
   const currentIndex = STEPS.indexOf(currentStatus);
   const cfg = STATUS_CONFIG[currentStatus];
 
-  // Pulsa o ícone quando o status muda
-  const [pulse, setPulse] = useState(false);
-  const prevStatus = useRef(currentStatus);
-  useEffect(() => {
-    if (currentStatus !== prevStatus.current) {
-      prevStatus.current = currentStatus;
-      setPulse(true);
-      const t = setTimeout(() => setPulse(false), 800);
-      return () => clearTimeout(t);
-    }
-  }, [currentStatus]);
+  // Pulsa o ícone quando o status muda. Qualquer mudança conta — inclusive um
+  // retrocesso feito pela cozinha.
+  const pulseKey = useAnimacaoAoMudar(currentStatus);
 
   return (
     <>
@@ -236,9 +228,10 @@ export function OrderTracker({ orderId, initialStatus, order, tenantId, canChat 
           {/* Ícone + live badge */}
           <div className="flex items-start justify-between mb-4">
             <div
+              key={pulseKey}
               className={`relative w-16 h-16 rounded-2xl flex items-center justify-center text-3xl
                 ${isCancelled ? "bg-neutral-200" : "bg-white/10"}
-                ${pulse ? "status-pop" : ""}
+                ${pulseKey > 0 ? "status-pop" : ""}
               `}
             >
               {cfg.emoji}
@@ -300,7 +293,6 @@ export function OrderTracker({ orderId, initialStatus, order, tenantId, canChat 
                 {STEPS.map((step, i) => {
                   const isCompleted = i < currentIndex;
                   const isCurrent = i === currentIndex;
-                  const isFuture = i > currentIndex;
                   const isLast = i === STEPS.length - 1;
 
                   return (

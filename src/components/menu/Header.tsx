@@ -6,10 +6,11 @@ import { useSession, signOut } from "next-auth/react";
 import { useCart } from "@/hooks/useCart";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { CartFlyAnimation } from "@/components/menu/CartFlyAnimation";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { ShoppingCart, User, LogOut, Settings, ChefHat, Menu, X, ClipboardList } from "lucide-react";
 import type { RestaurantInfo } from "@/lib/restaurant";
 import { NotificationBell } from "@/components/menu/NotificationBell";
+import { useAnimacaoAoMudar } from "@/hooks/useAnimacaoAoMudar";
 
 interface HeaderProps {
   restaurantInfo: RestaurantInfo;
@@ -26,19 +27,10 @@ export function Header({ restaurantInfo }: HeaderProps) {
   const [cartOpen, setCartOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [bounce, setBounce] = useState(false);
-  const prevCount = useRef(itemCount);
-
-  // Dispara animação de bounce no badge quando a contagem aumenta
-  useEffect(() => {
-    if (itemCount > prevCount.current) {
-      setBounce(true);
-      const t = setTimeout(() => setBounce(false), 400);
-      prevCount.current = itemCount;
-      return () => clearTimeout(t);
-    }
-    prevCount.current = itemCount;
-  }, [itemCount]);
+  // Remontar o badge reinicia a animação do CSS. A duração já mora lá; não
+  // precisa de estado nem de timer aqui. `apenasAoCrescer` mantém o pulo para
+  // quando um item entra no carrinho, não para quando o cliente remove um.
+  const bounceKey = useAnimacaoAoMudar(itemCount, { apenasAoCrescer: true });
 
   return (
     <>
@@ -90,8 +82,8 @@ export function Header({ restaurantInfo }: HeaderProps) {
               <ShoppingCart size={20} className="text-neutral-700" />
               {itemCount > 0 && (
                 <span
-                  key={itemCount}
-                  className={`absolute -top-0.5 -right-0.5 bg-brand text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none ${bounce ? "animate-cart-bounce" : ""}`}
+                  key={bounceKey}
+                  className={`absolute -top-0.5 -right-0.5 bg-brand text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none ${bounceKey > 0 ? "animate-cart-bounce" : ""}`}
                 >
                   {itemCount > 9 ? "9+" : itemCount}
                 </span>

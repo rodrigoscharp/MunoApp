@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useOrderNotifications, OrderNotification } from "@/hooks/useOrderNotifications";
 import { OrderStatus } from "@/types";
+import { useAnimacaoAoMudar } from "@/hooks/useAnimacaoAoMudar";
 
 const STATUS_META: Record<
   OrderStatus,
@@ -93,23 +94,12 @@ export function NotificationBell() {
   const { notifications, unreadCount, markAllAsRead, markAsRead, clearAll } =
     useOrderNotifications();
   const [open, setOpen] = useState(false);
-  const [bellRing, setBellRing] = useState(false);
-  const [badgeBounce, setBadgeBounce] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const prevUnread = useRef(unreadCount);
 
-  // Anima o sino e o badge quando chega nova notificação
-  useEffect(() => {
-    if (unreadCount > prevUnread.current) {
-      setBellRing(true);
-      setBadgeBounce(true);
-      const t1 = setTimeout(() => setBellRing(false), 700);
-      const t2 = setTimeout(() => setBadgeBounce(false), 400);
-      prevUnread.current = unreadCount;
-      return () => { clearTimeout(t1); clearTimeout(t2); };
-    }
-    prevUnread.current = unreadCount;
-  }, [unreadCount]);
+  // Uma chave só para os dois elementos: o sino e o badge tocam juntos quando
+  // chega notificação nova. Marcar como lida faz a contagem cair, e cair não
+  // é chegada — daí `apenasAoCrescer`.
+  const avisoKey = useAnimacaoAoMudar(unreadCount, { apenasAoCrescer: true });
 
   // Fecha ao clicar fora
   useEffect(() => {
@@ -138,13 +128,14 @@ export function NotificationBell() {
         aria-label="Notificações de pedido"
       >
         <Bell
+          key={avisoKey}
           size={20}
-          className={`text-neutral-700 ${bellRing ? "animate-bell-ring" : ""}`}
+          className={`text-neutral-700 ${avisoKey > 0 ? "animate-bell-ring" : ""}`}
         />
         {unreadCount > 0 && (
           <span
-            key={unreadCount}
-            className={`absolute -top-0.5 -right-0.5 bg-brand text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none ${badgeBounce ? "animate-cart-bounce" : ""}`}
+            key={avisoKey}
+            className={`absolute -top-0.5 -right-0.5 bg-brand text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none ${avisoKey > 0 ? "animate-cart-bounce" : ""}`}
           >
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
