@@ -97,14 +97,6 @@ export function MenuAIAssistant({ menuItems, restaurantOpen }: MenuAIAssistantPr
     setLoading(true);
     setInput("");
 
-    const menuContext = menuItems.map((i) => ({
-      id: i.id,
-      name: i.name,
-      description: i.description,
-      price: i.price,
-      category: i.category.name,
-    }));
-
     // Build history from previous messages for the API
     const history = messages.map((m) => ({
       role: m.role,
@@ -117,7 +109,7 @@ export function MenuAIAssistant({ menuItems, restaurantOpen }: MenuAIAssistantPr
       const res = await fetch("/api/ai/menu-recommendation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text.trim(), menuContext, history }),
+        body: JSON.stringify({ message: text.trim(), history }),
       });
 
       const data = await res.json();
