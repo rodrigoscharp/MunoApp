@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { canViewOrder } from "@/lib/order-access";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { getActiveConnection, getPaymentProvider } from "@/lib/payments/factory";
 import { extractErrorMessage } from "@/lib/error-message";
@@ -35,8 +37,24 @@ async function handlePost(req: NextRequest, tenantId: string) {
     include: { items: { include: { menuItem: true } } },
   });
 
-  if (!order) {
+  // Mesma regra da página de acompanhamento e do GET /api/orders/[id]: quem não
+  // pode ver o pedido não pode cobrá-lo. A rota não tinha guarda nenhuma, e o
+  // caminho de erro dela CANCELA o pedido — bastava um id conhecido para
+  // derrubar o pedido de outro cliente. 404, e não 403, pelo mesmo motivo de
+  // sempre: um 403 confirmaria que o pedido existe.
+  const session = await auth();
+  if (!order || !canViewOrder(order, session?.user ?? null)) {
     return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
+  }
+
+  // Cobrança já quitada não se cobra de novo, e pedido cancelado não volta à
+  // vida por uma segunda tentativa de pagamento. Sem estas duas linhas, um
+  // reenvio do checkout gerava um segundo PIX para o mesmo pedido.
+  if (order.paymentStatus === "PAID") {
+    return NextResponse.json({ error: "Este pedido já está pago." }, { status: 409 });
+  }
+  if (order.status === "CANCELLED") {
+    return NextResponse.json({ error: "Este pedido foi cancelado." }, { status: 409 });
   }
 
   // Sem conexão ativa, o lojista não tem gateway configurado (ou o
