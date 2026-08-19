@@ -6,26 +6,23 @@ export const KITCHEN_COLUMNS: { status: OrderStatus; label: string; icon: React.
   { status: "CONFIRMED", label: "Confirmado", icon: <Clock size={15} />, color: "blue" },
   { status: "IN_PREPARATION", label: "Em Preparo", icon: <ChefHat size={15} />, color: "orange" },
   { status: "READY", label: "Pronto", icon: <CheckCircle size={15} />, color: "green" },
+  // O pedido em rua fica visível até alguém fechá-lo. Ele some do quadro quando
+  // vira DELIVERED — pelo motoboy, no app, ou pela própria cozinha, no botão
+  // "Entregue" deste card, que é a única saída para quem entrega sem motoboy
+  // cadastrado.
+  { status: "OUT_FOR_DELIVERY", label: "Em Entrega", icon: <Bike size={15} />, color: "purple" },
 ];
 
-export const NEXT_STATUS: Record<string, OrderStatus> = {
-  PENDING: "CONFIRMED",
-  CONFIRMED: "IN_PREPARATION",
-  IN_PREPARATION: "READY",
-  READY: "DELIVERED",
-};
-
-export const PREV_STATUS: Record<string, OrderStatus> = {
-  CONFIRMED: "PENDING",
-  IN_PREPARATION: "CONFIRMED",
-  READY: "IN_PREPARATION",
-};
+// As transições saíram daqui para src/lib/kitchen-flow.ts: o último passo
+// depende do tipo de entrega, e um Record de status não conseguia expressar
+// isso — era o que fazia "Saiu p/ entrega" gravar DELIVERED.
 
 export const STATUS_COLORS: Record<string, string> = {
   yellow: "border-yellow-500/40 bg-yellow-500/5",
   blue: "border-blue-500/40 bg-blue-500/5",
   orange: "border-orange-500/40 bg-orange-500/5",
   green: "border-green-500/40 bg-green-500/5",
+  purple: "border-purple-500/40 bg-purple-500/5",
 };
 
 export const BADGE_COLORS: Record<string, string> = {
@@ -33,6 +30,7 @@ export const BADGE_COLORS: Record<string, string> = {
   blue: "bg-blue-400/20 text-blue-300",
   orange: "bg-orange-400/20 text-orange-300",
   green: "bg-green-400/20 text-green-300",
+  purple: "bg-purple-400/20 text-purple-300",
 };
 
 export const HEADER_COLORS: Record<string, string> = {
@@ -40,6 +38,7 @@ export const HEADER_COLORS: Record<string, string> = {
   blue: "text-blue-400",
   orange: "text-orange-400",
   green: "text-green-400",
+  purple: "text-purple-400",
 };
 
 export const DELIVERY_TYPE_META = {

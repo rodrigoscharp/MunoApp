@@ -7,8 +7,14 @@ import { OrderWithItems } from "@/types";
 import { RefreshCw, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import type { PrinterConfig } from "@/app/api/settings/printer/route";
-import { KITCHEN_COLUMNS, NEXT_STATUS, PREV_STATUS, STATUS_COLORS, BADGE_COLORS, HEADER_COLORS } from "./constants";
+import { KITCHEN_COLUMNS, STATUS_COLORS, BADGE_COLORS, HEADER_COLORS } from "./constants";
+import { proximoStatus, statusAnterior } from "@/lib/kitchen-flow";
 import { OrderCard } from "./OrderCard";
+
+// Um pedido some da tela quando o próximo status não tem coluna — ou seja,
+// quando ele terminou (entregue ou cancelado). "Em entrega" TEM coluna: o
+// pedido em rua continua visível até alguém fechá-lo.
+const STATUS_NO_QUADRO = new Set(KITCHEN_COLUMNS.map((c) => c.status));
 
 export function KitchenBoard({ tenantId }: { tenantId: string }) {
   const { orders, loading, error, refetch, updateOrderStatus, removeOrder } = useKitchenOrders(tenantId);
@@ -22,14 +28,14 @@ export function KitchenBoard({ tenantId }: { tenantId: string }) {
   }, []);
 
   async function advanceStatus(order: OrderWithItems) {
-    const nextStatus = NEXT_STATUS[order.status];
+    const nextStatus = proximoStatus(order.status, order.deliveryType);
     if (!nextStatus) return;
 
     // Optimistic: atualiza imediatamente na tela
-    if (nextStatus === "DELIVERED") {
-      removeOrder(order.id);
-    } else {
+    if (STATUS_NO_QUADRO.has(nextStatus)) {
       updateOrderStatus(order.id, nextStatus);
+    } else {
+      removeOrder(order.id);
     }
 
     const res = await fetch(`/api/orders/${order.id}`, {
@@ -48,7 +54,7 @@ export function KitchenBoard({ tenantId }: { tenantId: string }) {
   }
 
   async function revertStatus(order: OrderWithItems) {
-    const prevStatus = PREV_STATUS[order.status];
+    const prevStatus = statusAnterior(order.status);
     if (!prevStatus) return;
 
     updateOrderStatus(order.id, prevStatus);
@@ -108,7 +114,7 @@ export function KitchenBoard({ tenantId }: { tenantId: string }) {
       )}
 
       {/* Kanban */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {KITCHEN_COLUMNS.map((col) => {
           const colOrders = orders.filter((o) => o.status === col.status);
           return (
@@ -136,8 +142,8 @@ export function KitchenBoard({ tenantId }: { tenantId: string }) {
                     onAdvance={() => advanceStatus(order)}
                     onRevert={() => revertStatus(order)}
                     onCancel={() => cancelOrder(order)}
-                    hasNext={!!NEXT_STATUS[order.status]}
-                    hasPrev={!!PREV_STATUS[order.status]}
+                    hasNext={!!proximoStatus(order.status, order.deliveryType)}
+                    hasPrev={!!statusAnterior(order.status)}
                     printerEnabled={printer.enabled}
                     paperWidth={printer.paperWidth}
                   />

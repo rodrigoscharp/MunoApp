@@ -36,8 +36,20 @@ export async function GET(
 }
 
 const updateSchema = z.object({
+  // A lista espelha o enum OrderStatus do schema.prisma. OUT_FOR_DELIVERY
+  // faltava: é o status que a cozinha grava ao mandar um delivery para a rua, e
+  // sem ele o botão "Saiu p/ entrega" tomava 400. Só a rota de aceite do
+  // motoboy chegava lá, escrevendo direto no banco sem passar por aqui.
   status: z
-    .enum(["PENDING", "CONFIRMED", "IN_PREPARATION", "READY", "DELIVERED", "CANCELLED"])
+    .enum([
+      "PENDING",
+      "CONFIRMED",
+      "IN_PREPARATION",
+      "READY",
+      "OUT_FOR_DELIVERY",
+      "DELIVERED",
+      "CANCELLED",
+    ])
     .optional(),
   paymentStatus: z.enum(["UNPAID", "PAID", "REFUNDED"]).optional(),
   mpPaymentId: z.string().optional(),

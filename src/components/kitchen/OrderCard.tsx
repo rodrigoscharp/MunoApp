@@ -81,7 +81,10 @@ export function OrderCard({
       )}
 
       {/* Rodapé: valor + ações */}
-      <div className="flex items-center justify-between pt-1 border-t border-neutral-800 mt-1">
+      {/* Quebra em duas linhas quando não cabe: na coluna "Em Entrega" o card
+          chega a ter Voltar, Cancelar e Entregue lado a lado, e com cinco
+          colunas no quadro isso estourava a largura. */}
+      <div className="flex flex-wrap items-center justify-between gap-y-1.5 pt-1 border-t border-neutral-800 mt-1">
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-semibold text-neutral-400">
             {formatCurrency(order.total)}
@@ -96,7 +99,7 @@ export function OrderCard({
             </button>
           )}
         </div>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1 ml-auto">
           {hasPrev && (
             <button
               onClick={onRevert}
@@ -120,7 +123,9 @@ export function OrderCard({
               onClick={onAdvance}
               className="text-xs px-2.5 py-1 rounded bg-brand hover:bg-brand-dark text-white font-semibold transition"
             >
-              {order.status === "READY"
+              {order.status === "OUT_FOR_DELIVERY"
+                ? "Entregue"
+                : order.status === "READY"
                 ? order.deliveryType === "DELIVERY"
                   ? "Saiu p/ entrega"
                   : order.deliveryType === "DINE_IN"
