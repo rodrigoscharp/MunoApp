@@ -58,9 +58,22 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
 
     const { id } = await params;
-    // Os pedidos que usaram o cupom ficam: o onDelete SetNull solta o couponId e
-    // o couponCode gravado no pedido preserva o histórico e o recibo.
-    await prisma.coupon.delete({ where: { id } });
+
+    try {
+      // Os pedidos que usaram o cupom ficam: o onDelete SetNull solta o couponId
+      // e o couponCode gravado no pedido preserva o histórico e o recibo.
+      await prisma.coupon.delete({ where: { id } });
+    } catch (err) {
+      // Mesmo tratamento do PATCH acima, que já tinha. Sem ele o P2025 subia e
+      // virava "Erro interno do servidor" — o que o admin vê ao apagar um cupom
+      // que outra aba já apagou.
+      const codigo = typeof err === "object" && err !== null && "code" in err ? err.code : null;
+      if (codigo === "P2025") {
+        return NextResponse.json({ error: [{ message: "Cupom não encontrado" }] }, { status: 404 });
+      }
+      throw err;
+    }
+
     return NextResponse.json({ ok: true });
   });
 }
