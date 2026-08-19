@@ -7,7 +7,7 @@ import Link from "next/link";
 import { CartUpsell } from "@/components/cart/CartUpsell";
 
 export default function CartPage() {
-  const { items, updateQuantity, removeItem, total, clearCart } = useCart();
+  const { items, updateQuantity, total, clearCart } = useCart();
 
   if (items.length === 0) {
     return (

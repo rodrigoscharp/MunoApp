@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Printer, Loader2, TestTube2 } from "lucide-react";
 import { toast } from "sonner";
 import type { PrinterConfig } from "@/app/api/settings/printer/route";

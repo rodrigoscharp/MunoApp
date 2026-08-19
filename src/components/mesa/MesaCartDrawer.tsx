@@ -12,7 +12,7 @@ interface MesaCartDrawerProps {
 }
 
 export function MesaCartDrawer({ open, onClose, token }: MesaCartDrawerProps) {
-  const { items, updateQuantity, removeItem, total } = useCart();
+  const { items, updateQuantity, total } = useCart();
 
   return (
     <>

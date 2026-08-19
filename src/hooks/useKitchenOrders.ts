@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { KITCHEN_CHANNEL, tenantChannelName } from "@/lib/realtime-channel";
 import { OrderWithItems } from "@/types";
@@ -11,7 +11,6 @@ export function useKitchenOrders(tenantId: string) {
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const realtimeActive = useRef(false);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -38,11 +37,12 @@ export function useKitchenOrders(tenantId: string) {
       .channel(tenantChannelName(tenantId, KITCHEN_CHANNEL))
       .on("broadcast", { event: "order-created" }, () => fetchOrders())
       .on("broadcast", { event: "order-updated" }, () => fetchOrders())
-      .subscribe((status) => {
-        realtimeActive.current = status === "SUBSCRIBED";
-      });
+      .subscribe();
 
-    // Polling de segurança: atualiza a cada 30s independente do Realtime
+    // Polling de segurança: atualiza a cada 30s independente do Realtime.
+    // Um `realtimeActive` guardado em ref chegou a ser escrito aqui e nunca foi
+    // lido em lugar nenhum — a intenção de pular o polling com o Realtime de pé
+    // nunca saiu do papel, e o ref só sugeria uma condição que não existia.
     const poll = setInterval(() => {
       fetchOrders();
     }, POLL_INTERVAL);

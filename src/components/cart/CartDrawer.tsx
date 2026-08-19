@@ -12,7 +12,7 @@ interface CartDrawerProps {
 }
 
 export function CartDrawer({ open, onClose }: CartDrawerProps) {
-  const { items, updateQuantity, removeItem, total } = useCart();
+  const { items, updateQuantity, total } = useCart();
 
   return (
     <>

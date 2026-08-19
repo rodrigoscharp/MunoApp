@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { MapPin, Plus, Trash2, Pencil, Check, X } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
@@ -23,7 +23,6 @@ export function DeliveryZonesControl({ initialZones }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editPrice, setEditPrice] = useState("");
-  const [, startTransition] = useTransition();
 
   async function addZone() {
     const price = parseFloat(newPrice.replace(",", "."));

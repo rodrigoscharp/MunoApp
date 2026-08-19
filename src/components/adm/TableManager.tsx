@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Plus, Trash2, QrCode, Download, X, TableProperties, Receipt, ClipboardList, Check, Printer, Percent, ArrowLeft, CircleDot, CircleCheck, LayoutGrid, Map as MapIcon } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -79,7 +79,6 @@ export function TableManager() {
   const [saving, setSaving] = useState(false);
   const [qrTable, setQrTable] = useState<Table | null>(null);
   const [origin, setOrigin] = useState("");
-  const qrRef = useRef<SVGSVGElement>(null);
 
   const [ordersTable, setOrdersTable] = useState<Table | null>(null);
   const [tableOrders, setTableOrders] = useState<TableOrder[]>([]);
@@ -383,7 +382,7 @@ export function TableManager() {
         <div className="flex flex-col items-center justify-center py-16 text-neutral-400 gap-3">
           <TableProperties size={40} strokeWidth={1.2} />
           <p className="text-sm">Nenhuma mesa cadastrada.</p>
-          <p className="text-xs">Clique em "Nova Mesa" para começar.</p>
+          <p className="text-xs">Clique em &ldquo;Nova Mesa&rdquo; para começar.</p>
         </div>
       ) : view === "mapa" ? (
         <TableMapView tables={tables} onPositionChange={handlePositionChange} />
