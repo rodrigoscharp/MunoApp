@@ -73,8 +73,35 @@ export async function POST(req: Request, { params }: Params) {
     const body = await req.json();
     const { lat, lng } = body as { lat: number; lng: number };
 
-    if (typeof lat !== "number" || typeof lng !== "number") {
+    if (
+      typeof lat !== "number" ||
+      typeof lng !== "number" ||
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng) ||
+      lat < -90 ||
+      lat > 90 ||
+      lng < -180 ||
+      lng > 180
+    ) {
       return NextResponse.json({ error: "Coordenadas inválidas" }, { status: 400 });
+    }
+
+    // A entrega precisa ser deste motoboy. O papel MOTOBOY sozinho não basta:
+    // como o rastreamento é endereçado pelo orderId, qualquer entregador do
+    // restaurante conseguia empurrar a própria posição para a entrega de um
+    // colega — o mapa do cliente passava a seguir a moto errada, e o `upsert`
+    // gravava sem reclamar porque o `create` só define motoboyId na primeira
+    // vez. ADMIN escapa da regra: é ele quem opera a conta quando o celular do
+    // entregador falha.
+    const pedido = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { motoboyId: true, deliveryAddress: true },
+    });
+    if (!pedido) {
+      return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
+    }
+    if (session.user.role !== "ADMIN" && pedido.motoboyId !== session.user.id) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
     }
 
     // Verifica se é a primeira atualização de localização
@@ -101,18 +128,12 @@ export async function POST(req: Request, { params }: Params) {
       updatedAt: tracking.updatedAt.toISOString(),
     });
 
-    // Na primeira atualização, calcula a previsão pela rota real
-    if (isFirstUpdate) {
-      const order = await prisma.order.findUnique({
-        where: { id: orderId },
-        select: { deliveryAddress: true },
-      });
-
-      if (order?.deliveryAddress) {
-        // Geocodifica destino e calcula rota em paralelo com a resposta
-        // Usa Promise sem await para não bloquear a resposta ao motoboy
-        recalculateETA(tenantId, orderId, lat, lng, order.deliveryAddress).catch(() => {});
-      }
+    // Na primeira atualização, calcula a previsão pela rota real. O endereço já
+    // veio na leitura da autorização acima — não há segunda ida ao banco.
+    if (isFirstUpdate && pedido.deliveryAddress) {
+      // Geocodifica destino e calcula rota em paralelo com a resposta
+      // Usa Promise sem await para não bloquear a resposta ao motoboy
+      recalculateETA(tenantId, orderId, lat, lng, pedido.deliveryAddress).catch(() => {});
     }
 
     return NextResponse.json(tracking);
