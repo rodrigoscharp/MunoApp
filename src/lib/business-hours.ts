@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { runWithTenant } from "@/lib/tenant-context";
@@ -11,6 +12,35 @@ export interface DaySchedule {
 export type WeekSchedule = Record<string, DaySchedule>;
 
 export const DAY_KEYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+
+/**
+ * O que o PUT aceita gravar.
+ *
+ * A rota tinha `await req.json() as WeekSchedule` — cast de TypeScript, que não
+ * existe em runtime — e gravava o resultado. Um corpo `{}` passava e apagava a
+ * semana inteira: o cardápio voltava a exibir DEFAULT_SCHEDULE como se fosse o
+ * horário escolhido pelo dono, e a loja abria e fechava no horário errado sem
+ * ninguém ter mexido nisso.
+ *
+ * Exige os sete dias porque o formulário edita a semana como um bloco: corpo
+ * com dias faltando não é edição parcial, é corpo malformado.
+ */
+const horaSchema = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use o formato HH:MM");
+
+const daySchema = z.object({
+  open: z.boolean(),
+  from: horaSchema,
+  to: horaSchema,
+});
+
+export const weekScheduleSchema = z.object(
+  Object.fromEntries(DAY_KEYS.map((dia) => [dia, daySchema])) as Record<
+    (typeof DAY_KEYS)[number],
+    typeof daySchema
+  >
+);
 
 export const DEFAULT_SCHEDULE: WeekSchedule = {
   monday:    { open: true, from: "11:00", to: "22:00" },

@@ -1,6 +1,27 @@
 import { unstable_cache } from "next/cache";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { runWithTenant } from "@/lib/tenant-context";
+
+/**
+ * O que o PUT aceita gravar.
+ *
+ * A rota fazia `JSON.stringify(body)` direto, sem olhar o conteúdo: um corpo
+ * `{}` não era recusado — virava o cadastro novo, e nome, endereço, telefone e
+ * logo sumiam do cabeçalho, do rodapé e do cardápio público de uma vez, sem
+ * erro e sem cópia anterior. `name` obrigatório é o que impede isso: o
+ * formulário sempre o manda, e um corpo que não o traz não é um cadastro.
+ *
+ * O schema também descarta campo que não pertence ao cadastro, para que o valor
+ * gravado tenha só a forma que `getRestaurantInfo` sabe ler.
+ */
+export const restaurantInfoSchema = z.object({
+  name: z.string().trim().min(1, "Informe o nome do restaurante"),
+  address: z.string().default(""),
+  phone: z.string().default(""),
+  logoUrl: z.string().default("/munowbg.png"),
+  floorPlanImageUrl: z.string().nullable().default(null),
+});
 
 export interface RestaurantInfo {
   name: string;

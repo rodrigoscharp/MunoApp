@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidateTag } from "next/cache";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
-import { getRestaurantInfo } from "@/lib/restaurant";
+import { getRestaurantInfo, restaurantInfoSchema } from "@/lib/restaurant";
 
 const KEY = "restaurant_info";
 
@@ -30,12 +30,16 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const body = await req.json();
+    const parsed = restaurantInfoSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
+    }
 
+    const value = JSON.stringify(parsed.data);
     await prisma.setting.upsert({
       where: { tenantId_key: { tenantId, key: KEY } },
-      update: { value: JSON.stringify(body) },
-      create: { tenantId, key: KEY, value: JSON.stringify(body) },
+      update: { value },
+      create: { tenantId, key: KEY, value },
     });
 
     revalidateTag("restaurant_info", "max");

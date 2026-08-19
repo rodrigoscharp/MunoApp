@@ -17,11 +17,15 @@ const auth = vi.fn();
 vi.mock("@/lib/auth", () => ({ auth: () => auth() }));
 
 const settingFindUnique = vi.fn();
+const settingUpsert = vi.fn();
 const tenantFindUnique = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    setting: { findUnique: (...a: unknown[]) => settingFindUnique(...a) },
+    setting: {
+      findUnique: (...a: unknown[]) => settingFindUnique(...a),
+      upsert: (...a: unknown[]) => settingUpsert(...a),
+    },
     tenant: { findUnique: (...a: unknown[]) => tenantFindUnique(...a) },
   },
 }));
@@ -32,7 +36,7 @@ vi.mock("next/cache", () => ({
   revalidateTag: vi.fn(),
 }));
 
-import { GET } from "./route";
+import { GET, PUT } from "./route";
 
 function req() {
   return new NextRequest("http://localhost/api/settings/restaurant", {
@@ -40,9 +44,27 @@ function req() {
   });
 }
 
+function putReq(body: unknown) {
+  return new NextRequest("http://localhost/api/settings/restaurant", {
+    method: "PUT",
+    headers: { "x-tenant-id": TENANT, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+const CADASTRO_COMPLETO = {
+  name: "Pizzaria do Bairro",
+  address: "Rua das Flores, 100",
+  phone: "(12) 99999-0000",
+  logoUrl: "/logo.png",
+  floorPlanImageUrl: null,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   tenantFindUnique.mockResolvedValue({ nome: "Pizzaria do Bairro" });
+  auth.mockResolvedValue({ user: { role: "ADMIN" } });
+  settingUpsert.mockResolvedValue({});
 });
 
 describe("GET /api/settings/restaurant", () => {
@@ -86,5 +108,51 @@ describe("GET /api/settings/restaurant", () => {
     const body = await (await GET(req())).json();
 
     expect(body).toMatchObject({ name: "Pizzaria do Bairro", address: "", phone: "" });
+  });
+});
+
+/**
+ * O PUT gravava `JSON.stringify(body)` sem validar nada. Um corpo vazio não era
+ * recusado: virava o novo cadastro, e nome, endereço, telefone e logo sumiam do
+ * cabeçalho, do rodapé e do cardápio público — sem erro e sem cópia anterior.
+ */
+describe("PUT /api/settings/restaurant", () => {
+  it("grava o cadastro completo", async () => {
+    const res = await PUT(putReq(CADASTRO_COMPLETO));
+
+    expect(res.status).toBe(200);
+    expect(settingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: { value: JSON.stringify(CADASTRO_COMPLETO) },
+      })
+    );
+  });
+
+  it("recusa corpo vazio em vez de apagar o cadastro", async () => {
+    const res = await PUT(putReq({}));
+
+    expect(res.status).toBe(400);
+    expect(settingUpsert).not.toHaveBeenCalled();
+  });
+
+  it("recusa nome em branco", async () => {
+    const res = await PUT(putReq({ ...CADASTRO_COMPLETO, name: "   " }));
+
+    expect(res.status).toBe(400);
+    expect(settingUpsert).not.toHaveBeenCalled();
+  });
+
+  it("recusa campo com tipo errado", async () => {
+    const res = await PUT(putReq({ ...CADASTRO_COMPLETO, phone: 11999998888 }));
+
+    expect(res.status).toBe(400);
+    expect(settingUpsert).not.toHaveBeenCalled();
+  });
+
+  it("não grava campo estranho vindo do corpo", async () => {
+    await PUT(putReq({ ...CADASTRO_COMPLETO, tenantId: "outro-tenant" }));
+
+    const gravado = JSON.parse(settingUpsert.mock.calls[0][0].update.value);
+    expect(gravado).not.toHaveProperty("tenantId");
   });
 });
