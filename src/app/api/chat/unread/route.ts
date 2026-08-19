@@ -18,13 +18,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const since = req.nextUrl.searchParams.get("since");
+    // `since` vem da query string e ia direto para `new Date()`. Qualquer texto
+    // que não seja data vira Invalid Date, que o Prisma rejeita com um erro de
+    // driver — 500 numa rota que o sino de notificações chama de minuto em
+    // minuto. Data ilegível é tratada como ausente: devolve tudo, que é o
+    // comportamento já previsto para a primeira chamada.
+    const sinceParam = req.nextUrl.searchParams.get("since");
+    const since = sinceParam ? new Date(sinceParam) : null;
+    const desde = since && !Number.isNaN(since.getTime()) ? since : null;
 
     const messages = await prisma.chatMessage.findMany({
       where: {
         senderRole: "ADMIN",
         order: { userId: session.user.id },
-        ...(since ? { createdAt: { gt: new Date(since) } } : {}),
+        ...(desde ? { createdAt: { gt: desde } } : {}),
       },
       orderBy: { createdAt: "asc" },
       select: {
