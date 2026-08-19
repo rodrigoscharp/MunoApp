@@ -151,15 +151,32 @@ export async function POST(req: NextRequest) {
       throw err;
     }
 
+    // `available: true` faz parte do filtro, e não só do que o cardápio mostra:
+    // um carrinho aberto antes de o dono desativar o item continuaria pedindo
+    // comida que a cozinha não tem. O mesmo where cobre o tenant (a extensão do
+    // Prisma injeta tenantId), então id de outro restaurante também não passa.
     const menuItems = await prisma.menuItem.findMany({
-      where: { id: { in: items.map((i) => i.menuItemId) } },
+      where: { id: { in: items.map((i) => i.menuItemId) }, available: true },
     });
 
-    const itemsTotal = items.reduce((sum, orderItem) => {
-      const menuItem = menuItems.find((m) => m.id === orderItem.menuItemId);
-      if (!menuItem) return sum;
-      return sum + Number(menuItem.price) * orderItem.quantity;
-    }, 0);
+    const porId = new Map(menuItems.map((m) => [m.id, m]));
+
+    // Antes daqui, item que não voltou da consulta era ignorado no subtotal e
+    // depois desreferenciado com `!` na hora de montar o pedido — TypeError, 500
+    // e nenhuma pista do que o cliente pediu de errado. Recusar explicitamente
+    // devolve 422 e diz o que saiu do ar.
+    const indisponiveis = items.filter((i) => !porId.has(i.menuItemId));
+    if (indisponiveis.length > 0) {
+      return NextResponse.json(
+        { error: "Um ou mais itens do carrinho não estão mais disponíveis." },
+        { status: 422 }
+      );
+    }
+
+    const itemsTotal = items.reduce(
+      (sum, orderItem) => sum + Number(porId.get(orderItem.menuItemId)!.price) * orderItem.quantity,
+      0
+    );
 
     // O frete sai da zona cadastrada, não de um número enviado na requisição.
     // `prisma` já restringe a busca ao tenant da request, então não dá para
@@ -202,6 +219,23 @@ export async function POST(req: NextRequest) {
 
     const total = itemsTotal + deliveryFee - cupom.discount;
 
+    // A mesa é resolvida contra o banco, não aceita como veio. Sem isto o
+    // tableId era gravado direto: id de mesa inativa passava, e id de mesa de
+    // OUTRO restaurante também — a foreign key é global e não sabe de tenant,
+    // então o pedido nascia apontando para a mesa de outra casa. `prisma` já
+    // restringe a consulta ao tenant da request.
+    let mesaId: string | null = null;
+    if (deliveryType === "DINE_IN" && tableId) {
+      const mesa = await prisma.table.findFirst({
+        where: { id: tableId, active: true },
+        select: { id: true },
+      });
+      if (!mesa) {
+        return NextResponse.json({ error: "Mesa não encontrada." }, { status: 422 });
+      }
+      mesaId = mesa.id;
+    }
+
     // Lê o tempo estimado de entrega configurado pelo admin
     const timeSetting = await prisma.setting.findUnique({
       where: { tenantId_key: { tenantId, key: "delivery_time_minutes" } },
@@ -222,23 +256,20 @@ export async function POST(req: NextRequest) {
         discount: cupom.discount,
         couponId: cupom.couponId,
         couponCode: cupom.couponCode,
-        tableId: deliveryType === "DINE_IN" ? (tableId ?? null) : null,
+        tableId: mesaId,
         total,
         estimatedDeliveryAt,
         userId: session?.user.id ?? null,
         items: {
           // tenantId explícito: escrita aninhada não passa pela extensão que
           // preenche o tenant automaticamente (ver src/lib/prisma.ts).
-          create: items.map((item) => {
-            const menuItem = menuItems.find((m) => m.id === item.menuItemId)!;
-            return {
-              tenantId,
-              menuItemId: item.menuItemId,
-              quantity: item.quantity,
-              unitPrice: menuItem.price,
-              notes: item.notes,
-            };
-          }),
+          create: items.map((item) => ({
+            tenantId,
+            menuItemId: item.menuItemId,
+            quantity: item.quantity,
+            unitPrice: porId.get(item.menuItemId)!.price,
+            notes: item.notes,
+          })),
         },
       },
       include: { items: { include: { menuItem: true } } },
