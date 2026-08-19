@@ -47,6 +47,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
     }
 
+    // Mesma razão do PUT em [id]/route.ts: a extensão de tenant escopa a linha
+    // criada, não o categoryId que vem no corpo. A foreign key é global e
+    // aceitaria a categoria de outro restaurante sem reclamar.
+    const categoria = await prisma.category.findUnique({
+      where: { id: parsed.data.categoryId },
+      select: { id: true },
+    });
+    if (!categoria) {
+      return NextResponse.json({ error: "Categoria não encontrada" }, { status: 422 });
+    }
+
     const item = await prisma.menuItem.create({ data: { ...parsed.data, tenantId } });
     return NextResponse.json(item, { status: 201 });
   });

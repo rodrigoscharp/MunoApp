@@ -55,7 +55,11 @@ export function MenuManager({ initialCategories, allCategories }: Props) {
       toast.success("Item excluído");
       router.refresh();
     } else {
-      toast.error("Erro ao excluir item");
+      // A rota explica o que aconteceu — item já pedido não pode ser excluído,
+      // e o caminho é desativar. Um "Erro ao excluir item" fixo escondia a
+      // instrução e deixava o dono tentando de novo.
+      const body = await res.json().catch(() => null);
+      toast.error(body?.error ?? "Erro ao excluir item");
     }
   }
 
