@@ -25,9 +25,28 @@ export async function GET(
       return NextResponse.json({ error: "Mesa não encontrada" }, { status: 404 });
     }
 
+    // `select` fechado, e não `include`. Esta rota é PÚBLICA — quem tem o QR da
+    // mesa tem a conta, que é o desejado — mas `include` devolvia a linha
+    // inteira de Order: telefone do cliente, endereço de entrega, observações,
+    // userId, id de pagamento no gateway. Tudo isso para qualquer pessoa que
+    // fotografasse o QR de uma mesa, sobre todos os pedidos abertos dela. A
+    // conta precisa de nome, itens e valor; o resto nunca foi assunto dela.
     const orders = await prisma.order.findMany({
       where: { tableId: table.id, paymentStatus: "UNPAID", status: { not: "CANCELLED" } },
-      include: { items: { include: { menuItem: true } } },
+      select: {
+        id: true,
+        total: true,
+        customerName: true,
+        items: {
+          select: {
+            id: true,
+            quantity: true,
+            unitPrice: true,
+            notes: true,
+            menuItem: { select: { name: true } },
+          },
+        },
+      },
       orderBy: { createdAt: "asc" },
     });
 
