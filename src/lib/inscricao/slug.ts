@@ -1,5 +1,15 @@
 import { validateSlug, ProvisionError } from "@/lib/tenant-provisioning";
 
+// Reexportada por compatibilidade — quem só precisa de checarSlug (server)
+// continua importando os dois deste arquivo. Mas dois Client Components
+// (ConverterLead e FormularioAssinatura) importam sugerirSlug direto de
+// ./sugerir-slug, e NÃO daqui: importar qualquer coisa deste módulo no
+// navegador arrasta o `validateSlug` acima até tenant-provisioning -> prisma
+// -> tenant-context -> node:async_hooks, e o build de produção
+// (next build --webpack) falha inteiro. Ver o comentário de
+// sugerir-slug.ts para o porquê completo.
+export { sugerirSlug } from "./sugerir-slug";
+
 export type Disponibilidade =
   | { livre: true }
   | { livre: false; motivo: "INVALIDO" | "RESERVADO" | "EM_USO" };
@@ -46,18 +56,4 @@ export async function checarSlug(
   if (await buscas.tenant(slug)) return { livre: false, motivo: "EM_USO" };
   if (await buscas.inscricao(slug)) return { livre: false, motivo: "EM_USO" };
   return { livre: true };
-}
-
-/**
- * Vive aqui, e não no componente do CRM, porque o checkout público sugere o
- * mesmo slug. Duas cópias divergem, e o cliente veria um endereço sugerido
- * diferente do que você vê ao converter o lead dele.
- */
-export function sugerirSlug(nome: string): string {
-  return nome
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // remove acentos (marcas combinantes)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }

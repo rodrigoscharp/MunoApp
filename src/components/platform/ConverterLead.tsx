@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PlanoTenant } from "@prisma/client";
 import { PLANO_LABELS, PRECOS } from "@/lib/plans";
-import { sugerirSlug } from "@/lib/inscricao/slug";
+import { sugerirSlug } from "@/lib/inscricao/sugerir-slug";
 
 // Só uma sugestão de preenchimento pro campo de mensalidade — a régua de
 // preço em si não vive aqui, e o operador pode sempre editar por cima
