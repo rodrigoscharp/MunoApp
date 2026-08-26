@@ -432,7 +432,9 @@ model Assinatura {
   ciclo               Ciclo            @default(MENSAL)
   // Presente = o Asaas cobra esta assinatura, e o cron NÃO gera cobrança para
   // ela. Nulo = cliente cobrado por PIX conferido na mão, como antes do
-  // gateway. É este campo que impede dois relógios gerando a mesma dívida.
+  // gateway. É este campo que impede dois relógios gerando a mesma dívida:
+  // sem ele, o cron cria uma segunda cobrança que o Asaas nunca vai baixar, e
+  // o cliente que pagou em dia é bloqueado pela régua em 15 dias mesmo assim.
   asaasSubscriptionId String?          @unique
   status              AssinaturaStatus @default(ATIVA)
   cobrancas           Cobranca[]

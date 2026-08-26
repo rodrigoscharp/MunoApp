@@ -122,4 +122,33 @@ describe("proximoVencimento com ciclo anual", () => {
 
     expect(proximoVencimento(assinatura, vencida, agora)).toEqual(vencida);
   });
+
+  // inicioCobranca de 2024 e agora em 2026: "+1 ano sobre inicioCobranca"
+  // devolveria 2025-08-10, uma data passada. O correto é o próximo
+  // aniversário do contrato que ainda não chegou.
+  it("com dois ciclos completos já passados, aponta para o próximo aniversário do contrato", () => {
+    const agora = new Date("2026-08-26T12:00:00Z");
+    const assinatura = {
+      diaVencimento: 10,
+      inicioCobranca: new Date("2024-08-10T00:00:00Z"),
+      ciclo: "ANUAL" as const,
+    };
+
+    expect(proximoVencimento(assinatura, null, agora)).toEqual(
+      new Date(Date.UTC(2027, 7, 10))
+    );
+  });
+
+  it("antes do aniversário no ano corrente, aponta para este ano, não o seguinte", () => {
+    const agora = new Date("2026-06-01T00:00:00Z");
+    const assinatura = {
+      diaVencimento: 10,
+      inicioCobranca: new Date("2024-08-10T00:00:00Z"),
+      ciclo: "ANUAL" as const,
+    };
+
+    expect(proximoVencimento(assinatura, null, agora)).toEqual(
+      new Date(Date.UTC(2026, 7, 10))
+    );
+  });
 });
