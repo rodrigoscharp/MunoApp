@@ -181,6 +181,17 @@ export default auth(async (req) => {
     return NextResponse.next();
   }
 
+  // O checkout público (assinatura de um novo restaurante) não pertence a
+  // tenant nenhum, e é para o raiz que a landing manda o botão de assinar.
+  // Mesma razão e mesma posição da guarda de /api/leads/publico: sair antes do
+  // findUnique, senão a rota resolveria o slug "default" e morreria com ele.
+  if (
+    nextUrl.pathname === "/assinar" ||
+    nextUrl.pathname.startsWith("/api/assinar")
+  ) {
+    return NextResponse.next();
+  }
+
   // O domínio raiz serve a página de vendas, e nada mais.
   //
   // Ela é um documento estático em public/ porque src/app/(client)/page.tsx já
