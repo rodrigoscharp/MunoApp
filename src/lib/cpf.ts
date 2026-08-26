@@ -1,11 +1,18 @@
-// Alguns gateways (Asaas, por exemplo) exigem o CPF do pagador para emitir
-// a cobrança. O CPF é validado no cliente e no servidor, mas NÃO é
+// Alguns gateways (Asaas, por exemplo) exigem o CPF ou CNPJ do pagador para
+// emitir a cobrança. O documento é validado no cliente e no servidor, mas NÃO é
 // persistido: viaja do checkout direto pra rota de cobrança e de lá pro
-// gateway. Guardar CPF de cliente final é responsabilidade de LGPD que a
+// gateway. Guardar CPF/CNPJ de cliente final é responsabilidade de LGPD que a
 // Muno não precisa assumir.
 
-export function stripCpf(value: string): string {
+export function stripDocumento(value: string): string {
   return value.replace(/\D/g, "");
+}
+
+// stripCpf delega para stripDocumento: a lógica é a mesma (remover não-dígitos)
+// e manter dois nomes evita quebra de contrato com código que usa stripCpf
+// especificamente.
+export function stripCpf(value: string): string {
+  return stripDocumento(value);
 }
 
 export function formatCpf(value: string): string {
@@ -35,4 +42,35 @@ export function isValidCpf(value: string): boolean {
   };
 
   return checkDigit(9) === Number(cpf[9]) && checkDigit(10) === Number(cpf[10]);
+}
+
+export function isValidCnpj(value: string): boolean {
+  const cnpj = stripDocumento(value);
+  if (cnpj.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(cnpj)) return false;
+
+  const digito = (base: string): number => {
+    // Os pesos do CNPJ vão de 2 a 9 e recomeçam — não é uma contagem simples
+    // como a do CPF.
+    let peso = base.length - 7;
+    let soma = 0;
+    for (let i = 0; i < base.length; i++) {
+      soma += Number(base[i]) * peso--;
+      if (peso < 2) peso = 9;
+    }
+    const resto = soma % 11;
+    return resto < 2 ? 0 : 11 - resto;
+  };
+
+  const d1 = digito(cnpj.slice(0, 12));
+  const d2 = digito(cnpj.slice(0, 13));
+  return d1 === Number(cnpj[12]) && d2 === Number(cnpj[13]);
+}
+
+/** Aceita os dois, decidindo pela contagem de dígitos. */
+export function isValidCpfCnpj(value: string): boolean {
+  const digitos = stripDocumento(value);
+  if (digitos.length === 11) return isValidCpf(value);
+  if (digitos.length === 14) return isValidCnpj(value);
+  return false;
 }

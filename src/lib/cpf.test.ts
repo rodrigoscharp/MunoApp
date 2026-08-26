@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isValidCpf, stripCpf, formatCpf } from "@/lib/cpf";
+import { isValidCpf, stripCpf, formatCpf, isValidCnpj, isValidCpfCnpj, stripDocumento } from "@/lib/cpf";
 
 describe("isValidCpf", () => {
   it("aceita CPF válido com e sem máscara", () => {
@@ -45,4 +45,59 @@ describe("formatCpf", () => {
   it("ignora dígitos além dos 11", () => {
     expect(formatCpf("5299822472599")).toBe("529.982.247-25");
   });
+});
+
+describe("stripDocumento", () => {
+  it("remove tudo que não é dígito", () => {
+    expect(stripDocumento("11.222.333/0001-81")).toBe("11222333000181");
+    expect(stripDocumento("529.982.247-25")).toBe("52998224725");
+  });
+});
+
+describe("isValidCnpj", () => {
+  it("aceita CNPJ válido, com e sem máscara", () => {
+    expect(isValidCnpj("11.222.333/0001-81")).toBe(true);
+    expect(isValidCnpj("11222333000181")).toBe(true);
+  });
+
+  it.each(["11222333000182", "52998224726"])(
+    "recusa dígito verificador errado: %s",
+    (doc) => expect(isValidCnpj(doc)).toBe(false)
+  );
+
+  it("recusa sequência repetida", () => {
+    expect(isValidCnpj("11111111111111")).toBe(false);
+  });
+
+  it.each(["123", "1122233300018", "112223330001811"])(
+    "recusa contagem de dígitos fora de 14: %s",
+    (doc) => expect(isValidCnpj(doc)).toBe(false)
+  );
+});
+
+describe("isValidCpfCnpj", () => {
+  // O pagador aqui é o restaurante, normalmente CNPJ. Aceitar só CPF
+  // excluiria a maior parte dos clientes.
+  it("aceita CNPJ válido, com e sem máscara", () => {
+    expect(isValidCpfCnpj("11.222.333/0001-81")).toBe(true);
+    expect(isValidCpfCnpj("11222333000181")).toBe(true);
+  });
+
+  it("aceita CPF válido", () => {
+    expect(isValidCpfCnpj("529.982.247-25")).toBe(true);
+  });
+
+  it.each(["11222333000182", "52998224726"])(
+    "recusa dígito verificador errado: %s",
+    (doc) => expect(isValidCpfCnpj(doc)).toBe(false)
+  );
+
+  it("recusa sequência repetida", () => {
+    expect(isValidCpfCnpj("11111111111111")).toBe(false);
+  });
+
+  it.each(["123", "1122233300018", "112223330001811"])(
+    "recusa contagem de dígitos fora de 11 e 14: %s",
+    (doc) => expect(isValidCpfCnpj(doc)).toBe(false)
+  );
 });
