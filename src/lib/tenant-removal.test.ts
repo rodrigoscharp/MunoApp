@@ -191,6 +191,33 @@ describe("removeTenant", () => {
   });
 
   /**
+   * Checar só a FORMA da chamada (que existe, com que argumentos) não pega o
+   * bug mais perigoso: um `updateMany` correto que rodasse DEPOIS do
+   * `tenant.delete()` passaria nos asserts acima do mesmo jeito, e quebraria
+   * em produção com foreign key violation — o delete do tenant não pode
+   * acontecer enquanto Lead/Inscricao ainda apontam para ele. Por isso os dois
+   * testes abaixo comparam índice em `chamadas`, que preserva a ordem real de
+   * execução dentro da transação.
+   */
+  it("desvincula o lead antes de apagar o tenant, não depois", async () => {
+    await removeTenant("cantina-teste");
+
+    const indiceDoDesvinculo = chamadas.findIndex(
+      (c) => c.modelo === "lead" && c.operacao === "updateMany"
+    );
+    const indiceDoDelete = chamadas.findIndex(
+      (c) => c.modelo === "tenant" && c.operacao === "delete"
+    );
+
+    expect(indiceDoDesvinculo).toBeGreaterThanOrEqual(0);
+    expect(indiceDoDelete).toBeGreaterThanOrEqual(0);
+    expect(
+      indiceDoDesvinculo,
+      "o desvínculo do Lead precisa acontecer antes de tenant.delete(), senão a foreign key bloqueia o delete em produção"
+    ).toBeLessThan(indiceDoDelete);
+  });
+
+  /**
    * Mesma razão do Lead: Inscricao é registro comercial da plataforma (a
    * tentativa de assinatura que reservou o slug), não dado do restaurante.
    * Apagar junto reescreveria "esta assinatura nunca existiu" por causa de um
@@ -206,6 +233,24 @@ describe("removeTenant", () => {
       where: { tenantId: TENANT.id },
       data: { tenantId: null },
     });
+  });
+
+  it("desvincula a inscrição antes de apagar o tenant, não depois", async () => {
+    await removeTenant("cantina-teste");
+
+    const indiceDoDesvinculo = chamadas.findIndex(
+      (c) => c.modelo === "inscricao" && c.operacao === "updateMany"
+    );
+    const indiceDoDelete = chamadas.findIndex(
+      (c) => c.modelo === "tenant" && c.operacao === "delete"
+    );
+
+    expect(indiceDoDesvinculo).toBeGreaterThanOrEqual(0);
+    expect(indiceDoDelete).toBeGreaterThanOrEqual(0);
+    expect(
+      indiceDoDesvinculo,
+      "o desvínculo da Inscricao precisa acontecer antes de tenant.delete(), senão a foreign key bloqueia o delete em produção"
+    ).toBeLessThan(indiceDoDelete);
   });
 
   it("recusa o tenant default, que é o site institucional", async () => {

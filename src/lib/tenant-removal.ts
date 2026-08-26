@@ -128,6 +128,17 @@ export async function contarDadosDoTenant(
  * restaurante — apagar junto reescreveria o histórico ("este lead"/"esta
  * assinatura nunca existiu") por causa de um cliente que saiu. O `tenantId`
  * dos dois é opcional justamente para poder ficar solto.
+ *
+ * A proteção contra foreign key é dupla: a FK de ambos já é `ON DELETE SET
+ * NULL`, então o Postgres desvincularia sozinho mesmo sem o `updateMany`
+ * abaixo — o `tenant.delete()` não quebraria de qualquer forma. O
+ * `updateMany` explícito existe por outro motivo: é a única forma de o código
+ * SABER quantas linhas foram desvinculadas, para reportar ao operador no
+ * preview do `tenant:remove` (ver contarDadosDoTenant). Mesmo assim, os dois
+ * updateMany precisam continuar rodando antes de `tenant.delete()` dentro
+ * desta transação: um DELETE que dependesse só do SET NULL do Postgres
+ * funcionaria, mas moveria a contagem para depois do fato consumado, e é
+ * exatamente essa ordem que tenant-removal.test.ts trava por índice.
  */
 export async function removeTenant(slug: string): Promise<ResumoDaRemocao> {
   const tenant = await buscarTenant(slug);
@@ -163,8 +174,11 @@ export async function removeTenant(slug: string): Promise<ResumoDaRemocao> {
 
     // Inscricao segue a regra do Lead: registro comercial da plataforma, não
     // dado do restaurante. Apagá-la reescreveria o histórico de vendas ("esta
-    // assinatura nunca existiu") por causa de um cliente que saiu. O tenantId
-    // dela é opcional justamente para poder ficar solto.
+    // assinatura nunca existiu") por causa de um cliente que saiu. A FK já é
+    // ON DELETE SET NULL — o Postgres desvincularia sozinho mesmo sem este
+    // updateMany —, mas só ele nos diz QUANTAS inscrições foram afetadas, e é
+    // essa contagem que contarDadosDoTenant mostra ao operador antes de apagar
+    // (ver o cabeçalho de removeTenant, acima, para o porquê da ordem).
     const { count: inscricoesDesvinculadas } = await tx.inscricao.updateMany({
       where: { tenantId: tenant.id },
       data: { tenantId: null },
