@@ -11,6 +11,8 @@ export function tenantTemMesaQr(plano: PlanoTenant): boolean {
   return plano === "MEMBRO_MESA_QR";
 }
 
+export type Ciclo = "MENSAL" | "ANUAL";
+
 // O preço de cada plano, em centavos e num lugar só.
 //
 // Centavos inteiros, e não reais em ponto flutuante: 119.99 não existe em
@@ -22,10 +24,24 @@ export function tenantTemMesaQr(plano: PlanoTenant): boolean {
 // se a página anunciar um valor que não está nesta tabela. Antes de 26/08/2026
 // os dois viviam em repositórios diferentes e já divergiam: a página dizia
 // 99,99 e o CRM sugeria 99.
-export const PRECOS: Record<PlanoTenant, { mensalCentavos: number }> = {
-  MEMBRO: { mensalCentavos: 11999 },
-  MEMBRO_MESA_QR: { mensalCentavos: 14999 },
+//
+// O anual é onze mensalidades, não doze: um mês grátis é o incentivo para se
+// comprometer com o período, e é essa mesma conta que o reembolso
+// proporcional desfaz quando alguém sai antes do fim.
+export const PRECOS: Record<
+  PlanoTenant,
+  { mensalCentavos: number; anualCentavos: number }
+> = {
+  MEMBRO: { mensalCentavos: 11999, anualCentavos: 11999 * 11 },
+  MEMBRO_MESA_QR: { mensalCentavos: 14999, anualCentavos: 14999 * 11 },
 };
+
+/** O preço do plano no ciclo pedido — o ponto único que decide entre mensal e anual. */
+export function precoDoCiclo(plano: PlanoTenant, ciclo: Ciclo): number {
+  return ciclo === "ANUAL"
+    ? PRECOS[plano].anualCentavos
+    : PRECOS[plano].mensalCentavos;
+}
 
 const BRL = new Intl.NumberFormat("pt-BR", {
   minimumFractionDigits: 2,

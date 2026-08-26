@@ -1,3 +1,4 @@
+import type { PlanoTenant } from "@prisma/client";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -5,6 +6,7 @@ import {
   PRECOS,
   formatarBRL,
   planoFromHeaderValue,
+  precoDoCiclo,
   tenantTemMesaQr,
 } from "./plans";
 
@@ -29,6 +31,18 @@ describe("planoFromHeaderValue", () => {
       expect(planoFromHeaderValue(valor)).toBe("MEMBRO");
     }
   );
+});
+
+describe("precoDoCiclo", () => {
+  it("o anual é onze mensalidades — um mês grátis", () => {
+    expect(PRECOS.MEMBRO.anualCentavos).toBe(11999 * 11);
+    expect(PRECOS.MEMBRO_MESA_QR.anualCentavos).toBe(14999 * 11);
+  });
+
+  it("devolve o preço do ciclo pedido", () => {
+    expect(precoDoCiclo("MEMBRO", "MENSAL")).toBe(11999);
+    expect(precoDoCiclo("MEMBRO", "ANUAL")).toBe(131989);
+  });
 });
 
 describe("o preço anunciado na landing e o preço do código não podem divergir", () => {
@@ -59,17 +73,25 @@ describe("o preço anunciado na landing e o preço do código não podem divergi
     expect(PRECOS.MEMBRO_MESA_QR.mensalCentavos).toBe(14999);
   });
 
-  // Direção 1: plans.ts mudou e o HTML ficou para trás.
-  it("o preço mensal do Membro aparece na página", () => {
-    expect(precosNaPagina()).toContain(formatarBRL(PRECOS.MEMBRO.mensalCentavos));
+  // Direção 1: plans.ts mudou e o HTML ficou para trás. Cobre os dois planos
+  // nos dois ciclos — mensal e anual — porque o toggle da landing agora
+  // anuncia os quatro.
+  it("os quatro preços de tabela aparecem na página", () => {
+    const naPagina = precosNaPagina();
+    for (const plano of Object.keys(PRECOS) as PlanoTenant[]) {
+      expect(naPagina).toContain(formatarBRL(PRECOS[plano].mensalCentavos));
+      expect(naPagina).toContain(formatarBRL(PRECOS[plano].anualCentavos));
+    }
   });
 
   // Direção 2: o HTML mudou e plans.ts ficou para trás — ou alguém digitou um
-  // valor que não existe em plano nenhum.
+  // valor que não existe em plano nenhum. A lista de conhecidos também precisa
+  // dos quatro, senão o preço anual vira "desconhecido" e o teste falha à toa.
   it("nenhum preço da página é desconhecido do código", () => {
-    const conhecidos = Object.values(PRECOS).map((p) =>
-      formatarBRL(p.mensalCentavos)
-    );
+    const conhecidos = Object.values(PRECOS).flatMap((p) => [
+      formatarBRL(p.mensalCentavos),
+      formatarBRL(p.anualCentavos),
+    ]);
 
     for (const preco of new Set(precosNaPagina())) {
       expect(conhecidos).toContain(preco);

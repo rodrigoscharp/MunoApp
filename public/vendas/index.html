@@ -483,51 +483,93 @@
        ====================================================== -->
   <section id="planos" class="content-layer py-20 px-4">
     <div class="max-w-7xl mx-auto">
-      <div class="text-center mb-12 reveal">
+      <div class="text-center mb-8 reveal">
         <span class="text-sage font-bold tracking-wider text-sm uppercase">Investimento</span>
         <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">Seja Membro MUNO</h2>
         <p class="text-gray-600 mt-2">Sem taxa sobre vendas. Você fica com <strong>100% do lucro</strong>.</p>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center max-w-3xl mx-auto">
+      <!-- Toggle mensal/anual: reescreve os preços marcados com data-mensal/
+           data-anual e o ciclo no link dos CTAs. Ver public/vendas/js/main.js. -->
+      <div class="flex items-center justify-center gap-3 mb-8">
+        <span id="labelMensal" class="text-sm font-semibold">Mensal</span>
+        <button id="toggleCiclo" type="button" role="switch" aria-checked="false"
+                aria-label="Alternar entre cobrança mensal e anual"
+                class="relative w-14 h-7 rounded-full bg-gray-300 transition">
+          <span id="toggleBolinha"
+                class="absolute top-1 left-1 w-5 h-5 rounded-full bg-white transition"></span>
+        </button>
+        <span id="labelAnual" class="text-sm font-semibold text-gray-400">
+          Anual <span class="text-terracota">· 1 mês grátis</span>
+        </span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-start max-w-6xl mx-auto">
 
         <!-- Membro MUNO -->
-        <div class="glass-card-highlight p-8 rounded-3xl relative shadow-2xl plan-glow reveal">
-          <div
-            class="absolute top-0 right-0 bg-terracota text-white text-xs font-black px-4 py-1.5 rounded-bl-xl rounded-tr-2xl tracking-wide">
-            MEMBRO MUNO
-          </div>
-          <h3 class="text-xl font-bold text-white">Membro MUNO</h3>
+        <div class="glass-card p-8 rounded-3xl relative reveal">
+          <h3 class="text-xl font-bold text-gastrogreen">Membro MUNO</h3>
           <div class="my-5">
             <div class="flex items-end gap-2">
-              <span class="text-5xl font-black text-white">R$ 119,99</span>
-              <span class="text-gray-300 mb-2">/mês</span>
+              <span class="preco text-5xl font-black text-gastrogreen"
+                    data-mensal="R$ 119,99" data-anual="R$ 1.319,89">R$ 119,99</span>
+              <span class="periodo text-gray-500 mb-2" data-mensal="/mês" data-anual="/ano">/mês</span>
             </div>
-            <div class="text-gray-300 text-sm mt-2">Cancele quando quiser sem fidelidade</div>
+            <div class="text-gray-500 text-sm mt-2">Cancele quando quiser sem fidelidade</div>
           </div>
-          <ul class="space-y-3 mb-8 text-sm text-gray-100">
-            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Produtos
+          <ul class="space-y-3 mb-8 text-sm text-gray-700">
+            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Produtos
               ilimitados</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>QR Code de
-              mesa</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Painel
+            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Painel
               financeiro completo</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Suporte
+            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Suporte
               prioritário via WhatsApp</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Relatórios de
+            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Relatórios de
               venda em tempo real</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Link
+            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Link
               personalizado</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Pedidos
+            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Pedidos
               ilimitados</li>
           </ul>
-          <a href="#contato" class="btn-primary block text-center w-full py-4 rounded-xl">
+          <a class="cta-plano btn-primary block text-center w-full py-4 rounded-xl"
+             data-plano="MEMBRO" href="/assinar?plano=MEMBRO&ciclo=MENSAL">
             Quero Ser Membro MUNO
           </a>
         </div>
 
+        <!-- Membro + Mesas QR -->
+        <div class="glass-card-highlight p-8 rounded-3xl relative shadow-2xl plan-glow reveal reveal-delay-1">
+          <div
+            class="absolute top-0 right-0 bg-terracota text-white text-xs font-black px-4 py-1.5 rounded-bl-xl rounded-tr-2xl tracking-wide">
+            MEMBRO + MESAS QR
+          </div>
+          <h3 class="text-xl font-bold text-white">Membro + Mesas QR</h3>
+          <div class="my-5">
+            <div class="flex items-end gap-2">
+              <span class="preco text-5xl font-black text-white"
+                    data-mensal="R$ 149,99" data-anual="R$ 1.649,89">R$ 149,99</span>
+              <span class="periodo text-gray-300 mb-2" data-mensal="/mês" data-anual="/ano">/mês</span>
+            </div>
+            <div class="text-gray-300 text-sm mt-2">Cancele quando quiser sem fidelidade</div>
+          </div>
+          <ul class="space-y-3 mb-8 text-sm text-gray-100">
+            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Tudo do
+              Membro MUNO</li>
+            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>QR Code de
+              mesa</li>
+            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Cliente
+              pede e paga direto da mesa</li>
+            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Sem
+              garçom, sem fila, sem erro de anotação</li>
+          </ul>
+          <a class="cta-plano btn-primary block text-center w-full py-4 rounded-xl"
+             data-plano="MEMBRO_MESA_QR" href="/assinar?plano=MEMBRO_MESA_QR&ciclo=MENSAL">
+            Quero Membro + Mesas QR
+          </a>
+        </div>
+
         <!-- Enterprise -->
-        <div class="glass-card p-8 rounded-3xl reveal reveal-delay-1">
+        <div class="glass-card p-8 rounded-3xl reveal reveal-delay-2">
           <h3 class="text-xl font-bold text-gastrogreen">Enterprise</h3>
           <div class="my-5">
             <span class="text-4xl font-black text-terracota">Sob Consulta</span>
@@ -681,6 +723,7 @@
             <select id="planInterest"
               class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 input-focus transition text-sm">
               <option value="Membro MUNO">⭐ Membro MUNO — R$ 119,99/mês</option>
+              <option value="Membro + Mesas QR">⭐ Membro + Mesas QR — R$ 149,99/mês</option>
               <option value="Enterprise">Enterprise — Sob consulta</option>
             </select>
           </div>
