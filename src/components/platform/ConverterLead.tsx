@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PlanoTenant } from "@prisma/client";
 import { PLANO_LABELS, PRECOS } from "@/lib/plans";
+import { sugerirSlug } from "@/lib/inscricao/slug";
 
 // Só uma sugestão de preenchimento pro campo de mensalidade — a régua de
 // preço em si não vive aqui, e o operador pode sempre editar por cima
@@ -16,14 +17,6 @@ function mensalidadeSugerida(plano: PlanoTenant): string {
   return (PRECOS[plano].mensalCentavos / 100).toFixed(2);
 }
 
-function sugerirSlug(nome: string): string {
-  return nome
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // remove acentos (marcas combinantes)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
 
 type Credenciais = {
   url: string;
