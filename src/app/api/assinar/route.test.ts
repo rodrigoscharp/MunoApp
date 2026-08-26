@@ -214,6 +214,10 @@ describe("POST /api/assinar", () => {
       ordem.push("inscricao.create");
       return { id: "insc-1" };
     });
+    leadCreate.mockImplementation(async () => {
+      ordem.push("lead.create");
+      return { id: "lead-1" };
+    });
     criarCliente.mockImplementation(async () => {
       ordem.push("asaas.criarCliente");
       return { id: "cus_123" };
@@ -221,7 +225,10 @@ describe("POST /api/assinar", () => {
 
     await POST(requisicao(corpoValido()));
 
-    expect(ordem).toEqual(["inscricao.create", "asaas.criarCliente"]);
+    // O Lead entra entre a Inscricao e o Asaas, não depois: um checkout que
+    // já virou cobrança não pode depender do CRM para terminar (ver o
+    // comentário na rota).
+    expect(ordem).toEqual(["inscricao.create", "lead.create", "asaas.criarCliente"]);
   });
 
   it("perder a corrida contra outro create (P2002 no slug) devolve 409, não 500", async () => {
@@ -272,7 +279,7 @@ describe("POST /api/assinar", () => {
     expect(inscricaoDelete).toHaveBeenCalledWith({ where: { id: "insc-1" } });
   });
 
-  it("registra o Lead da inscrição paga para não sumir do funil", async () => {
+  it("registra o Lead da inscrição para não sumir do funil", async () => {
     await POST(requisicao(corpoValido()));
 
     expect(leadCreate).toHaveBeenCalledTimes(1);
@@ -282,6 +289,35 @@ describe("POST /api/assinar", () => {
       origem: "checkout",
       status: "NEGOCIACAO",
     });
+  });
+
+  it("Lead falhando não derruba o checkout — nem o 201, nem a assinatura no Asaas", async () => {
+    // Registro de CRM não pode ter poder de veto sobre um checkout que já
+    // virou cobrança. Se isto voltasse a lançar (em vez de logar e seguir),
+    // o teste abaixo capturaria a rejeição e falharia — é a prova de que o
+    // try/catch do Lead é realmente não-fatal.
+    leadCreate.mockRejectedValue(new Error("constraint qualquer no Lead"));
+
+    const res = await POST(requisicao(corpoValido()));
+    const body = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(body.checkoutUrl).toBe("https://sandbox.asaas.com/i/123");
+    expect(criarAssinatura).toHaveBeenCalledTimes(1);
+  });
+
+  it("Asaas falha depois do Lead gravado: a Inscricao é apagada, mas o Lead sobrevive", async () => {
+    // O abandono precisa ficar registrado: é justamente o que um Lead deve
+    // contar quando alguém tenta assinar e a cobrança não sai do chão. Se o
+    // Lead fosse desfeito junto com a Inscricao, esse dado de funil se
+    // perderia sem deixar rastro.
+    criarCliente.mockRejectedValue(new Error("Asaas fora do ar"));
+
+    const res = await POST(requisicao(corpoValido()));
+
+    expect(res.status).toBe(502);
+    expect(inscricaoDelete).toHaveBeenCalledWith({ where: { id: "insc-1" } });
+    expect(leadCreate).toHaveBeenCalledTimes(1);
   });
 
   it("barra com 429 ao estourar o teto do mesmo IP", async () => {

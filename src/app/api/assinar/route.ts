@@ -142,6 +142,41 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // O Lead entra aqui, logo depois da Inscricao e ANTES de qualquer chamada
+  // ao Asaas — não junto do bloco que fala com o gateway. Um registro de CRM
+  // não pode ter poder de abortar um checkout que já virou cobrança: se o
+  // create do Lead ficasse no try do Asaas e falhasse depois da assinatura
+  // já criada lá, o catch abaixo apagaria a Inscricao e devolveria 502 com a
+  // cobrança viva no Asaas — o cliente paga, o webhook não acha Inscricao
+  // nenhuma para casar o pagamento, e o restaurante nunca é criado. Lead é
+  // relatório; cobrança é receita, e o caminho que gera receita não pode
+  // depender do que gera relatório.
+  //
+  // Colocado antes do Asaas, ele também sobrevive a uma falha de pagamento:
+  // se o Asaas falhar mais abaixo, a Inscricao é apagada mas o Lead fica,
+  // registrando a tentativa abandonada — dado de funil que hoje se perderia
+  // se o Lead só nascesse depois de pagar.
+  try {
+    await prismaUnscoped.lead.create({
+      data: {
+        restaurante: nome,
+        email,
+        plano: PLANO_LABELS[plano],
+        origem: "checkout",
+        status: "NEGOCIACAO",
+      },
+    });
+  } catch (err) {
+    // Não-fatal, no mesmo espírito do vínculo de lead em
+    // src/app/api/platform/leads/[id]/converter/route.ts: o que importa
+    // (aqui, a Inscricao que segura o slug e vai virar cobrança) já existe.
+    // Perder a foto do CRM não pode derrubar o checkout do cliente.
+    console.error(
+      `Falha ao gravar o Lead da inscrição ${inscricao.id} (${email}):`,
+      err
+    );
+  }
+
   try {
     const cliente = await criarCliente({
       nome,
@@ -172,20 +207,6 @@ export async function POST(req: NextRequest) {
       data: {
         asaasCustomerId: cliente.id,
         asaasSubscriptionId: assinatura.id,
-      },
-    });
-
-    // O Lead mantém o funil inteiro. Sem ele, todo cliente self-service some
-    // do CRM e o FunilBarras passa a medir só quem veio pelo WhatsApp. Ele
-    // também é o que sobra quando o cron apaga uma inscrição abandonada —
-    // apagar a Inscricao não pode apagar o registro comercial junto.
-    await prismaUnscoped.lead.create({
-      data: {
-        restaurante: nome,
-        email,
-        plano: PLANO_LABELS[plano],
-        origem: "checkout",
-        status: "NEGOCIACAO",
       },
     });
 
