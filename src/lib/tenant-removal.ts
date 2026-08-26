@@ -53,6 +53,7 @@ export type ResumoDaRemocao = {
   tenant: Pick<Tenant, "id" | "nome" | "slug">;
   contagens: Record<string, number>;
   leadsDesvinculados: number;
+  inscricoesDesvinculadas: number;
 };
 
 /** `OrderItem` → `orderItem`, que é como o delegate aparece no Prisma Client. */
@@ -110,16 +111,23 @@ export async function contarDadosDoTenant(
     where: { tenantId: tenant.id },
   });
 
-  return { tenant, contagens, leadsDesvinculados };
+  // Mesma lógica do Lead: a Inscricao não é apagada, só perde o vínculo — ver
+  // o comentário no cabeçalho de removeTenant.
+  const inscricoesDesvinculadas = await prismaUnscoped.inscricao.count({
+    where: { tenantId: tenant.id },
+  });
+
+  return { tenant, contagens, leadsDesvinculados, inscricoesDesvinculadas };
 }
 
 /**
  * Apaga um tenant e tudo que pende dele, numa transação só.
  *
- * O Lead é a exceção: ele não é apagado, só perde o vínculo. Lead é registro de
- * prospecção da plataforma, não dado do restaurante — apagar junto reescreveria
- * o histórico comercial ("este lead nunca existiu") por causa de um cliente que
- * saiu. O `tenantId` dele é opcional justamente para poder ficar solto.
+ * Lead e Inscricao são as exceções: nenhum dos dois é apagado, só perdem o
+ * vínculo. Ambos são registro comercial da plataforma, não dado do
+ * restaurante — apagar junto reescreveria o histórico ("este lead"/"esta
+ * assinatura nunca existiu") por causa de um cliente que saiu. O `tenantId`
+ * dos dois é opcional justamente para poder ficar solto.
  */
 export async function removeTenant(slug: string): Promise<ResumoDaRemocao> {
   const tenant = await buscarTenant(slug);
@@ -153,8 +161,17 @@ export async function removeTenant(slug: string): Promise<ResumoDaRemocao> {
       data: { tenantId: null },
     });
 
+    // Inscricao segue a regra do Lead: registro comercial da plataforma, não
+    // dado do restaurante. Apagá-la reescreveria o histórico de vendas ("esta
+    // assinatura nunca existiu") por causa de um cliente que saiu. O tenantId
+    // dela é opcional justamente para poder ficar solto.
+    const { count: inscricoesDesvinculadas } = await tx.inscricao.updateMany({
+      where: { tenantId: tenant.id },
+      data: { tenantId: null },
+    });
+
     await tx.tenant.delete({ where: { id: tenant.id } });
 
-    return { tenant, contagens, leadsDesvinculados };
+    return { tenant, contagens, leadsDesvinculados, inscricoesDesvinculadas };
   });
 }

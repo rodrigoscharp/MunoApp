@@ -37,19 +37,20 @@ model Tenant {
   coupons             Coupon[]
   lead                Lead?
   assinatura          Assinatura?
+  inscricao           Inscricao?
 }
 
 model PaymentConnection {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   tenantId          String
-  tenant            Tenant   @relation(fields: [tenantId], references: [id])
-  provider          String   // 'mercado_pago' | 'asaas'
-  credentials       String   // JSON criptografado (AES-256-GCM), ver src/lib/payments/credentials.ts
-  externalAccountId String?  // id da conta no gateway, quando a validação devolver
-  status            String   // 'pending_webhook' | 'active' | 'invalid' | 'disabled'
+  tenant            Tenant    @relation(fields: [tenantId], references: [id])
+  provider          String // 'mercado_pago' | 'asaas'
+  credentials       String // JSON criptografado (AES-256-GCM), ver src/lib/payments/credentials.ts
+  externalAccountId String? // id da conta no gateway, quando a validação devolver
+  status            String // 'pending_webhook' | 'active' | 'invalid' | 'disabled'
   lastCheckedAt     DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@unique([tenantId, provider])
   @@index([tenantId])
@@ -303,7 +304,7 @@ model Coupon {
   id         String     @id @default(cuid())
   tenantId   String
   tenant     Tenant     @relation(fields: [tenantId], references: [id])
-  code       String     // sempre gravado em maiúsculas e sem espaços
+  code       String // sempre gravado em maiúsculas e sem espaços
   type       CouponType
   // Porcentagem quando PERCENT, reais quando FIXED, ignorado em FREE_SHIPPING.
   value      Decimal    @default(0) @db.Decimal(10, 2)
@@ -332,7 +333,7 @@ model ChatMessage {
   tenant     Tenant   @relation(fields: [tenantId], references: [id])
   orderId    String
   order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  senderRole String   // "CUSTOMER" | "ADMIN"
+  senderRole String // "CUSTOMER" | "ADMIN"
   senderId   String?
   senderName String?
   content    String
@@ -458,4 +459,48 @@ model Cobranca {
   // chama: rodar duas vezes no mesmo mês não gera duas cobranças.
   @@unique([assinaturaId, competencia])
   @@index([status, vencimento])
+}
+
+enum InscricaoStatus {
+  AGUARDANDO_PAGAMENTO
+  PAGA
+  PROVISIONADA
+}
+
+// Uma tentativa de assinatura vinda do checkout público.
+//
+// Existe por dois motivos, e nenhum é guardar dados de formulário:
+//
+// 1. É a reserva do slug. Sem ela o cliente paga e só então descobre que
+//    "pizzaria" já era.
+// 2. É o que torna o webhook idempotente. O Asaas reentrega quando não recebe
+//    200, e sem um registro dizendo "isto já foi provisionado" a segunda
+//    entrega cria um segundo restaurante para quem pagou uma vez.
+//
+// Não guarda CPF/CNPJ: o documento vai do checkout direto ao Asaas, e o que
+// fica aqui é o asaasCustomerId. Mesma regra que src/lib/cpf.ts já registra.
+//
+// Não é modelo tenant-scoped — é registro de plataforma, como o Lead — e por
+// isso não entra em src/lib/tenant-scoped-models.ts.
+model Inscricao {
+  id                  String          @id @default(cuid())
+  nome                String
+  slug                String          @unique
+  email               String
+  plano               PlanoTenant
+  ciclo               Ciclo
+  asaasCustomerId     String?
+  asaasPaymentId      String?         @unique
+  asaasSubscriptionId String?         @unique
+  status              InscricaoStatus @default(AGUARDANDO_PAGAMENTO)
+  // Slug abandonado não pode ficar preso. O cron apaga a inscrição não paga e
+  // vencida — apagar, e não marcar, porque enquanto a linha existir o
+  // slug @unique continua segurando o nome.
+  expiraEm            DateTime
+  tenantId            String?         @unique
+  tenant              Tenant?         @relation(fields: [tenantId], references: [id])
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([status])
 }

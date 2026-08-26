@@ -38,9 +38,8 @@ async function main() {
     process.exit(1);
   }
 
-  const { tenant, contagens, leadsDesvinculados } = await contarDadosDoTenant(
-    args.slug
-  );
+  const { tenant, contagens, leadsDesvinculados, inscricoesDesvinculadas } =
+    await contarDadosDoTenant(args.slug);
 
   const total = Object.values(contagens).reduce((a, b) => a + b, 0);
 
@@ -54,6 +53,11 @@ async function main() {
   if (leadsDesvinculados > 0) {
     console.log(
       `\n  ${leadsDesvinculados} lead(s) perdem o vínculo, mas continuam no funil.`
+    );
+  }
+  if (inscricoesDesvinculadas > 0) {
+    console.log(
+      `  ${inscricoesDesvinculadas} inscrição(ões) perdem o vínculo, mas continuam no histórico comercial.`
     );
   }
 

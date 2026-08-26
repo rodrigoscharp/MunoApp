@@ -190,6 +190,24 @@ describe("removeTenant", () => {
     });
   });
 
+  /**
+   * Mesma razão do Lead: Inscricao é registro comercial da plataforma (a
+   * tentativa de assinatura que reservou o slug), não dado do restaurante.
+   * Apagar junto reescreveria "esta assinatura nunca existiu" por causa de um
+   * cliente que saiu.
+   */
+  it("desvincula a inscrição em vez de apagá-la", async () => {
+    await removeTenant("cantina-teste");
+
+    const naInscricao = chamadas.filter((c) => c.modelo === "inscricao");
+    expect(naInscricao).toHaveLength(1);
+    expect(naInscricao[0].operacao).toBe("updateMany");
+    expect(naInscricao[0].args).toEqual({
+      where: { tenantId: TENANT.id },
+      data: { tenantId: null },
+    });
+  });
+
   it("recusa o tenant default, que é o site institucional", async () => {
     findUniqueTenant.mockResolvedValue({ ...TENANT, slug: "default" });
 
