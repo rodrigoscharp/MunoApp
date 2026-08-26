@@ -63,6 +63,7 @@ Essa última linha é a que impede o bug dos dois relógios. Ela precisa de test
 
 ```
 id, nome, slug @unique, email, plano, ciclo,
+-- sem cpfCnpj: o documento vai direto para o Asaas e não é persistido
 asaasCustomerId, asaasPaymentId, asaasSubscriptionId,
 status: AGUARDANDO_PAGAMENTO | PAGA | PROVISIONADA,
 tenantId @unique?, expiraEm, createdAt, updatedAt
@@ -146,11 +147,22 @@ landing → /assinar?plano&ciclo → 3 campos, slug conferido ao vivo
         → primeiro acesso → onboarding de identidade → cardápio no ar
 ```
 
-**Antes de pagar, três campos:** nome do restaurante, e-mail e o endereço
-`.munoapp.com.br`, com disponibilidade conferida ao vivo. Só isso. O resto do
-cadastro vira onboarding depois do primeiro acesso — formulário longo antes de
-pedir cartão derruba conversão, e o mínimo aqui é o que garante que **nunca
-existe pagamento sem tenant**.
+**Antes de pagar, quatro campos:** nome do restaurante, e-mail, o endereço
+`.munoapp.com.br` com disponibilidade conferida ao vivo, e CPF ou CNPJ. Só isso. O
+resto do cadastro vira onboarding depois do primeiro acesso — formulário longo
+antes de pedir cartão derruba conversão, e o mínimo aqui é o que garante que
+**nunca existe pagamento sem tenant**.
+
+O documento não é escolha nossa: `POST /customers` do Asaas exige `cpfCnpj`, e sem
+cliente não há cobrança. **CPF e CNPJ, os dois** — o pagador aqui é o restaurante,
+normalmente CNPJ, às vezes MEI ou pessoa física; aceitar só CPF excluiria a maior
+parte dos clientes.
+
+`src/lib/cpf.ts` valida CPF e abre dizendo que o documento **não é persistido**:
+*"viaja do checkout direto pra rota de cobrança e de lá pro gateway"*. A mesma
+regra vale aqui, pelo mesmo motivo — `Inscricao` **não** guarda o documento, só o
+`asaasCustomerId` que o Asaas devolve. O arquivo ganha `isValidCnpj` e um
+`isValidCpfCnpj` que aceita os dois pelo número de dígitos.
 
 **O webhook é a parte que não pode errar**, porque roda sozinho e é reentregue.
 Rota `/api/assinaturas/webhook/asaas`, com guarda em `src/proxy.ts` que a tira do
@@ -273,6 +285,8 @@ Nenhuma linha do caminho do dinheiro sem teste antes.
 * **Webhook**: entrega repetida provisiona uma vez só; token inválido é recusado;
   evento de assinatura desconhecida não explode.
 * **Slug**: em uso por `Tenant`, por `Inscricao`, e em `RESERVED_SLUGS`.
+* **`isValidCpfCnpj`**: CPF válido, CNPJ válido, dígito verificador errado nos
+  dois, sequência repetida (`111...`), e contagem de dígitos fora de 11 e 14.
 * **`proximoVencimento`**: anual em dia aponta para daqui a doze meses.
 * **`tenant-removal`**: `Inscricao` perde o vínculo, não é apagada.
 * **Drift de preço**: os quatro valores.
