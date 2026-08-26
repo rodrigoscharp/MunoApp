@@ -54,6 +54,11 @@ describe("o preço anunciado na landing e o preço do código não podem divergi
     expect(precosNaPagina().length).toBeGreaterThan(0);
   });
 
+  it("cobra os preços de tabela de 2026-08", () => {
+    expect(PRECOS.MEMBRO.mensalCentavos).toBe(11999);
+    expect(PRECOS.MEMBRO_MESA_QR.mensalCentavos).toBe(14999);
+  });
+
   // Direção 1: plans.ts mudou e o HTML ficou para trás.
   it("o preço mensal do Membro aparece na página", () => {
     expect(precosNaPagina()).toContain(formatarBRL(PRECOS.MEMBRO.mensalCentavos));

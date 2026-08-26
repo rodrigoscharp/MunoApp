@@ -23,8 +23,8 @@ export function tenantTemMesaQr(plano: PlanoTenant): boolean {
 // os dois viviam em repositórios diferentes e já divergiam: a página dizia
 // 99,99 e o CRM sugeria 99.
 export const PRECOS: Record<PlanoTenant, { mensalCentavos: number }> = {
-  MEMBRO: { mensalCentavos: 9999 },
-  MEMBRO_MESA_QR: { mensalCentavos: 15000 },
+  MEMBRO: { mensalCentavos: 11999 },
+  MEMBRO_MESA_QR: { mensalCentavos: 14999 },
 };
 
 const BRL = new Intl.NumberFormat("pt-BR", {
