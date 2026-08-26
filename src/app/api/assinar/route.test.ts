@@ -256,7 +256,12 @@ describe("POST /api/assinar", () => {
     expect(criarCliente).not.toHaveBeenCalled();
   });
 
-  it("Asaas falha depois da Inscricao criada: solta o slug em vez de prendê-lo", async () => {
+  // A regra que separa os dois blocos abaixo: enquanto não existe nada
+  // cobrável no Asaas, soltar o slug (apagar a Inscricao) é o desfecho
+  // certo. A partir do instante em que a assinatura existe lá, a Inscricao
+  // precisa sobreviver — é ela que o webhook usa para achar o pedido quando
+  // o cliente pagar.
+  it("criarCliente falha: nada cobrável existe ainda, a Inscricao é apagada", async () => {
     // Sem isso, um erro de rede prenderia o endereço até o cron passar, e o
     // cliente que tentasse de novo em seguida tomaria "indisponível" por
     // causa da própria tentativa anterior.
@@ -266,17 +271,119 @@ describe("POST /api/assinar", () => {
 
     expect(res.status).toBe(502);
     expect(inscricaoDelete).toHaveBeenCalledWith({ where: { id: "insc-1" } });
+    expect(inscricaoUpdate).not.toHaveBeenCalled();
   });
 
-  it("assinatura criada sem nenhuma cobrança: solta o slug e devolve 502", async () => {
-    // Não há para onde mandar o cliente pagar — uma tela em branco é pior
-    // que dizer para tentar de novo.
-    listarCobrancasDaAssinatura.mockResolvedValue({ data: [] });
+  it("criarAssinatura falha: ainda nada cobrável existe, a Inscricao é apagada", async () => {
+    // Mesmo raciocínio do teste acima: o cliente no Asaas já existe, mas sem
+    // assinatura não há nada que o webhook precise achar depois. Soltar o
+    // slug continua sendo o desfecho certo aqui.
+    criarAssinatura.mockRejectedValue(new Error("Asaas recusou o cartão"));
 
     const res = await POST(requisicao(corpoValido()));
 
     expect(res.status).toBe(502);
     expect(inscricaoDelete).toHaveBeenCalledWith({ where: { id: "insc-1" } });
+    expect(inscricaoUpdate).not.toHaveBeenCalled();
+  });
+
+  it("criarAssinatura sucede e listarCobrancasDaAssinatura falha: Inscricao SOBREVIVE com os ids do Asaas gravados", async () => {
+    // A partir daqui existe uma assinatura viva e cobrável no Asaas. Se a
+    // rota apagasse a Inscricao agora (como fazia antes), e o cliente já
+    // estivesse com a tela de pagamento aberta ou recebesse o e-mail de
+    // cobrança do próprio Asaas, ele pagaria por uma assinatura que nenhuma
+    // linha local aponta mais — o webhook não encontraria nada para casar
+    // com o pagamento.
+    listarCobrancasDaAssinatura.mockRejectedValue(new Error("Asaas indisponível"));
+
+    const res = await POST(requisicao(corpoValido()));
+
+    expect(res.status).toBe(502);
+    expect(inscricaoDelete).not.toHaveBeenCalled();
+    expect(inscricaoUpdate).toHaveBeenCalledWith({
+      where: { id: "insc-1" },
+      data: { asaasCustomerId: "cus_123", asaasSubscriptionId: "sub_123" },
+    });
+  });
+
+  it("assinatura criada sem nenhuma cobrança: Inscricao SOBREVIVE com asaasSubscriptionId gravado", async () => {
+    // Mesma fase da anterior (a assinatura já existe no Asaas quando isto
+    // falha) — só que o erro vem de dentro de urlDaPrimeiraCobranca, não de
+    // uma rejeição do listarCobrancasDaAssinatura em si.
+    listarCobrancasDaAssinatura.mockResolvedValue({ data: [] });
+
+    const res = await POST(requisicao(corpoValido()));
+
+    expect(res.status).toBe(502);
+    expect(inscricaoDelete).not.toHaveBeenCalled();
+    expect(inscricaoUpdate).toHaveBeenCalledWith({
+      where: { id: "insc-1" },
+      data: { asaasCustomerId: "cus_123", asaasSubscriptionId: "sub_123" },
+    });
+  });
+
+  it("inscricao.update falha depois da assinatura criada: Inscricao SOBREVIVE mesmo assim", async () => {
+    // Pior caso: a assinatura existe no Asaas e nem os ids conseguiram ser
+    // gravados. Mesmo assim não apagamos — apagar aqui seria o cenário
+    // exato que o defeito descrevia: cobrança viva, zero linhas locais.
+    inscricaoUpdate.mockRejectedValue(new Error("conexão com o banco caiu"));
+
+    const res = await POST(requisicao(corpoValido()));
+
+    expect(res.status).toBe(502);
+    expect(inscricaoDelete).not.toHaveBeenCalled();
+  });
+
+  it("o log de falha carrega os ids do Asaas quando existem", async () => {
+    // Quem lê o log às 2 da manhã precisa conseguir achar a assinatura no
+    // painel do Asaas e a Inscricao no banco sem mais nenhuma pista.
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    listarCobrancasDaAssinatura.mockRejectedValue(new Error("Asaas indisponível"));
+
+    await POST(requisicao(corpoValido()));
+
+    const mensagens = spy.mock.calls.map((args) => args.join(" "));
+    expect(
+      mensagens.some(
+        (m) => m.includes("insc-1") && m.includes("cus_123") && m.includes("sub_123")
+      )
+    ).toBe(true);
+
+    spy.mockRestore();
+  });
+
+  it("se o próprio delete de recuperação falhar, o erro é logado — não pode sumir em silêncio", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    criarCliente.mockRejectedValue(new Error("Asaas fora do ar"));
+    inscricaoDelete.mockRejectedValue(new Error("banco fora do ar também"));
+
+    const res = await POST(requisicao(corpoValido()));
+
+    expect(res.status).toBe(502);
+    const mensagens = spy.mock.calls.map((args) => args.join(" "));
+    expect(mensagens.some((m) => m.includes("banco fora do ar também"))).toBe(true);
+
+    spy.mockRestore();
+  });
+
+  it("expiraEm reserva 1h para cartão", async () => {
+    const antes = Date.now();
+    await POST(requisicao({ ...corpoValido(), metodo: "CREDIT_CARD", ciclo: "ANUAL" }));
+
+    const expira = inscricaoCreate.mock.calls[0][0].data.expiraEm as Date;
+    const deltaMs = expira.getTime() - antes;
+    expect(deltaMs).toBeGreaterThan(55 * 60 * 1000);
+    expect(deltaMs).toBeLessThanOrEqual(60 * 60 * 1000 + 5000);
+  });
+
+  it("expiraEm reserva 24h para PIX — trocar os dois valores por engano não seria pego sem este teste", async () => {
+    const antes = Date.now();
+    await POST(requisicao({ ...corpoValido(), metodo: "PIX", ciclo: "ANUAL" }));
+
+    const expira = inscricaoCreate.mock.calls[0][0].data.expiraEm as Date;
+    const deltaMs = expira.getTime() - antes;
+    expect(deltaMs).toBeGreaterThan(23 * 60 * 60 * 1000);
+    expect(deltaMs).toBeLessThanOrEqual(24 * 60 * 60 * 1000 + 5000);
   });
 
   it("registra o Lead da inscrição para não sumir do funil", async () => {

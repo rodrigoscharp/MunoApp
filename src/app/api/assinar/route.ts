@@ -177,8 +177,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // A REGRA (daqui até o fim da função): enquanto não existe nada cobrável
+  // no Asaas, soltar o slug apagando a Inscricao é o desfecho certo — não
+  // sobra nada para o webhook precisar achar. A partir do instante em que a
+  // assinatura existe lá, é o oposto: a Inscricao precisa sobreviver, porque
+  // é ela que o webhook usa para casar o pagamento com o pedido. Apagá-la
+  // depois desse instante é o pior cenário possível — cliente cobrado (o
+  // Asaas manda e-mail de cobrança sozinho, e a tela de pagamento pode já
+  // estar aberta) e zero linhas locais apontando para a assinatura.
+  //
+  // Por isso o try/catch é dividido em duas fases, e não um bloco só: a
+  // fase 1 (cliente + assinatura) ainda pode desfazer a Inscricao; a fase 2
+  // (a partir do momento em que a assinatura existe) nunca mais pode.
+
+  let cliente: Awaited<ReturnType<typeof criarCliente>> | undefined;
+  let assinatura: Awaited<ReturnType<typeof criarAssinatura>> | undefined;
   try {
-    const cliente = await criarCliente({
+    cliente = await criarCliente({
       nome,
       email,
       cpfCnpj: stripDocumento(cpfCnpj),
@@ -192,7 +207,7 @@ export async function POST(req: NextRequest) {
     // geração de cobrança quando esse id existe — emitiria uma cobrança
     // MENSAL para quem pagou o ano inteiro, bloqueando pela régua em 15 dias
     // um cliente que já tinha pago.
-    const assinatura = await criarAssinatura({
+    assinatura = await criarAssinatura({
       customerId: cliente.id,
       valorCentavos,
       ciclo,
@@ -200,8 +215,27 @@ export async function POST(req: NextRequest) {
       descricao,
       externalReference: inscricao.id,
     });
-    const checkoutUrl = await urlDaPrimeiraCobranca(assinatura.id);
+  } catch (erro) {
+    // Nada cobrável existe ainda (falhou em criarCliente, ou o próprio
+    // criarAssinatura): soltar o slug é o desfecho certo, em vez de deixá-lo
+    // preso até o cron de inscrições vencidas passar.
+    await desfazerInscricao(inscricao.id, erro);
+    logFalhaAsaas("criar cliente/assinatura no Asaas", erro, {
+      inscricaoId: inscricao.id,
+      clienteId: cliente?.id,
+    });
+    return NextResponse.json(
+      { error: "Não foi possível iniciar o pagamento. Tente de novo." },
+      { status: 502 }
+    );
+  }
 
+  try {
+    // A partir daqui a assinatura já existe e é cobrável no Asaas. Gravar os
+    // ids na Inscricao é o primeiro passo, ANTES de listar as cobranças: a
+    // linha local passa a apontar para a assinatura no exato momento em que
+    // ela passa a existir, e não depois de mais uma chamada de rede que pode
+    // falhar.
     await prismaUnscoped.inscricao.update({
       where: { id: inscricao.id },
       data: {
@@ -210,25 +244,63 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    const checkoutUrl = await urlDaPrimeiraCobranca(assinatura.id);
+
     return NextResponse.json(
       { inscricaoId: inscricao.id, checkoutUrl },
       { status: 201 }
     );
   } catch (erro) {
-    // Falhou no Asaas (ou não devolveu cobrança) depois da Inscricao já
-    // criada: solta o slug em vez de deixá-lo preso até o cron de inscrições
-    // vencidas passar. Sem isso, um erro de rede prenderia o endereço por
-    // horas, e o cliente que tentasse de novo em seguida tomaria
-    // "indisponível" por causa da própria tentativa anterior.
-    await prismaUnscoped.inscricao
-      .delete({ where: { id: inscricao.id } })
-      .catch(() => {});
-    console.error("Falha ao criar cobrança no Asaas:", erro);
+    // A assinatura já existe no Asaas — a Inscricao NÃO é apagada aqui, nem
+    // se o próprio update acima tiver falhado. O slug fica preso até
+    // expirar (expiraEm cuida disso, e é barato), mas se o cliente pagar o
+    // webhook consegue achar esta linha pelo asaasSubscriptionId. Apagar
+    // aqui reproduziria exatamente o defeito que este código corrige.
+    logFalhaAsaas(
+      "processar a assinatura já criada no Asaas (Inscricao NÃO apagada de propósito)",
+      erro,
+      { inscricaoId: inscricao.id, clienteId: cliente.id, assinaturaId: assinatura.id }
+    );
     return NextResponse.json(
       { error: "Não foi possível iniciar o pagamento. Tente de novo." },
       { status: 502 }
     );
   }
+}
+
+/**
+ * Apaga a Inscricao para soltar o slug. Só deve ser chamada enquanto ainda
+ * NÃO existe nada cobrável no Asaas — depois desse ponto a Inscricao precisa
+ * sobreviver (ver a REGRA no corpo de POST).
+ */
+async function desfazerInscricao(inscricaoId: string, causa: unknown) {
+  await prismaUnscoped.inscricao.delete({ where: { id: inscricaoId } }).catch((delErro) => {
+    // Se nem o delete de recuperação funcionar, o slug fica preso E ninguém
+    // fica sabendo — pior que os dois problemas separados. Isto não pode
+    // sumir num `.catch(() => {})` silencioso.
+    console.error(
+      `Falha ao apagar a Inscricao ${inscricaoId} ao tentar soltar o slug (causa original abaixo):`,
+      delErro,
+      "causa original:",
+      causa
+    );
+  });
+}
+
+/**
+ * Log único para as falhas do Asaas nesta rota. Carrega todo id disponível
+ * (cliente, assinatura, inscrição) porque quem ler isto às 2 da manhã não
+ * tem mais nenhum contexto — só o texto do console.
+ */
+function logFalhaAsaas(
+  contexto: string,
+  erro: unknown,
+  info: { inscricaoId: string; clienteId?: string; assinaturaId?: string }
+) {
+  console.error(
+    `Falha ao ${contexto} — inscricao=${info.inscricaoId} cliente=${info.clienteId ?? "(nenhum)"} assinatura=${info.assinaturaId ?? "(nenhuma)"}:`,
+    erro
+  );
 }
 
 /** A URL onde o cliente paga a primeira cobrança da assinatura. */
