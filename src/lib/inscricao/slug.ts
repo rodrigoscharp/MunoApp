@@ -10,6 +10,14 @@ export type Disponibilidade =
  *
  * O formato é checado antes de qualquer consulta — endpoint público não
  * consulta banco por causa de texto que nunca poderia ser um slug.
+ *
+ * Contrato: espera o slug JÁ normalizado (minúsculo, sem espaço nas pontas).
+ * Esta função não normaliza — entrada fora do formato não é corrigida, é
+ * recusada como INVALIDO, porque a regex de validateSlug só admite
+ * minúsculas. É falha fechada de propósito: não "conserte" adicionando um
+ * toLowerCase() aqui dentro, isso mudaria o contrato sem que quem chama
+ * perceba. Quem for chamar checarSlug de outro lugar precisa normalizar
+ * antes.
  */
 export async function checarSlug(
   slug: string,

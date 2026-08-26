@@ -17,7 +17,6 @@ function mensalidadeSugerida(plano: PlanoTenant): string {
   return (PRECOS[plano].mensalCentavos / 100).toFixed(2);
 }
 
-
 type Credenciais = {
   url: string;
   email: string;
