@@ -4,13 +4,21 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TENANT_PLANO_HEADER } from "@/lib/plans";
 
-// Domínios raiz (sem subdomínio de tenant) conhecidos pela plataforma.
-// Em dev, acessar localhost:3000 direto cai no tenant "default".
+// Domínios raiz (sem subdomínio de tenant) conhecidos pela plataforma. Eles
+// servem a página de vendas, nunca um restaurante — inclusive em dev, onde o
+// padrão localhost:3000 é raiz e o storefront do seed mora em
+// default.localhost:3000.
 const ROOT_DOMAINS = (process.env.ROOT_DOMAIN ?? "localhost:3000").split(",");
 
 // Subdomínio reservado da plataforma. Já consta em RESERVED_SLUGS
 // (src/lib/tenant-provisioning.ts), então nenhum restaurante pode tomá-lo.
 const PLATFORM_SUBDOMAIN = "admin";
+
+// A página de vendas, servida do filesystem. LANDING_BASE é o prefixo que o
+// namespace protege: public/ do app já tem um munowbg.png diferente do da
+// landing, e assets soltos colidiriam.
+const LANDING_BASE = "/vendas";
+const LANDING_DOC = `${LANDING_BASE}/index.html`;
 
 // Rotas de /adm que a inadimplência NÃO fecha. O critério para entrar nesta
 // lista é uma pergunta só: **algum cliente do restaurante sofre se isto for
@@ -35,6 +43,13 @@ function escapaDoBloqueio(pathname: string): boolean {
   return ADM_LIVRE_DE_BLOQUEIO.some(
     (base) => pathname === base || pathname.startsWith(`${base}/`)
   );
+}
+
+// Caminho que o filesystem resolve sozinho: bundle do Next, imagem, CSS, ou o
+// próprio documento da landing. Vale para os três ramos que precisam deixar um
+// arquivo passar sem tratá-lo como página.
+function isEstatico(pathname: string): boolean {
+  return pathname.startsWith("/_next/") || /\.[a-z0-9]+$/i.test(pathname);
 }
 
 function resolveSlugFromHost(host: string): string | null {
@@ -81,9 +96,7 @@ export default auth(async (req) => {
     // Arquivo estático (a logo, um ícone, o bundle do Next). Precisa responder
     // sem sessão: senão a própria tela de login pede a imagem, leva um redirect
     // para si mesma e renderiza sem a marca.
-    const isEstatico =
-      nextUrl.pathname.startsWith("/_next/") ||
-      /\.[a-z0-9]+$/i.test(nextUrl.pathname);
+    const estatico = isEstatico(nextUrl.pathname);
     // A rota de upload (src/app/api/upload/route.ts) não é exclusiva da
     // plataforma — tenant ADMIN também a usa — então ela não mora sob
     // /api/platform. Sem esta linha ela cairia no rewrite genérico abaixo e
@@ -99,7 +112,7 @@ export default auth(async (req) => {
       !platformSession?.user &&
       !isPlatformLogin &&
       !isPlatformAuthApi &&
-      !isEstatico
+      !estatico
     ) {
       // Redirecionar uma chamada de API é pior que negá-la: o fetch segue o
       // redirect, recebe o HTML do login com status 200 e a UI comemora um
@@ -125,14 +138,12 @@ export default auth(async (req) => {
       nextUrl.pathname.startsWith("/platform") ||
       isPlatformApi ||
       isApiUpload ||
-      isEstatico
+      estatico
     ) {
       return NextResponse.next();
     }
     return NextResponse.rewrite(urlNoHost(`/platform${nextUrl.pathname}`));
   }
-
-  const slug = resolvedSlug ?? "default";
 
   // /platform/* e /api/platform/* só existem sob o subdomínio da plataforma.
   // Sem isto, o CRM ficaria acessível pelo domínio de qualquer restaurante — e
@@ -168,6 +179,40 @@ export default auth(async (req) => {
   // prismaUnscoped conscientemente. A porta é o CRON_SECRET, não o proxy.
   if (nextUrl.pathname.startsWith("/api/cron/")) {
     return NextResponse.next();
+  }
+
+  // O domínio raiz serve a página de vendas, e nada mais.
+  //
+  // Ela é um documento estático em public/ porque src/app/(client)/page.tsx já
+  // resolve "/": dois route groups não podem produzir o mesmo caminho. O
+  // rewrite chega antes do filesystem na ordem de execução do Next, então
+  // /vendas/index.html resolve para o arquivo.
+  //
+  // O 404 no fim é o ponto deste bloco, não o rewrite. Antes de 26/08/2026 o
+  // raiz caía em `slug = resolvedSlug ?? "default"` e servia o restaurante do
+  // seed — quem digitava o endereço da marca encontrava uma hamburgueria em
+  // Ubatuba. Uma guarda que tratasse só a home deixaria
+  // munoapp.com.br/promocao reabrir exatamente esse buraco, num caminho onde
+  // ninguém repararia. O fallback foi removido junto: agora não existe mais
+  // linha capaz de transformar o raiz num tenant.
+  if (resolvedSlug === null) {
+    if (isEstatico(nextUrl.pathname)) {
+      return NextResponse.next();
+    }
+    if (nextUrl.pathname.replace(/\/$/, "") === "") {
+      return NextResponse.rewrite(urlNoHost(LANDING_DOC));
+    }
+    return new NextResponse(null, { status: 404 });
+  }
+
+  const slug = resolvedSlug;
+
+  // Espelho da guarda acima. A landing mora em public/, que responde em
+  // qualquer host: sem isto, pizzaria.munoapp.com.br/vendas/index.html serve a
+  // página de vendas da Muno dentro do domínio do cliente, e o buscador a
+  // indexa em quantos subdomínios existirem.
+  if (nextUrl.pathname.startsWith(`${LANDING_BASE}/`)) {
+    return new NextResponse(null, { status: 404 });
   }
 
   const tenant = await prisma.tenant.findUnique({

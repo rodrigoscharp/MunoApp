@@ -3,15 +3,18 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PlanoTenant } from "@prisma/client";
-import { PLANO_LABELS } from "@/lib/plans";
+import { PLANO_LABELS, PRECOS } from "@/lib/plans";
 
 // Só uma sugestão de preenchimento pro campo de mensalidade — a régua de
 // preço em si não vive aqui, e o operador pode sempre editar por cima
 // (desconto, negociação caso a caso).
-const MENSALIDADE_SUGERIDA: Record<PlanoTenant, string> = {
-  MEMBRO: "99",
-  MEMBRO_MESA_QR: "150",
-};
+//
+// Derivada de PRECOS, e não digitada de novo. Enquanto os números moravam aqui
+// eles envelheciam sozinhos: a landing anunciava 99,99 e este campo sugeria 99.
+// Ponto, e não vírgula, porque o input é type="number".
+function mensalidadeSugerida(plano: PlanoTenant): string {
+  return (PRECOS[plano].mensalCentavos / 100).toFixed(2);
+}
 
 function sugerirSlug(nome: string): string {
   return nome
@@ -54,7 +57,7 @@ export function ConverterLead({
   function escolherPlano(novoPlano: PlanoTenant) {
     setPlano(novoPlano);
     if (!mensalidadeTocada) {
-      setMensalidade(MENSALIDADE_SUGERIDA[novoPlano]);
+      setMensalidade(mensalidadeSugerida(novoPlano));
     }
   }
 

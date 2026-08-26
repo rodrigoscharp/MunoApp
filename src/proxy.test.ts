@@ -366,3 +366,103 @@ describe("proxy: upload de logo funciona a partir da plataforma", () => {
     expect(destino(res)).toBeNull();
   });
 });
+
+describe("proxy: o domínio raiz serve a landing, nunca um restaurante", () => {
+  // O ramo mais perigoso deste arquivo.
+  //
+  // Até 26/08/2026 o raiz não era servido por este projeto, e
+  // `slug = resolvedSlug ?? "default"` era código morto — o spec de 10/08 o
+  // descreve com essas palavras. Trazer a landing para cá ressuscita esse
+  // ramo, e com ele o bug que 10/08 consertou: quem digita o endereço da
+  // marca encontrar uma hamburgueria em Ubatuba e concluir que a Muno é isso.
+  //
+  // ROOT_DOMAIN não está definido no ambiente de teste, então o proxy usa o
+  // padrão "localhost:3000" — que é domínio raiz, como o apex em produção.
+  const RAIZ = "localhost:3000";
+
+  function requisicaoRaiz(caminho: string, method = "GET"): NextRequest {
+    const req = new NextRequest(`http://${RAIZ}${caminho}`, {
+      headers: { host: RAIZ },
+      method,
+    });
+    (req as unknown as { auth: Sessao }).auth = null;
+    return req;
+  }
+
+  const reescritaPara = (res: Response) =>
+    res.headers.get("x-middleware-rewrite");
+
+  it("reescreve a home para o documento da landing", async () => {
+    const res = await proxy(requisicaoRaiz("/"));
+
+    expect(reescritaPara(res)).toContain("/vendas/index.html");
+  });
+
+  // A asserção que realmente protege. A do rewrite acima diz que a landing
+  // aparece; esta diz que o tenant "default" não tem como aparecer — nem se
+  // alguém, um dia, mexer no rewrite sem entender por que ele existe.
+  it("não resolve tenant nenhum no raiz", async () => {
+    await proxy(requisicaoRaiz("/"));
+
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  // O caso que uma guarda descuidada deixa passar: tratar só a home e deixar
+  // todo o resto cair no `?? "default"`. O sintoma é idêntico ao bug de 10/08,
+  // só que num caminho em vez da home — e por isso ninguém repara.
+  it.each(["/promocao", "/cart", "/adm", "/qualquer-coisa"])(
+    "%s no raiz responde 404, e não o restaurante do seed",
+    async (caminho) => {
+      const res = await proxy(requisicaoRaiz(caminho));
+
+      expect(res.status).toBe(404);
+      expect(findUnique).not.toHaveBeenCalled();
+    }
+  );
+
+  // Os assets da landing batem no proxy (o matcher não os exclui) e precisam
+  // seguir para o filesystem. Sem isto a página abre sem CSS, sem a cena 3D e
+  // sem os ícones — de pé, e visivelmente quebrada.
+  it.each([
+    "/vendas/css/styles.css",
+    "/vendas/js/scene.js",
+    "/vendas/img/logo.png",
+  ])("%s segue para o filesystem, sem rewrite", async (caminho) => {
+    const res = await proxy(requisicaoRaiz(caminho));
+
+    expect(res.status).toBe(200);
+    expect(reescritaPara(res)).toBeNull();
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  // A landing agora é same-origin com o app, então o formulário dela posta
+  // daqui. Um ramo de raiz colocado antes desta guarda mataria a captação de
+  // lead em silêncio — o endpoint responderia 404 e o fetch da landing já
+  // engole o erro de propósito.
+  it("POST /api/leads/publico no raiz continua passando", async () => {
+    const res = await proxy(requisicaoRaiz("/api/leads/publico", "POST"));
+
+    expect(res.status).toBe(200);
+    expect(reescritaPara(res)).toBeNull();
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  // O espelho da guarda: a landing existe em public/, que responde em
+  // qualquer host. Sem isto, a página de vendas da Muno abre dentro do
+  // domínio do cliente e o Google a indexa em quantos subdomínios existirem.
+  it.each(["/vendas/index.html", "/vendas/css/styles.css"])(
+    "%s em host de restaurante responde 404",
+    async (caminho) => {
+      const res = await proxy(requisicao(caminho));
+
+      expect(res.status).toBe(404);
+    }
+  );
+
+  it("host de restaurante segue resolvendo o tenant, intacto", async () => {
+    const res = await proxy(requisicao("/"));
+
+    expect(findUnique).toHaveBeenCalled();
+    expect(tenantInjetado(res)).toBe(TENANT_ID);
+  });
+});

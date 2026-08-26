@@ -1,0 +1,504 @@
+/* ======================================================
+   MUNOFOOD — Estilos Customizados
+   ====================================================== */
+
+:root {
+  --terracota:   #C6562A;
+  --gastrogreen: #1F3F34;
+  --cream:       #F4F2EF;
+  --sage:        #6A8F7A;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background-color: var(--cream);
+  overflow-x: hidden;
+  font-family: 'Poppins', sans-serif;
+}
+
+/* --------------------------------------------------
+   Canvas 3D — fixo atrás de tudo
+   -------------------------------------------------- */
+#canvas-container {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100vh;
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 0.1s linear;
+}
+
+.content-layer {
+  position: relative;
+  z-index: 10;
+}
+
+/* --------------------------------------------------
+   Scroll Progress Bar
+   -------------------------------------------------- */
+#scrollProgress {
+  position: fixed;
+  top: 0; left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--terracota), var(--sage));
+  z-index: 9999;
+  width: 0%;
+  transition: width 0.1s linear;
+}
+
+/* --------------------------------------------------
+   Announcement Bar
+   -------------------------------------------------- */
+.announcement-bar {
+  background: linear-gradient(90deg, var(--gastrogreen) 0%, #2d5a47 50%, var(--gastrogreen) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 4s ease infinite;
+}
+@keyframes shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+
+/* --------------------------------------------------
+   Logo — entrada
+   -------------------------------------------------- */
+.logo-pop {
+  animation: logoPop 0.7s cubic-bezier(.2, .8, .3, 1.1) both;
+}
+@keyframes logoPop {
+  0%   { opacity: 0; transform: scale(0.82) translateY(-6px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-pop { animation: none; }
+}
+
+/* --------------------------------------------------
+   Hero — entrada (JS/GSAP anima a partir daqui; ver
+   js/hero-motion.js. Estado inicial mora no CSS, não no
+   JS, para não haver flash de conteúdo antes do script
+   carregar.)
+   -------------------------------------------------- */
+.hero-anim {
+  opacity: 0;
+  transform: translateY(18px);
+}
+.hl-mask {
+  display: block;
+  overflow: hidden;
+}
+.hl-line {
+  display: block;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-anim, .hl-line { opacity: 1; transform: none; }
+}
+
+/* --------------------------------------------------
+   Navbar Sticky
+   -------------------------------------------------- */
+nav.sticky-active {
+  background: rgba(244, 242, 239, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  transition: background 0.3s, box-shadow 0.3s;
+}
+
+/* --------------------------------------------------
+   Glass Cards
+   -------------------------------------------------- */
+.glass-card {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.08);
+}
+
+.glass-card-highlight {
+  background: rgba(31, 63, 52, 0.97);
+  color: white;
+  border: 1px solid var(--terracota);
+  transform: scale(1.05);
+  z-index: 20;
+  box-shadow: 0 20px 60px rgba(31, 63, 52, 0.35);
+}
+
+@media (max-width: 768px) {
+  .glass-card-highlight { transform: scale(1); }
+}
+
+/* --------------------------------------------------
+   Form Inputs
+   -------------------------------------------------- */
+.input-focus:focus {
+  outline: none;
+  border-color: var(--terracota);
+  box-shadow: 0 0 0 3px rgba(198, 86, 42, 0.18);
+}
+
+/* --------------------------------------------------
+   Scroll Reveal
+   -------------------------------------------------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.65s cubic-bezier(.4, 0, .2, 1),
+              transform 0.65s cubic-bezier(.4, 0, .2, 1);
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.reveal-delay-1 { transition-delay: 0.10s; }
+.reveal-delay-2 { transition-delay: 0.20s; }
+.reveal-delay-3 { transition-delay: 0.30s; }
+.reveal-delay-4 { transition-delay: 0.40s; }
+
+/* --------------------------------------------------
+   Botões — fallback CSS garantido
+   (independente do Tailwind config carregar)
+   -------------------------------------------------- */
+
+/* Botão primário: laranja → verde no hover */
+.btn-primary {
+  background-color: var(--terracota);
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 12px;
+  transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 16px rgba(198, 86, 42, 0.35);
+}
+.btn-primary:hover {
+  background-color: var(--gastrogreen);
+  box-shadow: 0 6px 20px rgba(31, 63, 52, 0.35);
+  transform: translateY(-2px);
+}
+
+/* Botão secundário: verde → laranja no hover */
+.btn-secondary {
+  background-color: var(--gastrogreen);
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 12px;
+  transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 16px rgba(31, 63, 52, 0.30);
+}
+.btn-secondary:hover {
+  background-color: var(--terracota);
+  box-shadow: 0 6px 20px rgba(198, 86, 42, 0.35);
+  transform: translateY(-2px);
+}
+
+/* --------------------------------------------------
+   CTA Button — shine effect
+   -------------------------------------------------- */
+.cta-primary {
+  position: relative;
+  overflow: hidden;
+}
+.cta-primary::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+  transform: translateX(-100%);
+  animation: shine 3s ease infinite;
+}
+@keyframes shine {
+  0%       { transform: translateX(-100%); }
+  40%, 100% { transform: translateX(100%); }
+}
+
+/* --------------------------------------------------
+   Hero Badge
+   -------------------------------------------------- */
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hero-badge { animation: fadeInDown 0.7s ease forwards; }
+
+/* --------------------------------------------------
+   Urgency Timer
+   -------------------------------------------------- */
+.timer-box {
+  background: rgba(198, 86, 42, 0.08);
+  border: 1px solid rgba(198, 86, 42, 0.25);
+  border-radius: 10px;
+  padding: 3px 10px;
+  font-weight: 700;
+  color: var(--terracota);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------
+   Number Counter
+   -------------------------------------------------- */
+.counter { font-variant-numeric: tabular-nums; }
+
+/* --------------------------------------------------
+   Plano Destaque — glow
+   -------------------------------------------------- */
+.plan-glow { position: relative; }
+.plan-glow::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 28px;
+  background: linear-gradient(135deg, var(--terracota), var(--sage));
+  z-index: -1;
+  opacity: 0.40;
+  filter: blur(8px);
+}
+
+/* --------------------------------------------------
+   Guarantee Badge
+   -------------------------------------------------- */
+.guarantee-badge {
+  background: linear-gradient(135deg, #fff8f5 0%, #fff 100%);
+  border: 2px dashed rgba(198, 86, 42, 0.30);
+  border-radius: 16px;
+}
+
+/* --------------------------------------------------
+   Nota de Garantia (receipt)
+   -------------------------------------------------- */
+.receipt {
+  position: relative;
+  background: #fff;
+  padding: 32px 28px 44px;
+  transform: rotate(-1.1deg);
+  filter: drop-shadow(0 18px 34px rgba(31, 63, 52, 0.16));
+  clip-path: polygon(
+    0% 0%, 100% 0%, 100% 96%,
+    95% 100%, 90% 96%, 85% 100%, 80% 96%, 75% 100%, 70% 96%,
+    65% 100%, 60% 96%, 55% 100%, 50% 96%, 45% 100%, 40% 96%,
+    35% 100%, 30% 96%, 25% 100%, 20% 96%, 15% 100%, 10% 96%,
+    5% 100%, 0% 96%
+  );
+}
+
+.receipt-head { text-align: center; }
+.receipt-logo {
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: var(--gastrogreen);
+  font-size: 20px;
+}
+.receipt-meta {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #9ca3af;
+  margin-top: 4px;
+}
+
+.receipt-barcode {
+  height: 26px;
+  margin: 16px 0 20px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--gastrogreen) 0 2px, transparent 2px 5px,
+    var(--gastrogreen) 5px 6px, transparent 6px 10px,
+    var(--gastrogreen) 10px 13px, transparent 13px 15px,
+    var(--gastrogreen) 15px 16px, transparent 16px 20px
+  );
+  opacity: 0.8;
+}
+
+.receipt-items { list-style: none; padding: 0; margin: 0; }
+.receipt-items li {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 9px 0;
+  font-size: 14px;
+  color: #3E3E3E;
+}
+.receipt-items .label { white-space: nowrap; }
+.receipt-items .leader {
+  flex: 1;
+  height: 0;
+  border-bottom: 1px dotted rgba(31, 63, 52, 0.25);
+  margin-bottom: 5px;
+}
+.receipt-items b {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--sage);
+  white-space: nowrap;
+}
+
+.receipt-divider {
+  border-top: 1.5px dashed rgba(31, 63, 52, 0.20);
+  margin: 16px 0 12px;
+}
+.receipt-total {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--gastrogreen);
+}
+
+.receipt-stamp {
+  position: absolute;
+  right: 6%;
+  bottom: 20%;
+  width: 128px;
+  height: 128px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border: 3px solid var(--terracota);
+  border-radius: 50%;
+  color: var(--terracota);
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 13px;
+  line-height: 1.25;
+  letter-spacing: 0.5px;
+  transform: rotate(-14deg);
+  mix-blend-mode: multiply;
+  opacity: 0.88;
+  pointer-events: none;
+}
+.receipt-stamp::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border: 1.5px dashed var(--terracota);
+  border-radius: 50%;
+  opacity: 0.7;
+}
+
+@media (max-width: 480px) {
+  .receipt-stamp { width: 104px; height: 104px; font-size: 11px; right: 4%; bottom: 22%; }
+}
+
+/* --------------------------------------------------
+   Compare Table
+   -------------------------------------------------- */
+.compare-table th,
+.compare-table td {
+  padding: 14px 16px;
+  text-align: center;
+  font-size: 0.875rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+.compare-table thead th      { font-weight: 700; font-size: 0.8rem; }
+.compare-table tbody tr:last-child td { border-bottom: none; }
+.compare-table tbody tr:hover td { background: rgba(198, 86, 42, 0.03); }
+.compare-col-highlight        { background: rgba(31, 63, 52, 0.04); }
+.compare-yes    { color: #16a34a; font-weight: 700; }
+.compare-no     { color: #dc2626; }
+.compare-partial { color: #d97706; }
+
+/* --------------------------------------------------
+   FAQ Accordion
+   -------------------------------------------------- */
+.faq-item summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item[open] summary .faq-icon { transform: rotate(45deg); }
+.faq-icon { transition: transform 0.3s ease; }
+.faq-item[open] .faq-answer {
+  animation: faqOpen 0.3s ease forwards;
+}
+@keyframes faqOpen {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* --------------------------------------------------
+   Exit Intent Popup
+   -------------------------------------------------- */
+#exitPopup {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+#exitPopup.active {
+  opacity: 1;
+  pointer-events: all;
+}
+#exitPopup .popup-box {
+  background: white;
+  border-radius: 28px;
+  max-width: 440px;
+  width: 100%;
+  overflow: hidden;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.25);
+  transform: scale(0.92) translateY(16px);
+  transition: transform 0.35s cubic-bezier(.4, 0, .2, 1);
+}
+#exitPopup.active .popup-box {
+  transform: scale(1) translateY(0);
+}
+
+/* --------------------------------------------------
+   Floating WhatsApp Button
+   -------------------------------------------------- */
+.whatsapp-float {
+  position: fixed;
+  bottom: 28px;
+  right: 24px;
+  z-index: 999;
+  animation: pulseWpp 2.5s infinite;
+}
+@keyframes pulseWpp {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.5); }
+  50%       { box-shadow: 0 0 0 14px rgba(37, 211, 102, 0); }
+}
+
+/* --------------------------------------------------
+   Mobile Sticky CTA Bar
+   -------------------------------------------------- */
+.mobile-cta-bar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 998;
+  background: white;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
+  padding: 12px 16px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  transform: translateY(100%);
+  transition: transform 0.35s ease;
+}
+.mobile-cta-bar.visible {
+  transform: translateY(0);
+}
+@media (min-width: 768px) {
+  .mobile-cta-bar { display: none !important; }
+}
+@media (max-width: 767px) {
+  .whatsapp-float { display: none !important; }
+}

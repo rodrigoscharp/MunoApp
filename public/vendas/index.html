@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MUNOFOOD — Do Cardápio ao Caixa</title>
+
+  <!-- O navegador restaura a posição de scroll da última visita (ou mantém
+       um #hash de clique anterior) e pode abrir a página já rolada pra
+       baixo. Uma landing page sempre começa no topo. -->
+  <script>
+    if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+    window.scrollTo(0, 0);
+    /* pageshow cobre a volta pelo botão "voltar" do navegador (bfcache),
+       que não roda o script acima de novo */
+    window.addEventListener('pageshow', e => { if (e.persisted) window.scrollTo(0, 0); });
+  </script>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/vendas/img/favicon.svg" />
+  <link rel="apple-touch-icon" href="/vendas/img/munowbg.png" />
+
+  <!-- Fontes -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap"
+    rel="stylesheet" />
+
+  <!-- Tailwind CDN deve vir ANTES do config -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            terracota: '#C6562A',
+            gastrogreen: '#1F3F34',
+            cream: '#F4F2EF',
+            graphite: '#3E3E3E',
+            sage: '#6A8F7A',
+          },
+          fontFamily: { sans: ['Poppins', 'sans-serif'] },
+        },
+      },
+    };
+  </script>
+
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- GSAP (entrada do hero) -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+
+  <!-- Estilos customizados -->
+  <link rel="stylesheet" href="/vendas/css/styles.css" />
+
+  <!-- Sem JS, a entrada do hero nunca dispara — mostra tudo direto -->
+  <noscript>
+    <style>.hero-anim, .hl-line { opacity: 1 !important; transform: none !important; }</style>
+  </noscript>
+</head>
+
+<body class="text-graphite antialiased">
+
+  <!-- Barra de progresso de scroll -->
+  <div id="scrollProgress"></div>
+
+  <!-- Canvas 3D (Three.js) — fixed, some behind hero only via fade -->
+  <div id="canvas-container"></div>
+
+  <!-- ======================================================
+       ANNOUNCEMENT BAR
+       ====================================================== -->
+  <div class="announcement-bar content-layer text-white text-xs md:text-sm py-2 px-4 text-center font-medium">
+    🔥 Gestão completa do seu restaurante por <strong>R$ 99,99/mês</strong> &nbsp;·&nbsp; Cancele
+    quando quiser
+  </div>
+
+  <!-- ======================================================
+       NAVBAR
+       ====================================================== -->
+  <nav class="content-layer w-full py-4 px-4 md:px-12 flex justify-between items-center max-w-7xl mx-auto">
+    <div class="flex items-center">
+      <img src="/vendas/img/logo.png" alt="MUNOFOOD" class="h-9 w-auto logo-pop" />
+    </div>
+    <div class="hidden md:flex gap-6 items-center">
+      <a href="#beneficios" class="text-gastrogreen font-medium hover:text-terracota transition text-sm">Benefícios</a>
+      <a href="#como-funciona" class="text-gastrogreen font-medium hover:text-terracota transition text-sm">Como
+        Funciona</a>
+      <a href="#planos" class="text-gastrogreen font-medium hover:text-terracota transition text-sm">Planos</a>
+      <a href="#contato" class="btn-primary px-5 py-2 rounded-full text-sm">
+        Começar Agora
+      </a>
+    </div>
+    <a href="#planos" class="md:hidden btn-primary text-sm px-4 py-2 rounded-full">
+      Ver Planos
+    </a>
+  </nav>
+
+  <!-- ======================================================
+       HERO
+       ====================================================== -->
+  <header class="content-layer min-h-[88vh] flex items-center justify-center px-4 pt-6 pb-24">
+    <div class="max-w-4xl w-full text-center space-y-7">
+
+      <h1 class="text-4xl md:text-6xl lg:text-7xl font-black leading-[1.1] text-gastrogreen">
+        <span class="hl-mask"><span class="hl-line">Do Cardápio ao Caixa,</span></span>
+        <span class="hl-mask"><span class="hl-line text-terracota">Tudo no Seu Controle</span></span>
+      </h1>
+
+      <p
+        class="hero-anim text-base md:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed bg-cream/70 backdrop-blur-sm px-4 py-2 rounded-xl">
+        Cardápio, pedidos e pagamentos num só lugar, no ar em <strong class="text-gastrogreen">menos de 24h</strong>.
+      </p>
+
+      <div class="hero-anim flex flex-col sm:flex-row gap-4 justify-center items-center pt-2">
+        <a href="#contato"
+          class="w-full sm:w-auto btn-primary text-lg px-8 py-4 rounded-xl flex items-center justify-center gap-2">
+          Quero Gerenciar Meu Restaurante <i data-lucide="arrow-right" class="w-5 h-5"></i>
+        </a>
+        <a href="#como-funciona"
+          class="w-full sm:w-auto btn-secondary text-lg px-8 py-4 rounded-xl flex items-center justify-center gap-2">
+          <i data-lucide="play-circle" class="w-5 h-5"></i> Ver Como Funciona
+        </a>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ======================================================
+       BENEFÍCIOS
+       ====================================================== -->
+  <section id="beneficios" class="content-layer py-20 px-4">
+    <div class="max-w-7xl mx-auto">
+      <div class="text-center mb-12 reveal">
+        <span class="text-terracota font-bold tracking-wider text-sm uppercase">Por que nos escolher</span>
+        <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">Gestão completa, do cardápio ao caixa</h2>
+        <p class="text-gray-500 mt-2 max-w-xl mx-auto text-sm">Muito além de um cardápio digital com IA integrada que
+          recomenda pratos para cada cliente.</p>
+      </div>
+
+      <!-- Destaque IA — card largo -->
+      <div class="mb-6 reveal">
+        <div
+          class="glass-card p-7 rounded-2xl bg-gradient-to-r from-gastrogreen/5 to-terracota/5 border border-terracota/15 relative overflow-hidden">
+          <div
+            class="absolute top-0 right-0 bg-terracota text-white text-xs font-black px-4 py-1.5 rounded-bl-xl rounded-tr-2xl tracking-wide">
+            EXCLUSIVO MUNO
+          </div>
+          <div class="flex flex-col md:flex-row md:items-center gap-6">
+            <div class="bg-gastrogreen w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 text-white">
+              <i data-lucide="sparkles" class="w-8 h-8"></i>
+            </div>
+            <div class="flex-1">
+              <h3 class="text-xl font-bold text-gastrogreen mb-1">Assistente de IA "Muno, o que você precisa?"</h3>
+              <p class="text-gray-600 text-sm leading-relaxed">
+                O cliente abre o cardápio e o assistente de IA pergunta o que ele precisa: nível de fome, preferências e
+                restrições alimentares.
+                A IA então recomenda os melhores pratos personalizados: vegano, sem glúten, sem lactose, algo leve ou
+                uma refeição completa.
+                Resultado: mais pedidos, ticket maior e cliente satisfeito.
+              </p>
+            </div>
+            <div class="flex flex-wrap gap-2 md:flex-col md:gap-2 flex-shrink-0">
+              <span
+                class="bg-white border border-gray-200 rounded-full px-3 py-1 text-xs font-semibold text-gray-600">😋
+                Com fome</span>
+              <span
+                class="bg-white border border-gray-200 rounded-full px-3 py-1 text-xs font-semibold text-gray-600">🌱
+                Vegano</span>
+              <span
+                class="bg-white border border-gray-200 rounded-full px-3 py-1 text-xs font-semibold text-gray-600">🌾
+                Sem glúten</span>
+              <span
+                class="bg-white border border-gray-200 rounded-full px-3 py-1 text-xs font-semibold text-gray-600">🥛
+                Sem lactose</span>
+              <span
+                class="bg-white border border-gray-200 rounded-full px-3 py-1 text-xs font-semibold text-gray-600">🥗
+                Algo leve</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <div class="glass-card p-7 rounded-2xl hover:bg-white transition duration-300 group reveal">
+          <div
+            class="bg-terracota/10 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-terracota group-hover:bg-terracota group-hover:text-white transition duration-300">
+            <i data-lucide="map-pin" class="w-7 h-7"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gastrogreen mb-2">Rastreio ao Vivo da Entrega</h3>
+          <p class="text-gray-600 text-sm leading-relaxed">Cliente acompanha o motoboy no mapa em tempo real, do
+            preparo até a porta. Sem ligar perguntando onde está o pedido.</p>
+          <div class="mt-4 text-xs text-sage font-semibold flex items-center gap-1">
+            <i data-lucide="check-circle" class="w-4 h-4"></i> Localização atualizada em tempo real
+          </div>
+        </div>
+
+        <div class="glass-card p-7 rounded-2xl hover:bg-white transition duration-300 group reveal reveal-delay-1">
+          <div
+            class="bg-sage/20 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-gastrogreen group-hover:bg-gastrogreen group-hover:text-white transition duration-300">
+            <i data-lucide="smartphone" class="w-7 h-7"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gastrogreen mb-2">Cardápio que Converte</h3>
+          <p class="text-gray-600 text-sm leading-relaxed">Layout otimizado para despertar fome e aumentar o ticket
+            médio. Fotos que vendem sozinhas em qualquer celular.</p>
+          <div class="mt-4 text-xs text-sage font-semibold flex items-center gap-1">
+            <i data-lucide="check-circle" class="w-4 h-4"></i> Pensado para aumentar o ticket médio
+          </div>
+        </div>
+
+        <div class="glass-card p-7 rounded-2xl hover:bg-white transition duration-300 group reveal reveal-delay-2">
+          <div
+            class="bg-gastrogreen/10 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-gastrogreen group-hover:bg-gastrogreen group-hover:text-white transition duration-300">
+            <i data-lucide="bar-chart-3" class="w-7 h-7"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gastrogreen mb-2">Painel de Controle</h3>
+          <p class="text-gray-600 text-sm leading-relaxed">Altere preços, pause esgotados e veja relatórios de venda em
+            tempo real. Tudo no celular.</p>
+          <div class="mt-4 text-xs text-sage font-semibold flex items-center gap-1">
+            <i data-lucide="check-circle" class="w-4 h-4"></i> Dados atualizados em segundos
+          </div>f
+        </div>
+
+        <div class="glass-card p-7 rounded-2xl hover:bg-white transition duration-300 group reveal">
+          <div
+            class="bg-yellow-50 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-yellow-600 group-hover:bg-yellow-400 group-hover:text-white transition duration-300">
+            <i data-lucide="qr-code" class="w-7 h-7"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gastrogreen mb-2">QR Code de Mesa</h3>
+          <p class="text-gray-600 text-sm leading-relaxed">Cliente escaneia, pede e paga diretamente da mesa. Sem
+            garçom, sem fila, sem erro de anotação.</p>
+          <div class="mt-4 text-xs text-sage font-semibold flex items-center gap-1">
+            <i data-lucide="check-circle" class="w-4 h-4"></i> Incluso no Membro MUNO
+          </div>
+        </div>
+
+        <div class="glass-card p-7 rounded-2xl hover:bg-white transition duration-300 group reveal reveal-delay-1">
+          <div
+            class="bg-blue-50 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition duration-300">
+            <i data-lucide="credit-card" class="w-7 h-7"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gastrogreen mb-2">Pagamento Integrado</h3>
+          <p class="text-gray-600 text-sm leading-relaxed">Pix, cartão de crédito e débito direto pelo cardápio.
+            Dinheiro cai na sua conta, não na nossa.</p>
+          <div class="mt-4 text-xs text-sage font-semibold flex items-center gap-1">
+            <i data-lucide="check-circle" class="w-4 h-4"></i> Sem taxa sobre vendas
+          </div>
+        </div>
+
+        <div class="glass-card p-7 rounded-2xl hover:bg-white transition duration-300 group reveal reveal-delay-2">
+          <div
+            class="bg-terracota/10 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-terracota group-hover:bg-terracota group-hover:text-white transition duration-300">
+            <i data-lucide="headphones" class="w-7 h-7"></i>
+          </div>
+          <h3 class="text-xl font-bold text-gastrogreen mb-2">Suporte Humanizado</h3>
+          <p class="text-gray-600 text-sm leading-relaxed">Equipe real via WhatsApp. Nada de bot, nada de email que
+            ninguém responde. Sua dúvida resolvida hoje.</p>
+          <div class="mt-4 text-xs text-sage font-semibold flex items-center gap-1">
+            <i data-lucide="check-circle" class="w-4 h-4"></i> Atendimento humano, sem fila de bot
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================
+       COMO FUNCIONA
+       ====================================================== -->
+  <section id="como-funciona" class="content-layer py-20 px-4 bg-gastrogreen/5">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center mb-14 reveal">
+        <span class="text-terracota font-bold tracking-wider text-sm uppercase">Sem complicação</span>
+        <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">Do zero à gestão completa em 3 passos</h2>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+        <!-- Linha conectora (desktop) -->
+        <div
+          class="hidden md:block absolute top-8 left-[calc(16.7%+32px)] right-[calc(16.7%+32px)] h-0.5 bg-gradient-to-r from-terracota via-sage to-terracota opacity-30 z-0">
+        </div>
+
+        <div class="text-center reveal">
+          <div
+            class="relative z-10 w-16 h-16 rounded-full bg-terracota text-white text-2xl font-black flex items-center justify-center mx-auto mb-5 shadow-lg shadow-terracota/30">
+            1</div>
+          <h3 class="text-lg font-bold text-gastrogreen mb-2">Fale com a gente</h3>
+          <p class="text-gray-600 text-sm leading-relaxed">Preencha o formulário. Nossa equipe entra em contato no mesmo
+            dia para entender seu negócio.</p>
+        </div>
+
+        <div class="text-center reveal reveal-delay-1">
+          <div
+            class="relative z-10 w-16 h-16 rounded-full bg-gastrogreen text-white text-2xl font-black flex items-center justify-center mx-auto mb-5 shadow-lg shadow-gastrogreen/30">
+            2</div>
+          <h3 class="text-lg font-bold text-gastrogreen mb-2">Configuramos tudo para você</h3>
+          <p class="text-gray-600 text-sm leading-relaxed">Nossa equipe monta seu cardápio, integra os pagamentos e
+            configura o sistema completo. Nenhum esforço da sua parte.</p>
+        </div>
+
+        <div class="text-center reveal reveal-delay-2">
+          <div
+            class="relative z-10 w-16 h-16 rounded-full bg-sage text-white text-2xl font-black flex items-center justify-center mx-auto mb-5 shadow-lg shadow-sage/30">
+            3</div>
+          <h3 class="text-lg font-bold text-gastrogreen mb-2">Gerencie e venda mais</h3>
+          <p class="text-gray-600 text-sm leading-relaxed">Em menos de 24h seu restaurante está com gestão completa:
+            pedidos, caixa e relatórios. Você só acompanha e fatura.</p>
+        </div>
+      </div>
+
+      <div class="text-center mt-12 reveal">
+        <a href="#contato" class="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-lg">
+          Quero Começar Agora <i data-lucide="arrow-right" class="w-5 h-5"></i>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================
+       GARANTIAS
+       ====================================================== -->
+  <section class="content-layer py-20 px-4">
+    <div class="max-w-md mx-auto text-center mb-14 reveal">
+      <span class="text-terracota font-bold tracking-wider text-sm uppercase">Sem pegadinha</span>
+      <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">As garantias que a gente assina embaixo</h2>
+      <p class="text-gray-500 mt-2 text-sm">Nada de depoimento fabricado. Só o que a gente cumpre, por escrito.</p>
+    </div>
+
+    <div class="max-w-sm mx-auto reveal reveal-delay-1">
+      <div class="receipt">
+        <div class="receipt-head">
+          <div class="receipt-logo">MUNOFOOD</div>
+          <div class="receipt-meta">Nota de garantia · Nº 0001</div>
+        </div>
+        <div class="receipt-barcode" aria-hidden="true"></div>
+
+        <ul class="receipt-items">
+          <li>
+            <i data-lucide="shield-check" class="w-4 h-4 text-sage flex-shrink-0"></i>
+            <span class="label">Garantia de 7 dias</span>
+            <span class="leader" aria-hidden="true"></span>
+            <b>✓ garantido</b>
+          </li>
+          <li>
+            <i data-lucide="lock" class="w-4 h-4 text-sage flex-shrink-0"></i>
+            <span class="label">Seus dados, 100% seus</span>
+            <span class="leader" aria-hidden="true"></span>
+            <b>✓ garantido</b>
+          </li>
+          <li>
+            <i data-lucide="headphones" class="w-4 h-4 text-sage flex-shrink-0"></i>
+            <span class="label">Suporte humano, sem bot</span>
+            <span class="leader" aria-hidden="true"></span>
+            <b>✓ garantido</b>
+          </li>
+          <li>
+            <i data-lucide="unlock" class="w-4 h-4 text-sage flex-shrink-0"></i>
+            <span class="label">Cancele quando quiser</span>
+            <span class="leader" aria-hidden="true"></span>
+            <b>✓ garantido</b>
+          </li>
+          <li>
+            <i data-lucide="percent" class="w-4 h-4 text-sage flex-shrink-0"></i>
+            <span class="label">Zero taxa sobre vendas</span>
+            <span class="leader" aria-hidden="true"></span>
+            <b>✓ garantido</b>
+          </li>
+        </ul>
+
+        <div class="receipt-divider"></div>
+        <div class="receipt-total">
+          <span>Assinado</span>
+          <span>MUNOFOOD</span>
+        </div>
+
+        <div class="receipt-stamp reveal reveal-delay-3">100% honesto</div>
+      </div>
+    </div>
+
+    <div class="text-center mt-10 reveal reveal-delay-2">
+      <a href="#contato" class="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl">
+        Quero essas garantias <i data-lucide="arrow-right" class="w-5 h-5"></i>
+      </a>
+    </div>
+  </section>
+
+  <!-- ======================================================
+       COMPARAÇÃO
+       ====================================================== -->
+  <section class="content-layer py-20 px-4 bg-gastrogreen/5">
+    <div class="max-w-4xl mx-auto">
+      <div class="text-center mb-10 reveal">
+        <span class="text-terracota font-bold tracking-wider text-sm uppercase">Por que MUNOFOOD</span>
+        <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">Nós vs. os outros</h2>
+        <p class="text-gray-500 mt-2 max-w-lg mx-auto text-sm">Compare e veja por que restaurantes estão trocando de
+          sistema para o MUNOFOOD.</p>
+      </div>
+
+      <div class="glass-card rounded-3xl overflow-hidden reveal">
+        <table class="compare-table w-full">
+          <thead>
+            <tr class="bg-gastrogreen/6">
+              <th class="text-left text-gastrogreen">Funcionalidade</th>
+              <th class="compare-col-highlight text-gastrogreen">
+                <div class="flex flex-col items-center gap-1">
+                  <span class="bg-terracota text-white text-xs px-2 py-0.5 rounded-full">Melhor escolha</span>
+                  MUNOFOOD
+                </div>
+              </th>
+              <th class="text-gray-400">Marketplaces</th>
+              <th class="text-gray-400 hidden md:table-cell">Outros sistemas</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="bg-terracota/5">
+              <td class="text-left font-bold text-gastrogreen">IA de recomendação de pratos</td>
+              <td class="compare-col-highlight compare-yes">✓ Exclusivo</td>
+              <td class="compare-no">✗ Não tem</td>
+              <td class="compare-no hidden md:table-cell">✗ Não tem</td>
+            </tr>
+            <tr>
+              <td class="text-left text-gray-700 font-medium">Sem taxa por pedido</td>
+              <td class="compare-col-highlight compare-yes">✓ Zero</td>
+              <td class="compare-no">✗ 12–30%</td>
+              <td class="compare-partial hidden md:table-cell">⚠ Variável</td>
+            </tr>
+            <tr>
+              <td class="text-left text-gray-700 font-medium">Cardápio no ar em 24h</td>
+              <td class="compare-col-highlight compare-yes">✓ Sim</td>
+              <td class="compare-no">✗ 5–15 dias</td>
+              <td class="compare-partial hidden md:table-cell">⚠ 2–7 dias</td>
+            </tr>
+            <tr>
+              <td class="text-left text-gray-700 font-medium">Suporte via WhatsApp</td>
+              <td class="compare-col-highlight compare-yes">✓ Humano, sem bot</td>
+              <td class="compare-no">✗ Chat bot</td>
+              <td class="compare-partial hidden md:table-cell">⚠ E-mail</td>
+            </tr>
+            <tr>
+              <td class="text-left text-gray-700 font-medium">QR Code de mesa</td>
+              <td class="compare-col-highlight compare-yes">✓ Incluído</td>
+              <td class="compare-no">✗ Não disponível</td>
+              <td class="compare-partial hidden md:table-cell">⚠ Pago à parte</td>
+            </tr>
+            <tr>
+              <td class="text-left text-gray-700 font-medium">Pagamento integrado</td>
+              <td class="compare-col-highlight compare-yes">✓ Pix + cartão</td>
+              <td class="compare-no">✗ Plataforma deles</td>
+              <td class="compare-partial hidden md:table-cell">⚠ Depende</td>
+            </tr>
+            <tr>
+              <td class="text-left text-gray-700 font-medium">Você é dono dos dados</td>
+              <td class="compare-col-highlight compare-yes">✓ 100% seus</td>
+              <td class="compare-no">✗ Da plataforma</td>
+              <td class="compare-partial hidden md:table-cell">⚠ Limitado</td>
+            </tr>
+            <tr>
+              <td class="text-left text-gray-700 font-medium">Cancelamento livre</td>
+              <td class="compare-col-highlight compare-yes">✓ A qualquer hora</td>
+              <td class="compare-no">✗ Contrato mínimo</td>
+              <td class="compare-partial hidden md:table-cell">⚠ Fidelidade</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="text-center mt-8 reveal">
+        <a href="#contato" class="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl">
+          Quero mudar para o MUNOFOOD <i data-lucide="arrow-right" class="w-5 h-5"></i>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================
+       PLANOS
+       ====================================================== -->
+  <section id="planos" class="content-layer py-20 px-4">
+    <div class="max-w-7xl mx-auto">
+      <div class="text-center mb-12 reveal">
+        <span class="text-sage font-bold tracking-wider text-sm uppercase">Investimento</span>
+        <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">Seja Membro MUNO</h2>
+        <p class="text-gray-600 mt-2">Sem taxa sobre vendas. Você fica com <strong>100% do lucro</strong>.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center max-w-3xl mx-auto">
+
+        <!-- Membro MUNO -->
+        <div class="glass-card-highlight p-8 rounded-3xl relative shadow-2xl plan-glow reveal">
+          <div
+            class="absolute top-0 right-0 bg-terracota text-white text-xs font-black px-4 py-1.5 rounded-bl-xl rounded-tr-2xl tracking-wide">
+            MEMBRO MUNO
+          </div>
+          <h3 class="text-xl font-bold text-white">Membro MUNO</h3>
+          <div class="my-5">
+            <div class="flex items-end gap-2">
+              <span class="text-5xl font-black text-white">R$ 99,99</span>
+              <span class="text-gray-300 mb-2">/mês</span>
+            </div>
+            <div class="text-gray-300 text-sm mt-2">Cancele quando quiser sem fidelidade</div>
+          </div>
+          <ul class="space-y-3 mb-8 text-sm text-gray-100">
+            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Produtos
+              ilimitados</li>
+            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>QR Code de
+              mesa</li>
+            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Painel
+              financeiro completo</li>
+            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Suporte
+              prioritário via WhatsApp</li>
+            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Relatórios de
+              venda em tempo real</li>
+            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Link
+              personalizado</li>
+            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Pedidos
+              ilimitados</li>
+          </ul>
+          <a href="#contato" class="btn-primary block text-center w-full py-4 rounded-xl">
+            Quero Ser Membro MUNO
+          </a>
+        </div>
+
+        <!-- Enterprise -->
+        <div class="glass-card p-8 rounded-3xl reveal reveal-delay-1">
+          <h3 class="text-xl font-bold text-gastrogreen">Enterprise</h3>
+          <div class="my-5">
+            <span class="text-4xl font-black text-terracota">Sob Consulta</span>
+          </div>
+          <p class="text-gray-500 text-sm mb-6">Para redes de restaurantes e franquias.</p>
+          <ul class="space-y-3 mb-8 text-sm text-gray-700">
+            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Multi-lojas</li>
+            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>API de integração
+            </li>
+            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Gerente de conta
+              dedicado</li>
+            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>White label</li>
+            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>SLA garantido</li>
+          </ul>
+          <a href="#contato" class="btn-primary block text-center w-full py-3 rounded-xl">
+            Falar com Consultor
+          </a>
+        </div>
+
+      </div>
+
+      <!-- Garantia -->
+      <div class="max-w-xl mx-auto mt-10 reveal">
+        <div class="guarantee-badge p-5 text-center">
+          <div class="flex items-center justify-center gap-2 text-terracota font-bold mb-1">
+            <i data-lucide="shield-check" class="w-5 h-5"></i> Garantia de 7 dias
+          </div>
+          <p class="text-sm text-gray-600">Se em 7 dias você não ficar satisfeito, devolvemos 100% do seu dinheiro. Sem
+            perguntas.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================
+       FAQ
+       ====================================================== -->
+  <section class="content-layer py-20 px-4 bg-gastrogreen/5">
+    <div class="max-w-3xl mx-auto">
+      <div class="text-center mb-12 reveal">
+        <span class="text-terracota font-bold tracking-wider text-sm uppercase">Dúvidas frequentes</span>
+        <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">Tudo que você quer saber</h2>
+      </div>
+
+      <div class="space-y-3 reveal">
+
+        <details class="faq-item glass-card rounded-2xl overflow-hidden">
+          <summary class="flex justify-between items-center p-5 font-semibold text-gastrogreen text-sm md:text-base">
+            Preciso ter conhecimento técnico para usar?
+            <i data-lucide="plus" class="faq-icon w-5 h-5 text-terracota flex-shrink-0 ml-3"></i>
+          </summary>
+          <div class="faq-answer px-5 pb-5 text-sm text-gray-600 leading-relaxed">
+            Não. Nossa equipe configura tudo para você. Você só aprova as informações e começa a receber pedidos. Se
+            tiver qualquer dúvida, é só chamar no WhatsApp.
+          </div>
+        </details>
+
+        <details class="faq-item glass-card rounded-2xl overflow-hidden">
+          <summary class="flex justify-between items-center p-5 font-semibold text-gastrogreen text-sm md:text-base">
+            Existe taxa sobre cada venda realizada?
+            <i data-lucide="plus" class="faq-icon w-5 h-5 text-terracota flex-shrink-0 ml-3"></i>
+          </summary>
+          <div class="faq-answer px-5 pb-5 text-sm text-gray-600 leading-relaxed">
+            Zero. Você paga apenas a mensalidade do plano. Todo o valor das vendas vai 100% para você. Sem surpresas no
+            boleto do mês.
+          </div>
+        </details>
+
+        <details class="faq-item glass-card rounded-2xl overflow-hidden">
+          <summary class="flex justify-between items-center p-5 font-semibold text-gastrogreen text-sm md:text-base">
+            Quanto tempo para meu cardápio ficar no ar?
+            <i data-lucide="plus" class="faq-icon w-5 h-5 text-terracota flex-shrink-0 ml-3"></i>
+          </summary>
+          <div class="faq-answer px-5 pb-5 text-sm text-gray-600 leading-relaxed">
+            Em até 24 horas após o contato inicial. Nosso time trabalha rapidamente para que você comece a vender o
+            quanto antes.
+          </div>
+        </details>
+
+        <details class="faq-item glass-card rounded-2xl overflow-hidden">
+          <summary class="flex justify-between items-center p-5 font-semibold text-gastrogreen text-sm md:text-base">
+            Posso cancelar quando quiser?
+            <i data-lucide="plus" class="faq-icon w-5 h-5 text-terracota flex-shrink-0 ml-3"></i>
+          </summary>
+          <div class="faq-answer px-5 pb-5 text-sm text-gray-600 leading-relaxed">
+            Sim. Sem fidelidade, sem multa. Você cancela com um clique ou nos manda mensagem. Mas a maioria não cancela
+            porque os resultados falam por si mesmos.
+          </div>
+        </details>
+
+        <details class="faq-item glass-card rounded-2xl overflow-hidden">
+          <summary class="flex justify-between items-center p-5 font-semibold text-gastrogreen text-sm md:text-base">
+            Funciona junto com marketplaces de delivery?
+            <i data-lucide="plus" class="faq-icon w-5 h-5 text-terracota flex-shrink-0 ml-3"></i>
+          </summary>
+          <div class="faq-answer px-5 pb-5 text-sm text-gray-600 leading-relaxed">
+            Sim. O MUNOFOOD funciona de forma complementar a qualquer marketplace. Muitos clientes usam os dois e migram
+            gradualmente para o canal direto, economizando até 30% em taxas de intermediação.
+          </div>
+        </details>
+
+        <details class="faq-item glass-card rounded-2xl overflow-hidden">
+          <summary class="flex justify-between items-center p-5 font-semibold text-gastrogreen text-sm md:text-base">
+            O sistema funciona no final de semana?
+            <i data-lucide="plus" class="faq-icon w-5 h-5 text-terracota flex-shrink-0 ml-3"></i>
+          </summary>
+          <div class="faq-answer px-5 pb-5 text-sm text-gray-600 leading-relaxed">
+            O sistema funciona 24/7, 365 dias por ano. O suporte humano atende de segunda a sábado das 8h às 22h.
+          </div>
+        </details>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================
+       FORMULÁRIO DE CAPTURA
+       ====================================================== -->
+  <section id="contato" class="content-layer py-20 px-4 relative overflow-hidden">
+    <div class="absolute inset-0 bg-gastrogreen/4 pointer-events-none"></div>
+
+    <div
+      class="max-w-4xl mx-auto relative z-10 bg-white/97 backdrop-blur rounded-3xl shadow-2xl overflow-hidden grid grid-cols-1 md:grid-cols-2 border border-white/50 reveal">
+
+      <div class="p-8 md:p-12 flex flex-col justify-center">
+        <div
+          class="inline-flex items-center gap-2 bg-terracota/10 text-terracota text-xs font-bold px-3 py-1 rounded-full mb-4 w-fit">
+          <span class="w-2 h-2 rounded-full bg-terracota animate-pulse"></span> Fale com um humano, não um bot
+        </div>
+        <h2 class="text-2xl md:text-3xl font-black text-terracota mb-2">Fale com um especialista</h2>
+        <p class="text-gray-600 mb-6 text-sm">Preencha e receba nossa equipe no seu WhatsApp.</p>
+
+        <form id="leadForm" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1" for="restaurantName">Nome do
+              Estabelecimento</label>
+            <input type="text" id="restaurantName" required
+              class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 input-focus transition text-sm"
+              placeholder="Ex: Burguer Artesanal da Esquina" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1" for="whatsappNumber">Seu
+              WhatsApp</label>
+            <input type="tel" id="whatsappNumber" required
+              class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 input-focus transition text-sm"
+              placeholder="(11) 99999-9999" />
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-gray-500 uppercase mb-1" for="planInterest">Plano de
+              Interesse</label>
+            <select id="planInterest"
+              class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 input-focus transition text-sm">
+              <option value="Membro MUNO">⭐ Membro MUNO — R$ 99,99/mês</option>
+              <option value="Enterprise">Enterprise — Sob consulta</option>
+            </select>
+          </div>
+          <!-- Honeypot: humano não vê, bot de formulário preenche. Escondido
+               fora da tela em vez de display:none, que parte dos bots detecta
+               e pula. aria-hidden e tabindex="-1" mantêm o campo fora do
+               leitor de tela e da navegação por teclado, para quem usa um dos
+               dois não cair numa armadilha feita para robô. -->
+          <div class="absolute left-[-9999px] w-px h-px overflow-hidden" aria-hidden="true">
+            <label for="website">Não preencha este campo</label>
+            <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
+          </div>
+          <button type="submit"
+            class="btn-secondary w-full py-4 rounded-xl flex items-center justify-center gap-2 mt-2 text-base">
+            <i data-lucide="message-circle" class="w-5 h-5"></i> Falar com Especialista Agora
+          </button>
+          <p class="text-center text-xs text-gray-400">
+            <i data-lucide="lock" class="w-3 h-3 inline"></i> Seus dados estão seguros. Não fazemos spam.
+          </p>
+        </form>
+      </div>
+
+      <div
+        class="bg-gastrogreen hidden md:flex flex-col items-center justify-center relative overflow-hidden p-8 text-center text-white">
+        <div class="relative z-10 space-y-6">
+          <div class="bg-white/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto backdrop-blur-md">
+            <i data-lucide="phone-call" class="w-10 h-10"></i>
+          </div>
+          <div>
+            <h3 class="text-2xl font-bold mb-2">Pronto para decolar?</h3>
+            <p class="text-gray-300 text-sm leading-relaxed">Nossa equipe monta tudo, você só aprova e começa a faturar
+              mais.</p>
+          </div>
+          <div class="space-y-3 text-sm text-left">
+            <div class="flex items-center gap-3 bg-white/10 rounded-xl p-3">
+              <i data-lucide="clock" class="w-5 h-5 text-terracota flex-shrink-0"></i>
+              <span class="text-gray-200">Retorno rápido pelo WhatsApp</span>
+            </div>
+            <div class="flex items-center gap-3 bg-white/10 rounded-xl p-3">
+              <i data-lucide="settings" class="w-5 h-5 text-terracota flex-shrink-0"></i>
+              <span class="text-gray-200">Configuração feita pelo nosso time</span>
+            </div>
+            <div class="flex items-center gap-3 bg-white/10 rounded-xl p-3">
+              <i data-lucide="shield-check" class="w-5 h-5 text-terracota flex-shrink-0"></i>
+              <span class="text-gray-200">7 dias de garantia total</span>
+            </div>
+          </div>
+          <div class="text-xs text-gray-400">Atendimento Seg a Sáb, 08h às 22h</div>
+        </div>
+        <div
+          class="absolute -bottom-20 -right-20 w-64 h-64 bg-terracota rounded-full mix-blend-multiply filter blur-3xl opacity-40">
+        </div>
+        <div
+          class="absolute -top-20 -left-20 w-64 h-64 bg-sage rounded-full mix-blend-overlay filter blur-3xl opacity-25">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================
+       FOOTER
+       ====================================================== -->
+  <footer class="content-layer bg-graphite text-white py-8 border-t border-gray-700">
+    <div
+      class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
+      <div>
+        <div class="flex items-center justify-center md:justify-start">
+          <img src="/vendas/img/logo.png" alt="MUNOFOOD" class="h-8 w-auto brightness-0 invert" />
+        </div>
+        <p class="text-gray-500 text-xs mt-1">Feito para quem tem fome de crescer.</p>
+      </div>
+      <div class="flex gap-6 text-gray-400 text-xs">
+        <a href="#beneficios" class="hover:text-white transition">Benefícios</a>
+        <a href="#planos" class="hover:text-white transition">Planos</a>
+        <a href="#contato" class="hover:text-white transition">Contato</a>
+      </div>
+      <div class="text-gray-500 text-xs">&copy; 2025 Muno Food. Todos os direitos reservados.</div>
+    </div>
+  </footer>
+
+  <!-- ======================================================
+       EXIT INTENT POPUP
+       ====================================================== -->
+  <div id="exitPopup" role="dialog" aria-modal="true">
+    <div class="popup-box">
+      <div class="bg-gastrogreen p-6 text-center relative overflow-hidden">
+        <div class="absolute -top-8 -left-8 w-32 h-32 bg-terracota rounded-full opacity-20 blur-2xl"></div>
+        <div class="absolute -bottom-8 -right-8 w-32 h-32 bg-sage rounded-full opacity-20 blur-2xl"></div>
+        <div class="relative z-10">
+          <img src="/vendas/img/logo.png" alt="MUNOFOOD" class="h-9 w-auto mx-auto mb-3 brightness-0 invert" />
+          <h3 class="text-xl font-black text-white">Espera! Antes de sair...</h3>
+          <p class="text-gray-300 text-sm mt-1">Temos uma oferta especial só para você</p>
+        </div>
+      </div>
+      <div class="p-6 text-center">
+        <div class="bg-terracota/8 border border-terracota/20 rounded-2xl p-4 mb-5">
+          <div class="text-4xl font-black text-terracota">R$ 99,99</div>
+          <div class="text-sm text-gray-600">por mês — <strong>Membro MUNO</strong></div>
+        </div>
+        <p class="text-gray-600 text-sm mb-5 leading-relaxed">
+          Gestão completa do seu restaurante no ar em <strong>menos de 24h</strong>, sem taxa por pedido e com suporte
+          humano.
+        </p>
+        <a href="#contato" id="exitPopupCTA" class="btn-primary block w-full py-4 rounded-xl mb-3">
+          Quero ser Membro MUNO
+        </a>
+        <button id="closeExitPopup" class="text-gray-400 text-xs hover:text-gray-600 transition underline">
+          Não, prefiro continuar perdendo vendas
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================
+       FLOATING WHATSAPP
+       ====================================================== -->
+  <a href="https://wa.me/5512996419003?text=Ol%C3%A1!%20Vim%20pelo%20site%20e%20quero%20saber%20mais%20sobre%20o%20MUNOFOOD."
+    target="_blank" rel="noopener"
+    class="whatsapp-float w-16 h-16 rounded-full flex items-center justify-center shadow-2xl" style="background:#25D366"
+    title="Falar no WhatsApp">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="white">
+      <path
+        d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+    </svg>
+  </a>
+
+  <!-- ======================================================
+       MOBILE STICKY CTA BAR
+       ====================================================== -->
+  <div class="mobile-cta-bar">
+    <a href="#contato" class="flex-1 btn-primary py-3 rounded-xl text-center text-sm">
+      Começar Agora
+    </a>
+    <a href="https://wa.me/5512996419003" target="_blank" rel="noopener"
+      class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background:#25D366">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+        <path
+          d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+      </svg>
+    </a>
+  </div>
+
+  <!-- ======================================================
+       SCRIPTS (ao final do body, após o DOM)
+       ====================================================== -->
+  <script src="/vendas/js/scene.js"></script>
+  <script src="/vendas/js/main.js"></script>
+  <script src="/vendas/js/hero-motion.js"></script>
+
+</body>
+
+</html>

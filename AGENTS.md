@@ -156,48 +156,104 @@ comercial por causa de um cliente que saiu.
 
 # Os domínios
 
-Desde 10/08/2026, o domínio raiz **não é servido por este projeto**:
+Desde 26/08/2026, **tudo** é servido por este projeto:
 
 ```
-munoapp.com.br         landing de vendas (outro repo: MUNO-Landing-Page)
-www.  / join.          a mesma landing, 308 para o apex
-app.munoapp.com.br     ESTE projeto — é onde a API pública atende
-admin.munoapp.com.br   ESTE projeto — plataforma/CRM
-<slug>.munoapp.com.br  ESTE projeto — restaurantes
+munoapp.com.br         a landing de vendas, em public/vendas/
+www.  / join.          a mesma landing, 308 para o apex (vercel.json)
+app.munoapp.com.br     a API pública
+admin.munoapp.com.br   plataforma/CRM
+<slug>.munoapp.com.br  restaurantes
 ```
 
-Na Vercel, `*.munoapp.com.br` pertence ao projeto `muno` e o apex/`www`/`join`
-ao `muno-landing-page`. O curinga é o que sustenta tudo daqui; mover o raiz de
-volta para cá quebraria a landing, e mover o curinga quebraria todos os
-restaurantes de uma vez.
+Na Vercel, `munoapp.com.br` e `*.munoapp.com.br` pertencem ao projeto `muno`.
+O projeto `muno-landing-page` existe sem domínio, congelado como rollback.
 
-Antes de 10/08/2026 o raiz caía em `slug = "default"` e servia o restaurante do
-seed — quem ouvia a marca e digitava o endereço encontrava uma hamburgueria em
-Ubatuba e concluía que a Muno era isso. O tenant `default` continua existindo,
-agora só em `default.munoapp.com.br`.
+## O domínio raiz não pode virar um restaurante
 
-**`ROOT_DOMAIN` continua `www.munoapp.com.br,munoapp.com.br` mesmo o app não
-servindo mais esses hosts.** Não é sobra: `buildTenantBaseUrl`
-(`src/lib/tenant-provisioning.ts`) usa a **última** entrada para montar a URL do
-restaurante, e encurtar a lista geraria `pizzaria.www.munoapp.com.br` — dois
-níveis, fora do certificado curinga.
+Esta é a parte perigosa do `src/proxy.ts`, e vale ler antes de mexer nele.
 
-## A captação de lead atravessa os dois repositórios
+Até 10/08/2026 o raiz caía em `slug = resolvedSlug ?? "default"` e servia o
+restaurante do seed: quem ouvia a marca e digitava o endereço encontrava uma
+hamburgueria em Ubatuba e concluía que a Muno era isso. A correção da época foi
+tirar o raiz deste projeto, e o ramo virou código morto.
 
-A landing grava lead chamando `app.munoapp.com.br/api/leads/publico`. Três
-coisas precisam continuar verdadeiras, e nenhuma é óbvia lendo só um lado:
+Trazer a landing para cá ressuscitou esse ramo. A guarda que o substitui trata
+`resolvedSlug === null` e **cobre todo caminho do host raiz**, não só a home:
 
-1. **A rota responde em qualquer subdomínio** porque a guarda em `src/proxy.ts`
-   sai do pipeline **antes** do `findUnique` do tenant. Foi feita assim de
-   propósito: pelo caminho normal a rota dependeria de um tenant existir, e
-   morreria junto com o `default` no dia em que ele for removido.
-2. **`LANDING_ORIGIN` é lista separada por vírgula** (mesmo formato de
-   `ROOT_DOMAIN`), hoje com apex, `www` e `join`. Sem a variável, produção
-   recusa toda origem cross-site — falha fechada, e a landing para de gravar sem
-   nada quebrar visivelmente.
-3. **`app` e `join` estão em `RESERVED_SLUGS`**, senão um restaurante
-   provisionado com esses slugs receberia uma URL que a Vercel resolve para
-   outro projeto.
+1. estático → segue para o filesystem
+2. `/` → reescreve para `/vendas/index.html`
+3. **qualquer outro caminho → 404**
 
-Mexer em domínio aqui pede o roteiro de `docs/superpowers/specs/2026-08-10-porta-de-entrada-no-dominio-raiz.md`,
-que explica por que a ordem dos passos importa.
+O item 3 é o que importa. Uma guarda que tratasse só o `/` deixaria
+`munoapp.com.br/promocao` reabrir exatamente o mesmo buraco, num caminho onde
+ninguém repara. O fallback `?? "default"` foi removido junto: hoje não existe
+linha capaz de transformar o raiz num tenant, e `src/proxy.test.ts` afirma isso
+verificando que o raiz **não chama** `prisma.tenant.findUnique`.
+
+Há o espelho, também no proxy: `/vendas/...` em host que não é raiz responde
+404. A landing mora em `public/`, que responde em qualquer host — sem isso, a
+página de vendas da Muno abre dentro do domínio do cliente.
+
+**Em desenvolvimento vale o mesmo.** `ROOT_DOMAIN` não está no `.env`, então o
+padrão é `localhost:3000`, que é raiz: `localhost:3000` mostra a landing e o
+storefront do seed é **`default.localhost:3000`**. É atrito de propósito —
+aplicar a guarda só em produção faria dev e produção divergirem no exato ramo
+onde o bug mora.
+
+## A landing é estática, e continua sendo
+
+Ela é um documento HTML em `public/vendas/`, servido pelo filesystem. Não é
+página do App Router, por dois motivos:
+
+* `src/app/(client)/page.tsx` já resolve `/`. Dois route groups não podem
+  produzir o mesmo caminho — o Next recusa o build.
+* O app é Tailwind v4; a landing é Tailwind v3 por CDN. Como página React ela
+  herdaria o `globals.css` pelo layout raiz e carregaria os dois preflights
+  juntos, com as duas versões gerando as mesmas classes (`.text-sm`,
+  `.shadow-sm`) com valores diferentes. Não quebra o build: entorta a página em
+  silêncio.
+
+Os arquivos vieram de `~/Dev/MunoSellPage` sem alteração, exceto por dois
+pontos: as referências de asset viraram absolutas (`/vendas/css/...`), porque a
+URL exibida continua sendo `/`, e o endpoint de lead virou relativo — o
+endereço absoluto de produção faria a página, aberta em localhost, gravar lead
+no banco dos clientes.
+
+**Preço não se digita duas vezes.** `PRECOS` em `src/lib/plans.ts` é a fonte
+única; a sugestão de mensalidade do CRM sai dela, e `src/lib/plans.test.ts` lê
+`public/vendas/index.html` e falha se a página anunciar um valor que a tabela
+não conhece — nas duas direções. Antes disso os dois viviam em repositórios
+separados e já divergiam: a página dizia 99,99 e o CRM sugeria 99.
+
+**`ROOT_DOMAIN` continua `www.munoapp.com.br,munoapp.com.br`.** Não é sobra:
+`buildTenantBaseUrl` (`src/lib/tenant-provisioning.ts`) usa a **última** entrada
+para montar a URL do restaurante, e encurtar a lista geraria
+`pizzaria.www.munoapp.com.br` — dois níveis, fora do certificado curinga.
+
+## A captação de lead
+
+A landing grava lead em `/api/leads/publico`, hoje same-origin. Três coisas
+precisam continuar verdadeiras:
+
+1. **A rota sai do pipeline de tenant** por uma guarda em `src/proxy.ts`, antes
+   do `findUnique`. Foi feita assim de propósito: pelo caminho normal a rota
+   dependeria de um tenant existir, e morreria junto com o `default` no dia em
+   que ele for removido. É também o que a mantém viva no host raiz, onde não
+   existe tenant nenhum.
+2. **`LANDING_ORIGIN` continua existindo**, mesmo com a landing same-origin. O
+   navegador manda `Origin` em POST inclusive na mesma origem, e
+   `origemPermitida()` compara com essa lista — esvaziá-la faz produção recusar
+   a própria landing. Ela é lista separada por vírgula (mesmo formato de
+   `ROOT_DOMAIN`) e precisa conter o apex. `localhost` passa fora de produção
+   sem entrar na lista.
+3. **`app` e `join` estão em `RESERVED_SLUGS`.** `join` porque a Vercel o
+   redireciona para o apex antes de o app ver a requisição; `app` porque é o
+   host da API.
+
+Mexer em domínio aqui pede os dois roteiros, nesta ordem de leitura:
+`docs/superpowers/specs/2026-08-10-porta-de-entrada-no-dominio-raiz.md`, que
+tirou o raiz deste projeto, e
+`docs/superpowers/specs/2026-08-26-landing-para-dentro-do-app-design.md`, que o
+trouxe de volta. Os dois existem pelo mesmo motivo: a ordem dos passos é o que
+evita a janela em que a landing fica fora do ar.
