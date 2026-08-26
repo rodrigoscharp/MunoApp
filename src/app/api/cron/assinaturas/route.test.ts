@@ -50,6 +50,9 @@ function assinatura(sobrescreve: Record<string, unknown> = {}) {
     // Cortesia já vencida há meses: o padrão dos casos é "cobra".
     inicioCobranca: new Date("2026-01-10T00:00:00Z"),
     status: "ATIVA",
+    // Padrão: cliente cobrado por PIX conferido na mão, sem gateway. Os
+    // testes da Task 4 sobrescrevem isso para simular quem o Asaas cobra.
+    asaasSubscriptionId: null,
     ...sobrescreve,
   };
 }
@@ -200,6 +203,61 @@ describe("POST /api/cron/assinaturas — geração da cobrança", () => {
     cobrancaCreate.mockRejectedValue(new Error("conexão recusada"));
 
     await expect(POST(requisicao())).rejects.toThrow("conexão recusada");
+  });
+});
+
+describe("assinatura cobrada pelo gateway", () => {
+  // Dois relógios para a mesma dívida é o defeito que este teste tranca: o
+  // Asaas cobra o cartão, o cron cria a cobrança do mês assim mesmo, ninguém
+  // dá baixa, e em 15 dias a régua bloqueia um restaurante adimplente.
+  it("não gera cobrança quando há asaasSubscriptionId", async () => {
+    assinaturaFindMany.mockResolvedValue([
+      assinatura({ id: "assin-gateway", asaasSubscriptionId: "sub_123" }),
+    ]);
+
+    const res = await POST(requisicao());
+
+    expect(res.status).toBe(200);
+    expect(cobrancaCreate).not.toHaveBeenCalled();
+  });
+
+  it("continua gerando para quem não tem gateway", async () => {
+    assinaturaFindMany.mockResolvedValue([
+      assinatura({ id: "assin-pix", asaasSubscriptionId: null }),
+    ]);
+
+    await POST(requisicao());
+
+    expect(cobrancaCreate).toHaveBeenCalledTimes(1);
+  });
+
+  // A metade da trava que ninguém lembra de testar: pular a criação da
+  // cobrança não pode pular o recálculo de status também. Cartão que falha
+  // vira cobrança vencida pelo webhook, e é essa cobrança que precisa
+  // continuar bloqueando pelo caminho de sempre — senão o cliente de gateway
+  // inadimplente nunca é bloqueado.
+  it("a régua continua rodando e bloqueia a assinatura de gateway inadimplente", async () => {
+    assinaturaFindMany.mockResolvedValue([
+      assinatura({
+        id: "assin-gateway",
+        status: "INADIMPLENTE",
+        asaasSubscriptionId: "sub_123",
+      }),
+    ]);
+    // Cobrança vencida há 15 dias, como o webhook do Asaas teria espelhado
+    // após o cartão falhar.
+    cobrancaFindMany.mockResolvedValue([
+      { assinaturaId: "assin-gateway", vencimento: new Date("2026-08-05T00:00:00Z") },
+    ]);
+
+    await POST(requisicao());
+
+    expect(cobrancaCreate).not.toHaveBeenCalled();
+    expect(assinaturaUpdate).toHaveBeenCalledTimes(1);
+    expect(assinaturaUpdate.mock.calls[0][0]).toMatchObject({
+      where: { id: "assin-gateway" },
+      data: { status: "BLOQUEADA" },
+    });
   });
 });
 

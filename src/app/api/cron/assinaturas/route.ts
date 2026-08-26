@@ -39,6 +39,7 @@ async function executar(req: NextRequest) {
       valorMensal: true,
       diaVencimento: true,
       inicioCobranca: true,
+      asaasSubscriptionId: true,
     },
   });
 
@@ -55,6 +56,18 @@ async function executar(req: NextRequest) {
     // vencimento é negociado caso a caso, e cobrar dentro dele é exatamente a
     // falha que esta linha evita.
     if (assinatura.inicioCobranca > agora) continue;
+
+    // Quem o Asaas cobra, o Asaas gera. O webhook espelha cada cobrança dele
+    // numa Cobranca local — gerar aqui também criaria a mesma dívida duas
+    // vezes, e a segunda nunca receberia baixa, porque o pagamento no gateway
+    // não sabe que essa segunda linha existe.
+    //
+    // A régua do segundo laço continua rodando para esta assinatura, de
+    // propósito: cartão que falha vira cobrança vencida pelo webhook, e o
+    // bloqueio precisa acontecer pelo caminho de sempre. Se este `continue`
+    // um dia pular o recálculo de status também, um cliente de gateway
+    // inadimplente nunca é bloqueado.
+    if (assinatura.asaasSubscriptionId) continue;
 
     try {
       await prismaUnscoped.cobranca.create({
