@@ -86,7 +86,9 @@ export async function criarAssinatura(input: {
   ciclo: Ciclo;
   // Opcional porque o mensal só tem uma opção sensata (cartão, cobrado
   // sozinho pelo Asaas): quem chama para o mensal não devia precisar
-  // escolher. O anual, que aceita PIX, sempre informa explicitamente.
+  // escolher. O anual, que aceita PIX, sempre informa explicitamente. O
+  // caminho que importa — a rota de checkout — sempre passa o valor; o
+  // default abaixo é rede de segurança para quem esquecer, não descuido.
   billingType?: "PIX" | "CREDIT_CARD";
   descricao: string;
   externalReference: string;
