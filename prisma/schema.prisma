@@ -412,20 +412,32 @@ enum CobrancaStatus {
   CANCELADA
 }
 
+// Também usado por Inscricao (checkout self-service): o cliente escolhe o
+// ciclo antes de existir Assinatura nenhuma.
+enum Ciclo {
+  MENSAL
+  ANUAL
+}
+
 // Relação comercial entre a plataforma e o restaurante. Não é modelo
 // tenant-scoped: quem lê é a plataforma, sempre por prismaUnscoped, como o Lead.
 model Assinatura {
-  id             String           @id @default(cuid())
-  tenantId       String           @unique
-  tenant         Tenant           @relation(fields: [tenantId], references: [id])
-  valorMensal    Decimal          @db.Decimal(10, 2)
-  diaVencimento  Int
+  id                  String           @id @default(cuid())
+  tenantId            String           @unique
+  tenant              Tenant           @relation(fields: [tenantId], references: [id])
+  valorMensal         Decimal          @db.Decimal(10, 2)
+  diaVencimento       Int
   // Primeiro vencimento. Durante a cortesia a assinatura existe e não cobra.
-  inicioCobranca DateTime
-  status         AssinaturaStatus @default(ATIVA)
-  cobrancas      Cobranca[]
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  inicioCobranca      DateTime
+  ciclo               Ciclo            @default(MENSAL)
+  // Presente = o Asaas cobra esta assinatura, e o cron NÃO gera cobrança para
+  // ela. Nulo = cliente cobrado por PIX conferido na mão, como antes do
+  // gateway. É este campo que impede dois relógios gerando a mesma dívida.
+  asaasSubscriptionId String?          @unique
+  status              AssinaturaStatus @default(ATIVA)
+  cobrancas           Cobranca[]
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 }
 
 model Cobranca {

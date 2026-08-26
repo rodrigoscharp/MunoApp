@@ -1,3 +1,5 @@
+import type { Ciclo } from "@prisma/client";
+
 /**
  * Competência é o mês de referência da cobrança, no formato "YYYY-MM".
  *
@@ -68,7 +70,7 @@ export function vencimentoDaCompetencia(
  * esconderia justamente a dívida.
  */
 export function proximoVencimento(
-  assinatura: { diaVencimento: number; inicioCobranca: Date },
+  assinatura: { diaVencimento: number; inicioCobranca: Date; ciclo: Ciclo },
   vencimentoEmAberto: Date | null,
   agora: Date
 ): Date {
@@ -77,6 +79,20 @@ export function proximoVencimento(
   // Cortesia: a assinatura existe e o job não cobra enquanto inicioCobranca
   // não chega (ver /api/cron/assinaturas). A primeira cobrança é essa data.
   if (assinatura.inicioCobranca > agora) return assinatura.inicioCobranca;
+
+  // O anual não tem "mês que vem": quem pagou o ano só volta a pagar quando o
+  // período fecha. Calcular pelo caminho mensal faria a tela do cliente
+  // anunciar uma cobrança que não existe.
+  if (assinatura.ciclo === "ANUAL") {
+    const base = assinatura.inicioCobranca;
+    return new Date(
+      Date.UTC(
+        base.getUTCFullYear() + 1,
+        base.getUTCMonth(),
+        assinatura.diaVencimento
+      )
+    );
+  }
 
   const candidato = vencimentoDaCompetencia(
     competenciaDe(agora),

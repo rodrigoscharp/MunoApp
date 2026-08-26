@@ -88,6 +88,7 @@ export default async function AssinaturaPage() {
         valorMensal: true,
         diaVencimento: true,
         inicioCobranca: true,
+        ciclo: true,
         status: true,
         cobrancas: {
           orderBy: { vencimento: "desc" },
