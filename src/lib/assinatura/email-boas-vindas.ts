@@ -14,6 +14,33 @@ import { buildTenantBaseUrl } from "@/lib/tenant-provisioning";
 const VALIDADE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
+ * Escapa as cinco entidades HTML. `nome` e `email` chegam aqui a partir do
+ * que o cliente digitou no checkout (`Inscricao.nome`/`.email`, texto livre
+ * validado só por tamanho — ver o schema de `/api/assinar`), e vão direto
+ * para dentro de tags. Sem isto, um restaurante chamado `Bar do "Zé" <Centro>`
+ * quebra a marcação do e-mail, e um nome deliberadamente malformado injeta
+ * conteúdo HTML numa mensagem que sai com o remetente da Muno.
+ */
+function escapeHtml(valor: string): string {
+  return valor
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * `subject` não é HTML — escapar entidades ali não protege nada. O risco em
+ * campo de cabeçalho de e-mail é outro: uma quebra de linha no valor
+ * interpolado permite injetar um cabeçalho novo (ex.: um segundo `Bcc:`).
+ * Remover `\r` e `\n` fecha essa porta sem mexer no resto do texto.
+ */
+function paraAssunto(valor: string): string {
+  return valor.replace(/[\r\n]+/g, " ");
+}
+
+/**
  * E-mail de boas-vindas enviado depois que o pagamento confirma e o
  * restaurante é provisionado. É a única coisa que o cliente recebe depois
  * de pagar — se este envio falhar, ele pagou e não tem como entrar.
@@ -47,14 +74,23 @@ export async function enviarBoasVindas(input: {
   const base = buildTenantBaseUrl(input.slug);
   const link = `${base}/redefinir-senha?token=${token.token}`;
 
+  const nome = escapeHtml(input.nome);
+  const email = escapeHtml(input.email);
+
   await getResend().emails.send({
+    // Remetente fixo da Muno, e não process.env.RESEND_FROM_EMAIL (a
+    // convenção de forgot-password): aquele e-mail é disparado em nome do
+    // restaurante (é o restaurante "esquecendo a senha" do próprio
+    // funcionário), enquanto este é a própria plataforma se apresentando a
+    // um cliente que acabou de assinar — não faz sentido variar por
+    // configuração de ambiente/tenant.
     from: "Muno <contato@munoapp.com.br>",
     to: input.email,
-    subject: `A Muno do ${input.nome} está no ar`,
+    subject: `A Muno do ${paraAssunto(input.nome)} está no ar`,
     html: `
-      <h1>Bem-vindo à Muno, ${input.nome}!</h1>
+      <h1>Bem-vindo à Muno, ${nome}!</h1>
       <p>Seu restaurante já está no ar em <a href="${base}">${base}</a>.</p>
-      <p>Seu login é <strong>${input.email}</strong>. Crie sua senha para entrar:</p>
+      <p>Seu login é <strong>${email}</strong>. Crie sua senha para entrar:</p>
       <p><a href="${link}"
             style="background:#D4612A;color:#fff;padding:12px 24px;border-radius:12px;text-decoration:none;display:inline-block">
         Criar minha senha

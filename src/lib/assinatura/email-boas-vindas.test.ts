@@ -86,8 +86,14 @@ describe("e-mail de boas-vindas", () => {
     });
   });
 
-  // Se a senha aparecesse aqui, ela viveria para sempre na caixa de entrada.
-  it("não contém senha nenhuma", async () => {
+  // A garantia real é estrutural, não este teste: enviarBoasVindas nem
+  // RECEBE uma senha como parâmetro (a assinatura só tem tenantId, slug,
+  // email, nome — ver o tipo de `input` acima), então não há como uma
+  // senha entrar no corpo por este caminho. O teste abaixo é só uma rede
+  // de segurança best-effort contra a frase mais óbvia, não uma prova de
+  // ausência — se alguém reformular o texto ("aqui está sua chave de
+  // acesso", por exemplo), ele não pega isso.
+  it("best-effort: o texto fixo do e-mail não contém a frase 'sua senha é'", async () => {
     await enviarBoasVindas({
       tenantId: "t1", slug: "pizzaria", email: "a@b.c", nome: "Pizzaria",
     });
@@ -102,5 +108,54 @@ describe("e-mail de boas-vindas", () => {
     });
 
     expect(enviarEmail.mock.calls[0][0].to).toBe("dono@pizzaria.com");
+  });
+
+  // --- escape: `nome` e `email` vêm do que o cliente digitou no checkout
+  // (Inscricao.nome/.email), texto livre sem restrição de caractere — ver
+  // o schema de /api/assinar. Sem escapar, um nome como o do teste abaixo
+  // quebra a marcação do e-mail ou injeta conteúdo na mensagem. ---
+
+  it("escapa nome com aspas, `<`, `>` e `&` antes de colocar no HTML", async () => {
+    await enviarBoasVindas({
+      tenantId: "t1",
+      slug: "pizzaria",
+      email: "a@b.c",
+      nome: `Bar do "Zé" <script>alert(1)</script> & Cia`,
+    });
+
+    const { html } = enviarEmail.mock.calls[0][0];
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).toContain("&quot;Zé&quot;");
+    expect(html).toContain("&amp; Cia");
+  });
+
+  it("escapa o email antes de colocar no HTML", async () => {
+    await enviarBoasVindas({
+      tenantId: "t1",
+      slug: "pizzaria",
+      email: `a<b>@c.com`,
+      nome: "Pizzaria",
+    });
+
+    const { html } = enviarEmail.mock.calls[0][0];
+    expect(html).not.toContain("a<b>@c.com");
+    expect(html).toContain("a&lt;b&gt;@c.com");
+  });
+
+  // Campo de cabeçalho de e-mail, não HTML: o risco de uma quebra de linha
+  // no assunto é injeção de um cabeçalho novo (ex.: um Bcc: extra), não
+  // marcação quebrada — por isso aqui o requisito é "sem \n", não escape.
+  it("remove quebra de linha do nome antes de montar o subject, para não permitir injeção de cabeçalho", async () => {
+    await enviarBoasVindas({
+      tenantId: "t1",
+      slug: "pizzaria",
+      email: "a@b.c",
+      nome: "Pizzaria\nBcc: atacante@mal.com",
+    });
+
+    const { subject } = enviarEmail.mock.calls[0][0];
+    expect(subject).not.toContain("\n");
+    expect(subject).not.toContain("\r");
   });
 });
