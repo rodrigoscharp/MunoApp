@@ -186,6 +186,11 @@ describe("FormularioAssinatura", () => {
     expect(botao().disabled).toBe(true);
   });
 
+  // O waitFor por "Endereço disponível" não é enfeite: sem ele o botão está
+  // travado porque a checagem de endereço ainda não assentou, e o teste
+  // passaria mesmo que a validação de CPF fosse removida — descoberto por
+  // mutação, com o teste passando feliz. Esperar o endereço ficar livre
+  // deixa o CPF como única razão possível para o botão continuar travado.
   it("CPF com dígito verificador errado mantém o botão travado", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<FormularioAssinatura plano="MEMBRO" ciclo="MENSAL" />);
@@ -194,7 +199,9 @@ describe("FormularioAssinatura", () => {
     await user.type(screen.getByLabelText(/e-mail/i), "dono@pizzaria.com");
     await user.type(screen.getByLabelText(/cpf ou cnpj/i), "11111111111");
     await vi.advanceTimersByTimeAsync(500);
+    await waitFor(() => expect(screen.getByText(/endereço disponível/i)).toBeTruthy());
 
+    expect(screen.getByText(/documento inválido/i)).toBeTruthy();
     expect(botao().disabled).toBe(true);
   });
 
