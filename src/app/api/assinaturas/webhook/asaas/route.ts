@@ -12,14 +12,23 @@ import { competenciaDe, DIA_VENCIMENTO_MAX } from "@/lib/assinatura/competencia"
  * confirmado em restaurante provisionado.
  *
  * Roda sozinho, sem ninguém olhando, e o Asaas reentrega a mesma chamada
- * enquanto não receber 200 — para sempre. Duas consequências que moldam o
+ * enquanto não receber 200 — para sempre. Três consequências que moldam o
  * arquivo inteiro:
  *
- * 1. Responder sempre 200, exceto token inválido. Um 404 ou 500 para um
- *    evento que nunca vai casar (pagamento que não é nosso, tipo de evento
- *    que não tratamos) vira reentrega infinita, e não corrige nada.
- * 2. A idempotência é obrigatória. Sem ela, a segunda entrega do mesmo
- *    evento cria um SEGUNDO restaurante para quem pagou uma vez só.
+ * 1. Responder sempre 200, exceto token inválido, para os ramos de
+ *    ROTEAMENTO: evento que não é nosso, pagamento que não casa com
+ *    nenhuma Inscricao, Inscricao já provisionada. Um 404 ou 500 nesses
+ *    casos vira reentrega infinita de um evento que nunca vai mudar de
+ *    resultado.
+ * 2. Falha genuína de processamento (banco caiu no meio, etc.) DEVE
+ *    propagar sem virar 200 — é o oposto do item 1. É a reentrega do Asaas
+ *    que dá a segunda chance de terminar o trabalho, e só faz sentido se a
+ *    reentrega puder ter sucesso (ver o item 3).
+ * 3. Por isso cada coisa que passa a existir no mundo tem seu vínculo
+ *    gravado antes do passo seguinte: uma entrega que morre no meio precisa
+ *    deixar rastro suficiente para a próxima retomar de onde parou, em vez
+ *    de recomeçar do zero e bater num estado que ela mesma criou (tenant
+ *    com o slug já usado, assinatura com o asaasSubscriptionId já usado).
  *
  * NÃO importa nem chama enviarBoasVindas: esse módulo nasce na Task 12, que
  * também é quem liga a chamada aqui.
@@ -96,65 +105,117 @@ export async function POST(req: NextRequest) {
 
   const agora = new Date();
 
-  // provisionTenant já é transacional, já cria o Setting de identidade, e já
-  // traduz P2002 (slug em uso) para um erro específico — reaproveitado
-  // inteiro, sem caminho novo de criação de tenant.
-  const { tenant } = await provisionTenant({
-    nome: inscricao.nome,
-    slug: inscricao.slug,
-    email: inscricao.email,
-    plano: inscricao.plano,
-  });
+  // Retomada. Se a Inscricao já tem tenantId, uma entrega anterior já criou
+  // o tenant e morreu antes de terminar o resto (a transação abaixo). Chamar
+  // provisionTenant de novo bateria no SLUG_EM_USO do próprio tenant que
+  // estamos tentando terminar de configurar — e o Asaas reentregaria esse
+  // erro para sempre, sem nunca conseguir progredir.
+  let tenantId: string;
+  if (inscricao.tenantId) {
+    const tenant = await prismaUnscoped.tenant.findUnique({
+      where: { id: inscricao.tenantId },
+    });
+    if (!tenant) {
+      // Estado que não deveria existir (o tenant apontado sumiu), mas se
+      // existir precisa parar tudo em vez de tentar provisionar um segundo
+      // tenant por cima — propaga, e não vira 200 disfarçado.
+      throw new Error(
+        `Inscricao ${inscricao.id} aponta para o tenant ${inscricao.tenantId}, que não existe mais.`
+      );
+    }
+    tenantId = tenant.id;
+  } else {
+    // provisionTenant já é transacional, já cria o Setting de identidade, e
+    // já traduz P2002 (slug em uso) para um erro específico — reaproveitado
+    // inteiro, sem caminho novo de criação de tenant.
+    const { tenant } = await provisionTenant({
+      nome: inscricao.nome,
+      slug: inscricao.slug,
+      email: inscricao.email,
+      plano: inscricao.plano,
+    });
+    tenantId = tenant.id;
 
-  // valorMensal é sempre o valor de UM mês, inclusive no anual: é o número
-  // que o CRM mostra. O total pago do ano vive só na Cobranca abaixo.
-  //
+    // Grava o vínculo NA HORA em que o tenant passa a existir, antes de
+    // qualquer escrita seguinte. É isto que faz uma entrega que morrer daqui
+    // em diante ser retomada pelo ramo acima, em vez de tentar criar outro
+    // tenant.
+    await prismaUnscoped.inscricao.update({
+      where: { id: inscricao.id },
+      data: { tenantId },
+    });
+  }
+
   // diaVencimento sai do dia do pagamento, com teto de 28 (DIA_VENCIMENTO_MAX)
   // — não existe mês sem dia 28, então nenhum vencimento cai em data
   // inexistente.
   const diaVencimento = Math.min(agora.getUTCDate(), DIA_VENCIMENTO_MAX);
-  const assinatura = await prismaUnscoped.assinatura.create({
-    data: {
-      tenantId: tenant.id,
-      valorMensal: PRECOS[inscricao.plano].mensalCentavos / 100,
-      diaVencimento,
-      inicioCobranca: agora,
-      ciclo: inscricao.ciclo,
-      // Sempre presente: os dois ciclos criam assinatura no Asaas (ver
-      // src/lib/assinatura/asaas.ts). É este id que faz o job diário
-      // (src/app/api/cron/assinaturas/route.ts) pular a geração de cobrança
-      // para este cliente — sem ele, o cron cria uma segunda dívida que o
-      // Asaas nunca baixa, e a régua bloqueia em 15 dias um cliente
-      // adimplente.
-      asaasSubscriptionId: inscricao.asaasSubscriptionId,
-    },
-  });
 
-  // A Cobranca nasce PAGA, espelhando o pagamento que acabou de confirmar. É
-  // isto que mantém a régua, o proxy e o CRM funcionando sem saber que existe
-  // gateway.
-  await prismaUnscoped.cobranca.create({
-    data: {
-      assinaturaId: assinatura.id,
-      competencia: competenciaDe(agora),
-      valor: pagamento.value ?? PRECOS[inscricao.plano].mensalCentavos / 100,
-      vencimento: agora,
-      status: "PAGA",
-      pagoEm: agora,
-    },
-  });
+  // Tudo daqui para a frente é uma transação: a Assinatura, a Cobranca, o
+  // status PROVISIONADA e o vínculo do Lead saem juntos, ou nenhum sai. Uma
+  // reentrega só encontra dois estados possíveis — nada feito (repete tudo)
+  // ou tudo feito (status já PROVISIONADA, barrado lá em cima) — nunca a
+  // metade.
+  //
+  // provisionTenant tem a própria transação e não entra nesta: são dois
+  // passos distintos de propósito — o primeiro cria o restaurante, o
+  // segundo registra a relação comercial dele com a plataforma.
+  await prismaUnscoped.$transaction(async (tx) => {
+    // Idempotente: se uma entrega concorrente ou uma tentativa anterior já
+    // criou a Assinatura deste tenant, reaproveita em vez de tentar criar
+    // outra e bater no @unique de asaasSubscriptionId.
+    const assinaturaExistente = await tx.assinatura.findUnique({
+      where: { tenantId },
+    });
+    const assinatura =
+      assinaturaExistente ??
+      (await tx.assinatura.create({
+        data: {
+          tenantId,
+          // valorMensal é sempre o valor de UM mês, inclusive no anual: é o
+          // número que o CRM mostra. O total pago do ano vive só na
+          // Cobranca abaixo.
+          valorMensal: PRECOS[inscricao.plano].mensalCentavos / 100,
+          diaVencimento,
+          inicioCobranca: agora,
+          ciclo: inscricao.ciclo,
+          // Sempre presente: os dois ciclos criam assinatura no Asaas (ver
+          // src/lib/assinatura/asaas.ts). É este id que faz o job diário
+          // (src/app/api/cron/assinaturas/route.ts) pular a geração de
+          // cobrança para este cliente — sem ele, o cron cria uma segunda
+          // dívida que o Asaas nunca baixa, e a régua bloqueia em 15 dias
+          // um cliente adimplente.
+          asaasSubscriptionId: inscricao.asaasSubscriptionId,
+        },
+      }));
 
-  await prismaUnscoped.inscricao.update({
-    where: { id: inscricao.id },
-    data: { tenantId: tenant.id, status: "PROVISIONADA" },
-  });
+    // A Cobranca nasce PAGA, espelhando o pagamento que acabou de
+    // confirmar. É isto que mantém a régua, o proxy e o CRM funcionando sem
+    // saber que existe gateway.
+    await tx.cobranca.create({
+      data: {
+        assinaturaId: assinatura.id,
+        competencia: competenciaDe(agora),
+        valor: pagamento.value ?? PRECOS[inscricao.plano].mensalCentavos / 100,
+        vencimento: agora,
+        status: "PAGA",
+        pagoEm: agora,
+      },
+    });
 
-  // Fecha o Lead que a rota de checkout registrou, ligando-o ao tenant que
-  // acabou de nascer. tenantId: null na cláusula porque um Lead já vinculado
-  // a outro tenant não pode ser roubado por este e-mail coincidir.
-  await prismaUnscoped.lead.updateMany({
-    where: { email: inscricao.email, origem: "checkout", tenantId: null },
-    data: { tenantId: tenant.id, status: "FECHADO" },
+    await tx.inscricao.update({
+      where: { id: inscricao.id },
+      data: { status: "PROVISIONADA" },
+    });
+
+    // Fecha o Lead que a rota de checkout registrou, ligando-o ao tenant que
+    // acabou de nascer. tenantId: null na cláusula porque um Lead já
+    // vinculado a outro tenant não pode ser roubado por este e-mail
+    // coincidir.
+    await tx.lead.updateMany({
+      where: { email: inscricao.email, origem: "checkout", tenantId: null },
+      data: { tenantId, status: "FECHADO" },
+    });
   });
 
   return ok();

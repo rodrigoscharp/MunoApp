@@ -17,26 +17,53 @@ vi.mock("@/lib/assinatura/asaas", () => ({
 }));
 
 const inscricaoFindFirst = vi.fn();
-const inscricaoUpdate = vi.fn();
+// prismaUnscoped.inscricao.update: só a escrita FORA da transação, que grava
+// o tenantId no instante em que o tenant nasce (antes de qualquer coisa
+// depender dele). A escrita que marca PROVISIONADA é outra (tx.inscricao.update,
+// abaixo) — separadas de propósito, para os testes de retomada distinguirem
+// as duas.
+const inscricaoUpdateTenantId = vi.fn();
+// prismaUnscoped.tenant.findUnique: usado só na retomada, quando a Inscricao
+// já chega com tenantId (uma entrega anterior já criou o tenant e morreu
+// antes de terminar o resto).
+const tenantFindUnique = vi.fn();
+// Os quatro abaixo vivem dentro da transação (tx.*): ou saem juntos, ou
+// nenhum sai.
+const assinaturaFindUnique = vi.fn();
 const assinaturaCreate = vi.fn();
 const cobrancaCreate = vi.fn();
+const inscricaoUpdateStatus = vi.fn();
 const leadUpdateMany = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
     inscricao: {
       findFirst: (...args: unknown[]) => inscricaoFindFirst(...args),
-      update: (...args: unknown[]) => inscricaoUpdate(...args),
+      update: (...args: unknown[]) => inscricaoUpdateTenantId(...args),
     },
-    assinatura: {
-      create: (...args: unknown[]) => assinaturaCreate(...args),
+    tenant: {
+      findUnique: (...args: unknown[]) => tenantFindUnique(...args),
     },
-    cobranca: {
-      create: (...args: unknown[]) => cobrancaCreate(...args),
-    },
-    lead: {
-      updateMany: (...args: unknown[]) => leadUpdateMany(...args),
-    },
+    // Como em src/lib/tenant-provisioning.test.ts: $transaction chama o
+    // callback direto com um objeto "tx" — sem simular rollback de verdade,
+    // porque o que o handler precisa é que CADA escrita de dentro passe
+    // pelos mocks certos, não a atomicidade real do Postgres.
+    $transaction: (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        assinatura: {
+          findUnique: (...args: unknown[]) => assinaturaFindUnique(...args),
+          create: (...args: unknown[]) => assinaturaCreate(...args),
+        },
+        cobranca: {
+          create: (...args: unknown[]) => cobrancaCreate(...args),
+        },
+        inscricao: {
+          update: (...args: unknown[]) => inscricaoUpdateStatus(...args),
+        },
+        lead: {
+          updateMany: (...args: unknown[]) => leadUpdateMany(...args),
+        },
+      }),
   },
 }));
 
@@ -86,6 +113,7 @@ function inscricaoAguardando(overrides: Record<string, unknown> = {}) {
     plano: "MEMBRO",
     ciclo: "MENSAL",
     asaasSubscriptionId: "sub_1",
+    tenantId: null,
     ...overrides,
   };
 }
@@ -94,13 +122,16 @@ beforeEach(() => {
   vi.clearAllMocks();
   webhookAutorizado.mockReturnValue(true);
   inscricaoFindFirst.mockResolvedValue(null);
-  inscricaoUpdate.mockResolvedValue({});
+  inscricaoUpdateTenantId.mockResolvedValue({});
+  inscricaoUpdateStatus.mockResolvedValue({});
+  tenantFindUnique.mockResolvedValue(null);
   provisionTenant.mockResolvedValue({
     tenant: { id: "tenant-1", slug: "pizzaria" },
     admin: { id: "admin-1" },
     url: "http://pizzaria.localhost:3000",
     senha: "descartada",
   });
+  assinaturaFindUnique.mockResolvedValue(null);
   assinaturaCreate.mockResolvedValue({ id: "assinatura-1" });
   cobrancaCreate.mockResolvedValue({ id: "cobranca-1" });
   leadUpdateMany.mockResolvedValue({ count: 0 });
@@ -158,20 +189,24 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
 
   // A idempotência mora aqui: sem ela, a segunda entrega do mesmo webhook
   // cria um SEGUNDO restaurante para quem pagou uma vez só.
-  it("entrega repetida (Inscricao já PROVISIONADA) responde 200 e não provisiona de novo", async () => {
+  it("entrega repetida (Inscricao já PROVISIONADA) responde 200 e não toca em nada", async () => {
     inscricaoFindFirst.mockResolvedValue({
       id: "insc-1",
       status: "PROVISIONADA",
       slug: "pizzaria",
+      tenantId: "tenant-1",
     });
 
     const res = await POST(requisicao(eventoPago()));
 
     expect(res.status).toBe(200);
     expect(provisionTenant).not.toHaveBeenCalled();
+    expect(tenantFindUnique).not.toHaveBeenCalled();
     expect(assinaturaCreate).not.toHaveBeenCalled();
     expect(cobrancaCreate).not.toHaveBeenCalled();
-    expect(inscricaoUpdate).not.toHaveBeenCalled();
+    expect(inscricaoUpdateTenantId).not.toHaveBeenCalled();
+    expect(inscricaoUpdateStatus).not.toHaveBeenCalled();
+    expect(leadUpdateMany).not.toHaveBeenCalled();
   });
 
   // A ordem importa: id (externalReference) primeiro, é a rede de segurança
@@ -298,14 +333,22 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
     expect(dados.valor).toBe(119.99);
   });
 
-  it("marca a Inscricao como PROVISIONADA e grava o tenantId", async () => {
+  // O vínculo é gravado em dois momentos diferentes, de propósito: o
+  // tenantId assim que o tenant nasce (fora da transação, antes de qualquer
+  // coisa depender dele), o status PROVISIONADA só no fim, depois que
+  // Assinatura, Cobranca e Lead já saíram juntos na mesma transação.
+  it("grava o tenantId assim que o tenant nasce, e só marca PROVISIONADA depois de tudo mais pronto", async () => {
     inscricaoFindFirst.mockResolvedValue(inscricaoAguardando());
 
     await POST(requisicao(eventoPago()));
 
-    expect(inscricaoUpdate).toHaveBeenCalledWith({
+    expect(inscricaoUpdateTenantId).toHaveBeenCalledWith({
       where: { id: "insc-1" },
-      data: { tenantId: "tenant-1", status: "PROVISIONADA" },
+      data: { tenantId: "tenant-1" },
+    });
+    expect(inscricaoUpdateStatus).toHaveBeenCalledWith({
+      where: { id: "insc-1" },
+      data: { status: "PROVISIONADA" },
     });
   });
 
@@ -334,11 +377,110 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
     expect(provisionTenant).toHaveBeenCalledOnce();
   });
 
-  it("responde 200 no fluxo completo de provisionamento", async () => {
+  it("caminho feliz cria exatamente um tenant, uma assinatura e uma cobrança PAGA", async () => {
     inscricaoFindFirst.mockResolvedValue(inscricaoAguardando());
 
     const res = await POST(requisicao(eventoPago()));
 
     expect(res.status).toBe(200);
+    expect(provisionTenant).toHaveBeenCalledOnce();
+    expect(assinaturaCreate).toHaveBeenCalledOnce();
+    expect(cobrancaCreate).toHaveBeenCalledOnce();
+    expect(cobrancaCreate.mock.calls[0][0].data.status).toBe("PAGA");
+  });
+
+  // --- retomada: a mesma classe de bug corrigida duas vezes neste plano —
+  // o vínculo precisa ser gravado no instante em que a coisa passa a
+  // existir, senão a reentrega recomeça do zero e bate num estado que ela
+  // mesma criou. ---
+
+  it("entrega que morre logo após provisionTenant: a reentrega acha o tenant pelo tenantId, sem chamar provisionTenant de novo", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando({ tenantId: null }));
+    // Simula a entrega morrendo assim que a transação ia começar — depois
+    // de provisionTenant e do update que grava o tenantId, mas antes de
+    // qualquer escrita da Assinatura.
+    const erroDeInfra = new Error("banco caiu bem quando a transação ia começar");
+    assinaturaFindUnique.mockRejectedValueOnce(erroDeInfra);
+
+    // Falha de processamento genuína: propaga (não vira 200 disfarçado —
+    // é o que dá ao Asaas o motivo de reentregar).
+    await expect(POST(requisicao(eventoPago()))).rejects.toThrow(
+      "banco caiu bem quando a transação ia começar"
+    );
+
+    expect(provisionTenant).toHaveBeenCalledOnce();
+    // O vínculo já foi gravado antes da falha — é o que torna a retomada
+    // possível.
+    expect(inscricaoUpdateTenantId).toHaveBeenCalledWith({
+      where: { id: "insc-1" },
+      data: { tenantId: "tenant-1" },
+    });
+
+    // Reentrega do Asaas: a Inscricao já chega com tenantId gravado, e a
+    // Assinatura ainda não existia quando a primeira tentativa morreu.
+    provisionTenant.mockClear();
+    inscricaoFindFirst.mockResolvedValue(
+      inscricaoAguardando({ tenantId: "tenant-1" })
+    );
+    tenantFindUnique.mockResolvedValue({ id: "tenant-1", slug: "pizzaria" });
+    assinaturaFindUnique.mockResolvedValue(null);
+
+    const res = await POST(requisicao(eventoPago()));
+
+    expect(res.status).toBe(200);
+    expect(provisionTenant).not.toHaveBeenCalled();
+    expect(tenantFindUnique).toHaveBeenCalledWith({ where: { id: "tenant-1" } });
+    expect(assinaturaCreate).toHaveBeenCalledOnce();
+  });
+
+  it("entrega que morre logo após assinatura.create: a reentrega não cria outra assinatura e completa", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando({ tenantId: null }));
+    assinaturaFindUnique.mockResolvedValue(null);
+    assinaturaCreate.mockResolvedValue({ id: "assinatura-1" });
+    // A Assinatura já foi criada quando a entrega morre — o teto do
+    // @unique(asaasSubscriptionId) é justamente o que bate se a reentrega
+    // tentar criar outra.
+    const erroDeInfra = new Error("conexão caiu logo depois de criar a assinatura");
+    cobrancaCreate.mockRejectedValueOnce(erroDeInfra);
+
+    await expect(POST(requisicao(eventoPago()))).rejects.toThrow(
+      "conexão caiu logo depois de criar a assinatura"
+    );
+    expect(assinaturaCreate).toHaveBeenCalledOnce();
+
+    // Reentrega: tenantId já gravado, Assinatura já existe.
+    assinaturaCreate.mockClear();
+    cobrancaCreate.mockResolvedValue({ id: "cobranca-1" });
+    assinaturaFindUnique.mockResolvedValue({ id: "assinatura-1", tenantId: "tenant-1" });
+    tenantFindUnique.mockResolvedValue({ id: "tenant-1", slug: "pizzaria" });
+    inscricaoFindFirst.mockResolvedValue(
+      inscricaoAguardando({ tenantId: "tenant-1" })
+    );
+
+    const res = await POST(requisicao(eventoPago()));
+
+    expect(res.status).toBe(200);
+    expect(assinaturaCreate).not.toHaveBeenCalled();
+    expect(cobrancaCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ assinaturaId: "assinatura-1" }),
+      })
+    );
+    expect(inscricaoUpdateStatus).toHaveBeenCalledWith({
+      where: { id: "insc-1" },
+      data: { status: "PROVISIONADA" },
+    });
+  });
+
+  it("Inscricao aponta para um tenant que não existe mais: a falha propaga, não vira 200 silencioso", async () => {
+    inscricaoFindFirst.mockResolvedValue(
+      inscricaoAguardando({ tenantId: "tenant-fantasma" })
+    );
+    tenantFindUnique.mockResolvedValue(null);
+
+    await expect(POST(requisicao(eventoPago()))).rejects.toThrow(
+      /tenant-fantasma/
+    );
+    expect(provisionTenant).not.toHaveBeenCalled();
   });
 });
