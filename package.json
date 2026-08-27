@@ -23,6 +23,7 @@
     "tenant:remove": "tsx scripts/remove-tenant.ts",
     "tenant:remove:prod": "./scripts/remover-tenant-producao.sh",
     "platform:create-admin": "tsx scripts/create-platform-admin.ts",
+    "assinatura:webhook-teste": "tsx scripts/webhook-assinatura-teste.ts",
     "test:watch": "vitest"
   },
   "prisma": {
