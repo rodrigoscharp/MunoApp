@@ -181,6 +181,19 @@ export default auth(async (req) => {
     return NextResponse.next();
   }
 
+  // Webhook do Asaas, pelo mesmo motivo e com a mesma consequência do cron: o
+  // gateway chama o host do deploy, que não é subdomínio de restaurante
+  // nenhum. Pelo caminho normal a rota resolveria o slug "default" e tomaria
+  // 404 — e o Asaas reentregaria esse 404 para sempre, porque é assim que ele
+  // trata qualquer resposta que não seja 200.
+  //
+  // Sem x-tenant-id injetado: o handler decide o tenant pela Inscricao
+  // (asaasPaymentId/asaasSubscriptionId/externalReference), não pelo host, e
+  // usa prismaUnscoped conscientemente.
+  if (nextUrl.pathname.startsWith("/api/assinaturas/webhook/")) {
+    return NextResponse.next();
+  }
+
   // O checkout público (assinatura de um novo restaurante) não pertence a
   // tenant nenhum, e é para o raiz que a landing manda o botão de assinar.
   // Mesma razão e mesma posição da guarda de /api/leads/publico: sair antes do

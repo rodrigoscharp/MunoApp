@@ -284,7 +284,11 @@ describe("proxy: rotas que não pertencem a tenant nenhum", () => {
   // Estas duas saem antes do findUnique de propósito. Pelo caminho normal
   // resolveriam o slug "default" e tomariam 404 — em silêncio, e no caso do
   // cron todo dia, até a primeira mensalidade faltar.
-  it.each(["/api/cron/assinaturas", "/api/leads/publico"])(
+  it.each([
+    "/api/cron/assinaturas",
+    "/api/leads/publico",
+    "/api/assinaturas/webhook/asaas",
+  ])(
     "%s passa sem resolver tenant",
     async (caminho) => {
       const res = await proxy(requisicao(caminho));
