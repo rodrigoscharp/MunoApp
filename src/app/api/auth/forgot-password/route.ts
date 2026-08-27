@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { resend } from "@/lib/resend";
 import { getRestaurantInfo } from "@/lib/restaurant";
-import { buildTenantBaseUrl } from "@/lib/tenant-url";
+import { buildTenantBaseUrl } from "@/lib/tenant-provisioning";
 import { z } from "zod";
 const schema = z.object({
   email: z.string().email(),

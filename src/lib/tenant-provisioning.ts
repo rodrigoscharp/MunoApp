@@ -60,6 +60,13 @@ export function gerarSenha(): string {
   return crypto.randomBytes(12).toString("base64url");
 }
 
+// Única implementação no repositório — chegou a existir uma segunda cópia em
+// `src/lib/tenant-url.ts` que usava a PRIMEIRA entrada de ROOT_DOMAIN em vez
+// da última. As duas divergiram silenciosamente: a rota de "esqueci minha
+// senha" importava a errada e mandava link de dois níveis de subdomínio,
+// fora do certificado curinga, até ser descoberta e removida em 26/08/2026.
+// Não recrie uma segunda função — todo lugar que precisa da URL de um tenant
+// importa esta.
 export function buildTenantBaseUrl(slug: string): string {
   // ROOT_DOMAIN lista os hosts raiz em ordem: os primeiros são os hosts
   // institucionais/marketing (ex.: www.munoapp.com.br) e o ÚLTIMO é o domínio
@@ -69,6 +76,12 @@ export function buildTenantBaseUrl(slug: string): string {
   const roots = (process.env.ROOT_DOMAIN ?? "localhost:3000").split(",");
   const rootDomain = roots[roots.length - 1].trim();
   const protocol = rootDomain.startsWith("localhost") ? "http" : "https";
+  // Sem caso especial para slug === "default": antes de 10/08/2026 o domínio
+  // raiz servia esse tenant e um ramo à parte mandava para NEXTAUTH_URL. Hoje
+  // o raiz serve a landing de vendas e "default" é um tenant como outro
+  // qualquer, em default.<rootDomain> — tratá-lo à parte mandaria o dono
+  // desse restaurante para o lugar errado (ver AGENTS.md, seção "Os
+  // domínios").
   return `${protocol}://${slug}.${rootDomain}`;
 }
 

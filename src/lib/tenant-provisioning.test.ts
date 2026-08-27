@@ -118,6 +118,16 @@ describe("buildTenantBaseUrl", () => {
     process.env.ROOT_DOMAIN = "munoapp.com.br";
     expect(buildTenantBaseUrl("teste")).toBe("https://teste.munoapp.com.br");
   });
+
+  // O tenant "default" não é mais especial: antes de 10/08/2026 o domínio raiz
+  // servia esse tenant e um ramo à parte desviava para NEXTAUTH_URL. Hoje o
+  // raiz serve a landing de vendas (outro projeto) e "default" é um
+  // restaurante comum em default.munoapp.com.br — um ramo especial voltaria
+  // a mandar o dono desse tenant para o lugar errado.
+  it("trata o slug \"default\" como qualquer outro, sem desvio especial", () => {
+    process.env.ROOT_DOMAIN = "www.munoapp.com.br,munoapp.com.br";
+    expect(buildTenantBaseUrl("default")).toBe("https://default.munoapp.com.br");
+  });
 });
 
 describe("provisionTenant — restaurant_info", () => {
