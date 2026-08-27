@@ -193,7 +193,7 @@ export function FormularioAssinatura({
         </label>
         <input
           id="assinar-nome"
-            value={nome}
+          value={nome}
           onChange={(e) => onNomeChange(e.target.value)}
           required
           placeholder="Pizzaria do João"
@@ -249,7 +249,7 @@ export function FormularioAssinatura({
         <input
           type="email"
           id="assinar-email"
-            value={email}
+          value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
           placeholder="joao@pizzaria.com"
@@ -266,7 +266,7 @@ export function FormularioAssinatura({
         </label>
         <input
           id="assinar-cpf-cnpj"
-            value={cpfCnpj}
+          value={cpfCnpj}
           onChange={(e) => setCpfCnpj(maskCpfCnpj(e.target.value))}
           required
           inputMode="numeric"

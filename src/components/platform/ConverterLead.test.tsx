@@ -99,6 +99,34 @@ describe("ConverterLead", () => {
     expect(corpo.diasDeCortesia).toBeUndefined();
   });
 
+  // O caminho que torna o guarda necessário: os campos de vencimento e
+  // cortesia só APARECEM quando há mensalidade, mas o estado deles sobrevive
+  // a apagar a mensalidade depois. Sem `mensalidade.trim() &&` no corpo, o
+  // operador que desistisse da cobrança mandaria vencimento solto para uma
+  // rota que não tem onde guardá-lo.
+  it("apagar a mensalidade depois também tira vencimento e cortesia do corpo", async () => {
+    const user = userEvent.setup();
+    await abrir(user);
+
+    await user.type(screen.getByLabelText(/e-mail do dono/i), "dono@pizzaria.com");
+    const campoMensalidade = screen.getByLabelText(/mensalidade/i);
+    await user.type(campoMensalidade, "119.99");
+    await user.type(screen.getByLabelText(/dia do vencimento/i), "10");
+    await user.type(screen.getByLabelText(/dias de cortesia/i), "15");
+    await user.clear(campoMensalidade);
+
+    // Some da tela, mas o estado continua preenchido.
+    expect(screen.queryByLabelText(/dia do vencimento/i)).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: /^criar cliente$/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const corpo = corpoEnviado();
+    expect(corpo.valorMensal).toBeUndefined();
+    expect(corpo.diaVencimento).toBeUndefined();
+    expect(corpo.diasDeCortesia).toBeUndefined();
+  });
+
   it("manda vencimento e cortesia como número quando há mensalidade", async () => {
     const user = userEvent.setup();
     await abrir(user);

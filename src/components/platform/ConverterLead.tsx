@@ -204,7 +204,7 @@ export function ConverterLead({
         <input
           type="email"
           id="converter-email"
-            value={email}
+          value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
           placeholder="joao@pizzaria.com"
@@ -245,7 +245,7 @@ export function ConverterLead({
           type="number"
           step="0.01"
           id="converter-mensalidade"
-            value={mensalidade}
+          value={mensalidade}
           onChange={(e) => {
             setMensalidadeTocada(true);
             setMensalidade(e.target.value);
@@ -273,7 +273,7 @@ export function ConverterLead({
               min={1}
               max={28}
               id="converter-vencimento"
-            value={diaVencimento}
+              value={diaVencimento}
               onChange={(e) => setDiaVencimento(e.target.value)}
               placeholder="10"
               className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
@@ -294,7 +294,7 @@ export function ConverterLead({
               min={0}
               max={365}
               id="converter-cortesia"
-            value={diasDeCortesia}
+              value={diasDeCortesia}
               onChange={(e) => setDiasDeCortesia(e.target.value)}
               placeholder="0"
               className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
