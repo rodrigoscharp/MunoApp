@@ -196,4 +196,93 @@ describe("cliente Asaas da plataforma", () => {
     );
     expect(corpo.callback.autoRedirect).toBe(true);
   });
+
+  // CONVENIÊNCIA NÃO DERRUBA RECEITA — a mesma regra do Lead no checkout e do
+  // e-mail no provisionamento, agora aqui.
+  //
+  // O callback exige que a conta Asaas tenha um site cadastrado em Minha
+  // Conta > Informações. Sem isso o POST inteiro volta 400 e NENHUMA
+  // assinatura é criada: o checkout morre por causa da página de obrigado.
+  // Descoberto contra o sandbox real — o teste que só afirmava o corpo
+  // enviado passava feliz.
+  it("assinatura nasce mesmo quando o Asaas recusa o callback", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            errors: [{ description: "Não há nenhum domínio configurado em sua conta." }],
+          }),
+          { status: 400 }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: "sub_sem_callback" }), { status: 200 })
+      );
+
+    const { criarAssinatura } = await import("./asaas");
+    const assinatura = await criarAssinatura({
+      customerId: "cus_1",
+      valorCentavos: 11999,
+      ciclo: "MENSAL",
+      descricao: "Muno Membro",
+      externalReference: "insc-1",
+    });
+
+    expect(assinatura.id).toBe("sub_sem_callback");
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    const segundoCorpo = JSON.parse(fetchSpy.mock.calls[1][1]!.body as string);
+    expect(segundoCorpo.callback).toBeUndefined();
+    // O resto do pedido é idêntico: só o callback sai.
+    expect(segundoCorpo.value).toBe(119.99);
+    expect(segundoCorpo.externalReference).toBe("insc-1");
+  });
+
+  it("erro que persiste sem o callback propaga, em vez de virar sucesso falso", async () => {
+    // mockImplementation, e não mockResolvedValue: o corpo de uma Response só
+    // pode ser lido uma vez, e a retentativa recebe a MESMA instância — o
+    // segundo res.json() falharia e a mensagem viraria o texto genérico, por
+    // artefato do teste e não por comportamento do código.
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ errors: [{ description: "CPF inválido" }] }), {
+          status: 400,
+        })
+    );
+
+    const { criarAssinatura } = await import("./asaas");
+
+    await expect(
+      criarAssinatura({
+        customerId: "cus_1",
+        valorCentavos: 11999,
+        ciclo: "MENSAL",
+        descricao: "Muno Membro",
+        externalReference: "insc-1",
+      })
+    ).rejects.toThrow("CPF inválido");
+  });
+
+  // Falha de REDE é diferente de recusa do gateway: o POST pode ter chegado e
+  // criado a assinatura antes de a conexão cair. Repetir ali cobraria o
+  // cliente duas vezes. Só recusa com resposta HTTP autoriza a segunda
+  // tentativa.
+  it("falha de rede não vira retentativa, para não duplicar assinatura", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("ECONNRESET"));
+
+    const { criarAssinatura } = await import("./asaas");
+
+    await expect(
+      criarAssinatura({
+        customerId: "cus_1",
+        valorCentavos: 11999,
+        ciclo: "MENSAL",
+        descricao: "Muno Membro",
+        externalReference: "insc-1",
+      })
+    ).rejects.toThrow("ECONNRESET");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
 });

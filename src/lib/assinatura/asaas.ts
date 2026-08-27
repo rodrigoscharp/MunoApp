@@ -25,6 +25,15 @@ function baseUrl(): string {
     : BASE_URLS.sandbox;
 }
 
+/**
+ * Recusa COM resposta HTTP — o gateway leu o pedido e disse não.
+ *
+ * Distinguir isso de falha de rede é o que autoriza uma segunda tentativa:
+ * numa conexão que cai, o POST pode ter chegado e criado a assinatura antes,
+ * e repetir cobraria o cliente duas vezes.
+ */
+class AsaasRecusou extends Error {}
+
 async function chamar<T>(caminho: string, body?: unknown): Promise<T> {
   const res = await fetch(`${baseUrl()}${caminho}`, {
     method: body ? "POST" : "GET",
@@ -39,7 +48,7 @@ async function chamar<T>(caminho: string, body?: unknown): Promise<T> {
     const corpo = (await res.json().catch(() => null)) as
       | { errors?: { description?: string }[] }
       | null;
-    throw new Error(
+    throw new AsaasRecusou(
       corpo?.errors?.[0]?.description ??
         `Asaas respondeu ${res.status} em ${caminho}`
     );
@@ -108,7 +117,7 @@ export async function criarAssinatura(input: {
   descricao: string;
   externalReference: string;
 }): Promise<{ id: string }> {
-  return chamar<{ id: string }>("/subscriptions", {
+  const pedido = {
     customer: input.customerId,
     billingType: input.billingType ?? "CREDIT_CARD",
     value: emReais(input.valorCentavos),
@@ -121,11 +130,36 @@ export async function criarAssinatura(input: {
     // volta seria o e-mail de boas-vindas, que depende do webhook ter
     // chegado. A página de obrigado não afirma que ficou pronto: ela explica
     // o que vem a seguir, e é honesta sobre o e-mail poder demorar.
-    callback: {
-      successUrl: urlDaPlataforma("/assinar/obrigado"),
-      autoRedirect: true,
-    },
-  });
+  };
+
+  try {
+    return await chamar<{ id: string }>("/subscriptions", {
+      ...pedido,
+      callback: {
+        successUrl: urlDaPlataforma("/assinar/obrigado"),
+        autoRedirect: true,
+      },
+    });
+  } catch (erro) {
+    // CONVENIÊNCIA NÃO DERRUBA RECEITA. O callback exige que a conta Asaas
+    // tenha um site cadastrado (Minha Conta > Informações); sem isso o POST
+    // inteiro volta 400 e NENHUMA assinatura é criada — o checkout morre por
+    // causa da página de obrigado. Descoberto contra o sandbox real, com o
+    // teste de unidade passando: ele afirmava o corpo enviado, não que o
+    // gateway aceita.
+    //
+    // Só recusa COM resposta repete. Falha de rede não: o POST pode ter
+    // chegado e criado a assinatura antes de a conexão cair, e a segunda
+    // tentativa cobraria o cliente duas vezes. Se o erro persistir sem o
+    // callback, ele propaga — a causa era outra.
+    if (!(erro instanceof AsaasRecusou)) throw erro;
+    console.error(
+      "[asaas] Assinatura recusada com callback; repetindo sem ele. " +
+        "O cliente não será devolvido para /assinar/obrigado depois de pagar. " +
+        `Cadastre o site da Muno em Minha Conta > Informações. Motivo: ${erro.message}`
+    );
+    return chamar<{ id: string }>("/subscriptions", pedido);
+  }
 }
 
 /**
