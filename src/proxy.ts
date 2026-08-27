@@ -198,8 +198,12 @@ export default auth(async (req) => {
   // tenant nenhum, e é para o raiz que a landing manda o botão de assinar.
   // Mesma razão e mesma posição da guarda de /api/leads/publico: sair antes do
   // findUnique, senão a rota resolveria o slug "default" e morreria com ele.
+  // startsWith, e não igualdade: /assinar/obrigado é a volta do gateway
+  // depois do pagamento, e uma guarda exata a deixaria tomar 404 no raiz —
+  // justamente no caminho de quem acabou de pagar.
   if (
     nextUrl.pathname === "/assinar" ||
+    nextUrl.pathname.startsWith("/assinar/") ||
     nextUrl.pathname.startsWith("/api/assinar")
   ) {
     return NextResponse.next();

@@ -171,4 +171,29 @@ describe("cliente Asaas da plataforma", () => {
       await expect(assinaturaTemPagamentoConfirmado("sub_1")).rejects.toThrow();
     });
   });
+  // Sem callback, quem paga fica parado na página do Asaas: nenhuma tela diz
+  // que o restaurante está sendo criado, e a única ponte de volta vira o
+  // e-mail de boas-vindas. Se ele atrasar, o cliente pagou e está olhando
+  // para o nada.
+  it("manda o cliente de volta para a página de obrigado depois de pagar", async () => {
+    vi.stubEnv("ROOT_DOMAIN", "www.munoapp.com.br,munoapp.com.br");
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "sub_1" }), { status: 200 })
+    );
+
+    const { criarAssinatura } = await import("./asaas");
+    await criarAssinatura({
+      customerId: "cus_1",
+      valorCentavos: 11999,
+      ciclo: "MENSAL",
+      descricao: "Muno Membro",
+      externalReference: "insc-1",
+    });
+
+    const corpo = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
+    expect(corpo.callback.successUrl).toBe(
+      "https://munoapp.com.br/assinar/obrigado"
+    );
+    expect(corpo.callback.autoRedirect).toBe(true);
+  });
 });

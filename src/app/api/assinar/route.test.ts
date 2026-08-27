@@ -427,6 +427,24 @@ describe("POST /api/assinar", () => {
     expect(leadCreate).toHaveBeenCalledTimes(1);
   });
 
+  // O teto existe para conter quem cria inscrição e assinatura no Asaas em
+  // série — trabalho real, com custo. Um corpo malformado não chega perto
+  // disso: morre no zod, sem tocar banco nem gateway. Cobrá-lo da mesma cota
+  // gasta as tentativas de quem está comprando de verdade, e o comprador leva
+  // "Muitas tentativas" no meio da compra por causa de requisições que não
+  // custaram nada.
+  it("payload inválido não consome a cota de quem está comprando", async () => {
+    const ip = "198.51.100.77";
+    for (let i = 0; i < 10; i++) {
+      const invalido = await POST(requisicao({ nada: "disso" }, { ip }));
+      expect(invalido.status).toBe(400);
+    }
+
+    const comprando = await POST(requisicao(corpoValido(), { ip }));
+
+    expect(comprando.status).toBe(201);
+  });
+
   it("barra com 429 ao estourar o teto do mesmo IP", async () => {
     const ip = "198.51.100.9";
     for (let i = 0; i < 5; i++) {

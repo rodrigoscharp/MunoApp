@@ -48,16 +48,23 @@ export async function POST(req: NextRequest) {
   const ip = (req.headers.get("x-forwarded-for") ?? "desconhecido")
     .split(",")[0]
     .trim();
+  const parsed = schema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Dados inválidos" }, { status: 400 });
+  }
+
+  // O limitador vem DEPOIS da validação de propósito. O teto existe para
+  // conter quem cria inscrição e assinatura no Asaas em série — trabalho real,
+  // com custo de banco e de gateway. Um corpo malformado morre no zod acima
+  // sem tocar em nenhum dos dois, e cobrá-lo da mesma cota gastava as
+  // tentativas de quem está comprando: cinco requisições quebradas de um
+  // script, ou um retry mal-comportado, e o comprador legítimo levava
+  // "Muitas tentativas" no meio da compra.
   if (!limitador.permitir(ip, Date.now())) {
     return NextResponse.json(
       { error: "Muitas tentativas. Tente de novo em alguns minutos." },
       { status: 429 }
     );
-  }
-
-  const parsed = schema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Dados inválidos" }, { status: 400 });
   }
   const { nome, email, slug, cpfCnpj, plano, ciclo, metodo } = parsed.data;
 

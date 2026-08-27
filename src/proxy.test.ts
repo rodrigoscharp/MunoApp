@@ -474,7 +474,7 @@ describe("proxy: o domínio raiz serve a landing, nunca um restaurante", () => {
   // nenhum, e é para o raiz que a landing manda o botão de assinar. Sem uma
   // guarda igual à de /api/leads/publico, esta rota cai no mesmo 404 do teste
   // acima — a página existiria e ninguém a alcançaria.
-  it.each(["/assinar", "/api/assinar", "/api/assinar/slug"])(
+  it.each(["/assinar", "/assinar/obrigado", "/api/assinar", "/api/assinar/slug"])(
     "%s responde no domínio raiz, onde não existe tenant",
     async (caminho) => {
       const res = await proxy(requisicaoRaiz(caminho));

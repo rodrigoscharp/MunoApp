@@ -52,6 +52,21 @@ function emReais(centavos: number): number {
   return centavos / 100;
 }
 
+/**
+ * A URL pública da plataforma — o domínio nu, sem subdomínio de tenant.
+ *
+ * Mesma leitura de ROOT_DOMAIN que buildTenantBaseUrl: a ÚLTIMA entrada é o
+ * domínio do qual tudo pende. Aqui não se acrescenta slug nenhum, porque a
+ * página de obrigado é da Muno, não de um restaurante — ele ainda nem existe
+ * quando o cliente volta.
+ */
+function urlDaPlataforma(caminho: string): string {
+  const roots = (process.env.ROOT_DOMAIN ?? "localhost:3000").split(",");
+  const root = roots[roots.length - 1].trim();
+  const protocolo = root.startsWith("localhost") ? "http" : "https";
+  return `${protocolo}://${root}${caminho}`;
+}
+
 function proximoVencimentoISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -101,6 +116,15 @@ export async function criarAssinatura(input: {
     cycle: input.ciclo === "ANUAL" ? "YEARLY" : "MONTHLY",
     description: input.descricao,
     externalReference: input.externalReference,
+    // Sem isto o cliente paga e fica parado na página do Asaas, sem nenhuma
+    // tela dizendo que o restaurante está sendo criado — e a única ponte de
+    // volta seria o e-mail de boas-vindas, que depende do webhook ter
+    // chegado. A página de obrigado não afirma que ficou pronto: ela explica
+    // o que vem a seguir, e é honesta sobre o e-mail poder demorar.
+    callback: {
+      successUrl: urlDaPlataforma("/assinar/obrigado"),
+      autoRedirect: true,
+    },
   });
 }
 

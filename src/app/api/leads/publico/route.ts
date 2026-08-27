@@ -95,6 +95,14 @@ export async function OPTIONS(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const origem = req.headers.get("origin");
   if (!origemPermitida(origem)) {
+    // A landing joga fora a resposta deste POST de propósito, então ninguém do
+    // lado do cliente percebe uma recusa. Sem este log, mudar LANDING_ORIGIN
+    // para de gravar lead no CRM enquanto as conversas de WhatsApp seguem
+    // normais — e a descoberta vira "por que não entra lead novo?", dias
+    // depois.
+    console.error(
+      `[leads/publico] 403 — origem recusada: ${origem ?? "(sem Origin)"}`
+    );
     return NextResponse.json({ error: "Origem não permitida" }, { status: 403 });
   }
   const cors = cabecalhosCors(origem);
@@ -111,6 +119,7 @@ export async function POST(req: NextRequest) {
     .split(",")[0]
     .trim();
   if (!limitador.permitir(ip, Date.now())) {
+    console.error(`[leads/publico] 429 — teto estourado pelo IP ${ip}`);
     return NextResponse.json(
       { error: "Muitas tentativas. Tente de novo em alguns minutos." },
       { status: 429, headers: cors }
@@ -121,6 +130,7 @@ export async function POST(req: NextRequest) {
   try {
     corpo = await req.json();
   } catch {
+    console.error("[leads/publico] 400 — corpo não é JSON válido");
     return NextResponse.json({ error: "JSON inválido" }, { status: 400, headers: cors });
   }
 
@@ -130,6 +140,15 @@ export async function POST(req: NextRequest) {
     // o path do campo que falhou, e um "website" no path entregaria ao bot
     // qual campo é o honeypot — a mesma fuga de informação que o 201 do
     // honeypot existe para evitar.
+    // O log traz os NOMES dos campos que falharam, nunca o que a pessoa
+    // digitou: telefone é dado pessoal e não tem por que viver no log. Isso
+    // basta para reconhecer o sintoma que importa — a landing publicada com
+    // um campo renomeado derruba todos os leads com o mesmo path.
+    console.error(
+      `[leads/publico] 400 — campos recusados: ${parsed.error.issues
+        .map((i) => i.path.join("."))
+        .join(", ")}`
+    );
     return NextResponse.json(
       { error: "Dados inválidos" },
       { status: 400, headers: cors }

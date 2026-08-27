@@ -342,3 +342,57 @@ describe("OPTIONS /api/leads/publico", () => {
     expect(res.status).toBe(403);
   });
 });
+
+// A landing dispara este POST e joga fora a resposta: `.catch(() => {})`, sem
+// conferir res.ok. É deliberado — o window.open do WhatsApp vem primeiro e o
+// caminho que gera receita não pode depender do que gera relatório. O preço é
+// que NINGUÉM do lado do cliente percebe uma recusa.
+//
+// Então a visibilidade tem que ser do servidor. Sem estes logs, mudar
+// LANDING_ORIGIN, publicar a landing com um campo renomeado ou tomar um pico
+// de tráfego para de gravar lead no CRM enquanto as conversas de WhatsApp
+// seguem normais — e a descoberta vira "por que não entra lead novo?", dias
+// depois.
+describe("recusa de lead deixa rastro no servidor", () => {
+  it("origem não permitida vira log com a origem recusada", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await POST(requisicao(VALIDO, { origem: "https://site-estranho.com" }));
+
+    expect(res.status).toBe(403);
+    expect(spy).toHaveBeenCalledWith(
+      expect.stringContaining("https://site-estranho.com")
+    );
+
+    spy.mockRestore();
+  });
+
+  it("payload recusado vira log com os campos que falharam, sem os valores", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await POST(requisicao({ restaurante: "x", telefone: "abc" }));
+
+    expect(res.status).toBe(400);
+    const mensagem = spy.mock.calls[0][0] as string;
+    expect(mensagem).toContain("restaurante");
+    expect(mensagem).toContain("telefone");
+    // O telefone é dado pessoal: o log diz QUAL campo falhou, nunca o que
+    // a pessoa digitou.
+    expect(mensagem).not.toContain("abc");
+
+    spy.mockRestore();
+  });
+
+  it("estouro do teto vira log", async () => {
+    const ip = "198.51.100.200";
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    for (let i = 0; i < 30; i++) await POST(requisicao(VALIDO, { ip }));
+    const barrado = await POST(requisicao(VALIDO, { ip }));
+
+    expect(barrado.status).toBe(429);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining("429"));
+
+    spy.mockRestore();
+  });
+});
