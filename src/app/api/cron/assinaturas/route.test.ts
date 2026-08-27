@@ -15,6 +15,8 @@ const assinaturaUpdate = vi.fn();
 const cobrancaCreate = vi.fn();
 const cobrancaFindMany = vi.fn();
 const inscricaoDeleteMany = vi.fn();
+const inscricaoFindMany = vi.fn();
+const temPagamentoConfirmado = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
@@ -28,8 +30,16 @@ vi.mock("@/lib/prisma", () => ({
     },
     inscricao: {
       deleteMany: (...args: unknown[]) => inscricaoDeleteMany(...args),
+      findMany: (...args: unknown[]) => inscricaoFindMany(...args),
     },
   },
+}));
+
+// A faxina consulta o Asaas antes de apagar. Mockado porque é I/O; a decisão
+// de o que fazer com cada resposta é o que estes testes exercitam.
+vi.mock("@/lib/assinatura/asaas", () => ({
+  assinaturaTemPagamentoConfirmado: (...args: unknown[]) =>
+    temPagamentoConfirmado(...args),
 }));
 
 const { GET, POST } = await import("@/app/api/cron/assinaturas/route");
@@ -87,6 +97,8 @@ beforeEach(() => {
   cobrancaCreate.mockResolvedValue({ id: "cob-nova" });
   cobrancaFindMany.mockResolvedValue([]);
   inscricaoDeleteMany.mockResolvedValue({ count: 0 });
+  inscricaoFindMany.mockResolvedValue([]);
+  temPagamentoConfirmado.mockResolvedValue(false);
 });
 
 afterEach(() => {
@@ -361,28 +373,115 @@ describe("POST /api/cron/assinaturas — a régua", () => {
 });
 
 describe("POST /api/cron/assinaturas — limpeza de inscrição vencida", () => {
-  it("apaga inscrição não paga e vencida, soltando o slug", async () => {
+  function candidata(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "insc-vencida",
+      slug: "pizzaria-abandonada",
+      asaasSubscriptionId: "sub_vencida",
+      ...overrides,
+    };
+  }
+
+  it("procura apenas inscrição AGUARDANDO_PAGAMENTO e vencida", async () => {
     await POST(requisicao());
 
+    expect(inscricaoFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: "AGUARDANDO_PAGAMENTO",
+          expiraEm: { lt: expect.any(Date) },
+        },
+      })
+    );
+  });
+
+  it("apaga a que venceu sem pagamento, soltando o slug", async () => {
+    inscricaoFindMany.mockResolvedValue([candidata()]);
+    inscricaoDeleteMany.mockResolvedValue({ count: 1 });
+
+    await POST(requisicao());
+
+    expect(temPagamentoConfirmado).toHaveBeenCalledWith("sub_vencida");
     expect(inscricaoDeleteMany).toHaveBeenCalledWith({
-      where: {
-        status: "AGUARDANDO_PAGAMENTO",
-        expiraEm: { lt: expect.any(Date) },
-      },
+      where: { id: { in: ["insc-vencida"] } },
     });
   });
 
-  // Inscrição paga esperando o webhook não pode ser apagada junto: o slug
-  // dela está reservado com razão. E a já provisionada virou restaurante —
-  // não é mais uma reserva de slug, é o próprio tenant.
-  it("não apaga inscrição já paga nem já provisionada", async () => {
+  // O CASO QUE ESTE BLOCO EXISTE PARA IMPEDIR. Cliente paga, o webhook
+  // atrasa (fila do Asaas interrompida, deploy caindo), passa o expiraEm, e
+  // a faxina apaga a linha. Os três campos que ligam aquele pagamento a
+  // alguém — externalReference, asaasPaymentId, asaasSubscriptionId — moram
+  // nessa linha: apagada, o webhook que chegar depois não casa com nada e o
+  // handler responde 200. O cliente segue sendo cobrado todo mês, sem
+  // restaurante e sem rastro.
+  it("NÃO apaga inscrição vencida cujo pagamento o Asaas confirma", async () => {
+    inscricaoFindMany.mockResolvedValue([candidata()]);
+    temPagamentoConfirmado.mockResolvedValue(true);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
     await POST(requisicao());
 
-    const { where } = inscricaoDeleteMany.mock.calls[0][0];
-    expect(where.status).toBe("AGUARDANDO_PAGAMENTO");
+    expect(inscricaoDeleteMany).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("insc-vencida")
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  // Sem id de assinatura não há o que perguntar: a inscrição morreu antes de
+  // o Asaas existir para ela, então não há pagamento possível. Apagar direto
+  // evita uma chamada de rede por linha abandonada.
+  it("apaga sem consultar o Asaas quando não há asaasSubscriptionId", async () => {
+    inscricaoFindMany.mockResolvedValue([candidata({ asaasSubscriptionId: null })]);
+    inscricaoDeleteMany.mockResolvedValue({ count: 1 });
+
+    await POST(requisicao());
+
+    expect(temPagamentoConfirmado).not.toHaveBeenCalled();
+    expect(inscricaoDeleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ["insc-vencida"] } },
+    });
+  });
+
+  // Dúvida não vira exclusão, e uma linha problemática não pode travar a
+  // faxina inteira: a que falhou fica para a próxima passada, as outras
+  // seguem.
+  it("Asaas fora do ar preserva aquela inscrição, sem impedir as demais", async () => {
+    inscricaoFindMany.mockResolvedValue([
+      candidata({ id: "insc-erro", asaasSubscriptionId: "sub_erro" }),
+      candidata({ id: "insc-ok", asaasSubscriptionId: "sub_ok" }),
+    ]);
+    temPagamentoConfirmado.mockImplementation(async (sub: string) => {
+      if (sub === "sub_erro") throw new Error("Asaas respondeu 500");
+      return false;
+    });
+    inscricaoDeleteMany.mockResolvedValue({ count: 1 });
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await POST(requisicao());
+
+    expect(inscricaoDeleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ["insc-ok"] } },
+    });
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("não chama o banco para apagar quando nenhuma candidata sobrou", async () => {
+    inscricaoFindMany.mockResolvedValue([candidata()]);
+    temPagamentoConfirmado.mockResolvedValue(true);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await POST(requisicao());
+
+    expect(inscricaoDeleteMany).not.toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
   });
 
   it("inclui a contagem de inscrições apagadas na resposta do job", async () => {
+    inscricaoFindMany.mockResolvedValue([candidata()]);
     inscricaoDeleteMany.mockResolvedValue({ count: 3 });
 
     const res = await POST(requisicao());
@@ -393,6 +492,7 @@ describe("POST /api/cron/assinaturas — limpeza de inscrição vencida", () => 
   it("não apaga inscrição quando o segredo está errado", async () => {
     await POST(requisicao({ secret: "errado" }));
 
+    expect(inscricaoFindMany).not.toHaveBeenCalled();
     expect(inscricaoDeleteMany).not.toHaveBeenCalled();
   });
 
@@ -405,6 +505,7 @@ describe("POST /api/cron/assinaturas — limpeza de inscrição vencida", () => 
     cobrancaFindMany.mockResolvedValue([
       { assinaturaId: "assin-1", vencimento: new Date("2026-08-10T00:00:00Z") },
     ]);
+    inscricaoFindMany.mockResolvedValue([candidata()]);
     inscricaoDeleteMany.mockRejectedValue(new Error("conexão recusada"));
 
     const res = await POST(requisicao());
@@ -421,6 +522,7 @@ describe("POST /api/cron/assinaturas — limpeza de inscrição vencida", () => 
   // seriam apagadas — inventar um número aqui esconderia o problema em vez
   // de sinalizá-lo.
   it("não inventa contagem quando a limpeza falha, e sinaliza a falha na resposta", async () => {
+    inscricaoFindMany.mockResolvedValue([candidata()]);
     inscricaoDeleteMany.mockRejectedValue(new Error("timeout"));
 
     const res = await POST(requisicao());

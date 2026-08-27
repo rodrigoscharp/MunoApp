@@ -112,4 +112,63 @@ describe("cliente Asaas da plataforma", () => {
     expect(webhookAutorizado("outro")).toBe(false);
     expect(webhookAutorizado(null)).toBe(false);
   });
+
+  // Existe para uma decisão de uma via só: o cron apaga inscrição vencida
+  // para soltar o slug, e apagar a de quem já pagou destrói o único vínculo
+  // entre aquele dinheiro e um cliente. Por isso a pergunta é "há pagamento
+  // pago?", e a resposta em dúvida tem que ser sim.
+  describe("assinaturaTemPagamentoConfirmado", () => {
+    function respostaCom(status: string[]) {
+      return new Response(
+        JSON.stringify({ data: status.map((s, i) => ({ id: `pay_${i}`, status: s })) }),
+        { status: 200 }
+      );
+    }
+
+    it.each(["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"])(
+      "%s conta como pago",
+      async (status) => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValue(respostaCom([status]));
+
+        const { assinaturaTemPagamentoConfirmado } = await import("./asaas");
+
+        expect(await assinaturaTemPagamentoConfirmado("sub_1")).toBe(true);
+      }
+    );
+
+    it.each(["PENDING", "OVERDUE", "REFUNDED"])(
+      "%s não conta como pago",
+      async (status) => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValue(respostaCom([status]));
+
+        const { assinaturaTemPagamentoConfirmado } = await import("./asaas");
+
+        expect(await assinaturaTemPagamentoConfirmado("sub_1")).toBe(false);
+      }
+    );
+
+    it("basta uma cobrança paga entre várias", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        respostaCom(["OVERDUE", "PENDING", "RECEIVED"])
+      );
+
+      const { assinaturaTemPagamentoConfirmado } = await import("./asaas");
+
+      expect(await assinaturaTemPagamentoConfirmado("sub_1")).toBe(true);
+    });
+
+    // A falha aqui é ambígua, e ambiguidade não pode virar exclusão. Quem
+    // chama usa isto para decidir se APAGA a inscrição: em dúvida, o certo é
+    // segurar. Um slug preso por mais um dia é irrelevante; um cliente
+    // pagante sem rastro, não.
+    it("propaga o erro em vez de responder false quando o Asaas falha", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify({ errors: [{ description: "fora do ar" }] }), { status: 500 })
+      );
+
+      const { assinaturaTemPagamentoConfirmado } = await import("./asaas");
+
+      await expect(assinaturaTemPagamentoConfirmado("sub_1")).rejects.toThrow();
+    });
+  });
 });

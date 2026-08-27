@@ -6,6 +6,7 @@ import {
   vencimentoDaCompetencia,
 } from "@/lib/assinatura/competencia";
 import { statusPelaRegua } from "@/lib/assinatura/regua";
+import { assinaturaTemPagamentoConfirmado } from "@/lib/assinatura/asaas";
 
 /**
  * Job diário da assinatura. Duas responsabilidades, nesta ordem: gerar a
@@ -149,13 +150,66 @@ async function executar(req: NextRequest) {
   let inscricoesExpiradas = 0;
   let limpezaDeInscricoesFalhou = false;
   try {
-    const resultado = await prismaUnscoped.inscricao.deleteMany({
+    const candidatas = await prismaUnscoped.inscricao.findMany({
       where: {
         status: "AGUARDANDO_PAGAMENTO",
         expiraEm: { lt: agora },
       },
+      select: { id: true, slug: true, asaasSubscriptionId: true },
     });
-    inscricoesExpiradas = resultado.count;
+
+    // Vencida NÃO é o mesmo que não paga, e a diferença custa um cliente.
+    //
+    // O status só vira PROVISIONADA quando o webhook chega. Entre o cliente
+    // pagar e o webhook ser entregue existe uma janela — fila do Asaas
+    // interrompida, deploy caindo, rede — que pode ser maior que o expiraEm
+    // (1h no cartão). Apagar a linha nessa janela destrói os três campos que
+    // ligam aquele pagamento a alguém (externalReference, asaasPaymentId,
+    // asaasSubscriptionId): o webhook que chegar depois não casa com nada, o
+    // handler responde 200, e o cliente segue sendo cobrado todo mês sem
+    // restaurante e sem rastro nenhum no banco.
+    //
+    // Por isso perguntamos ao Asaas antes. Em dúvida — consulta que falha —
+    // a inscrição fica para a próxima passada: slug preso por mais um dia é
+    // irrelevante perto de dinheiro sem contrapartida.
+    const paraApagar: string[] = [];
+    for (const candidata of candidatas) {
+      if (!candidata.asaasSubscriptionId) {
+        // Morreu antes de o Asaas existir para ela: não há pagamento
+        // possível, e não há o que perguntar.
+        paraApagar.push(candidata.id);
+        continue;
+      }
+      try {
+        if (
+          await assinaturaTemPagamentoConfirmado(candidata.asaasSubscriptionId)
+        ) {
+          console.error(
+            `[cron/assinaturas] Inscricao ${candidata.id} (slug ${candidata.slug}) ` +
+              `venceu mas TEM pagamento confirmado no Asaas — preservada. ` +
+              `O provisionamento não completou: verificar o webhook.`
+          );
+          continue;
+        }
+      } catch (erro) {
+        // Uma linha problemática não trava a faxina inteira, e dúvida nunca
+        // vira exclusão.
+        console.error(
+          `[cron/assinaturas] Não foi possível confirmar pagamento da Inscricao ` +
+            `${candidata.id} no Asaas — preservada por precaução`,
+          erro
+        );
+        continue;
+      }
+      paraApagar.push(candidata.id);
+    }
+
+    if (paraApagar.length > 0) {
+      const resultado = await prismaUnscoped.inscricao.deleteMany({
+        where: { id: { in: paraApagar } },
+      });
+      inscricoesExpiradas = resultado.count;
+    }
   } catch (erro) {
     limpezaDeInscricoesFalhou = true;
     console.error(

@@ -105,6 +105,35 @@ export async function criarAssinatura(input: {
 }
 
 /**
+ * Os status que o Asaas considera dinheiro dentro. RECEIVED_IN_CASH entra
+ * porque baixa manual também é pagamento — quem deu baixa quis dizer que
+ * recebeu.
+ */
+const PAGOS = new Set(["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"]);
+
+/**
+ * Alguma cobrança desta assinatura já foi paga?
+ *
+ * Existe para uma decisão de uma via só: a limpeza de inscrição vencida no
+ * cron apaga a linha para soltar o slug, e a linha da Inscricao é o único
+ * lugar onde moram externalReference, asaasPaymentId e asaasSubscriptionId.
+ * Apagar a de quem já pagou destrói o vínculo entre aquele dinheiro e um
+ * cliente — e o webhook que chegar depois não tem mais como casar com nada.
+ *
+ * Por isso a falha PROPAGA em vez de virar `false`. Quem chama decide se
+ * apaga; em dúvida, o certo é não apagar. Slug preso por mais um dia é
+ * irrelevante, cliente pagante sem rastro não é.
+ */
+export async function assinaturaTemPagamentoConfirmado(
+  subscriptionId: string
+): Promise<boolean> {
+  const { data } = await chamar<{ data: { status?: string }[] }>(
+    `/subscriptions/${subscriptionId}/payments`
+  );
+  return (data ?? []).some((c) => PAGOS.has(c.status ?? ""));
+}
+
+/**
  * A primeira cobrança da assinatura é onde o cliente paga. Confirmar com a
  * chave de sandbox se POST /subscriptions já devolve a invoiceUrl direto; até
  * lá, este caminho funciona nos dois casos.

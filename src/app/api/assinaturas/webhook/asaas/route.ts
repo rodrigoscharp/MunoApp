@@ -103,7 +103,22 @@ export async function POST(req: NextRequest) {
 
   // Pagamento que não é de uma inscrição nossa. 200, e não 404: um 404 faria
   // o Asaas reentregar para sempre um evento que nunca vai casar.
-  if (!inscricao) return ok();
+  //
+  // Mas 200 em silêncio, não: um pagamento CONFIRMADO sem inscrição
+  // correspondente é ou evento de outra integração da mesma conta, ou —
+  // pior — um cliente que pagou e cujo registro sumiu. A busca acima olha
+  // externalReference, asaasPaymentId e asaasSubscriptionId, e os três moram
+  // na linha da Inscricao: se ela foi apagada, nada mais liga aquele dinheiro
+  // a alguém. Este log é a única evidência que resta, e o que separa
+  // descobrir em minutos de descobrir quando o cliente reclamar.
+  if (!inscricao) {
+    console.error(
+      `[webhook/asaas] ${evento} sem Inscricao correspondente — ` +
+        `payment=${pagamento.id} subscription=${pagamento.subscription} ` +
+        `externalReference=${pagamento.externalReference} valor=${pagamento.value}`
+    );
+    return ok();
+  }
 
   // Idempotência. O Asaas reentrega quando não recebe 200 — sem esta linha,
   // a segunda entrega cria um segundo restaurante para quem pagou uma vez.

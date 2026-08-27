@@ -622,4 +622,26 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
 
     consoleErrorSpy.mockRestore();
   });
+
+  // Pagamento confirmado que não casa com Inscricao nenhuma significa uma de
+  // duas coisas, e as duas merecem alguém olhando: ou é evento de outra
+  // integração da mesma conta Asaas, ou é um cliente que pagou e cujo
+  // registro sumiu (ver a limpeza de inscrição vencida no cron). Responder
+  // 200 continua certo — 404 viraria reentrega eterna de algo que nunca vai
+  // casar — mas responder 200 EM SILÊNCIO apaga a única evidência de que
+  // entrou dinheiro sem contrapartida.
+  it("pagamento que não casa com inscrição nenhuma vira log, e ainda assim responde 200", async () => {
+    inscricaoFindFirst.mockResolvedValue(null);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await POST(requisicao(eventoPago()));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("pay_1")
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
 });
