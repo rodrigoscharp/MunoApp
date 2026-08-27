@@ -6,11 +6,10 @@ import { ProvisionError } from "@/lib/tenant-provisioning";
 //
 // webhookAutorizado NÃO é testado de novo aqui (Task 6 já cobre
 // timingSafeEqual e falha fechada). O que esta rota precisa isolar é I/O —
-// banco e o provisionamento do tenant.
-//
-// NÃO mockamos @/lib/assinatura/email-boas-vindas: esse módulo só nasce na
-// Task 12, que também é quem liga a chamada dentro deste handler. Este
-// arquivo não importa nem espera nenhum e-mail de boas-vindas.
+// banco, o provisionamento do tenant e o envio do e-mail de boas-vindas.
+// enviarBoasVindas tem sua própria suíte (email-boas-vindas.test.ts); aqui
+// só interessa que o handler a chama com os dados certos e que uma falha
+// dela não derruba a resposta 200.
 
 const webhookAutorizado = vi.fn();
 vi.mock("@/lib/assinatura/asaas", () => ({
@@ -66,6 +65,11 @@ vi.mock("@/lib/prisma", () => ({
         },
       }),
   },
+}));
+
+const enviarBoasVindas = vi.fn();
+vi.mock("@/lib/assinatura/email-boas-vindas", () => ({
+  enviarBoasVindas: (...args: unknown[]) => enviarBoasVindas(...args),
 }));
 
 const provisionTenant = vi.fn();
@@ -147,6 +151,7 @@ beforeEach(() => {
   assinaturaCreate.mockResolvedValue({ id: "assinatura-1" });
   cobrancaCreate.mockResolvedValue({ id: "cobranca-1" });
   leadUpdateMany.mockResolvedValue({ count: 0 });
+  enviarBoasVindas.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -572,5 +577,49 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
     await expect(POST(requisicao(eventoPago()))).rejects.toBe(erroSlugEmUso);
     expect(inscricaoUpdateTenantId).not.toHaveBeenCalled();
     expect(assinaturaCreate).not.toHaveBeenCalled();
+  });
+
+  // --- e-mail de boas-vindas: a única coisa que o cliente recebe depois de
+  // pagar, e por isso mesmo a chamada que NÃO pode arrastar o webhook para
+  // baixo se falhar. ---
+
+  it("chama enviarBoasVindas com os dados da Inscricao e do tenant recém-provisionado", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando());
+
+    await POST(requisicao(eventoPago()));
+
+    expect(enviarBoasVindas).toHaveBeenCalledWith({
+      tenantId: "tenant-1",
+      slug: "pizzaria",
+      email: "a@b.c",
+      nome: "Pizzaria",
+    });
+  });
+
+  // O tenant já existe e a Inscricao já está PROVISIONADA neste ponto: um
+  // throw aqui faria o Asaas reentregar um evento que a idempotência lá em
+  // cima (status já PROVISIONADA) já barra — o cliente ficaria com
+  // restaurante criado e nenhum e-mail, para sempre. Por isso a resposta
+  // continua 200, e o estado gravado (PROVISIONADA) não é desfeito.
+  it("falha ao enviar o e-mail de boas-vindas não derruba o webhook: continua 200 e a Inscricao segue PROVISIONADA", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando());
+    const erroDeEnvio = new Error("Resend fora do ar");
+    enviarBoasVindas.mockRejectedValue(erroDeEnvio);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await POST(requisicao(eventoPago()));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(inscricaoUpdateStatus).toHaveBeenCalledWith({
+      where: { id: "insc-1" },
+      data: { status: "PROVISIONADA" },
+    });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("insc-1"),
+      erroDeEnvio
+    );
+
+    consoleErrorSpy.mockRestore();
   });
 });

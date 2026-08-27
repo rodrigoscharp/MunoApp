@@ -4,6 +4,7 @@ import { webhookAutorizado } from "@/lib/assinatura/asaas";
 import { provisionTenant, ProvisionError } from "@/lib/tenant-provisioning";
 import { PRECOS } from "@/lib/plans";
 import { competenciaDe, DIA_VENCIMENTO_MAX } from "@/lib/assinatura/competencia";
+import { enviarBoasVindas } from "@/lib/assinatura/email-boas-vindas";
 
 /**
  * Webhook chamado pelo Asaas quando um pagamento da PLATAFORMA (a Muno
@@ -34,8 +35,9 @@ import { competenciaDe, DIA_VENCIMENTO_MAX } from "@/lib/assinatura/competencia"
  *    rodar), a retomada recupera o tenant pelo slug — ver o comentário no
  *    `catch` de SLUG_EM_USO abaixo para o porquê disso ser seguro.
  *
- * NÃO importa nem chama enviarBoasVindas: esse módulo nasce na Task 12, que
- * também é quem liga a chamada aqui.
+ * O e-mail de boas-vindas (enviarBoasVindas) sai depois da transação, em
+ * try/catch que não propaga — ver o comentário logo antes da chamada, no
+ * fim do handler.
  */
 
 // PAYMENT_CREATED e PAYMENT_OVERDUE espelham cobrança de assinatura já
@@ -259,6 +261,27 @@ export async function POST(req: NextRequest) {
       data: { tenantId, status: "FECHADO" },
     });
   });
+
+  // E-mail de boas-vindas: a única coisa que o cliente recebe depois de
+  // pagar. Fora da transação e em try/catch de propósito — o tenant já
+  // existe e já está PROVISIONADA neste ponto, então um throw aqui faria o
+  // Asaas reentregar um evento que a idempotência lá em cima (status já
+  // PROVISIONADA) já barra: o restaurante ficaria criado e nenhum e-mail
+  // jamais sairia, para sempre. Falha vira log com contexto suficiente para
+  // reenviar manualmente pelo CRM.
+  try {
+    await enviarBoasVindas({
+      tenantId,
+      slug: inscricao.slug,
+      email: inscricao.email,
+      nome: inscricao.nome,
+    });
+  } catch (erro) {
+    console.error(
+      `[webhook/asaas] Falha ao enviar e-mail de boas-vindas — inscricao=${inscricao.id} slug=${inscricao.slug} email=${inscricao.email}`,
+      erro
+    );
+  }
 
   return ok();
 }
