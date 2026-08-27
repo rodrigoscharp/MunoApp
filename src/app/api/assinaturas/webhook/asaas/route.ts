@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prismaUnscoped } from "@/lib/prisma";
 import { webhookAutorizado } from "@/lib/assinatura/asaas";
-import { provisionTenant } from "@/lib/tenant-provisioning";
+import { provisionTenant, ProvisionError } from "@/lib/tenant-provisioning";
 import { PRECOS } from "@/lib/plans";
 import { competenciaDe, DIA_VENCIMENTO_MAX } from "@/lib/assinatura/competencia";
 
@@ -29,6 +29,10 @@ import { competenciaDe, DIA_VENCIMENTO_MAX } from "@/lib/assinatura/competencia"
  *    deixar rastro suficiente para a próxima retomar de onde parou, em vez
  *    de recomeçar do zero e bater num estado que ela mesma criou (tenant
  *    com o slug já usado, assinatura com o asaasSubscriptionId já usado).
+ *    Quando o próprio registro do vínculo é o passo que falha (o tenant
+ *    nasceu, mas o `inscricao.update` que grava o tenantId não chegou a
+ *    rodar), a retomada recupera o tenant pelo slug — ver o comentário no
+ *    `catch` de SLUG_EM_USO abaixo para o porquê disso ser seguro.
  *
  * NÃO importa nem chama enviarBoasVindas: esse módulo nasce na Task 12, que
  * também é quem liga a chamada aqui.
@@ -128,18 +132,56 @@ export async function POST(req: NextRequest) {
     // provisionTenant já é transacional, já cria o Setting de identidade, e
     // já traduz P2002 (slug em uso) para um erro específico — reaproveitado
     // inteiro, sem caminho novo de criação de tenant.
-    const { tenant } = await provisionTenant({
-      nome: inscricao.nome,
-      slug: inscricao.slug,
-      email: inscricao.email,
-      plano: inscricao.plano,
-    });
+    let tenant: { id: string };
+    try {
+      const resultado = await provisionTenant({
+        nome: inscricao.nome,
+        slug: inscricao.slug,
+        email: inscricao.email,
+        plano: inscricao.plano,
+      });
+      tenant = resultado.tenant;
+    } catch (erro) {
+      if (!(erro instanceof ProvisionError) || erro.code !== "SLUG_EM_USO") {
+        // SLUG_INVALIDO, SLUG_RESERVADO ou qualquer outro erro: não é
+        // retomada, é dado ruim (ou falha real de infraestrutura).
+        // Reentregar não conserta dado ruim — propaga.
+        throw erro;
+      }
+
+      // Retomada de uma janela mais estreita que a de cima: o tenant NASCEU
+      // numa tentativa anterior, mas o `inscricao.update` que grava o
+      // tenantId (logo abaixo) falhou em seguida — conexão caiu, timeout, o
+      // que for. Nesse instante o tenant existe e inscricao.tenantId
+      // continua null, então a reentrega cai neste `else` de novo, chama
+      // provisionTenant de novo, e ele vê o slug já ocupado.
+      //
+      // Recuperar por slug aqui é seguro, e não um jeitinho perigoso: o
+      // slug é único tanto em Tenant quanto em Inscricao
+      // (Inscricao.slug @unique), e é ESTA inscrição que detém a reserva
+      // dele. Enquanto essa reserva está de pé, nenhuma outra inscrição
+      // consegue criar um tenant com o mesmo slug — então, se existe um
+      // tenant com este slug, ele só pode ter nascido desta mesma
+      // inscrição. Não há risco de adotar o restaurante de outro cliente.
+      const tenantRecuperado = await prismaUnscoped.tenant.findUnique({
+        where: { slug: inscricao.slug },
+      });
+      if (!tenantRecuperado) {
+        // Estado impossível: provisionTenant disse que o slug está em uso,
+        // mas não achamos o dono dele. Não inventa caminho — propaga o
+        // SLUG_EM_USO original para 500 e investigação, não recuperação
+        // silenciosa sobre uma premissa que já provou estar errada.
+        throw erro;
+      }
+      tenant = tenantRecuperado;
+    }
+
     tenantId = tenant.id;
 
-    // Grava o vínculo NA HORA em que o tenant passa a existir, antes de
-    // qualquer escrita seguinte. É isto que faz uma entrega que morrer daqui
-    // em diante ser retomada pelo ramo acima, em vez de tentar criar outro
-    // tenant.
+    // Grava o vínculo NA HORA em que o tenant passa a existir (criado ou
+    // recuperado), antes de qualquer escrita seguinte. É isto que faz uma
+    // entrega que morrer daqui em diante ser retomada pelo ramo de cima, em
+    // vez de tentar criar (ou recuperar) de novo.
     await prismaUnscoped.inscricao.update({
       where: { id: inscricao.id },
       data: { tenantId },

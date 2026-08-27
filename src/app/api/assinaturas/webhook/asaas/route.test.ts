@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
+import { ProvisionError } from "@/lib/tenant-provisioning";
 
 // --- mocks -------------------------------------------------------------
 //
@@ -68,9 +69,20 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const provisionTenant = vi.fn();
-vi.mock("@/lib/tenant-provisioning", () => ({
-  provisionTenant: (...args: unknown[]) => provisionTenant(...args),
-}));
+// ProvisionError NÃO é mockado — é a classe real, importada via
+// importActual, porque o handler faz `erro instanceof ProvisionError` para
+// decidir entre "isto é retomada" (SLUG_EM_USO) e "isto é dado ruim, propaga"
+// (SLUG_INVALIDO/SLUG_RESERVADO). Um stand-in reimplementado quebraria esse
+// instanceof e mascararia o próprio comportamento sendo testado.
+vi.mock("@/lib/tenant-provisioning", async () => {
+  const real = await vi.importActual<typeof import("@/lib/tenant-provisioning")>(
+    "@/lib/tenant-provisioning"
+  );
+  return {
+    ...real,
+    provisionTenant: (...args: unknown[]) => provisionTenant(...args),
+  };
+});
 
 // PRECOS e competenciaDe/DIA_VENCIMENTO_MAX NÃO são mockados: são lógica pura
 // (tabela de preços e cálculo de data), e testá-los de novo aqui duplicaria
@@ -482,5 +494,83 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
       /tenant-fantasma/
     );
     expect(provisionTenant).not.toHaveBeenCalled();
+  });
+
+  // --- retomada, round 2: o mesmo defeito uma linha adiante. provisionTenant
+  // pode suceder e o `inscricao.update` que grava o tenantId, logo depois,
+  // pode falhar sozinho — o tenant existe, mas ninguém aponta para ele
+  // ainda. A reentrega cai no `else` de novo (tenantId continua null) e
+  // provisionTenant vê o slug já ocupado. ---
+
+  it("provisionTenant sucede mas o update do tenantId falha; a reentrega recupera o tenant por slug via SLUG_EM_USO e completa", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando({ tenantId: null }));
+    const erroDeInfra = new Error(
+      "conexão caiu bem depois do provisionTenant, antes do update do tenantId"
+    );
+    inscricaoUpdateTenantId.mockRejectedValueOnce(erroDeInfra);
+
+    await expect(POST(requisicao(eventoPago()))).rejects.toThrow(
+      erroDeInfra.message
+    );
+    expect(provisionTenant).toHaveBeenCalledOnce();
+
+    // Reentrega do Asaas: a Inscricao continua com tenantId null (o update
+    // de cima nunca chegou a persistir), então provisionTenant é chamado de
+    // novo com o mesmo slug — e desta vez ele já está em uso pelo tenant que
+    // a tentativa anterior criou.
+    provisionTenant.mockClear();
+    provisionTenant.mockRejectedValue(
+      new ProvisionError('Já existe um tenant com o slug "pizzaria".', "SLUG_EM_USO")
+    );
+    tenantFindUnique.mockResolvedValue({ id: "tenant-1", slug: "pizzaria" });
+    assinaturaFindUnique.mockResolvedValue(null);
+
+    const res = await POST(requisicao(eventoPago()));
+
+    expect(res.status).toBe(200);
+    expect(tenantFindUnique).toHaveBeenCalledWith({ where: { slug: "pizzaria" } });
+    expect(inscricaoUpdateTenantId).toHaveBeenCalledWith({
+      where: { id: "insc-1" },
+      data: { tenantId: "tenant-1" },
+    });
+    expect(assinaturaCreate).toHaveBeenCalledOnce();
+    expect(cobrancaCreate).toHaveBeenCalledOnce();
+    expect(inscricaoUpdateStatus).toHaveBeenCalledWith({
+      where: { id: "insc-1" },
+      data: { status: "PROVISIONADA" },
+    });
+  });
+
+  // SLUG_INVALIDO e SLUG_RESERVADO não são retomada — são dado ruim (um
+  // slug que nunca deveria ter sido aceito na Inscricao). Reentregar não
+  // conserta dado ruim, então continuam propagando como antes.
+  it.each(["SLUG_INVALIDO", "SLUG_RESERVADO"] as const)(
+    "provisionTenant lançando %s continua propagando, não vira retomada",
+    async (code) => {
+      inscricaoFindFirst.mockResolvedValue(inscricaoAguardando({ tenantId: null }));
+      provisionTenant.mockRejectedValue(new ProvisionError("mensagem qualquer", code));
+
+      await expect(POST(requisicao(eventoPago()))).rejects.toThrow(ProvisionError);
+      expect(tenantFindUnique).not.toHaveBeenCalled();
+      expect(inscricaoUpdateTenantId).not.toHaveBeenCalled();
+    }
+  );
+
+  // O SLUG_EM_USO garante que existe UM tenant com este slug, mas não que a
+  // busca vá encontrá-lo (bug em outro lugar, replica desatualizada, etc.).
+  // Nesse estado impossível, a saída certa é propagar — nunca seguir adiante
+  // com um `tenant` indefinido.
+  it("SLUG_EM_USO sem tenant nenhum pelo slug: propaga o erro original, não segue com tenant indefinido", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando({ tenantId: null }));
+    const erroSlugEmUso = new ProvisionError(
+      'Já existe um tenant com o slug "pizzaria".',
+      "SLUG_EM_USO"
+    );
+    provisionTenant.mockRejectedValue(erroSlugEmUso);
+    tenantFindUnique.mockResolvedValue(null);
+
+    await expect(POST(requisicao(eventoPago()))).rejects.toBe(erroSlugEmUso);
+    expect(inscricaoUpdateTenantId).not.toHaveBeenCalled();
+    expect(assinaturaCreate).not.toHaveBeenCalled();
   });
 });
