@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diasDeAtraso, statusPelaRegua } from "./regua";
+import { diasDeAtraso, situacaoDaCobranca, statusPelaRegua } from "./regua";
 
 const HOJE = new Date("2026-08-20T12:00:00Z");
 function diasAtras(n: number): Date {
@@ -47,5 +47,62 @@ describe("statusPelaRegua", () => {
     expect(statusPelaRegua(diasAtras(7), HOJE)).toBe("INADIMPLENTE");
     expect(statusPelaRegua(diasAtras(14), HOJE)).toBe("INADIMPLENTE");
     expect(statusPelaRegua(diasAtras(15), HOJE)).toBe("BLOQUEADA");
+  });
+});
+
+// Vinha de dentro de src/app/adm/assinatura/page.tsx, onde não tinha como ser
+// testada: page.tsx do App Router não aceita export arbitrário. A regra é da
+// régua e passou a morar com ela.
+describe("situacaoDaCobranca", () => {
+  const vencimento = new Date("2026-08-10T00:00:00Z");
+
+  it("cobrança em dia, antes do vencimento, está em aberto", () => {
+    expect(
+      situacaoDaCobranca(
+        { status: "PENDENTE", vencimento },
+        new Date("2026-08-05T12:00:00Z")
+      )
+    ).toBe("EM_ABERTO");
+  });
+
+  // O job diário move o status da ASSINATURA, mas não reescreve o status de
+  // cada cobrança: uma fatura de 20 dias segue PENDENTE no banco. Mostrar "em
+  // aberto" nela seria mentir por omissão, então o rótulo olha a data.
+  it("cobrança vencida aparece como vencida mesmo continuando PENDENTE no banco", () => {
+    expect(
+      situacaoDaCobranca(
+        { status: "PENDENTE", vencimento },
+        new Date("2026-08-30T12:00:00Z")
+      )
+    ).toBe("VENCIDA");
+  });
+
+  it("no próprio dia do vencimento ainda está em aberto, não vencida", () => {
+    expect(
+      situacaoDaCobranca(
+        { status: "PENDENTE", vencimento },
+        new Date("2026-08-10T23:59:00Z")
+      )
+    ).toBe("EM_ABERTO");
+  });
+
+  // A ordem importa: quem pagou com atraso pagou. Ver "Vencida" numa fatura
+  // já quitada faria o dono do restaurante ligar achando que deve.
+  it("cobrança paga com atraso aparece como paga, nunca como vencida", () => {
+    expect(
+      situacaoDaCobranca(
+        { status: "PAGA", vencimento },
+        new Date("2026-09-30T12:00:00Z")
+      )
+    ).toBe("PAGA");
+  });
+
+  it("cobrança cancelada e vencida aparece como cancelada", () => {
+    expect(
+      situacaoDaCobranca(
+        { status: "CANCELADA", vencimento },
+        new Date("2026-09-30T12:00:00Z")
+      )
+    ).toBe("CANCELADA");
   });
 });
