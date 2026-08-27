@@ -14,6 +14,7 @@ const assinaturaFindMany = vi.fn();
 const assinaturaUpdate = vi.fn();
 const cobrancaCreate = vi.fn();
 const cobrancaFindMany = vi.fn();
+const inscricaoDeleteMany = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
@@ -24,6 +25,9 @@ vi.mock("@/lib/prisma", () => ({
     cobranca: {
       create: (...args: unknown[]) => cobrancaCreate(...args),
       findMany: (...args: unknown[]) => cobrancaFindMany(...args),
+    },
+    inscricao: {
+      deleteMany: (...args: unknown[]) => inscricaoDeleteMany(...args),
     },
   },
 }));
@@ -82,6 +86,7 @@ beforeEach(() => {
   assinaturaUpdate.mockResolvedValue({});
   cobrancaCreate.mockResolvedValue({ id: "cob-nova" });
   cobrancaFindMany.mockResolvedValue([]);
+  inscricaoDeleteMany.mockResolvedValue({ count: 0 });
 });
 
 afterEach(() => {
@@ -352,6 +357,43 @@ describe("POST /api/cron/assinaturas — a régua", () => {
     await POST(requisicao());
 
     expect(assinaturaUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/cron/assinaturas — limpeza de inscrição vencida", () => {
+  it("apaga inscrição não paga e vencida, soltando o slug", async () => {
+    await POST(requisicao());
+
+    expect(inscricaoDeleteMany).toHaveBeenCalledWith({
+      where: {
+        status: "AGUARDANDO_PAGAMENTO",
+        expiraEm: { lt: expect.any(Date) },
+      },
+    });
+  });
+
+  // Inscrição paga esperando o webhook não pode ser apagada junto: o slug
+  // dela está reservado com razão. E a já provisionada virou restaurante —
+  // não é mais uma reserva de slug, é o próprio tenant.
+  it("não apaga inscrição já paga nem já provisionada", async () => {
+    await POST(requisicao());
+
+    const { where } = inscricaoDeleteMany.mock.calls[0][0];
+    expect(where.status).toBe("AGUARDANDO_PAGAMENTO");
+  });
+
+  it("inclui a contagem de inscrições apagadas na resposta do job", async () => {
+    inscricaoDeleteMany.mockResolvedValue({ count: 3 });
+
+    const res = await POST(requisicao());
+
+    expect(await res.json()).toMatchObject({ inscricoesExpiradas: 3 });
+  });
+
+  it("não apaga inscrição quando o segredo está errado", async () => {
+    await POST(requisicao({ secret: "errado" }));
+
+    expect(inscricaoDeleteMany).not.toHaveBeenCalled();
   });
 });
 

@@ -31,6 +31,18 @@ async function executar(req: NextRequest) {
   const agora = new Date();
   const competencia = competenciaDe(agora);
 
+  // Slug abandonado não fica preso para sempre. Apagar, e não marcar como
+  // expirada: enquanto a linha existir o slug @unique continua segurando o
+  // nome, que é o que esta limpeza existe para soltar. O Lead criado no
+  // checkout preserva o registro de quem tentou e não concluiu.
+  const { count: inscricoesExpiradas } =
+    await prismaUnscoped.inscricao.deleteMany({
+      where: {
+        status: "AGUARDANDO_PAGAMENTO",
+        expiraEm: { lt: agora },
+      },
+    });
+
   const assinaturas = await prismaUnscoped.assinatura.findMany({
     where: { status: { not: "CANCELADA" } },
     select: {
@@ -139,6 +151,7 @@ async function executar(req: NextRequest) {
 
   return NextResponse.json({
     competencia,
+    inscricoesExpiradas,
     assinaturas: assinaturas.length,
     cobrancasCriadas,
     cobrancasJaExistentes,
