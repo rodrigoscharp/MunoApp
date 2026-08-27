@@ -17,6 +17,7 @@ const cobrancaFindMany = vi.fn();
 const inscricaoDeleteMany = vi.fn();
 const inscricaoFindMany = vi.fn();
 const temPagamentoConfirmado = vi.fn();
+const reconciliar = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
@@ -37,6 +38,10 @@ vi.mock("@/lib/prisma", () => ({
 
 // A faxina consulta o Asaas antes de apagar. Mockado porque é I/O; a decisão
 // de o que fazer com cada resposta é o que estes testes exercitam.
+vi.mock("@/lib/assinatura/reconciliacao", () => ({
+  reconciliarInscricoesPagas: (...args: unknown[]) => reconciliar(...args),
+}));
+
 vi.mock("@/lib/assinatura/asaas", () => ({
   assinaturaTemPagamentoConfirmado: (...args: unknown[]) =>
     temPagamentoConfirmado(...args),
@@ -99,6 +104,7 @@ beforeEach(() => {
   inscricaoDeleteMany.mockResolvedValue({ count: 0 });
   inscricaoFindMany.mockResolvedValue([]);
   temPagamentoConfirmado.mockResolvedValue(false);
+  reconciliar.mockResolvedValue({ candidatas: 0, provisionadas: 0, falhas: 0 });
 });
 
 afterEach(() => {
@@ -551,5 +557,59 @@ describe("GET /api/cron/assinaturas", () => {
 
     expect(res.status).toBe(401);
     expect(cobrancaCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/cron/assinaturas — reconciliação", () => {
+  it("reconcilia inscrições pagas e devolve o resultado na resposta do job", async () => {
+    reconciliar.mockResolvedValue({ candidatas: 3, provisionadas: 1, falhas: 0 });
+
+    const res = await POST(requisicao());
+
+    expect(reconciliar).toHaveBeenCalledTimes(1);
+    expect(await res.json()).toMatchObject({
+      reconciliacao: { candidatas: 3, provisionadas: 1, falhas: 0 },
+    });
+  });
+
+  // A ordem não é detalhe: reconciliar ANTES tira da frente da faxina quem
+  // pagou e estava esperando. Se a faxina rodasse primeiro, ela veria uma
+  // inscrição vencida e paga, precisaria consultar o Asaas para não apagá-la,
+  // e a reconciliação consultaria de novo logo depois — duas chamadas para a
+  // mesma pergunta, e uma janela entre elas.
+  it("reconcilia antes de apagar inscrição vencida", async () => {
+    const ordem: string[] = [];
+    reconciliar.mockImplementation(async () => {
+      ordem.push("reconciliacao");
+      return { candidatas: 0, provisionadas: 0, falhas: 0 };
+    });
+    inscricaoFindMany.mockImplementation(async () => {
+      ordem.push("faxina");
+      return [];
+    });
+
+    await POST(requisicao());
+
+    expect(ordem).toEqual(["reconciliacao", "faxina"]);
+  });
+
+  // Mesma regra que já governa a faxina: conveniência não derruba receita. Um
+  // erro na reconciliação não pode fazer o job sair sem gerar a fatura de
+  // ninguém.
+  it("cobrança do mês acontece mesmo se a reconciliação falhar", async () => {
+    assinaturaFindMany.mockResolvedValue([assinatura()]);
+    reconciliar.mockRejectedValue(new Error("Asaas fora do ar"));
+
+    const res = await POST(requisicao());
+
+    expect(res.status).toBe(200);
+    expect(cobrancaCreate).toHaveBeenCalledTimes(1);
+    expect(await res.json()).toMatchObject({ reconciliacaoFalhou: true });
+  });
+
+  it("não reconcilia quando o segredo está errado", async () => {
+    await POST(requisicao({ secret: "errado" }));
+
+    expect(reconciliar).not.toHaveBeenCalled();
   });
 });

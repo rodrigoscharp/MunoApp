@@ -34,6 +34,8 @@ const assinaturaCreate = vi.fn();
 const cobrancaCreate = vi.fn();
 const inscricaoUpdateStatus = vi.fn();
 const leadUpdateMany = vi.fn();
+const leadFindFirst = vi.fn();
+const leadUpdate = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
@@ -62,6 +64,8 @@ vi.mock("@/lib/prisma", () => ({
         },
         lead: {
           updateMany: (...args: unknown[]) => leadUpdateMany(...args),
+          findFirst: (...args: unknown[]) => leadFindFirst(...args),
+          update: (...args: unknown[]) => leadUpdate(...args),
         },
       }),
   },
@@ -151,6 +155,8 @@ beforeEach(() => {
   assinaturaCreate.mockResolvedValue({ id: "assinatura-1" });
   cobrancaCreate.mockResolvedValue({ id: "cobranca-1" });
   leadUpdateMany.mockResolvedValue({ count: 0 });
+  leadFindFirst.mockResolvedValue({ id: "lead-1" });
+  leadUpdate.mockResolvedValue({ id: "lead-1" });
   enviarBoasVindas.mockResolvedValue(undefined);
 });
 
@@ -374,10 +380,46 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
 
     await POST(requisicao(eventoPago()));
 
-    expect(leadUpdateMany).toHaveBeenCalledWith({
-      where: { email: "a@b.c", origem: "checkout", tenantId: null },
+    expect(leadFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { email: "a@b.c", origem: "checkout", tenantId: null },
+      })
+    );
+    expect(leadUpdate).toHaveBeenCalledWith({
+      where: { id: "lead-1" },
       data: { tenantId: "tenant-1", status: "FECHADO" },
     });
+  });
+
+  // Lead.tenantId é @unique — a relação é 1:1. updateMany marcando VÁRIOS
+  // leads com o mesmo tenant viola a constraint, a transação inteira reverte,
+  // e a Inscricao nunca chega a PROVISIONADA: o Asaas reentrega para sempre um
+  // erro que nunca vai passar, com o cliente pago e o restaurante existindo
+  // sem assinatura.
+  //
+  // Basta o mesmo e-mail ter dois checkouts para cair nisso — abandonou uma
+  // vez, voltou depois e concluiu. Por isso um lead só, e o mais recente: é o
+  // da tentativa que de fato converteu.
+  it("liga um único Lead, mesmo quando o e-mail tem vários checkouts abandonados", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando());
+
+    await POST(requisicao(eventoPago()));
+
+    expect(leadUpdateMany).not.toHaveBeenCalled();
+    expect(leadUpdate).toHaveBeenCalledTimes(1);
+    expect(leadFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { createdAt: "desc" } })
+    );
+  });
+
+  it("sem Lead correspondente, o provisionamento segue normalmente", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando());
+    leadFindFirst.mockResolvedValue(null);
+
+    const res = await POST(requisicao(eventoPago()));
+
+    expect(res.status).toBe(200);
+    expect(leadUpdate).not.toHaveBeenCalled();
   });
 
   // Aceita tanto PAYMENT_CONFIRMED quanto PAYMENT_RECEIVED: o Asaas manda os

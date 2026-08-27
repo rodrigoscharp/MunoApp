@@ -7,6 +7,10 @@ import {
 } from "@/lib/assinatura/competencia";
 import { statusPelaRegua } from "@/lib/assinatura/regua";
 import { assinaturaTemPagamentoConfirmado } from "@/lib/assinatura/asaas";
+import {
+  reconciliarInscricoesPagas,
+  type ResultadoReconciliacao,
+} from "@/lib/assinatura/reconciliacao";
 
 /**
  * Job diário da assinatura. Duas responsabilidades, nesta ordem: gerar a
@@ -138,6 +142,31 @@ async function executar(req: NextRequest) {
     statusAtualizados++;
   }
 
+  // Reconciliação ANTES da faxina, de propósito. Ela provisiona quem pagou e
+  // ficou esperando um webhook que não chegou — e ao fazer isso tira essas
+  // linhas da frente da faxina, que então nem precisa perguntar ao Asaas
+  // sobre elas. Na ordem inversa seriam duas consultas para a mesma pergunta,
+  // com uma janela entre as duas.
+  //
+  // E, como a faxina, ela não propaga: a mesma regra de sempre — conveniência
+  // não derruba receita, e um Asaas fora do ar não pode fazer o job sair sem
+  // gerar a fatura de ninguém.
+  let reconciliacao: ResultadoReconciliacao = {
+    candidatas: 0,
+    provisionadas: 0,
+    falhas: 0,
+  };
+  let reconciliacaoFalhou = false;
+  try {
+    reconciliacao = await reconciliarInscricoesPagas(agora);
+  } catch (erro) {
+    reconciliacaoFalhou = true;
+    console.error(
+      "[cron/assinaturas] Reconciliação falhou inteira — quem pagou e não foi provisionado continua esperando a próxima passada",
+      erro
+    );
+  }
+
   // A REGRA: soltar slug abandonado é conveniência; emitir cobrança e mover a
   // régua é receita. Conveniência não derruba receita — o mesmo motivo pelo
   // qual o Lead não pode abortar um checkout já pago (src/app/api/assinar/
@@ -220,6 +249,8 @@ async function executar(req: NextRequest) {
 
   const resposta = {
     competencia,
+    reconciliacao,
+    ...(reconciliacaoFalhou ? { reconciliacaoFalhou } : {}),
     inscricoesExpiradas,
     assinaturas: assinaturas.length,
     cobrancasCriadas,
