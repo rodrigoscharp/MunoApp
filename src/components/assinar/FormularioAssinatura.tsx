@@ -156,6 +156,14 @@ export function FormularioAssinatura({
       const body = await res.json().catch(() => ({}));
 
       if (!res.ok) {
+        // setLoading(false) ANTES do return: `podeEnviar` inclui `!loading`,
+        // então sair daqui com loading ligado desabilitava o botão para
+        // sempre. A pessoa lia "Endereço indisponível" ou "Muitas
+        // tentativas", corrigia o campo, e não tinha como reenviar sem
+        // recarregar a página — no meio de uma compra. O caminho de sucesso
+        // NÃO reseta de propósito: ali a navegação para o gateway já está a
+        // caminho, e reabilitar o botão convidaria a um segundo pedido.
+        setLoading(false);
         setErro(body?.error ?? "Não foi possível iniciar o pagamento.");
         return;
       }
@@ -177,11 +185,15 @@ export function FormularioAssinatura({
       className="bg-white border border-neutral-200 rounded-2xl p-6 space-y-4"
     >
       <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">
+        <label
+          htmlFor="assinar-nome"
+          className="block text-sm font-medium text-neutral-700 mb-1"
+        >
           Nome do restaurante *
         </label>
         <input
-          value={nome}
+          id="assinar-nome"
+            value={nome}
           onChange={(e) => onNomeChange(e.target.value)}
           required
           placeholder="Pizzaria do João"
@@ -190,11 +202,15 @@ export function FormularioAssinatura({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">
+        <label
+          htmlFor="assinar-slug"
+          className="block text-sm font-medium text-neutral-700 mb-1"
+        >
           Endereço do seu cardápio *
         </label>
         <div className="flex items-center gap-1">
           <input
+            id="assinar-slug"
             value={slug}
             onChange={(e) => {
               setSlugTocado(true);
@@ -224,12 +240,16 @@ export function FormularioAssinatura({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">
+        <label
+          htmlFor="assinar-email"
+          className="block text-sm font-medium text-neutral-700 mb-1"
+        >
           E-mail *
         </label>
         <input
           type="email"
-          value={email}
+          id="assinar-email"
+            value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
           placeholder="joao@pizzaria.com"
@@ -238,11 +258,15 @@ export function FormularioAssinatura({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">
+        <label
+          htmlFor="assinar-cpf-cnpj"
+          className="block text-sm font-medium text-neutral-700 mb-1"
+        >
           CPF ou CNPJ *
         </label>
         <input
-          value={cpfCnpj}
+          id="assinar-cpf-cnpj"
+            value={cpfCnpj}
           onChange={(e) => setCpfCnpj(maskCpfCnpj(e.target.value))}
           required
           inputMode="numeric"
