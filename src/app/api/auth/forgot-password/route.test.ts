@@ -93,4 +93,32 @@ describe("POST /api/auth/forgot-password — host do link de redefinição", () 
     const { html } = enviarEmail.mock.calls[0][0];
     expect(html).toContain("https://default.munoapp.com.br/redefinir-senha?token=token-gerado");
   });
+
+  // O SDK do Resend não lança quando a API recusa: devolve { data: null,
+  // error }. Sem conferir esse retorno, um envio que não saiu passa por
+  // sucesso e ninguém fica sabendo — o usuário espera um e-mail que nunca
+  // chega, e não há linha de log para explicar.
+  //
+  // Mas o desfecho NÃO pode ser lançar: esta rota devolve { ok: true } mesmo
+  // para e-mail inexistente, de propósito, para não revelar quais contas
+  // existem. Um 500 só quando o endereço existe entregaria exatamente essa
+  // informação. Por isso: loga e mantém a resposta.
+  it("envio recusado pelo Resend vira log, e a resposta continua ok para não revelar se a conta existe", async () => {
+    enviarEmail.mockResolvedValue({
+      data: null,
+      error: { statusCode: 403, name: "validation_error", message: "domain is not verified" },
+    });
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await POST(requisicao());
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("dono@pizzaria.com"),
+      expect.objectContaining({ message: "domain is not verified" })
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
 });
