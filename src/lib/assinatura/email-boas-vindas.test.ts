@@ -158,4 +158,24 @@ describe("e-mail de boas-vindas", () => {
     expect(subject).not.toContain("\n");
     expect(subject).not.toContain("\r");
   });
+
+  // O SDK do Resend NÃO lança quando a API recusa o envio: devolve
+  // { data: null, error }. Sem conferir esse retorno, `await send(...)`
+  // resolve com sucesso e a falha some — o try/catch de quem chama nunca
+  // dispara, e nenhum log sai. É o pior desfecho possível aqui: o cliente
+  // pagou, o restaurante nasceu, e o único e-mail que dá acesso a ele não
+  // saiu, sem deixar rastro. Quem chama trata a exceção; o que não pode é
+  // não haver exceção.
+  it("lança quando o Resend recusa o envio, em vez de resolver em silêncio", async () => {
+    enviarEmail.mockResolvedValue({
+      data: null,
+      error: { statusCode: 403, name: "validation_error", message: "The munoapp.com.br domain is not verified." },
+    });
+
+    await expect(
+      enviarBoasVindas({
+        tenantId: "t1", slug: "pizzaria", email: "a@b.c", nome: "Pizzaria",
+      })
+    ).rejects.toThrow(/domain is not verified/);
+  });
 });

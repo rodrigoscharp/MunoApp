@@ -77,7 +77,7 @@ export async function enviarBoasVindas(input: {
   const nome = escapeHtml(input.nome);
   const email = escapeHtml(input.email);
 
-  await getResend().emails.send({
+  const { error } = await getResend().emails.send({
     // Remetente fixo da Muno, e não process.env.RESEND_FROM_EMAIL (a
     // convenção de forgot-password): aquele e-mail é disparado em nome do
     // restaurante (é o restaurante "esquecendo a senha" do próprio
@@ -98,4 +98,17 @@ export async function enviarBoasVindas(input: {
       <p style="color:#666;font-size:13px">Este link vale por 7 dias.</p>
     `,
   });
+
+  // O SDK do Resend não lança quando a API recusa: devolve { data, error }.
+  // Sem esta conferência, `await send(...)` resolve com sucesso e a falha
+  // desaparece — o try/catch de quem chama (o webhook de provisionamento)
+  // nunca dispara, e nem o log de contexto sai. O cliente pagaria, o
+  // restaurante nasceria, e o único e-mail que dá acesso a ele sumiria sem
+  // rastro. Transformar o retorno em exceção é o que faz aquele catch, e o
+  // log que ele escreve, existirem de verdade.
+  if (error) {
+    throw new Error(
+      `Resend recusou o envio (${error.name ?? "erro"}): ${error.message}`
+    );
+  }
 }
