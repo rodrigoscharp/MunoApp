@@ -395,6 +395,41 @@ describe("POST /api/cron/assinaturas — limpeza de inscrição vencida", () => 
 
     expect(inscricaoDeleteMany).not.toHaveBeenCalled();
   });
+
+  // A REGRA: soltar slug abandonado é conveniência; gerar a cobrança do mês e
+  // mover a régua é receita. Um blip de conexão na faxina não pode derrubar a
+  // cobrança de todos os clientes — por isso a limpeza roda por último e não
+  // propaga.
+  it("cobrança e régua rodam mesmo quando a limpeza de inscrição falha", async () => {
+    assinaturaFindMany.mockResolvedValue([assinatura({ status: "ATIVA" })]);
+    cobrancaFindMany.mockResolvedValue([
+      { assinaturaId: "assin-1", vencimento: new Date("2026-08-10T00:00:00Z") },
+    ]);
+    inscricaoDeleteMany.mockRejectedValue(new Error("conexão recusada"));
+
+    const res = await POST(requisicao());
+
+    expect(res.status).toBe(200);
+    expect(cobrancaCreate).toHaveBeenCalledTimes(1);
+    expect(assinaturaUpdate).toHaveBeenCalledTimes(1);
+    expect(assinaturaUpdate.mock.calls[0][0].data).toMatchObject({
+      status: "INADIMPLENTE",
+    });
+  });
+
+  // Contador honesto: se a faxina falhou, não sabemos quantas inscrições
+  // seriam apagadas — inventar um número aqui esconderia o problema em vez
+  // de sinalizá-lo.
+  it("não inventa contagem quando a limpeza falha, e sinaliza a falha na resposta", async () => {
+    inscricaoDeleteMany.mockRejectedValue(new Error("timeout"));
+
+    const res = await POST(requisicao());
+
+    expect(await res.json()).toMatchObject({
+      inscricoesExpiradas: 0,
+      limpezaDeInscricoesFalhou: true,
+    });
+  });
 });
 
 describe("GET /api/cron/assinaturas", () => {

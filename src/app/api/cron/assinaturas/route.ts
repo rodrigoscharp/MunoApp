@@ -31,18 +31,6 @@ async function executar(req: NextRequest) {
   const agora = new Date();
   const competencia = competenciaDe(agora);
 
-  // Slug abandonado não fica preso para sempre. Apagar, e não marcar como
-  // expirada: enquanto a linha existir o slug @unique continua segurando o
-  // nome, que é o que esta limpeza existe para soltar. O Lead criado no
-  // checkout preserva o registro de quem tentou e não concluiu.
-  const { count: inscricoesExpiradas } =
-    await prismaUnscoped.inscricao.deleteMany({
-      where: {
-        status: "AGUARDANDO_PAGAMENTO",
-        expiraEm: { lt: agora },
-      },
-    });
-
   const assinaturas = await prismaUnscoped.assinatura.findMany({
     where: { status: { not: "CANCELADA" } },
     select: {
@@ -149,14 +137,51 @@ async function executar(req: NextRequest) {
     statusAtualizados++;
   }
 
-  return NextResponse.json({
+  // A REGRA: soltar slug abandonado é conveniência; emitir cobrança e mover a
+  // régua é receita. Conveniência não derruba receita — o mesmo motivo pelo
+  // qual o Lead não pode abortar um checkout já pago (src/app/api/assinar/
+  // route.ts) e o e-mail de boas-vindas não pode abortar um provisionamento
+  // (webhook do Asaas). Por isso esta limpeza roda por ÚLTIMO, depois que a
+  // cobrança do mês e a régua já foram processadas, e por isso ela nunca
+  // propaga: um blip de conexão aqui não pode fazer o job inteiro sair sem
+  // gerar a fatura de ninguém. Slug preso por mais 24h é irrelevante; fatura
+  // não emitida não é.
+  let inscricoesExpiradas = 0;
+  let limpezaDeInscricoesFalhou = false;
+  try {
+    const resultado = await prismaUnscoped.inscricao.deleteMany({
+      where: {
+        status: "AGUARDANDO_PAGAMENTO",
+        expiraEm: { lt: agora },
+      },
+    });
+    inscricoesExpiradas = resultado.count;
+  } catch (erro) {
+    limpezaDeInscricoesFalhou = true;
+    console.error(
+      "[cron/assinaturas] Falha ao apagar inscrição vencida — slug fica preso até a próxima passada",
+      erro
+    );
+  }
+
+  const resposta = {
     competencia,
     inscricoesExpiradas,
     assinaturas: assinaturas.length,
     cobrancasCriadas,
     cobrancasJaExistentes,
     statusAtualizados,
-  });
+  };
+
+  // Contador honesto: se a limpeza falhou, inscricoesExpiradas fica 0 (nada
+  // apurado, e não um "0" que finge sucesso) e o campo abaixo torna a falha
+  // visível pra quem olhar a resposta do job, sem inventar uma contagem que
+  // não aconteceu.
+  return NextResponse.json(
+    limpezaDeInscricoesFalhou
+      ? { ...resposta, limpezaDeInscricoesFalhou: true }
+      : resposta
+  );
 }
 
 // A Vercel dispara o cron com GET. O POST fica para o disparo manual, que é
