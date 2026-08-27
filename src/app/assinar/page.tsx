@@ -1,6 +1,10 @@
-import type { PlanoTenant } from "@prisma/client";
 import Image from "next/image";
-import { PLANO_LABELS, formatarBRL, precoDoCiclo, type Ciclo } from "@/lib/plans";
+import {
+  PLANO_LABELS,
+  escolhaDaQueryString,
+  formatarBRL,
+  precoDoCiclo,
+} from "@/lib/plans";
 import { FormularioAssinatura } from "@/components/assinar/FormularioAssinatura";
 
 // Fora de src/app/(client)/, de propósito: aquele layout chama
@@ -17,13 +21,10 @@ export default async function AssinarPage({
 }) {
   const params = await searchParams;
 
-  // Link velho compartilhado pode trazer plano/ciclo ausente, vazio ou de uma
-  // versão futura do enum. Cair em MEMBRO/MENSAL é o fail-closed certo: nunca
-  // quebrar a página por causa de query string, e nunca conceder por engano o
-  // plano mais caro para quem não pediu.
-  const plano: PlanoTenant =
-    params.plano === "MEMBRO_MESA_QR" ? "MEMBRO_MESA_QR" : "MEMBRO";
-  const ciclo: Ciclo = params.ciclo === "ANUAL" ? "ANUAL" : "MENSAL";
+  // O fail-closed de plano/ciclo (link velho, parâmetro cortado, valor de uma
+  // versão futura do enum) vive em plans.ts, com teste — ver
+  // escolhaDaQueryString.
+  const { plano, ciclo } = escolhaDaQueryString(params);
 
   const precoCentavos = precoDoCiclo(plano, ciclo);
 

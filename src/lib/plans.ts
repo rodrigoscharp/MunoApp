@@ -36,6 +36,32 @@ export const PRECOS: Record<
   MEMBRO_MESA_QR: { mensalCentavos: 14999, anualCentavos: 14999 * 11 },
 };
 
+/**
+ * O plano e o ciclo que a página /assinar deve exibir, a partir da query
+ * string — `?plano=…&ciclo=…`, montada pelos CTAs da landing.
+ *
+ * Mora aqui, e não dentro da page, por dois motivos. O primeiro é prático:
+ * Server Component assíncrono não se testa com o ferramental dos componentes
+ * de cliente, e esta é a parte que precisa de teste — a marcação em volta
+ * dela, não. O segundo é que a regra é sobre PREÇO, e preço mora neste
+ * arquivo.
+ *
+ * A REGRA é o fail-closed: link velho compartilhado no WhatsApp, parâmetro
+ * cortado por um cliente de e-mail, ou valor de uma versão futura do enum
+ * nunca podem quebrar a página — e nunca podem conceder por engano o plano
+ * mais caro para quem não pediu. Tudo que não for exatamente reconhecido cai
+ * no mais barato, no ciclo mensal.
+ */
+export function escolhaDaQueryString(params: {
+  plano?: string;
+  ciclo?: string;
+}): { plano: PlanoTenant; ciclo: Ciclo } {
+  return {
+    plano: params.plano === "MEMBRO_MESA_QR" ? "MEMBRO_MESA_QR" : "MEMBRO",
+    ciclo: params.ciclo === "ANUAL" ? "ANUAL" : "MENSAL",
+  };
+}
+
 /** O preço do plano no ciclo pedido — o ponto único que decide entre mensal e anual. */
 export function precoDoCiclo(plano: PlanoTenant, ciclo: Ciclo): number {
   return ciclo === "ANUAL"

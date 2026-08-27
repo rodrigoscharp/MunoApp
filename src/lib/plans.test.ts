@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   PRECOS,
+  escolhaDaQueryString,
   formatarBRL,
   planoFromHeaderValue,
   precoDoCiclo,
@@ -96,5 +97,49 @@ describe("o preço anunciado na landing e o preço do código não podem divergi
     for (const preco of new Set(precosNaPagina())) {
       expect(conhecidos).toContain(preco);
     }
+  });
+});
+
+// A escolha que a página /assinar faz a partir da query string. Mora aqui, e
+// não na page, porque Server Component assíncrono não se testa com o mesmo
+// ferramental dos componentes de cliente — e esta é a parte que precisa de
+// teste, não a marcação em volta dela.
+describe("escolhaDaQueryString", () => {
+  it("respeita plano e ciclo quando os dois vêm certos", () => {
+    expect(escolhaDaQueryString({ plano: "MEMBRO_MESA_QR", ciclo: "ANUAL" })).toEqual({
+      plano: "MEMBRO_MESA_QR",
+      ciclo: "ANUAL",
+    });
+  });
+
+  // A REGRA: nunca quebrar a página por causa de query string, e nunca
+  // conceder por engano o plano mais caro para quem não pediu. Link velho
+  // compartilhado no WhatsApp, parâmetro cortado pelo cliente de e-mail, ou
+  // valor de uma versão futura do enum — tudo cai no mais barato.
+  it.each([
+    undefined,
+    "",
+    "membro_mesa_qr",
+    "MEMBRO_MESA_QR_PLUS",
+    "PLANO_QUE_NAO_EXISTE",
+    "'; DROP TABLE",
+  ])("plano %j cai em MEMBRO", (plano) => {
+    expect(escolhaDaQueryString({ plano, ciclo: "MENSAL" }).plano).toBe("MEMBRO");
+  });
+
+  it.each([undefined, "", "anual", "SEMESTRAL", "0"])(
+    "ciclo %j cai em MENSAL",
+    (ciclo) => {
+      expect(escolhaDaQueryString({ plano: "MEMBRO", ciclo }).ciclo).toBe("MENSAL");
+    }
+  );
+
+  it("sem parâmetro nenhum entrega o plano mais barato no ciclo mensal", () => {
+    const escolha = escolhaDaQueryString({});
+
+    expect(escolha).toEqual({ plano: "MEMBRO", ciclo: "MENSAL" });
+    expect(precoDoCiclo(escolha.plano, escolha.ciclo)).toBe(
+      PRECOS.MEMBRO.mensalCentavos
+    );
   });
 });
