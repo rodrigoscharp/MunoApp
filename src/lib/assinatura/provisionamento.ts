@@ -199,6 +199,31 @@ export async function provisionarInscricao(
         data: { tenantId, status: "FECHADO" },
       });
     }
+
+    // Os OUTROS leads do mesmo e-mail também fecham — sem vínculo.
+    //
+    // Quem preencheu o formulário da landing, conversou no WhatsApp e só
+    // depois comprou pelo checkout deixa dois leads: um com origem "landing"
+    // e outro com origem "checkout". Fechar só o do checkout deixava o outro
+    // NOVO para sempre, e o CRM mostrava oportunidade em aberto de quem já é
+    // cliente pagante.
+    //
+    // Sem tenantId porque Lead.tenantId é @unique: um tenant só pode ter um
+    // lead vinculado, e esse é o do checkout, o da conversão. Os demais viram
+    // histórico fechado, não vínculo.
+    //
+    // motivoPerda volta a null porque um lead marcado PERDIDO que depois
+    // converteu é um negócio GANHO — manter o motivo da perda numa
+    // oportunidade fechada seria dado contraditório no funil.
+    await tx.lead.updateMany({
+      where: {
+        email: inscricao.email,
+        tenantId: null,
+        status: { not: "FECHADO" },
+        ...(lead ? { id: { not: lead.id } } : {}),
+      },
+      data: { status: "FECHADO", motivoPerda: null },
+    });
   });
 
   // E-mail de boas-vindas: a única coisa que o cliente recebe depois de

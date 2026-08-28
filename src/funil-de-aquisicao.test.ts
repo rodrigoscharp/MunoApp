@@ -23,6 +23,7 @@ const leadCreate = vi.fn();
 const leadUpdate = vi.fn();
 const leadFindFirstTx = vi.fn();
 const leadUpdateTx = vi.fn();
+const leadUpdateManyTx = vi.fn();
 const tenantFindUnique = vi.fn();
 const inscricaoFindUnique = vi.fn();
 const inscricaoCreate = vi.fn();
@@ -41,6 +42,7 @@ vi.mock("@/lib/prisma", () => {
     lead: {
       findFirst: (...a: unknown[]) => leadFindFirstTx(...a),
       update: (...a: unknown[]) => leadUpdateTx(...a),
+      updateMany: (...a: unknown[]) => leadUpdateManyTx(...a),
     },
   };
   const cliente = {
@@ -98,6 +100,7 @@ beforeEach(() => {
   leadFindMany.mockResolvedValue([]);
   leadCreate.mockResolvedValue({ id: "lead-1" });
   leadFindFirstTx.mockResolvedValue({ id: "lead-1" });
+  leadUpdateManyTx.mockResolvedValue({ count: 0 });
   tenantFindUnique.mockResolvedValue(null);
   inscricaoFindUnique.mockResolvedValue(null);
   inscricaoCreate.mockResolvedValue({ id: "insc-1" });
@@ -105,6 +108,28 @@ beforeEach(() => {
   tokenCreate.mockResolvedValue({ token: "token-gerado" });
   enviarEmail.mockResolvedValue({ data: { id: "email-1" } });
 });
+
+
+/** Uma Inscricao completa, na forma que o provisionamento recebe do banco. */
+function inscricaoDeTeste() {
+  return {
+    id: "insc-1",
+    nome: "Pizzaria do Zé",
+    slug: "pizzaria-do-ze",
+    email: "dono@pizzaria.com",
+    plano: "MEMBRO",
+    ciclo: "MENSAL",
+    status: "AGUARDANDO_PAGAMENTO",
+    tenantId: null,
+    asaasCustomerId: null,
+    asaasPaymentId: null,
+    asaasSubscriptionId: "sub_1",
+    expiraEm: new Date(),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
+}
 
 // ---------------------------------------------------------------------------
 
@@ -241,26 +266,7 @@ describe("costura 3 — o Lead que o checkout cria é o Lead que o provisionamen
     const origemGravada = leadCreate.mock.calls[0][0].data.origem;
 
     const { provisionarInscricao } = await import("@/lib/assinatura/provisionamento");
-    await provisionarInscricao(
-      {
-        id: "insc-1",
-        nome: "Pizzaria do Zé",
-        slug: "pizzaria-do-ze",
-        email: "dono@pizzaria.com",
-        plano: "MEMBRO",
-        ciclo: "MENSAL",
-        status: "AGUARDANDO_PAGAMENTO",
-        tenantId: null,
-        asaasCustomerId: null,
-        asaasPaymentId: null,
-        asaasSubscriptionId: "sub_1",
-        expiraEm: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any,
-      { origem: "teste" }
-    );
+    await provisionarInscricao(inscricaoDeTeste(), { origem: "teste" });
     const origemProcurada = leadFindFirstTx.mock.calls[0][0].where.origem;
 
     expect(origemProcurada).toBe(origemGravada);
@@ -343,5 +349,24 @@ describe("costura 4 — o link do e-mail abre a página que sabe recebê-lo", ()
     const url = await linkDoEmail();
 
     expect(url.host).toBe("pizzaria-do-ze.munoapp.com.br");
+  });
+
+  // O lead do formulário da landing tem origem "landing"; o do checkout,
+  // "checkout". Fechar só o segundo deixava o primeiro NOVO para sempre — o
+  // CRM mostrando oportunidade em aberto de quem já é cliente pagante. Esta
+  // costura afirma que o provisionamento alcança os dois, e que a origem
+  // gravada pela landing é justamente uma das que ele fecha.
+  it("o lead da landing, de outra origem, também é fechado pelo provisionamento", async () => {
+    const { ORIGEM_LANDING } = await import("@/lib/lead-landing");
+    const { provisionarInscricao } = await import("@/lib/assinatura/provisionamento");
+
+    await provisionarInscricao(inscricaoDeTeste(), { origem: "teste" });
+
+    const where = leadUpdateManyTx.mock.calls[0][0].where;
+    // A cláusula não filtra por origem: alcança "landing", "checkout" e
+    // qualquer outra que venha a existir.
+    expect(where.origem).toBeUndefined();
+    expect(where.email).toBe("dono@pizzaria.com");
+    expect(ORIGEM_LANDING).toBeTruthy();
   });
 });

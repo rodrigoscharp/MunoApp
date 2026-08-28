@@ -405,11 +405,69 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
 
     await POST(requisicao(eventoPago()));
 
-    expect(leadUpdateMany).not.toHaveBeenCalled();
+    // updateMany existe (fecha os outros leads do mesmo e-mail), mas NUNCA
+    // atribui tenantId — é isso que a constraint @unique exige.
+    for (const [args] of leadUpdateMany.mock.calls) {
+      expect(args.data.tenantId).toBeUndefined();
+    }
     expect(leadUpdate).toHaveBeenCalledTimes(1);
     expect(leadFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({ orderBy: { createdAt: "desc" } })
     );
+  });
+
+  // Quem preencheu o formulário da landing, conversou no WhatsApp e só depois
+  // comprou pelo checkout deixa DOIS leads: um com origem "landing" e outro
+  // com origem "checkout". Fechar só o do checkout deixava o outro NOVO para
+  // sempre — o CRM mostrando lead em aberto de quem já é cliente pagante.
+  //
+  // Só um pode ficar VINCULADO: Lead.tenantId é @unique. O do checkout leva o
+  // vínculo, por ser o da conversão; os demais fecham sem tenantId.
+  it("fecha também os outros leads do mesmo e-mail, sem vinculá-los ao tenant", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando());
+
+    await POST(requisicao(eventoPago()));
+
+    expect(leadUpdateMany).toHaveBeenCalledWith({
+      where: {
+        email: "a@b.c",
+        tenantId: null,
+        status: { not: "FECHADO" },
+        id: { not: "lead-1" },
+      },
+      data: { status: "FECHADO", motivoPerda: null },
+    });
+  });
+
+  // Um lead já vinculado a outro tenant é de outro cliente que por acaso usa o
+  // mesmo e-mail. tenantId: null na cláusula é o que o protege.
+  it("não mexe em lead já vinculado a outro tenant", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando());
+
+    await POST(requisicao(eventoPago()));
+
+    expect(leadUpdateMany.mock.calls[0][0].where.tenantId).toBeNull();
+  });
+
+  // Lead marcado PERDIDO que depois converte é um negócio GANHO. Deixar o
+  // motivo da perda numa oportunidade fechada seria dado contraditório no CRM.
+  it("limpa o motivo da perda ao fechar, porque quem comprou não foi perdido", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando());
+
+    await POST(requisicao(eventoPago()));
+
+    expect(leadUpdateMany.mock.calls[0][0].data.motivoPerda).toBeNull();
+  });
+
+  it("sem Lead do checkout, ainda assim fecha os outros do mesmo e-mail", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando());
+    leadFindFirst.mockResolvedValue(null);
+
+    await POST(requisicao(eventoPago()));
+
+    expect(leadUpdate).not.toHaveBeenCalled();
+    // Sem lead do checkout não há id a excluir do updateMany.
+    expect(leadUpdateMany.mock.calls[0][0].where.id).toBeUndefined();
   });
 
   it("sem Lead correspondente, o provisionamento segue normalmente", async () => {
