@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { ConfirmacaoAssinatura } from "@/components/assinar/ConfirmacaoAssinatura";
 
 /**
  * Para onde o Asaas devolve o cliente depois do pagamento (successUrl em
@@ -13,11 +14,17 @@ import Image from "next/image";
  * endereço que ainda dá 404 — pior que não dizer nada. O texto descreve o que
  * vem a seguir e assume que pode demorar.
  *
- * Sem parâmetro nenhum na URL, de propósito: o Asaas devolve o cliente por um
- * link que ele mesmo monta, e qualquer dado vindo daí seria entrada não
- * confiável. A página não precisa saber quem pagou para dizer o que dizer.
+ * O `?i=` que o gateway devolve é o id da Inscricao, e serve para UMA coisa:
+ * dizer qual registro verificar. Ele não autoriza nada — quem decide se o
+ * restaurante nasce é o Asaas, consultado do nosso lado. Sem ele, a página
+ * continua correta, só não consegue antecipar o desfecho.
  */
-export default function ObrigadoPage() {
+export default async function ObrigadoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ i?: string }>;
+}) {
+  const { i } = await searchParams;
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col items-center px-4 py-10">
       <div className="w-full max-w-md">
@@ -32,15 +39,7 @@ export default function ObrigadoPage() {
         </div>
 
         <div className="bg-white border border-neutral-200 rounded-2xl p-6">
-          <h1 className="text-xl font-bold text-neutral-900">
-            Pagamento recebido. Estamos montando seu restaurante.
-          </h1>
-
-          <p className="mt-4 text-sm text-neutral-600">
-            Em alguns minutos você recebe um e-mail com o endereço do seu
-            cardápio e um link para criar sua senha. É por ele que você entra
-            pela primeira vez.
-          </p>
+          <ConfirmacaoAssinatura inscricaoId={i} />
 
           <div className="mt-6 rounded-xl bg-neutral-50 border border-neutral-200 p-4">
             <p className="text-sm text-neutral-600">

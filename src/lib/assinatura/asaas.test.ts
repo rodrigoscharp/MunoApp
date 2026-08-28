@@ -191,8 +191,11 @@ describe("cliente Asaas da plataforma", () => {
     });
 
     const corpo = JSON.parse(fetchSpy.mock.calls[0][1]!.body as string);
+    // Leva a inscrição junto: é o que permite à página de obrigado fechar o
+    // provisionamento na hora, em vez de o cliente esperar o job diário.
+    // externalReference JÁ é o id da Inscricao — não há dado novo aqui.
     expect(corpo.callback.successUrl).toBe(
-      "https://munoapp.com.br/assinar/obrigado"
+      "https://munoapp.com.br/assinar/obrigado?i=insc-1"
     );
     expect(corpo.callback.autoRedirect).toBe(true);
   });

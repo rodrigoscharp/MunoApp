@@ -136,7 +136,14 @@ export async function criarAssinatura(input: {
     return await chamar<{ id: string }>("/subscriptions", {
       ...pedido,
       callback: {
-        successUrl: urlDaPlataforma("/assinar/obrigado"),
+        // A inscrição vai na URL para a página de obrigado poder fechar o
+        // provisionamento na hora, em vez de o cliente esperar o job diário.
+        // externalReference JÁ é o id da Inscricao: não há dado novo sendo
+        // exposto, e o id sozinho não autoriza nada — quem decide se
+        // provisiona é o Asaas, consultado do nosso lado.
+        successUrl: urlDaPlataforma(
+          `/assinar/obrigado?i=${encodeURIComponent(input.externalReference)}`
+        ),
         autoRedirect: true,
       },
     });
