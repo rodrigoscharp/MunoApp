@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiError, getPlanoFromRequest, getTenantIdFromRequest, withTenant } from "@/lib/api";
@@ -62,14 +63,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
     }
 
-    const table = await prisma.table.create({
-      data: {
-        tenantId,
-        number: parsed.data.number,
-        name: parsed.data.name,
-      },
-    });
+    try {
+      const table = await prisma.table.create({
+        data: {
+          tenantId,
+          number: parsed.data.number,
+          name: parsed.data.name,
+        },
+      });
 
-    return NextResponse.json(table, { status: 201 });
+      return NextResponse.json(table, { status: 201 });
+    } catch (err) {
+      // Colisão do @@unique([tenantId, number]). Sem este catch viraria 500 pelo
+      // withErrorHandling, e o admin não teria como saber que o número já existe
+      // — mesma correção já feita em /api/coupons.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        return NextResponse.json(
+          { error: "Já existe uma mesa com esse número" },
+          { status: 409 }
+        );
+      }
+      throw err;
+    }
   });
 }
