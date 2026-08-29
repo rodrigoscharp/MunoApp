@@ -47,8 +47,13 @@ export function KitchenBoard({ tenantId }: { tenantId: string }) {
     if (res.ok) {
       toast.success(`#${order.id.slice(-6).toUpperCase()} → ${ORDER_STATUS_LABELS[nextStatus]}`);
     } else {
-      // Reverte em caso de erro
-      updateOrderStatus(order.id, order.status);
+      // Ressincroniza em vez de reverter na mão. Quando o passo otimista foi
+      // `removeOrder`, o pedido já não está na lista, e `updateOrderStatus`
+      // percorre com `map` sem encontrar nada para desfazer: o card sumia da
+      // cozinha e só voltava no polling de 30s, enquanto o aviso dizia que a
+      // operação tinha falhado. O servidor é a verdade; buscar de novo desfaz
+      // os dois casos.
+      await refetch();
       toast.error("Erro ao atualizar pedido");
     }
   }
@@ -85,8 +90,9 @@ export function KitchenBoard({ tenantId }: { tenantId: string }) {
     if (res.ok) {
       toast.error(`Pedido #${order.id.slice(-6).toUpperCase()} cancelado`);
     } else {
-      // Reverte
-      updateOrderStatus(order.id, order.status);
+      // Mesma razão do advanceStatus: o pedido já saiu da lista, então só uma
+      // nova busca o traz de volta.
+      await refetch();
       toast.error("Erro ao cancelar pedido");
     }
   }
