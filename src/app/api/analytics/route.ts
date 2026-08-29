@@ -26,7 +26,12 @@ export async function GET(req: NextRequest) {
     // pedido pré-pago — dinheiro recebido na entrega não entrava no gráfico.
     const now = new Date();
     const startOfToday = inicioDoDiaBRT(now);
-    const startOf30DaysAgo = inicioDeDiasAtrasBRT(now, 30);
+    // 29, não 30: a janela são 30 baldes contando **hoje** como o último. Com 30
+    // o intervalo ia de D-30 a D-1, a consulta trazia os pedidos de hoje (o
+    // `gte` os inclui) e o `key in dailyMap` lá embaixo os jogava fora sem
+    // aviso — o gráfico do dono terminava sempre em ontem, e o movimento de hoje
+    // não aparecia em barra nenhuma.
+    const startOfWindow = inicioDeDiasAtrasBRT(now, 29);
     const startOfMonth = inicioDoMesBRT(now);
 
     const [todayStats, monthStats, last30Days, topItems, todayPayments, monthPayments] = await Promise.all([
@@ -41,7 +46,7 @@ export async function GET(req: NextRequest) {
         _count: true,
       }),
       prisma.order.findMany({
-        where: { createdAt: { gte: startOf30DaysAgo }, ...FILTRO_DE_RECEITA },
+        where: { createdAt: { gte: startOfWindow }, ...FILTRO_DE_RECEITA },
         select: { createdAt: true, total: true },
       }),
       // Itens de pedido cancelado não foram vendidos. Sem o filtro, um pedido
@@ -78,7 +83,7 @@ export async function GET(req: NextRequest) {
     const dailyMap: Record<string, number> = {};
     const UM_DIA_MS = 24 * 60 * 60 * 1000;
     for (let i = 0; i < 30; i++) {
-      dailyMap[diaBRT(new Date(startOf30DaysAgo.getTime() + i * UM_DIA_MS))] = 0;
+      dailyMap[diaBRT(new Date(startOfWindow.getTime() + i * UM_DIA_MS))] = 0;
     }
     last30Days.forEach((order) => {
       const key = diaBRT(new Date(order.createdAt));
