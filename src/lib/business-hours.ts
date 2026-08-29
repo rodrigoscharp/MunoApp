@@ -57,17 +57,42 @@ const DAY_INDEX_TO_KEY: Record<number, string> = {
   4: "thursday", 5: "friday", 6: "saturday",
 };
 
+function emMinutos(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+}
+
+/**
+ * `to` menor ou igual a `from` significa que a janela atravessa a meia-noite:
+ * 18:00–02:00 da hamburgueria, 11:00–00:00 da pizzaria. A janela pertence ao dia
+ * em que ela começa, então 01:00 de terça ainda é o expediente de segunda — por
+ * isso `herdadaDeOntem`, que só considera a sobra depois da virada.
+ */
+function dentroDaJanela(
+  day: DaySchedule | undefined,
+  nowMin: number,
+  herdadaDeOntem: boolean
+): boolean {
+  if (!day?.open) return false;
+
+  const from = emMinutos(day.from);
+  const to = emMinutos(day.to);
+  const viraODia = to <= from;
+
+  if (herdadaDeOntem) return viraODia && nowMin < to;
+  return viraODia ? nowMin >= from : nowMin >= from && nowMin < to;
+}
+
 export function checkIsOpen(schedule: WeekSchedule): boolean {
   // Horário de Brasília (UTC-3)
   const nowBRT = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  const dayKey = DAY_INDEX_TO_KEY[nowBRT.getUTCDay()];
-  const day = schedule[dayKey];
-  if (!day?.open) return false;
-
   const nowMin = nowBRT.getUTCHours() * 60 + nowBRT.getUTCMinutes();
-  const [fh, fm] = day.from.split(":").map(Number);
-  const [th, tm] = day.to.split(":").map(Number);
-  return nowMin >= fh * 60 + fm && nowMin < th * 60 + tm;
+  const hoje = nowBRT.getUTCDay();
+
+  if (dentroDaJanela(schedule[DAY_INDEX_TO_KEY[hoje]], nowMin, false)) return true;
+
+  const ontem = (hoje + 6) % 7;
+  return dentroDaJanela(schedule[DAY_INDEX_TO_KEY[ontem]], nowMin, true);
 }
 
 // tenantId entra como argumento para que o unstable_cache diferencie o
