@@ -117,7 +117,11 @@ export function MenuItemModal({ open, onClose, item, categories, onSaved }: Prop
         });
 
     if (!res.ok) {
-      const json = await res.json();
+      // O `.catch` não é adorno: um 502 da plataforma responde HTML, `res.json()`
+      // estoura, e a exceção escapa do onSubmit — `setLoading(false)` nunca roda
+      // e o botão fica preso em "Salvando...". O dono não consegue nem tentar de
+      // novo sem recarregar a página. CouponModal já tratava assim.
+      const json = await res.json().catch(() => ({}));
       const msg = json.error?.[0]?.message ?? "Erro ao salvar";
       setError(msg);
       toast.error(msg);
