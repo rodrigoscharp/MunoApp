@@ -1,10 +1,13 @@
+import type { PlanoTenant } from "@prisma/client";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   PRECOS,
+  escolhaDaQueryString,
   formatarBRL,
   planoFromHeaderValue,
+  precoDoCiclo,
   tenantTemMesaQr,
 } from "./plans";
 
@@ -31,6 +34,18 @@ describe("planoFromHeaderValue", () => {
   );
 });
 
+describe("precoDoCiclo", () => {
+  it("o anual é onze mensalidades — um mês grátis", () => {
+    expect(PRECOS.MEMBRO.anualCentavos).toBe(11999 * 11);
+    expect(PRECOS.MEMBRO_MESA_QR.anualCentavos).toBe(14999 * 11);
+  });
+
+  it("devolve o preço do ciclo pedido", () => {
+    expect(precoDoCiclo("MEMBRO", "MENSAL")).toBe(11999);
+    expect(precoDoCiclo("MEMBRO", "ANUAL")).toBe(131989);
+  });
+});
+
 describe("o preço anunciado na landing e o preço do código não podem divergir", () => {
   // A landing é servida de public/vendas/ desde 26/08/2026, mas estar no mesmo
   // repositório não impede a divergência — só a torna detectável. Quem impede é
@@ -54,20 +69,77 @@ describe("o preço anunciado na landing e o preço do código não podem divergi
     expect(precosNaPagina().length).toBeGreaterThan(0);
   });
 
-  // Direção 1: plans.ts mudou e o HTML ficou para trás.
-  it("o preço mensal do Membro aparece na página", () => {
-    expect(precosNaPagina()).toContain(formatarBRL(PRECOS.MEMBRO.mensalCentavos));
+  it("cobra os preços de tabela de 2026-08", () => {
+    expect(PRECOS.MEMBRO.mensalCentavos).toBe(11999);
+    expect(PRECOS.MEMBRO_MESA_QR.mensalCentavos).toBe(14999);
+  });
+
+  // Direção 1: plans.ts mudou e o HTML ficou para trás. Cobre os dois planos
+  // nos dois ciclos — mensal e anual — porque o toggle da landing agora
+  // anuncia os quatro.
+  it("os quatro preços de tabela aparecem na página", () => {
+    const naPagina = precosNaPagina();
+    for (const plano of Object.keys(PRECOS) as PlanoTenant[]) {
+      expect(naPagina).toContain(formatarBRL(PRECOS[plano].mensalCentavos));
+      expect(naPagina).toContain(formatarBRL(PRECOS[plano].anualCentavos));
+    }
   });
 
   // Direção 2: o HTML mudou e plans.ts ficou para trás — ou alguém digitou um
-  // valor que não existe em plano nenhum.
+  // valor que não existe em plano nenhum. A lista de conhecidos também precisa
+  // dos quatro, senão o preço anual vira "desconhecido" e o teste falha à toa.
   it("nenhum preço da página é desconhecido do código", () => {
-    const conhecidos = Object.values(PRECOS).map((p) =>
-      formatarBRL(p.mensalCentavos)
-    );
+    const conhecidos = Object.values(PRECOS).flatMap((p) => [
+      formatarBRL(p.mensalCentavos),
+      formatarBRL(p.anualCentavos),
+    ]);
 
     for (const preco of new Set(precosNaPagina())) {
       expect(conhecidos).toContain(preco);
     }
+  });
+});
+
+// A escolha que a página /assinar faz a partir da query string. Mora aqui, e
+// não na page, porque Server Component assíncrono não se testa com o mesmo
+// ferramental dos componentes de cliente — e esta é a parte que precisa de
+// teste, não a marcação em volta dela.
+describe("escolhaDaQueryString", () => {
+  it("respeita plano e ciclo quando os dois vêm certos", () => {
+    expect(escolhaDaQueryString({ plano: "MEMBRO_MESA_QR", ciclo: "ANUAL" })).toEqual({
+      plano: "MEMBRO_MESA_QR",
+      ciclo: "ANUAL",
+    });
+  });
+
+  // A REGRA: nunca quebrar a página por causa de query string, e nunca
+  // conceder por engano o plano mais caro para quem não pediu. Link velho
+  // compartilhado no WhatsApp, parâmetro cortado pelo cliente de e-mail, ou
+  // valor de uma versão futura do enum — tudo cai no mais barato.
+  it.each([
+    undefined,
+    "",
+    "membro_mesa_qr",
+    "MEMBRO_MESA_QR_PLUS",
+    "PLANO_QUE_NAO_EXISTE",
+    "'; DROP TABLE",
+  ])("plano %j cai em MEMBRO", (plano) => {
+    expect(escolhaDaQueryString({ plano, ciclo: "MENSAL" }).plano).toBe("MEMBRO");
+  });
+
+  it.each([undefined, "", "anual", "SEMESTRAL", "0"])(
+    "ciclo %j cai em MENSAL",
+    (ciclo) => {
+      expect(escolhaDaQueryString({ plano: "MEMBRO", ciclo }).ciclo).toBe("MENSAL");
+    }
+  );
+
+  it("sem parâmetro nenhum entrega o plano mais barato no ciclo mensal", () => {
+    const escolha = escolhaDaQueryString({});
+
+    expect(escolha).toEqual({ plano: "MEMBRO", ciclo: "MENSAL" });
+    expect(precoDoCiclo(escolha.plano, escolha.ciclo)).toBe(
+      PRECOS.MEMBRO.mensalCentavos
+    );
   });
 });

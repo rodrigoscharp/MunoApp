@@ -6,6 +6,11 @@ import {
   vencimentoDaCompetencia,
 } from "@/lib/assinatura/competencia";
 import { statusPelaRegua } from "@/lib/assinatura/regua";
+import { assinaturaTemPagamentoConfirmado } from "@/lib/assinatura/asaas";
+import {
+  reconciliarInscricoesPagas,
+  type ResultadoReconciliacao,
+} from "@/lib/assinatura/reconciliacao";
 
 /**
  * Job diário da assinatura. Duas responsabilidades, nesta ordem: gerar a
@@ -39,6 +44,7 @@ async function executar(req: NextRequest) {
       valorMensal: true,
       diaVencimento: true,
       inicioCobranca: true,
+      asaasSubscriptionId: true,
     },
   });
 
@@ -55,6 +61,18 @@ async function executar(req: NextRequest) {
     // vencimento é negociado caso a caso, e cobrar dentro dele é exatamente a
     // falha que esta linha evita.
     if (assinatura.inicioCobranca > agora) continue;
+
+    // Quem o Asaas cobra, o Asaas gera. O webhook espelha cada cobrança dele
+    // numa Cobranca local — gerar aqui também criaria a mesma dívida duas
+    // vezes, e a segunda nunca receberia baixa, porque o pagamento no gateway
+    // não sabe que essa segunda linha existe.
+    //
+    // A régua do segundo laço continua rodando para esta assinatura, de
+    // propósito: cartão que falha vira cobrança vencida pelo webhook, e o
+    // bloqueio precisa acontecer pelo caminho de sempre. Se este `continue`
+    // um dia pular o recálculo de status também, um cliente de gateway
+    // inadimplente nunca é bloqueado.
+    if (assinatura.asaasSubscriptionId) continue;
 
     try {
       await prismaUnscoped.cobranca.create({
@@ -124,13 +142,131 @@ async function executar(req: NextRequest) {
     statusAtualizados++;
   }
 
-  return NextResponse.json({
+  // Reconciliação ANTES da faxina, de propósito. Ela provisiona quem pagou e
+  // ficou esperando um webhook que não chegou — e ao fazer isso tira essas
+  // linhas da frente da faxina, que então nem precisa perguntar ao Asaas
+  // sobre elas. Na ordem inversa seriam duas consultas para a mesma pergunta,
+  // com uma janela entre as duas.
+  //
+  // E, como a faxina, ela não propaga: a mesma regra de sempre — conveniência
+  // não derruba receita, e um Asaas fora do ar não pode fazer o job sair sem
+  // gerar a fatura de ninguém.
+  let reconciliacao: ResultadoReconciliacao = {
+    candidatas: 0,
+    provisionadas: 0,
+    falhas: 0,
+  };
+  let reconciliacaoFalhou = false;
+  try {
+    reconciliacao = await reconciliarInscricoesPagas(agora);
+  } catch (erro) {
+    reconciliacaoFalhou = true;
+    console.error(
+      "[cron/assinaturas] Reconciliação falhou inteira — quem pagou e não foi provisionado continua esperando a próxima passada",
+      erro
+    );
+  }
+
+  // A REGRA: soltar slug abandonado é conveniência; emitir cobrança e mover a
+  // régua é receita. Conveniência não derruba receita — o mesmo motivo pelo
+  // qual o Lead não pode abortar um checkout já pago (src/app/api/assinar/
+  // route.ts) e o e-mail de boas-vindas não pode abortar um provisionamento
+  // (webhook do Asaas). Por isso esta limpeza roda por ÚLTIMO, depois que a
+  // cobrança do mês e a régua já foram processadas, e por isso ela nunca
+  // propaga: um blip de conexão aqui não pode fazer o job inteiro sair sem
+  // gerar a fatura de ninguém. Slug preso por mais 24h é irrelevante; fatura
+  // não emitida não é.
+  let inscricoesExpiradas = 0;
+  let limpezaDeInscricoesFalhou = false;
+  try {
+    const candidatas = await prismaUnscoped.inscricao.findMany({
+      where: {
+        status: "AGUARDANDO_PAGAMENTO",
+        expiraEm: { lt: agora },
+      },
+      select: { id: true, slug: true, asaasSubscriptionId: true },
+    });
+
+    // Vencida NÃO é o mesmo que não paga, e a diferença custa um cliente.
+    //
+    // O status só vira PROVISIONADA quando o webhook chega. Entre o cliente
+    // pagar e o webhook ser entregue existe uma janela — fila do Asaas
+    // interrompida, deploy caindo, rede — que pode ser maior que o expiraEm
+    // (1h no cartão). Apagar a linha nessa janela destrói os três campos que
+    // ligam aquele pagamento a alguém (externalReference, asaasPaymentId,
+    // asaasSubscriptionId): o webhook que chegar depois não casa com nada, o
+    // handler responde 200, e o cliente segue sendo cobrado todo mês sem
+    // restaurante e sem rastro nenhum no banco.
+    //
+    // Por isso perguntamos ao Asaas antes. Em dúvida — consulta que falha —
+    // a inscrição fica para a próxima passada: slug preso por mais um dia é
+    // irrelevante perto de dinheiro sem contrapartida.
+    const paraApagar: string[] = [];
+    for (const candidata of candidatas) {
+      if (!candidata.asaasSubscriptionId) {
+        // Morreu antes de o Asaas existir para ela: não há pagamento
+        // possível, e não há o que perguntar.
+        paraApagar.push(candidata.id);
+        continue;
+      }
+      try {
+        if (
+          await assinaturaTemPagamentoConfirmado(candidata.asaasSubscriptionId)
+        ) {
+          console.error(
+            `[cron/assinaturas] Inscricao ${candidata.id} (slug ${candidata.slug}) ` +
+              `venceu mas TEM pagamento confirmado no Asaas — preservada. ` +
+              `O provisionamento não completou: verificar o webhook.`
+          );
+          continue;
+        }
+      } catch (erro) {
+        // Uma linha problemática não trava a faxina inteira, e dúvida nunca
+        // vira exclusão.
+        console.error(
+          `[cron/assinaturas] Não foi possível confirmar pagamento da Inscricao ` +
+            `${candidata.id} no Asaas — preservada por precaução`,
+          erro
+        );
+        continue;
+      }
+      paraApagar.push(candidata.id);
+    }
+
+    if (paraApagar.length > 0) {
+      const resultado = await prismaUnscoped.inscricao.deleteMany({
+        where: { id: { in: paraApagar } },
+      });
+      inscricoesExpiradas = resultado.count;
+    }
+  } catch (erro) {
+    limpezaDeInscricoesFalhou = true;
+    console.error(
+      "[cron/assinaturas] Falha ao apagar inscrição vencida — slug fica preso até a próxima passada",
+      erro
+    );
+  }
+
+  const resposta = {
     competencia,
+    reconciliacao,
+    ...(reconciliacaoFalhou ? { reconciliacaoFalhou } : {}),
+    inscricoesExpiradas,
     assinaturas: assinaturas.length,
     cobrancasCriadas,
     cobrancasJaExistentes,
     statusAtualizados,
-  });
+  };
+
+  // Contador honesto: se a limpeza falhou, inscricoesExpiradas fica 0 (nada
+  // apurado, e não um "0" que finge sucesso) e o campo abaixo torna a falha
+  // visível pra quem olhar a resposta do job, sem inventar uma contagem que
+  // não aconteceu.
+  return NextResponse.json(
+    limpezaDeInscricoesFalhou
+      ? { ...resposta, limpezaDeInscricoesFalhou: true }
+      : resposta
+  );
 }
 
 // A Vercel dispara o cron com GET. O POST fica para o disparo manual, que é

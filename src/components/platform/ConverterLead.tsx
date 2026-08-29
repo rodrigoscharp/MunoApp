@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PlanoTenant } from "@prisma/client";
 import { PLANO_LABELS, PRECOS } from "@/lib/plans";
+import { sugerirSlug } from "@/lib/inscricao/sugerir-slug";
 
 // Só uma sugestão de preenchimento pro campo de mensalidade — a régua de
 // preço em si não vive aqui, e o operador pode sempre editar por cima
@@ -14,15 +15,6 @@ import { PLANO_LABELS, PRECOS } from "@/lib/plans";
 // Ponto, e não vírgula, porque o input é type="number".
 function mensalidadeSugerida(plano: PlanoTenant): string {
   return (PRECOS[plano].mensalCentavos / 100).toFixed(2);
-}
-
-function sugerirSlug(nome: string): string {
-  return nome
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // remove acentos (marcas combinantes)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 type Credenciais = {
@@ -184,11 +176,15 @@ export function ConverterLead({
       className="bg-white border border-neutral-200 rounded-xl p-5 space-y-3"
     >
       <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">
+        <label
+          htmlFor="converter-slug"
+          className="block text-sm font-medium text-neutral-700 mb-1"
+        >
           Endereço do restaurante *
         </label>
         <div className="flex items-center gap-1">
           <input
+            id="converter-slug"
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
             required
@@ -199,11 +195,15 @@ export function ConverterLead({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">
+        <label
+          htmlFor="converter-email"
+          className="block text-sm font-medium text-neutral-700 mb-1"
+        >
           E-mail do dono *
         </label>
         <input
           type="email"
+          id="converter-email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -235,12 +235,16 @@ export function ConverterLead({
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">
+        <label
+          htmlFor="converter-mensalidade"
+          className="block text-sm font-medium text-neutral-700 mb-1"
+        >
           Mensalidade (opcional)
         </label>
         <input
           type="number"
           step="0.01"
+          id="converter-mensalidade"
           value={mensalidade}
           onChange={(e) => {
             setMensalidadeTocada(true);
@@ -258,13 +262,17 @@ export function ConverterLead({
       {mensalidade.trim() !== "" && (
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">
+            <label
+              htmlFor="converter-vencimento"
+              className="block text-sm font-medium text-neutral-700 mb-1"
+            >
               Dia do vencimento
             </label>
             <input
               type="number"
               min={1}
               max={28}
+              id="converter-vencimento"
               value={diaVencimento}
               onChange={(e) => setDiaVencimento(e.target.value)}
               placeholder="10"
@@ -275,13 +283,17 @@ export function ConverterLead({
             <p className="mt-1 text-[11px] text-neutral-400">de 1 a 28</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">
+            <label
+              htmlFor="converter-cortesia"
+              className="block text-sm font-medium text-neutral-700 mb-1"
+            >
               Dias de cortesia
             </label>
             <input
               type="number"
               min={0}
               max={365}
+              id="converter-cortesia"
               value={diasDeCortesia}
               onChange={(e) => setDiasDeCortesia(e.target.value)}
               placeholder="0"

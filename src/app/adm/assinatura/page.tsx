@@ -4,7 +4,16 @@ import { withRequestTenant } from "@/lib/tenant-request";
 import { formatCurrency } from "@/lib/utils";
 import { avisoDeAtraso } from "@/lib/assinatura/aviso";
 import { proximoVencimento } from "@/lib/assinatura/competencia";
-import { BLOQUEIO_DIAS, diasDeAtraso } from "@/lib/assinatura/regua";
+import {
+  BLOQUEIO_DIAS,
+  situacaoDaCobranca,
+  type SituacaoCobranca,
+} from "@/lib/assinatura/regua";
+import {
+  formatarCompetencia,
+  formatarData,
+  formatarInstante,
+} from "@/lib/assinatura/formato";
 
 /**
  * A tela da mensalidade do restaurante.
@@ -21,54 +30,15 @@ import { BLOQUEIO_DIAS, diasDeAtraso } from "@/lib/assinatura/regua";
  * do servidor mostraria o dia anterior em qualquer fuso a oeste de Greenwich —
  * uma fatura do dia 10 virando dia 9 na tela do cliente.
  */
-function formatarData(data: Date): string {
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(data);
-}
-
-/**
- * `pagoEm`, ao contrário do vencimento, é um instante de verdade — a hora em
- * que a baixa entrou. Ele se formata no fuso de Brasília, porque um pagamento
- * das 22h vira o dia seguinte se lido em UTC.
- */
-function formatarInstante(data: Date): string {
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "America/Sao_Paulo",
-  }).format(data);
-}
-
-/** "2026-08" vira "08/2026". */
-function formatarCompetencia(competencia: string): string {
-  const [ano, mes] = competencia.split("-");
-  return `${mes}/${ano}`;
-}
-
-type StatusCobranca = "PENDENTE" | "PAGA" | "VENCIDA" | "CANCELADA";
-
-/**
- * O job diário move o status da assinatura, mas não reescreve o status de cada
- * cobrança — uma fatura atrasada segue PENDENTE no banco. Mostrar "em aberto"
- * numa cobrança de 20 dias seria mentir por omissão, então o rótulo olha a
- * data, como o resto da régua.
- */
-function rotuloDaCobranca(
-  cobranca: { status: StatusCobranca; vencimento: Date },
-  agora: Date
-): { texto: string; classe: string } {
-  if (cobranca.status === "PAGA") return { texto: "Paga", classe: "text-green-700" };
-  if (cobranca.status === "CANCELADA")
-    return { texto: "Cancelada", classe: "text-neutral-400" };
-  return diasDeAtraso(cobranca.vencimento, agora) >= 1
-    ? { texto: "Vencida", classe: "text-red-700" }
-    : { texto: "Em aberto", classe: "text-amber-700" };
-}
+const ROTULO_DA_SITUACAO: Record<
+  SituacaoCobranca,
+  { texto: string; classe: string }
+> = {
+  PAGA: { texto: "Paga", classe: "text-green-700" },
+  CANCELADA: { texto: "Cancelada", classe: "text-neutral-400" },
+  VENCIDA: { texto: "Vencida", classe: "text-red-700" },
+  EM_ABERTO: { texto: "Em aberto", classe: "text-amber-700" },
+};
 
 export default async function AssinaturaPage() {
   // O tenant vem do x-tenant-id que o proxy injetou, como nas outras telas
@@ -88,6 +58,7 @@ export default async function AssinaturaPage() {
         valorMensal: true,
         diaVencimento: true,
         inicioCobranca: true,
+        ciclo: true,
         status: true,
         cobrancas: {
           orderBy: { vencimento: "desc" },
@@ -311,7 +282,7 @@ export default async function AssinaturaPage() {
             </thead>
             <tbody>
               {assinatura.cobrancas.map((cobranca) => {
-                const rotulo = rotuloDaCobranca(cobranca, agora);
+                const rotulo = ROTULO_DA_SITUACAO[situacaoDaCobranca(cobranca, agora)];
                 return (
                   <tr
                     key={cobranca.id}

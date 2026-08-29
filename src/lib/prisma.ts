@@ -10,6 +10,10 @@ const WHERE_OPERATIONS = new Set([
   "findUniqueOrThrow",
   "update",
   "updateMany",
+  // Par de createManyAndReturn, existe desde o Prisma 6.2 e é fácil de esquecer:
+  // sem esta linha a operação escapa do filtro e atualiza linha de outro
+  // restaurante. src/lib/prisma.test.ts percorre a lista inteira por isso.
+  "updateManyAndReturn",
   "delete",
   "deleteMany",
   "count",

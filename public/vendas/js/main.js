@@ -103,6 +103,35 @@ document.addEventListener('DOMContentLoaded', () => {
   }, { threshold: 0.12 });
   document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
 
+  /* ── Toggle mensal/anual dos planos ───────────────── */
+  // JS puro porque a landing é um documento estático servido de public/ — ela
+  // não passa pelo React nem lê o banco. Ver o AGENTS.md sobre por que ela
+  // continua assim.
+  const toggleCiclo = document.getElementById('toggleCiclo');
+  if (toggleCiclo) {
+    const aplicar = (anual) => {
+      document.querySelectorAll('[data-mensal]').forEach((el) => {
+        el.textContent = anual ? el.dataset.anual : el.dataset.mensal;
+      });
+      document.querySelectorAll('.cta-plano').forEach((a) => {
+        const plano = a.dataset.plano;
+        a.href = `/assinar?plano=${plano}&ciclo=${anual ? 'ANUAL' : 'MENSAL'}`;
+      });
+      toggleCiclo.setAttribute('aria-checked', String(anual));
+      toggleCiclo.classList.toggle('bg-terracota', anual);
+      toggleCiclo.classList.toggle('bg-gray-300', !anual);
+      document.getElementById('toggleBolinha').style.transform =
+        anual ? 'translateX(28px)' : 'translateX(0)';
+      document.getElementById('labelMensal').classList.toggle('text-gray-400', anual);
+      document.getElementById('labelAnual').classList.toggle('text-gray-400', !anual);
+    };
+
+    toggleCiclo.addEventListener('click', () => {
+      aplicar(toggleCiclo.getAttribute('aria-checked') !== 'true');
+    });
+    aplicar(false);
+  }
+
   /* ── Exit Intent Popup ────────────────────────────── */
   const exitPopup  = document.getElementById('exitPopup');
   const closeBtn   = document.getElementById('closeExitPopup');

@@ -53,6 +53,7 @@ describe("proximoVencimento", () => {
   const COBRA_DESDE_ONTEM = {
     diaVencimento: 10,
     inicioCobranca: new Date("2026-01-10T00:00:00Z"),
+    ciclo: "MENSAL" as const,
   };
 
   it("é a cobrança em aberto, mesmo vencida", () => {
@@ -65,7 +66,11 @@ describe("proximoVencimento", () => {
   it("na cortesia, é o primeiro vencimento contratado", () => {
     const inicioCobranca = new Date("2026-10-10T00:00:00Z");
     expect(
-      proximoVencimento({ diaVencimento: 10, inicioCobranca }, null, HOJE)
+      proximoVencimento(
+        { diaVencimento: 10, inicioCobranca, ciclo: "MENSAL" },
+        null,
+        HOJE
+      )
     ).toBe(inicioCobranca);
   });
 
@@ -87,5 +92,63 @@ describe("proximoVencimento", () => {
     expect(
       proximoVencimento(COBRA_DESDE_ONTEM, null, dezembro).toISOString()
     ).toBe("2027-01-10T00:00:00.000Z");
+  });
+});
+
+describe("proximoVencimento com ciclo anual", () => {
+  // Sem isto a tela diz ao cliente do anual que ele paga de novo em 30 dias,
+  // quando ele acabou de pagar o ano inteiro.
+  it("aponta para daqui a doze meses quando não há cobrança em aberto", () => {
+    const agora = new Date("2026-08-26T12:00:00Z");
+    const assinatura = {
+      diaVencimento: 10,
+      inicioCobranca: new Date("2026-08-10T00:00:00Z"),
+      ciclo: "ANUAL" as const,
+    };
+
+    expect(proximoVencimento(assinatura, null, agora)).toEqual(
+      new Date(Date.UTC(2027, 7, 10))
+    );
+  });
+
+  it("cobrança em aberto continua vindo primeiro, mesmo vencida", () => {
+    const agora = new Date("2026-08-26T12:00:00Z");
+    const vencida = new Date(Date.UTC(2026, 7, 10));
+    const assinatura = {
+      diaVencimento: 10,
+      inicioCobranca: new Date("2025-08-10T00:00:00Z"),
+      ciclo: "ANUAL" as const,
+    };
+
+    expect(proximoVencimento(assinatura, vencida, agora)).toEqual(vencida);
+  });
+
+  // inicioCobranca de 2024 e agora em 2026: "+1 ano sobre inicioCobranca"
+  // devolveria 2025-08-10, uma data passada. O correto é o próximo
+  // aniversário do contrato que ainda não chegou.
+  it("com dois ciclos completos já passados, aponta para o próximo aniversário do contrato", () => {
+    const agora = new Date("2026-08-26T12:00:00Z");
+    const assinatura = {
+      diaVencimento: 10,
+      inicioCobranca: new Date("2024-08-10T00:00:00Z"),
+      ciclo: "ANUAL" as const,
+    };
+
+    expect(proximoVencimento(assinatura, null, agora)).toEqual(
+      new Date(Date.UTC(2027, 7, 10))
+    );
+  });
+
+  it("antes do aniversário no ano corrente, aponta para este ano, não o seguinte", () => {
+    const agora = new Date("2026-06-01T00:00:00Z");
+    const assinatura = {
+      diaVencimento: 10,
+      inicioCobranca: new Date("2024-08-10T00:00:00Z"),
+      ciclo: "ANUAL" as const,
+    };
+
+    expect(proximoVencimento(assinatura, null, agora)).toEqual(
+      new Date(Date.UTC(2026, 7, 10))
+    );
   });
 });

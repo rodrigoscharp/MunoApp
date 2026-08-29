@@ -72,9 +72,9 @@ export function ChatWindow({ orderId, tenantId, currentRole, quickReplies }: Pro
     setActivatingId(null);
   }
 
-  async function handleRetry(content: string) {
-    // Remove a mensagem com falha e reenvia
-    await sendMessage(content);
+  async function handleRetry(id: string, content: string) {
+    // A mensagem que falhou dá lugar à nova, em vez de as duas coexistirem.
+    await sendMessage(content, id);
   }
 
   // Agrupa mensagens por dia
@@ -123,7 +123,7 @@ export function ChatWindow({ orderId, tenantId, currentRole, quickReplies }: Pro
                       msg={msg}
                       isMine={isMine}
                       isLast={isLast}
-                      onRetry={msg.failed ? () => handleRetry(msg.content) : undefined}
+                      onRetry={msg.failed ? () => handleRetry(msg.id, msg.content) : undefined}
                     />
                   );
                 })}

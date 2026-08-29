@@ -52,3 +52,30 @@ export function statusPelaRegua(
   if (atraso >= AVISO_DIAS) return "INADIMPLENTE";
   return "ATIVA";
 }
+
+export type StatusCobranca = "PENDENTE" | "PAGA" | "VENCIDA" | "CANCELADA";
+
+/** O que a tela deve dizer sobre uma cobrança. Sem estilo — isso é da tela. */
+export type SituacaoCobranca = "PAGA" | "CANCELADA" | "VENCIDA" | "EM_ABERTO";
+
+/**
+ * A situação de uma cobrança para exibição, que NÃO é o mesmo que o status
+ * gravado nela.
+ *
+ * O job diário move o status da assinatura, mas não reescreve o status de
+ * cada cobrança: uma fatura atrasada há vinte dias segue PENDENTE no banco.
+ * Mostrar "em aberto" nela seria mentir por omissão, então a situação olha a
+ * data, como o resto da régua.
+ *
+ * A ordem das checagens é a regra: PAGA e CANCELADA vencem a data. Quem pagou
+ * com atraso pagou, e ver "Vencida" numa fatura já quitada faria o dono do
+ * restaurante ligar achando que deve.
+ */
+export function situacaoDaCobranca(
+  cobranca: { status: StatusCobranca; vencimento: Date },
+  agora: Date
+): SituacaoCobranca {
+  if (cobranca.status === "PAGA") return "PAGA";
+  if (cobranca.status === "CANCELADA") return "CANCELADA";
+  return diasDeAtraso(cobranca.vencimento, agora) >= 1 ? "VENCIDA" : "EM_ABERTO";
+}

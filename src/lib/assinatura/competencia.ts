@@ -1,3 +1,5 @@
+import type { Ciclo } from "@prisma/client";
+
 /**
  * Competência é o mês de referência da cobrança, no formato "YYYY-MM".
  *
@@ -68,7 +70,7 @@ export function vencimentoDaCompetencia(
  * esconderia justamente a dívida.
  */
 export function proximoVencimento(
-  assinatura: { diaVencimento: number; inicioCobranca: Date },
+  assinatura: { diaVencimento: number; inicioCobranca: Date; ciclo: Ciclo },
   vencimentoEmAberto: Date | null,
   agora: Date
 ): Date {
@@ -77,6 +79,37 @@ export function proximoVencimento(
   // Cortesia: a assinatura existe e o job não cobra enquanto inicioCobranca
   // não chega (ver /api/cron/assinaturas). A primeira cobrança é essa data.
   if (assinatura.inicioCobranca > agora) return assinatura.inicioCobranca;
+
+  // O anual não tem "mês que vem": quem pagou o ano só volta a pagar quando o
+  // período fecha. Calcular pelo caminho mensal faria a tela do cliente
+  // anunciar uma cobrança que não existe.
+  //
+  // "+1 ano sobre inicioCobranca", sem olhar `agora`, só funciona no primeiro
+  // ciclo. Numa assinatura com dois ou mais anos de casa isso devolve uma
+  // data passada (o aniversário mais antigo, já pago). O aniversário certo é
+  // o próximo que ainda não chegou: ano de `agora` se ainda não passou, ano
+  // seguinte se já passou — o mesmo raciocínio do ramo mensal abaixo, só que
+  // pulando de ano em ano em vez de mês em mês. O mês e o dia continuam
+  // vindo do contrato (`inicioCobranca`/`diaVencimento`), só o ano se ajusta.
+  if (assinatura.ciclo === "ANUAL") {
+    const base = assinatura.inicioCobranca;
+    const aniversarioEsteAno = new Date(
+      Date.UTC(
+        agora.getUTCFullYear(),
+        base.getUTCMonth(),
+        assinatura.diaVencimento
+      )
+    );
+    if (aniversarioEsteAno.getTime() > agora.getTime()) return aniversarioEsteAno;
+
+    return new Date(
+      Date.UTC(
+        agora.getUTCFullYear() + 1,
+        base.getUTCMonth(),
+        assinatura.diaVencimento
+      )
+    );
+  }
 
   const candidato = vencimentoDaCompetencia(
     competenciaDe(agora),

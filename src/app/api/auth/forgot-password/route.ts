@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { resend } from "@/lib/resend";
 import { getRestaurantInfo } from "@/lib/restaurant";
-import { buildTenantBaseUrl } from "@/lib/tenant-url";
+import { buildTenantBaseUrl } from "@/lib/tenant-provisioning";
 import { z } from "zod";
 const schema = z.object({
   email: z.string().email(),
@@ -236,7 +236,7 @@ export async function POST(req: NextRequest) {
       ? restaurantInfo.logoUrl
       : `${baseUrl}${restaurantInfo.logoUrl}`;
 
-    await resend.emails.send({
+    const { error: erroDeEnvio } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev",
       to: email,
       subject: `Redefina sua senha — ${restaurantInfo.name}`,
@@ -249,6 +249,21 @@ export async function POST(req: NextRequest) {
         resetUrl,
       }),
     });
+
+    // O SDK do Resend não lança quando a API recusa: devolve { data, error }.
+    // Descartar esse retorno fazia um envio que não saiu passar por sucesso —
+    // o usuário esperava um e-mail que nunca chegava e não havia log nenhum.
+    //
+    // Loga, mas NÃO lança: esta rota responde { ok: true } mesmo para e-mail
+    // inexistente, de propósito, para não revelar quais contas existem. Um
+    // 500 apenas quando o endereço existe entregaria justamente essa
+    // informação, pelo tempo e pelo status.
+    if (erroDeEnvio) {
+      console.error(
+        `[forgot-password] Resend recusou o envio para ${email} (tenant ${tenantId})`,
+        erroDeEnvio
+      );
+    }
 
     return NextResponse.json({ ok: true });
   });

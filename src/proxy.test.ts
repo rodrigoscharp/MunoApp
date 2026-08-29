@@ -284,7 +284,11 @@ describe("proxy: rotas que não pertencem a tenant nenhum", () => {
   // Estas duas saem antes do findUnique de propósito. Pelo caminho normal
   // resolveriam o slug "default" e tomariam 404 — em silêncio, e no caso do
   // cron todo dia, até a primeira mensalidade faltar.
-  it.each(["/api/cron/assinaturas", "/api/leads/publico"])(
+  it.each([
+    "/api/cron/assinaturas",
+    "/api/leads/publico",
+    "/api/assinaturas/webhook/asaas",
+  ])(
     "%s passa sem resolver tenant",
     async (caminho) => {
       const res = await proxy(requisicao(caminho));
@@ -465,4 +469,18 @@ describe("proxy: o domínio raiz serve a landing, nunca um restaurante", () => {
     expect(findUnique).toHaveBeenCalled();
     expect(tenantInjetado(res)).toBe(TENANT_ID);
   });
+
+  // O checkout público (/assinar e /api/assinar/*) não pertence a tenant
+  // nenhum, e é para o raiz que a landing manda o botão de assinar. Sem uma
+  // guarda igual à de /api/leads/publico, esta rota cai no mesmo 404 do teste
+  // acima — a página existiria e ninguém a alcançaria.
+  it.each(["/assinar", "/assinar/obrigado", "/api/assinar", "/api/assinar/slug"])(
+    "%s responde no domínio raiz, onde não existe tenant",
+    async (caminho) => {
+      const res = await proxy(requisicaoRaiz(caminho));
+
+      expect(res.status).toBe(200);
+      expect(findUnique).not.toHaveBeenCalled();
+    }
+  );
 });

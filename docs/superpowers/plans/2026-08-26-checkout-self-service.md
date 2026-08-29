@@ -570,9 +570,16 @@ git commit -m "Valida CNPJ além de CPF, para o pagador da mensalidade"
 **Interfaces:**
 - Produces:
   - `criarCliente(input: { nome: string; email: string; cpfCnpj: string }): Promise<{ id: string }>`
-  - `criarAssinatura(input: { customerId: string; valorCentavos: number; ciclo: Ciclo; descricao: string; externalReference: string }): Promise<{ id: string }>`
-  - `criarCobrancaAvulsa(input: { customerId: string; valorCentavos: number; billingType: "PIX" | "CREDIT_CARD"; descricao: string; externalReference: string }): Promise<{ id: string; invoiceUrl: string }>`
+  - `criarAssinatura(input: { customerId: string; valorCentavos: number; ciclo: Ciclo; billingType: "PIX" | "CREDIT_CARD"; descricao: string; externalReference: string }): Promise<{ id: string }>`
+  - `listarCobrancasDaAssinatura(subscriptionId: string): Promise<{ data: { id: string; invoiceUrl: string }[] }>`
   - `webhookAutorizado(tokenRecebido: string | null): boolean`
+
+**Os dois ciclos criam assinatura — não existe cobrança avulsa aqui.** Anual é
+`cycle: "YEARLY"`. A razão é a trava da Task 4: ela pula a geração de cobrança do
+cron quando existe `asaasSubscriptionId`, e um anual pago por cobrança avulsa
+nasceria sem esse id — o cron geraria cobrança **mensal** para quem pagou o ano, e
+a régua bloquearia o cliente em 15 dias. Assinatura anual também renova sozinha;
+cobrança avulsa morreria em silêncio depois de doze meses.
 
 - [ ] **Step 1: Escrever o teste que falha**
 
@@ -624,6 +631,44 @@ describe("cliente Asaas da plataforma", () => {
     const corpo = JSON.parse(String(fetchSpy.mock.calls[0][1]!.body));
     expect(corpo.value).toBe(119.99);
     expect(corpo.cycle).toBe("MONTHLY");
+  });
+
+  it("o anual é assinatura YEARLY, e respeita o método escolhido", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "sub_2" }), { status: 200 })
+    );
+
+    const { criarAssinatura } = await import("./asaas");
+    await criarAssinatura({
+      customerId: "cus_1",
+      valorCentavos: 131989,
+      ciclo: "ANUAL",
+      billingType: "PIX",
+      descricao: "Membro MUNO",
+      externalReference: "insc_1",
+    });
+
+    const corpo = JSON.parse(String(fetchSpy.mock.calls[0][1]!.body));
+    expect(corpo.cycle).toBe("YEARLY");
+    expect(corpo.billingType).toBe("PIX");
+    expect(corpo.value).toBe(1319.89);
+  });
+
+  it("lista as cobranças de uma assinatura", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ data: [{ id: "pay_1", invoiceUrl: "https://x/i/1" }] }),
+        { status: 200 }
+      )
+    );
+
+    const { listarCobrancasDaAssinatura } = await import("./asaas");
+    const { data } = await listarCobrancasDaAssinatura("sub_1");
+
+    expect(data[0].invoiceUrl).toBe("https://x/i/1");
+    expect(fetchSpy.mock.calls[0][0]).toBe(
+      "https://api-sandbox.asaas.com/v3/subscriptions/sub_1/payments"
+    );
   });
 
   it("propaga a descrição do erro do Asaas em vez de engolir", async () => {
@@ -729,18 +774,29 @@ export async function criarCliente(input: {
   });
 }
 
+/**
+ * Os dois ciclos são assinatura, nunca cobrança avulsa.
+ *
+ * O anual em avulso nasceria sem asaasSubscriptionId, e o cron — que só pula a
+ * geração de cobrança quando esse id existe — emitiria cobrança MENSAL para
+ * quem pagou o ano inteiro, bloqueando o cliente em 15 dias pela régua.
+ * Assinatura anual ainda renova sozinha; avulsa morreria calada aos 12 meses.
+ *
+ * billingType vem de fora porque o mensal só aceita cartão (é o único que o
+ * Asaas cobra sozinho) e o anual aceita PIX — no anual, um QR por ano com
+ * antecedência é aceitável; por mês, não.
+ */
 export async function criarAssinatura(input: {
   customerId: string;
   valorCentavos: number;
   ciclo: Ciclo;
+  billingType: "PIX" | "CREDIT_CARD";
   descricao: string;
   externalReference: string;
 }): Promise<{ id: string }> {
   return chamar<{ id: string }>("/subscriptions", {
     customer: input.customerId,
-    // Só cartão: é o único ciclo que o Asaas cobra sozinho. Assinatura em PIX
-    // gera um QR novo a cada período, que o cliente precisa pagar na mão.
-    billingType: "CREDIT_CARD",
+    billingType: input.billingType,
     value: emReais(input.valorCentavos),
     nextDueDate: proximoVencimentoISO(),
     cycle: input.ciclo === "ANUAL" ? "YEARLY" : "MONTHLY",
@@ -749,21 +805,15 @@ export async function criarAssinatura(input: {
   });
 }
 
-export async function criarCobrancaAvulsa(input: {
-  customerId: string;
-  valorCentavos: number;
-  billingType: "PIX" | "CREDIT_CARD";
-  descricao: string;
-  externalReference: string;
-}): Promise<{ id: string; invoiceUrl: string }> {
-  return chamar<{ id: string; invoiceUrl: string }>("/payments", {
-    customer: input.customerId,
-    billingType: input.billingType,
-    value: emReais(input.valorCentavos),
-    dueDate: proximoVencimentoISO(),
-    description: input.descricao,
-    externalReference: input.externalReference,
-  });
+/**
+ * A primeira cobrança da assinatura é onde o cliente paga. Confirmar com a
+ * chave de sandbox se POST /subscriptions já devolve a invoiceUrl direto; até
+ * lá, este caminho funciona nos dois casos.
+ */
+export async function listarCobrancasDaAssinatura(
+  subscriptionId: string
+): Promise<{ data: { id: string; invoiceUrl: string }[] }> {
+  return chamar(`/subscriptions/${subscriptionId}/payments`);
 }
 
 /**
@@ -1127,7 +1177,7 @@ git commit -m "Confere disponibilidade de slug antes de o cliente pagar"
 - Create: `src/app/api/assinar/route.test.ts`
 
 **Interfaces:**
-- Consumes: `checarSlug` (Task 8), `criarCliente`/`criarAssinatura`/`criarCobrancaAvulsa` (Task 6), `precoDoCiclo` (Task 2), `isValidCpfCnpj` (Task 5).
+- Consumes: `checarSlug` (Task 8), `criarCliente`/`criarAssinatura`/`listarCobrancasDaAssinatura` (Task 6), `precoDoCiclo` (Task 2), `isValidCpfCnpj`/`stripDocumento` (Task 5), `Inscricao` (Task 7).
 - Produces: `POST /api/assinar` → `201 { inscricaoId, checkoutUrl }`.
 
 - [ ] **Step 1: Escrever o teste que falha**
@@ -1142,6 +1192,18 @@ describe("POST /api/assinar", () => {
     }));
 
     expect(res.status).toBe(400);
+  });
+
+  it("o anual também vira assinatura, não cobrança avulsa", async () => {
+    await POST(requisicao({ ...corpoValido(), ciclo: "ANUAL", metodo: "PIX" }));
+
+    // Sem asaasSubscriptionId, o cron emitiria cobrança mensal para quem pagou
+    // o ano inteiro e a régua bloquearia o cliente em 15 dias.
+    expect(criarAssinatura).toHaveBeenCalledWith(
+      expect.objectContaining({ ciclo: "ANUAL", billingType: "PIX" })
+    );
+    const dados = inscricaoUpdate.mock.calls[0][0].data;
+    expect(dados.asaasSubscriptionId).toBeTruthy();
   });
 
   it("recusa slug já reservado por outra inscrição", async () => {
@@ -1198,7 +1260,7 @@ import { precoDoCiclo, PLANO_LABELS } from "@/lib/plans";
 import {
   criarAssinatura,
   criarCliente,
-  criarCobrancaAvulsa,
+  listarCobrancasDaAssinatura,
 } from "@/lib/assinatura/asaas";
 
 const limitador = criarLimitador({ max: 5, janelaMs: 10 * 60 * 1000 });
@@ -1288,29 +1350,21 @@ export async function POST(req: NextRequest) {
     const descricao = `Muno — ${PLANO_LABELS[plano]} (${ciclo === "ANUAL" ? "anual" : "mensal"})`;
     const valorCentavos = precoDoCiclo(plano, ciclo);
 
-    let asaasPaymentId: string | null = null;
-    let asaasSubscriptionId: string | null = null;
-    let checkoutUrl: string;
-
-    if (ciclo === "MENSAL") {
-      const assinatura = await criarAssinatura({
-        customerId: cliente.id, valorCentavos, ciclo,
-        descricao, externalReference: inscricao.id,
-      });
-      asaasSubscriptionId = assinatura.id;
-      checkoutUrl = await urlDaPrimeiraCobranca(assinatura.id);
-    } else {
-      const cobranca = await criarCobrancaAvulsa({
-        customerId: cliente.id, valorCentavos, billingType: metodo,
-        descricao, externalReference: inscricao.id,
-      });
-      asaasPaymentId = cobranca.id;
-      checkoutUrl = cobranca.invoiceUrl;
-    }
+    // Os dois ciclos criam assinatura. Anual em cobrança avulsa nasceria sem
+    // asaasSubscriptionId, e o cron emitiria cobrança mensal para quem pagou o
+    // ano — bloqueando pela régua em 15 dias um cliente adimplente.
+    const assinatura = await criarAssinatura({
+      customerId: cliente.id, valorCentavos, ciclo, billingType: metodo,
+      descricao, externalReference: inscricao.id,
+    });
+    const checkoutUrl = await urlDaPrimeiraCobranca(assinatura.id);
 
     await prismaUnscoped.inscricao.update({
       where: { id: inscricao.id },
-      data: { asaasCustomerId: cliente.id, asaasPaymentId, asaasSubscriptionId },
+      data: {
+        asaasCustomerId: cliente.id,
+        asaasSubscriptionId: assinatura.id,
+      },
     });
 
     // O Lead mantém o funil inteiro. Sem ele, todo cliente self-service some
@@ -1342,35 +1396,22 @@ export async function POST(req: NextRequest) {
 }
 ```
 
-E o auxiliar que cobre a incerteza da API, declarado no mesmo arquivo:
+E o auxiliar, no mesmo arquivo da rota. `listarCobrancasDaAssinatura` já existe:
+ela é produzida e testada na Task 6.
 
 ```ts
-/**
- * A URL onde o cliente digita o cartão da assinatura.
- *
- * Confirmar com a chave de sandbox se POST /subscriptions já devolve a
- * invoiceUrl da primeira cobrança. Enquanto não dá para confirmar, buscamos a
- * primeira cobrança da assinatura — caminho que funciona nos dois casos.
- */
+/** A URL onde o cliente paga a primeira cobrança da assinatura. */
 async function urlDaPrimeiraCobranca(subscriptionId: string): Promise<string> {
   const { data } = await listarCobrancasDaAssinatura(subscriptionId);
   const primeira = data[0];
   if (!primeira?.invoiceUrl) {
+    // Assinatura criada e nenhuma cobrança: não há para onde mandar o cliente.
+    // O catch acima solta o slug e devolve 502 — melhor que uma tela em branco.
     throw new Error(
       `Assinatura ${subscriptionId} criada sem cobrança: não há onde mandar o cliente pagar.`
     );
   }
   return primeira.invoiceUrl;
-}
-```
-
-Acrescentar `listarCobrancasDaAssinatura` ao cliente da Task 6:
-
-```ts
-export async function listarCobrancasDaAssinatura(
-  subscriptionId: string
-): Promise<{ data: { id: string; invoiceUrl: string }[] }> {
-  return chamar(`/subscriptions/${subscriptionId}/payments`);
 }
 ```
 
@@ -1683,6 +1724,8 @@ export async function POST(req: NextRequest) {
       diaVencimento,
       inicioCobranca: agora,
       ciclo: inscricao.ciclo,
+      // Sempre presente: os dois ciclos criam assinatura no Asaas. É este id
+      // que faz o cron pular a geração de cobrança para este cliente.
       asaasSubscriptionId: inscricao.asaasSubscriptionId,
     },
   });

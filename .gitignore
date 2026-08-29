@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# .env.example é versionado de propósito: é a lista de variáveis que o
+# projeto precisa (ver AGENTS.md, "Recuperar numa máquina zerada"). Nunca
+# pode conter valor real — só chave vazia ou placeholder.
+!.env.example
 
 # vercel
 .vercel

@@ -94,7 +94,13 @@ export function useChat(orderId: string, tenantId: string) {
     return () => { supabase.removeChannel(channel); };
   }, [orderId, tenantId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function sendMessage(content: string): Promise<boolean> {
+  /**
+   * `substituirId` é a mensagem que esta substitui — o caso do reenvio depois de
+   * uma falha. Sem ele, a bolha vermelha continuava na lista ao lado da nova: o
+   * cliente via o mesmo texto duas vezes, e a vermelha sobrevivia a todo
+   * polling, porque o merge de `fetchMessages` preserva `failed` para sempre.
+   */
+  async function sendMessage(content: string, substituirId?: string): Promise<boolean> {
     if (!content.trim()) return false;
 
     // Mensagem otimista — aparece imediatamente
@@ -111,7 +117,8 @@ export function useChat(orderId: string, tenantId: string) {
     };
 
     seenIds.current.add(tempId);
-    setMessages((prev) => [...prev, optimistic]);
+    if (substituirId) seenIds.current.delete(substituirId);
+    setMessages((prev) => [...prev.filter((m) => m.id !== substituirId), optimistic]);
     setSending(true);
 
     try {
