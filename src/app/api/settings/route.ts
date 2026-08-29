@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import { z } from "zod";
 
 const DELIVERY_TIME_KEY = "delivery_time_minutes";
 const DEFAULT_MINUTES = 45;
+
+const minutosSchema = z.object({
+  minutes: z.number().int().min(5).max(180),
+});
 
 export async function GET(req: NextRequest) {
   const tenantId = getTenantIdFromRequest(req);
@@ -30,11 +35,15 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    const { minutes } = await req.json() as { minutes: number };
-
-    if (typeof minutes !== "number" || minutes < 5 || minutes > 180) {
+    // Era `await req.json() as { minutes: number }` — cast de TypeScript, que
+    // não existe em runtime. Corpo `null` estourava ao desestruturar e virava
+    // 500; fracionado passava e voltava truncado pelo parseInt do fim. Mesmo
+    // conserto já aplicado em src/lib/business-hours.ts pelo mesmo motivo.
+    const parsed = minutosSchema.safeParse(await req.json());
+    if (!parsed.success) {
       return NextResponse.json({ error: "Tempo inválido (5–180 min)" }, { status: 400 });
     }
+    const { minutes } = parsed.data;
 
     const setting = await prisma.setting.upsert({
       where: { tenantId_key: { tenantId, key: DELIVERY_TIME_KEY } },

@@ -4,8 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { broadcastTenantEvent } from "@/lib/realtime";
 import { orderChannel, userChannel } from "@/lib/realtime-channel";
+import { z } from "zod";
 
 type Params = { params: Promise<{ id: string }> };
+
+// 2000 é o mesmo teto do histórico enviado à IA em /api/ai/menu-recommendation.
+// Mensagem de chat de pedido não chega perto disso; o limite existe para o
+// campo não ser um depósito de texto arbitrário no banco.
+const mensagemSchema = z.object({ content: z.string().max(2000) });
 
 export async function GET(req: NextRequest, { params }: Params) {
   const tenantId = getTenantIdFromRequest(req);
@@ -65,8 +71,14 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
     }
 
-    const body = await req.json();
-    const content = (body.content ?? "").trim();
+    // `(body.content ?? "").trim()` cobria só o campo ausente: `content: 123`
+    // chamava .trim() num número e derrubava a rota em 500. E o texto entrava no
+    // banco sem teto de tamanho — a única entrada livre do app sem limite.
+    const parsed = mensagemSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Mensagem inválida" }, { status: 400 });
+    }
+    const content = parsed.data.content.trim();
 
     if (!content) {
       return NextResponse.json({ error: "Mensagem vazia" }, { status: 400 });
