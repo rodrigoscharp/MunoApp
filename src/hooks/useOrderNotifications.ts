@@ -229,6 +229,22 @@ export function useOrderNotifications() {
       } catch {}
     }
 
+    /**
+     * Uma busca de chat por vez, em fila.
+     *
+     * Duas mensagens seguidas do restaurante disparam dois `chat-message` quase
+     * juntos. Rodando em paralelo, as duas buscas saem com o **mesmo** cursor —
+     * ele só avança depois da resposta — e as duas trazem a mesma mensagem. O
+     * `addChatNotification` deduplica a entrada do sino, mas o toast fica fora
+     * do dedup: o cliente via o mesmo aviso duas vezes. Encadeando, a segunda
+     * busca só sai com o cursor já avançado, e volta vazia.
+     */
+    let filaDeChat: Promise<void> = Promise.resolve();
+    function agendarBuscaDeChat() {
+      filaDeChat = filaDeChat.then(fetchChatMessages).catch(() => {});
+      return filaDeChat;
+    }
+
     async function fetchAndCompare() {
       try {
         const res = await fetch("/api/orders");
@@ -294,12 +310,12 @@ export function useOrderNotifications() {
       .on("broadcast", { event: "chat-message" }, ({ payload }) => {
         // Mensagem do próprio cliente não vira notificação para ele.
         if (payload.senderRole === "CUSTOMER") return;
-        fetchChatMessages();
+        agendarBuscaDeChat();
       })
       .subscribe();
 
     const poll = setInterval(fetchAndCompare, POLL_INTERVAL);
-    const chatPoll = setInterval(fetchChatMessages, POLL_INTERVAL);
+    const chatPoll = setInterval(agendarBuscaDeChat, POLL_INTERVAL);
 
     return () => {
       supabase.removeChannel(channel);
