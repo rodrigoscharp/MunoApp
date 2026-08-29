@@ -130,6 +130,12 @@ export function TableManager() {
         setNewName("");
         setAdding(false);
         await load();
+      } else {
+        // Sem isto o clique em "Criar mesa" não produzia efeito nenhum na tela:
+        // o servidor recusa com 409 e uma mensagem útil ("Já existe uma mesa com
+        // esse número") e ela era descartada, deixando o admin sem saber por quê.
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error ?? "Erro ao criar mesa");
       }
     } finally {
       setSaving(false);
@@ -209,6 +215,11 @@ export function TableManager() {
       toast.success("Conta fechada");
       const closedTableId = closeBillTable.id;
       setCloseBillTable(null);
+      // `openOrdersCount` e `openTotal` do card vêm de /api/tables, e ficavam
+      // congelados: depois de fechar, a mesa continuava anunciando "1 pedido em
+      // aberto · R$ 100,00" e o garçom achava que o fechamento não pegou.
+      // handleAdd e handleDelete já recarregavam; só o caminho do dinheiro não.
+      await load();
       if (ordersTable?.id === closedTableId) await loadTableOrders(closedTableId);
     } finally {
       setClosing(false);
