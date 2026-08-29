@@ -66,7 +66,13 @@ export function AdminOrdersTable({ orders }: { orders: Order[] }) {
     <>
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-4">
-        {(["ALL", "PENDING", "CONFIRMED", "IN_PREPARATION", "READY", "DELIVERED", "CANCELLED"] as const).map(
+        {/*
+          OUT_FOR_DELIVERY faltava aqui: a coluna de status sabe exibi-lo, mas não
+          havia botão para filtrá-lo, e o pedido em rua ficava inalcançável na
+          hora exata em que o cliente liga perguntando dele. É o mesmo esquecimento
+          que já tinha acontecido na lista de status aceitos pelo PATCH do pedido.
+        */}
+        {(["ALL", "PENDING", "CONFIRMED", "IN_PREPARATION", "READY", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"] as const).map(
           (s) => (
             <button
               key={s}
