@@ -362,7 +362,7 @@ enum LeadStatus {
 
 // Prospecção de restaurantes (CRM). tenantId é o vínculo com o cliente convertido, não um escopo multi-tenant
 model Lead {
-  id          String     @id @default(cuid())
+  id          String       @id @default(cuid())
   restaurante String
   contato     String?
   email       String?
@@ -370,7 +370,7 @@ model Lead {
   cidade      String?
   endereco    String?
   logoUrl     String?
-  origem      String     @default("manual")
+  origem      String       @default("manual")
   // Nulável e sem default: lead digitado à mão fica sem plano, e isso é
   // informação — significa "não perguntei", não "não quis". Um default faria o
   // CRM afirmar sobre todo lead histórico algo que ninguém perguntou.
@@ -378,15 +378,21 @@ model Lead {
   // e um enum transformaria a próxima mudança no select da landing em 400
   // silencioso, perdendo o lead.
   plano       String?
-  status      LeadStatus @default(NOVO)
+  status      LeadStatus   @default(NOVO)
   motivoPerda String?
-  tenantId    String?    @unique
-  tenant      Tenant?    @relation(fields: [tenantId], references: [id])
+  tenantId    String?      @unique
+  tenant      Tenant?      @relation(fields: [tenantId], references: [id])
+  // NÃO é @unique, ao contrário de tenantId: a mesma sessão pode gerar o lead
+  // de WhatsApp e o de checkout, e uma constraint aqui derrubaria o segundo
+  // create no meio de uma compra que já virou cobrança.
+  sessaoId    String?
+  sessao      SessaoFunil? @relation(fields: [sessaoId], references: [id])
   notas       LeadNote[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   @@index([status])
+  @@index([sessaoId])
 }
 
 model LeadNote {
@@ -397,6 +403,71 @@ model LeadNote {
   createdAt DateTime @default(now())
 
   @@index([leadId])
+}
+
+// Como uma pessoa chegou até aqui, antes de ela ser alguém.
+//
+// O id é o valor do cookie muno_s, plantado pelo proxy no host raiz. Sem
+// @default: quem gera é o proxy, e uma sessão com id inventado pelo banco não
+// casaria com cookie nenhum.
+//
+// Registro de plataforma, como Lead e Inscricao: sem tenantId, lido por
+// prismaUnscoped, fora de tenant-scoped-models.ts, com RLS sem policy.
+model SessaoFunil {
+  id          String        @id
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  // Só o host de origem, nunca a URL inteira: o caminho de onde a pessoa veio
+  // pode conter dado dela, e para saber "veio do Instagram" o host basta.
+  referrer    String?
+  dispositivo String?
+  eventos     EventoFunil[]
+  leads       Lead[]
+  inscricoes  Inscricao[]
+  createdAt   DateTime      @default(now())
+
+  @@index([createdAt])
+}
+
+enum TipoEvento {
+  VISITA
+  VIU_PRECO
+  CLICOU_ASSINAR
+  ABRIU_WHATSAPP
+  CHECKOUT_PASSO
+  CHECKOUT_CRIADO
+  PAGOU
+  PROVISIONADO
+  ABANDONOU
+}
+
+model EventoFunil {
+  id        String       @id @default(cuid())
+  // Nulável porque evento de servidor pode chegar sem sessão: quem comprou de
+  // um navegador que bloqueia cookie não tem sessaoId, e o evento ainda vale
+  // como contagem.
+  sessaoId  String?
+  sessao    SessaoFunil? @relation(fields: [sessaoId], references: [id])
+  tipo      TipoEvento
+  detalhe   String?
+  createdAt DateTime     @default(now())
+
+  @@index([createdAt])
+  @@index([sessaoId])
+  @@index([tipo, createdAt])
+}
+
+// O que sobra depois do expurgo dos 90 dias, e o que sustenta a série
+// histórica. A chave composta é o que torna o resumo idempotente: o cron
+// rodando duas vezes no mesmo dia soma no lugar de duplicar.
+model ResumoDiario {
+  dia    DateTime   @db.Date
+  tipo   TipoEvento
+  origem String
+  n      Int
+
+  @@id([dia, tipo, origem])
 }
 
 enum AssinaturaStatus {
@@ -497,10 +568,13 @@ model Inscricao {
   // vencida — apagar, e não marcar, porque enquanto a linha existir o
   // slug @unique continua segurando o nome.
   expiraEm            DateTime
+  sessaoId            String?
+  sessao              SessaoFunil?    @relation(fields: [sessaoId], references: [id])
   tenantId            String?         @unique
   tenant              Tenant?         @relation(fields: [tenantId], references: [id])
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
 
   @@index([status])
+  @@index([sessaoId])
 }
