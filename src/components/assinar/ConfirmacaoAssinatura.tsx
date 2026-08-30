@@ -3,23 +3,25 @@
 import { useEffect, useState } from "react";
 
 /**
- * Fecha a janela entre pagar e ter o restaurante.
+ * O desfecho da compra, na volta do gateway.
  *
- * A página de obrigado não pode afirmar que ficou pronto: quando o cliente
- * chega nela, o webhook do Asaas pode não ter sido entregue ainda, e mandá-lo
- * tentar entrar produziria um endereço em 404. Então ela pergunta — uma vez,
- * ao montar — e só troca a mensagem quando a resposta é boa.
+ * Dois estados, e eles não são "carregando" e "pronto": são a casa antes e
+ * depois de abrir. O que a pessoa acabou de comprar é um endereço, que é o
+ * letreiro do restaurante dela, então o painel mostra o letreiro apagado
+ * enquanto o provisionamento não confirma e aceso quando confirma.
  *
- * O `id` vem da URL montada pelo próprio gateway. Ele não autoriza nada: a
- * rota o usa só para saber QUAL inscrição verificar, e quem decide se
- * provisiona é o Asaas. Ver o comentário em /api/assinar/reconciliar.
+ * O texto NÃO afirma que está pronto no primeiro estado, e essa é a decisão
+ * central da tela: quando o cliente chega aqui o webhook pode não ter sido
+ * entregue ainda. Dizer "seu restaurante está no ar" e mandá-lo entrar
+ * produziria um endereço que responde 404, o que é pior que não dizer nada.
  *
- * Falha silenciosa de propósito: o job diário é a rede atrás desta. Mostrar
- * erro aqui assustaria quem acabou de pagar por um problema que provavelmente
- * já vai estar resolvido quando o e-mail chegar.
+ * O `?i=` que o gateway devolve é o id da Inscricao e serve para UMA coisa:
+ * dizer qual registro verificar. Ele não autoriza nada — quem decide se o
+ * restaurante nasce é o Asaas, consultado do nosso lado. Sem ele a página
+ * continua correta, só nunca sai do letreiro apagado.
  */
 export function ConfirmacaoAssinatura({ inscricaoId }: { inscricaoId?: string }) {
-  const [url, setUrl] = useState<string | null>(null);
+  const [casa, setCasa] = useState<{ nome: string; url: string } | null>(null);
 
   useEffect(() => {
     if (!inscricaoId) return;
@@ -33,45 +35,77 @@ export function ConfirmacaoAssinatura({ inscricaoId }: { inscricaoId?: string })
     })
       .then((res) => res.json())
       .then((body) => {
-        if (body?.provisionada && typeof body.url === "string") setUrl(body.url);
+        if (body?.provisionada && typeof body.url === "string") {
+          setCasa({ nome: body.nome ?? "", url: body.url });
+        }
       })
       .catch(() => {});
 
     return () => controller.abort();
   }, [inscricaoId]);
 
-  // O título faz parte do desfecho, não da moldura: dizer "estamos montando"
-  // acima de "já está no ar" seria contradizer a própria página.
-  if (!url) {
-    return (
-      <>
-        <h1 className="text-xl font-bold text-neutral-900">
-          Pagamento recebido. Estamos montando seu restaurante.
-        </h1>
-        <p className="mt-4 text-sm text-neutral-600">
-        Em alguns minutos você recebe um e-mail com o endereço do seu cardápio e
-          um link para criar sua senha. É por ele que você entra pela primeira
-          vez.
-        </p>
-      </>
-    );
-  }
+  const aceso = casa !== null;
+  // Sem o protocolo: é o endereço como a pessoa vai dizer para os clientes
+  // dela, não como o navegador escreve.
+  const endereco = casa?.url.replace(/^https?:\/\//, "") ?? "";
+  // Quebra no primeiro ponto, e não onde couber. Um `break-all` parte no meio
+  // da palavra ("cantina-da-ana.local / host:3000"), que é ilegível e ainda
+  // sugere um endereço que não existe. Separado assim, o nome da casa fica
+  // grande e o domínio recua para o tamanho de rodapé de letreiro — que é a
+  // hierarquia real: o que muda de cliente para cliente é o nome.
+  const corte = endereco.indexOf(".");
+  const nomeNoLetreiro = corte === -1 ? endereco : endereco.slice(0, corte);
+  const dominio = corte === -1 ? "" : endereco.slice(corte);
 
   return (
     <>
-      <h1 className="text-xl font-bold text-neutral-900">
-        Pronto! Seu restaurante está no ar.
+      <div className="overflow-hidden rounded-3xl bg-forest-dark px-6 py-11 text-center sm:px-10 sm:py-14">
+        {aceso ? (
+          <>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/45">
+              Sua casa está no ar
+            </p>
+            {/* O endereço é o troféu da tela: é o que a pessoa vai digitar,
+                mandar no WhatsApp e imprimir no cardápio. */}
+            <p className="letreiro-acende mt-4">
+              <span className="display letreiro block break-words text-[1.75rem] leading-tight text-brand sm:text-[2.25rem]">
+                {nomeNoLetreiro}
+              </span>
+              {dominio && (
+                <span className="mt-1 block text-sm font-medium tracking-wide text-brand/70">
+                  {dominio}
+                </span>
+              )}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/45">
+              Acendendo as luzes
+            </p>
+            {/* Letreiro ainda sem texto: o endereço só é conhecido quando o
+                provisionamento confirma, e a rota não confirma nem nega a
+                existência do id antes disso. As três marcas seguram o lugar
+                dele sem inventar um endereço que talvez não exista. */}
+            <p className="letreiro-espera mt-5 flex justify-center gap-2" aria-hidden="true">
+              {[0, 1, 2].map((i) => (
+                <span key={i} className="h-2.5 w-2.5 rounded-full bg-brand" />
+              ))}
+            </p>
+          </>
+        )}
+      </div>
+
+      <h1 className="display mt-8 text-2xl leading-tight text-forest-dark">
+        {aceso && casa.nome ? `Pronto, ${casa.nome}.` : "Pagamento confirmado."}
+        <br />
+        {aceso ? "Seu restaurante abriu." : "Estamos montando seu restaurante."}
       </h1>
-      <p className="mt-4 text-sm text-neutral-600">
-        Ele fica em{" "}
-        <a href={url} className="font-semibold text-brand hover:underline">
-          {url.replace(/^https?:\/\//, "")}
-        </a>
-        .
-      </p>
-      <p className="mt-2 text-sm text-neutral-600">
-        O e-mail com o link para criar sua senha está a caminho — é por ele que
-        você entra pela primeira vez.
+
+      <p className="mt-4 text-sm leading-relaxed text-neutral-600">
+        {aceso
+          ? "O e-mail com o link para criar sua senha está a caminho. É por ele que você entra pela primeira vez."
+          : "Em alguns minutos você recebe um e-mail com o endereço do seu cardápio e um link para criar sua senha. É por ele que você entra pela primeira vez."}
       </p>
     </>
   );

@@ -8,16 +8,9 @@ import { ConfirmacaoAssinatura } from "@/components/assinar/ConfirmacaoAssinatur
  * de volta era o e-mail de boas-vindas, que só sai depois de o webhook
  * chegar.
  *
- * Ela NÃO afirma que o restaurante está pronto, e essa é a decisão central:
- * quando o cliente chega aqui, o webhook pode não ter sido entregue ainda.
- * Afirmar "seu restaurante está no ar" e mandá-lo tentar entrar produziria um
- * endereço que ainda dá 404 — pior que não dizer nada. O texto descreve o que
- * vem a seguir e assume que pode demorar.
- *
- * O `?i=` que o gateway devolve é o id da Inscricao, e serve para UMA coisa:
- * dizer qual registro verificar. Ele não autoriza nada — quem decide se o
- * restaurante nasce é o Asaas, consultado do nosso lado. Sem ele, a página
- * continua correta, só não consegue antecipar o desfecho.
+ * A moldura fica aqui e o desfecho vive no ConfirmacaoAssinatura, porque é ele
+ * que sabe se o restaurante já nasceu. Ver lá o porquê de a tela não afirmar
+ * que está pronto antes de ter certeza.
  */
 export default async function ObrigadoPage({
   searchParams,
@@ -25,28 +18,33 @@ export default async function ObrigadoPage({
   searchParams: Promise<{ i?: string }>;
 }) {
   const { i } = await searchParams;
-  return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col items-center px-4 py-10">
-      <div className="w-full max-w-md">
-        <div className="flex justify-center mb-8">
-          <Image
-            src="/munowbg.png"
-            alt="Muno"
-            width={160}
-            height={60}
-            className="h-14 w-auto object-contain"
-          />
-        </div>
 
-        <div className="bg-white border border-neutral-200 rounded-2xl p-6">
+  return (
+    <div className="flex min-h-screen flex-col items-center bg-brand-light px-4 py-10 sm:py-14">
+      <div className="mb-9 flex justify-center">
+        <Image
+          src="/munowbg.png"
+          alt="Muno"
+          width={160}
+          height={60}
+          className="h-16 w-auto object-contain"
+          priority
+        />
+      </div>
+
+      <div className="w-full max-w-md">
+        <div className="rounded-3xl border border-neutral-200/80 bg-white p-6 shadow-[0_1px_2px_rgba(30,61,47,0.04),0_12px_32px_-12px_rgba(30,61,47,0.14)] sm:p-8">
           <ConfirmacaoAssinatura inscricaoId={i} />
 
-          <div className="mt-6 rounded-xl bg-neutral-50 border border-neutral-200 p-4">
-            <p className="text-sm text-neutral-600">
-              <strong className="text-neutral-900">Não chegou?</strong> Confira
-              o spam e aguarde alguns minutos. Se ainda assim não aparecer,
-              chame a gente no WhatsApp — seu pagamento já está registrado e
-              resolvemos na hora.
+          {/* O único caminho de saída que a tela oferece, e de propósito: o
+              próximo passo real está no e-mail, então o que sobra aqui é
+              resolver o e-mail que não chegou. */}
+          <div className="mt-8 rounded-2xl bg-forest-light/60 p-4">
+            <p className="text-sm leading-relaxed text-forest-dark">
+              <strong className="font-semibold">Não chegou?</strong> Confira o
+              spam e aguarde alguns minutos. Se ainda assim não aparecer, chame
+              a gente no WhatsApp. Seu pagamento já está registrado e resolvemos
+              na hora.
             </p>
             <a
               href="https://wa.me/5512996419003"
@@ -55,11 +53,11 @@ export default async function ObrigadoPage({
               Falar no WhatsApp
             </a>
           </div>
-
-          <p className="mt-6 text-xs text-neutral-400">
-            Você pode fechar esta página. O e-mail chega de qualquer forma.
-          </p>
         </div>
+
+        <p className="mt-6 text-center text-xs text-neutral-500">
+          Você pode fechar esta página. O e-mail chega de qualquer forma.
+        </p>
       </div>
     </div>
   );

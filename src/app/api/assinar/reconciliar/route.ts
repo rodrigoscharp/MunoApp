@@ -60,7 +60,12 @@ export async function POST(req: NextRequest) {
   // consultar o gateway nem tentar provisionar de novo.
   if (inscricao.status === "PROVISIONADA") {
     return NextResponse.json({
+      // O nome vai junto para a tela poder dizer "Pronto, Cantina da Ana" em
+      // vez de um "Pronto!" que serve para qualquer um. É o dado que a pessoa
+      // digitou no checkout, devolvido a ela no momento em que a compra
+      // vira restaurante.
       provisionada: true,
+      nome: inscricao.nome,
       url: buildTenantBaseUrl(inscricao.slug),
     });
   }
@@ -82,7 +87,12 @@ export async function POST(req: NextRequest) {
     );
 
     return NextResponse.json({
+      // O nome vai junto para a tela poder dizer "Pronto, Cantina da Ana" em
+      // vez de um "Pronto!" que serve para qualquer um. É o dado que a pessoa
+      // digitou no checkout, devolvido a ela no momento em que a compra
+      // vira restaurante.
       provisionada: true,
+      nome: inscricao.nome,
       url: buildTenantBaseUrl(inscricao.slug),
     });
   } catch (erro) {
