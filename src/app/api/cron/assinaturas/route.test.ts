@@ -589,17 +589,39 @@ describe("POST /api/cron/assinaturas — lead do checkout abandonado", () => {
     );
   });
 
-  // Um lead que já virou cliente não volta atrás por causa de um relógio, e um
-  // que você moveu à mão não é sobrescrito.
-  it("não toca em lead já fechado", async () => {
-    inscricaoFindMany.mockResolvedValue([candidata()]);
+  // sessaoId nulo é o caso de quem bloqueia cookie ou comprou antes desta
+  // instrumentação existir. O evento ainda vale como contagem, mas não há
+  // sessão por onde achar o lead: fechar "algum" lead aqui seria chutar.
+  it("inscrição sem sessão registra o abandono e não mexe em lead nenhum", async () => {
+    inscricaoFindMany.mockResolvedValue([candidata({ sessaoId: null })]);
     inscricaoDeleteMany.mockResolvedValue({ count: 1 });
 
     await POST(requisicao());
 
-    const where = leadUpdateMany.mock.calls[0][0].where;
-    expect(where.status).toEqual({ notIn: ["FECHADO", "PERDIDO"] });
-    expect(where.tenantId).toBeNull();
+    expect(eventoCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sessaoId: null, tipo: "ABANDONOU" }),
+      })
+    );
+    expect(leadUpdateMany).not.toHaveBeenCalled();
+  });
+
+  // O webhook pode não ter chegado ainda. Fechar como perdido o lead de quem
+  // pagou é o pior erro possível deste job, e é o que o filtro por
+  // paraApagar existe para impedir.
+  it("inscrição vencida COM pagamento confirmado não vira abandono", async () => {
+    inscricaoFindMany.mockResolvedValue([
+      candidata({ asaasSubscriptionId: "sub_1" }),
+    ]);
+    temPagamentoConfirmado.mockResolvedValue(true);
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await POST(requisicao());
+
+    expect(eventoCreate).not.toHaveBeenCalled();
+    expect(leadUpdateMany).not.toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
   });
 });
 
