@@ -84,6 +84,40 @@ export const PLANO_LABELS: Record<PlanoTenant, string> = {
   MEMBRO_MESA_QR: "Membro + Mesas QR",
 };
 
+/**
+ * O que cada plano entrega, na ordem em que a landing anuncia.
+ *
+ * Fonte única pelo mesmo motivo de PRECOS, e com o mesmo teste: a tela de
+ * /assinar lista isto ao lado do formulário, e uma segunda cópia divergiria da
+ * página de vendas do jeito que 99,99 e 99 divergiram antes de 26/08/2026. A
+ * diferença é que preço errado alguém percebe na fatura, e benefício errado
+ * vira promessa que o produto não cumpre — descoberta pelo cliente, depois de
+ * pagar.
+ *
+ * `plans.test.ts` confere cada string contra public/vendas/index.html, então
+ * mexer aqui sem mexer lá (ou o contrário) quebra o teste. Texto novo precisa
+ * casar com o da landing ao pé da letra, ignorada só a quebra de linha.
+ *
+ * Este arquivo é importado por Client Component (ConverterLead.tsx já importa
+ * PRECOS): nada aqui pode puxar Prisma nem nada de servidor.
+ */
+export const PLANO_BENEFICIOS: Record<PlanoTenant, readonly string[]> = {
+  MEMBRO: [
+    "Produtos ilimitados",
+    "Painel financeiro completo",
+    "Suporte prioritário via WhatsApp",
+    "Relatórios de venda em tempo real",
+    "Link personalizado",
+    "Pedidos ilimitados",
+  ],
+  MEMBRO_MESA_QR: [
+    "Tudo do Membro MUNO",
+    "QR Code de mesa",
+    "Cliente pede e paga direto da mesa",
+    "Sem garçom, sem fila, sem erro de anotação",
+  ],
+};
+
 // Fail-closed: header ausente ou com um valor que este código não reconhece
 // vira MEMBRO, nunca a feature paga. Isso cobre tanto uma request que por
 // algum motivo não passou pelo proxy quanto uma versão futura do enum que
