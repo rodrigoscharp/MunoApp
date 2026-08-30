@@ -70,10 +70,26 @@ export async function POST(req: NextRequest) {
   }
   const { nome, email, slug, cpfCnpj, plano, ciclo, metodo } = parsed.data;
 
-  // Nulo quando o navegador bloqueia cookie, e isso é aceitável: a compra
-  // acontece igual e o cliente aparece como origem desconhecida, que é
-  // informação. Um campo obrigatório aqui trocaria receita por relatório.
-  const sessaoId = req.cookies.get(COOKIE_SESSAO)?.value ?? null;
+  // A FK de Inscricao.sessaoId aponta para SessaoFunil, e a linha da sessão só
+  // nasce quando um evento chega em /api/funil/evento. Quem abre /assinar
+  // direto, de um anúncio, tem o cookie que o proxy plantou e nenhuma linha no
+  // banco: referenciar esse id sem garanti-lo derruba a compra com P2003.
+  //
+  // Falhar aqui degrada para "origem desconhecida", nunca para 500. Uma tabela
+  // de relatório não pode ter poder de veto sobre a venda.
+  let sessaoId = req.cookies.get(COOKIE_SESSAO)?.value ?? null;
+  if (sessaoId) {
+    try {
+      await prismaUnscoped.sessaoFunil.upsert({
+        where: { id: sessaoId },
+        create: { id: sessaoId },
+        update: {},
+      });
+    } catch (erro) {
+      console.error("[assinar] não foi possível garantir a sessão do funil", erro);
+      sessaoId = null;
+    }
+  }
 
   // Mensal em PIX não existe: o Asaas só cobra sozinho no cartão. Assinatura
   // mensal em PIX geraria um QR novo a cada mês para o cliente pagar na mão
@@ -182,16 +198,6 @@ export async function POST(req: NextRequest) {
         sessaoId,
       },
     });
-
-    // Mesma posição do Lead, e pelo mesmo motivo: antes do Asaas e fora do
-    // try que fala com o gateway. Se estivesse lá dentro, uma falha ao gravar
-    // evento acionaria o catch que apaga a Inscricao, com a cobrança viva do
-    // outro lado, e o cliente pagaria por um restaurante que nunca nasce.
-    await registrarEvento(prismaUnscoped, {
-      sessaoId,
-      tipo: "CHECKOUT_CRIADO",
-      detalhe: `${plano}/${ciclo}/${metodo}`,
-    });
   } catch (err) {
     // Não-fatal, no mesmo espírito do vínculo de lead em
     // src/app/api/platform/leads/[id]/converter/route.ts: o que importa
@@ -199,6 +205,25 @@ export async function POST(req: NextRequest) {
     // Perder a foto do CRM não pode derrubar o checkout do cliente.
     console.error(
       `Falha ao gravar o Lead da inscrição ${inscricao.id} (${email}):`,
+      err
+    );
+  }
+
+  // Try irmão do Lead, não o mesmo bloco: se os dois dividissem um catch, uma
+  // falha no Lead levaria o evento junto, e o funil perderia o registro do
+  // checkout de quem comprou de verdade. registrarEvento já não propaga
+  // sozinha (ver src/lib/funil/registrar.ts), mas o try aqui é a garantia de
+  // que isso continua true mesmo se essa regra mudar — nenhum dos dois
+  // relatórios pode derrubar o outro, nem o Asaas logo abaixo.
+  try {
+    await registrarEvento(prismaUnscoped, {
+      sessaoId,
+      tipo: "CHECKOUT_CRIADO",
+      detalhe: `${plano}/${ciclo}/${metodo}`,
+    });
+  } catch (err) {
+    console.error(
+      `Falha ao registrar CHECKOUT_CRIADO da inscrição ${inscricao.id}:`,
       err
     );
   }

@@ -127,7 +127,11 @@ export async function POST(req: NextRequest) {
   // Asaas reentregar, este evento já registrou que o dinheiro entrou, que é
   // exatamente o que você quer enxergar quando o restaurante não nasceu.
   //
-  // A guarda de idempotência acima é o que evita um PAGOU por reentrega.
+  // A guarda de idempotência acima só evita duplicata DEPOIS que o
+  // provisionamento completa (ela olha inscricao.status === "PROVISIONADA").
+  // Enquanto ele não completar, cada reentrega do Asaas passa por aqui de
+  // novo e gera outro PAGOU — ruído aceitável perto do risco oposto, que é
+  // ficar sem nenhum registro de que o dinheiro entrou.
   await registrarEvento(prismaUnscoped, {
     sessaoId: inscricao.sessaoId,
     tipo: "PAGOU",

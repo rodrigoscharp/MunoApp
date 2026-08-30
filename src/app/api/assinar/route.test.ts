@@ -16,6 +16,7 @@ const inscricaoUpdate = vi.fn();
 const inscricaoDelete = vi.fn();
 const leadCreate = vi.fn();
 const eventoFunilCreate = vi.fn();
+const sessaoUpsert = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
@@ -33,6 +34,12 @@ vi.mock("@/lib/prisma", () => ({
     },
     eventoFunil: {
       create: (...args: unknown[]) => eventoFunilCreate(...args),
+    },
+    // A rota garante a SessaoFunil (upsert) antes de referenciar o
+    // sessaoId em Inscricao/Lead — é o que impede a FK de derrubar o
+    // checkout de quem chega com cookie e nenhuma sessão gravada ainda.
+    sessaoFunil: {
+      upsert: (...args: unknown[]) => sessaoUpsert(...args),
     },
   },
 }));
@@ -117,6 +124,7 @@ beforeEach(() => {
   inscricaoDelete.mockResolvedValue({});
   leadCreate.mockResolvedValue({ id: "lead-1" });
   eventoFunilCreate.mockResolvedValue({ id: "evento-1" });
+  sessaoUpsert.mockResolvedValue({ id: "sessao-1" });
   criarCliente.mockResolvedValue({ id: "cus_123" });
   criarAssinatura.mockResolvedValue({ id: "sub_123" });
   listarCobrancasDaAssinatura.mockResolvedValue({
@@ -494,6 +502,35 @@ describe("POST /api/assinar", () => {
   // impede um bloqueador de anúncios de virar erro 500 no meio da compra.
   it("compra sem cookie nenhum continua funcionando", async () => {
     const res = await POST(requisicao(corpoValido()));
+
+    expect(res.status).toBe(201);
+    expect(inscricaoCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sessaoId: null }),
+      })
+    );
+  });
+
+  // A propriedade mais cara do arquivo inteiro: relatório de funil não pode
+  // ter poder de veto sobre uma venda. Se isto voltasse a propagar, o teste
+  // capturaria a rejeição (o POST lançaria) e a asserção de 201 falharia.
+  it("falha ao gravar evento não derruba o checkout", async () => {
+    eventoFunilCreate.mockRejectedValue(new Error("banco fora do ar"));
+
+    const res = await POST(requisicao(corpoValido(), { cookie: "muno_s=sessao-1" }));
+
+    expect(res.status).toBe(201);
+    expect(inscricaoDelete).not.toHaveBeenCalled();
+  });
+
+  // Mesma garantia acima, para o upsert que existe só para não violar a FK
+  // de Inscricao.sessaoId: se ele falhar (banco fora do ar, sessão
+  // corrompida, o que for), a compra segue — só perde a origem, não o
+  // pagamento.
+  it("falha ao garantir a sessão não derruba o checkout, só perde a origem", async () => {
+    sessaoUpsert.mockRejectedValue(new Error("banco fora do ar"));
+
+    const res = await POST(requisicao(corpoValido(), { cookie: "muno_s=sessao-1" }));
 
     expect(res.status).toBe(201);
     expect(inscricaoCreate).toHaveBeenCalledWith(
