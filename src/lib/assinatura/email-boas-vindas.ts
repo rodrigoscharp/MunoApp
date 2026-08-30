@@ -72,7 +72,17 @@ export async function enviarBoasVindas(input: {
   // precisa cair no host do restaurante, não no da plataforma, senão o
   // token chega numa origem onde a sessão dele não vale.
   const base = buildTenantBaseUrl(input.slug);
-  const link = `${base}/redefinir-senha?token=${token.token}`;
+  // `novo=1` diz à tela de senha que quem chega aqui está entrando pela
+  // primeira vez, não recuperando uma conta. A mesma tela serve os dois
+  // caminhos, e sem a marca ela recebe um cliente que acabou de pagar com
+  // "crie uma NOVA senha para sua conta" — palavra errada para quem nunca
+  // teve uma, na primeira tela do produto que ele vê.
+  //
+  // Vai na query string, e não no banco, porque é exatamente tão confiável
+  // quanto o token ao lado: um cliente de e-mail que cortasse parâmetros
+  // levaria o token junto e o link não funcionaria de forma alguma. E errar
+  // esta marca só troca uma saudação, nunca concede acesso.
+  const link = `${base}/redefinir-senha?token=${token.token}&novo=1`;
 
   const nome = escapeHtml(input.nome);
   const email = escapeHtml(input.email);

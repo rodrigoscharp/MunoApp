@@ -62,6 +62,18 @@ describe("e-mail de boas-vindas", () => {
     expect(html).toContain("pizzaria.munoapp.com.br/redefinir-senha?token=");
   });
 
+  // A mesma tela serve o "esqueci minha senha", e sem esta marca ela recebe
+  // quem acabou de comprar com "crie uma NOVA senha para sua conta" — palavra
+  // errada para quem nunca teve uma, na primeira tela do produto que ela vê.
+  it("marca o link como primeiro acesso", async () => {
+    await enviarBoasVindas({
+      tenantId: "t1", slug: "pizzaria", email: "a@b.c", nome: "Pizzaria",
+    });
+
+    const { html } = enviarEmail.mock.calls[0][0];
+    expect(html).toContain("novo=1");
+  });
+
   it("usa o token gravado no banco, não um valor inventado", async () => {
     tokenCreate.mockResolvedValue({ token: "abc-123-especifico" });
 
