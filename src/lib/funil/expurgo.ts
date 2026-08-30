@@ -53,40 +53,52 @@ export async function expurgarEventos(
       },
     });
 
-    if (antigos.length === 0) return { resumidos: 0, apagados: 0 };
+    let resumidos = 0;
+    let apagados = 0;
 
-    const linhas = resumir(
-      antigos.map((e) => ({
-        tipo: e.tipo,
-        createdAt: e.createdAt,
-        origem: e.sessao?.utmSource ?? null,
-      }))
-    );
+    if (antigos.length > 0) {
+      const linhas = resumir(
+        antigos.map((e) => ({
+          tipo: e.tipo,
+          createdAt: e.createdAt,
+          origem: e.sessao?.utmSource ?? null,
+        }))
+      );
 
-    for (const linha of linhas) {
-      // increment, e não set: o cron rodando duas vezes no mesmo dia soma no
-      // lugar de duplicar, e um dia parcialmente resumido numa passada
-      // anterior é completado, nunca substituído.
-      await tx.resumoDiario.upsert({
-        where: {
-          dia_tipo_origem: {
-            dia: linha.dia,
-            tipo: linha.tipo,
-            origem: linha.origem,
+      for (const linha of linhas) {
+        // increment, e não set: o cron rodando duas vezes no mesmo dia soma no
+        // lugar de duplicar, e um dia parcialmente resumido numa passada
+        // anterior é completado, nunca substituído.
+        await tx.resumoDiario.upsert({
+          where: {
+            dia_tipo_origem: {
+              dia: linha.dia,
+              tipo: linha.tipo,
+              origem: linha.origem,
+            },
           },
-        },
-        create: linha,
-        update: { n: { increment: linha.n } },
+          create: linha,
+          update: { n: { increment: linha.n } },
+        });
+      }
+
+      const resultado = await tx.eventoFunil.deleteMany({
+        where: { createdAt: { lt: limite } },
       });
+
+      resumidos = linhas.length;
+      apagados = resultado.count;
     }
 
-    const { count } = await tx.eventoFunil.deleteMany({
-      where: { createdAt: { lt: limite } },
-    });
-
-    // Sessão de visitante que nunca voltou não precisa viver para sempre: o
-    // que ela representa já está no resumo. Só as que ficaram sem evento, sem
-    // lead e sem inscrição — as outras são a costura de alguém que comprou.
+    // Fora do if de propósito: a sessão órfã é medida pelo createdAt dela, não
+    // pelo dos eventos — as duas checagens são independentes. Amarrar esta
+    // faxina à existência de evento velho a desligaria justamente no caso que
+    // ela existe para pegar, o visitante que saiu antes de qualquer evento ser
+    // registrado (cookie plantado, checkout aberto direto). Sessão de
+    // visitante que nunca voltou não precisa viver para sempre — o que ela
+    // representa já está no resumo, quando há resumo. Só as que ficaram sem
+    // evento, sem lead e sem inscrição: as outras são a costura de alguém que
+    // comprou.
     await tx.sessaoFunil.deleteMany({
       where: {
         createdAt: { lt: limite },
@@ -96,6 +108,6 @@ export async function expurgarEventos(
       },
     });
 
-    return { resumidos: linhas.length, apagados: count };
+    return { resumidos, apagados };
   });
 }
