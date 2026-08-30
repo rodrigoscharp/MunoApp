@@ -276,6 +276,24 @@ export default auth(async (req) => {
   // cookie velho por um bom. A única saída era limpar cookie na mão.
   const isAuthApi = nextUrl.pathname.startsWith("/api/auth/");
 
+  // As telas de senha respondem com qualquer cookie no navegador, ou nenhum, e
+  // NÃO entram em isAuthRoute de propósito.
+  //
+  // Precisam do primeiro porque são a porta de quem acabou de pagar: o e-mail
+  // de boas-vindas manda para /redefinir-senha, e quem chega ali ainda não tem
+  // senha. Mandar essa pessoa para /login é trancá-la do lado de fora — a
+  // única porta que ela tem passa a exigir justamente a credencial que ela
+  // veio criar. Basta ela já ser dona de outro restaurante na Muno, ou ter o
+  // cookie de um tenant recriado, para cair nisso.
+  //
+  // E não podem entrar em isAuthRoute porque aquele grupo expulsa quem já tem
+  // sessão válida (o redirect para "/" logo abaixo). Quem está logado neste
+  // mesmo tenant e pediu troca de senha precisa chegar na tela, não voltar
+  // para a home no meio da troca.
+  const isSenhaRoute =
+    nextUrl.pathname === "/redefinir-senha" ||
+    nextUrl.pathname === "/esqueci-senha";
+
   // Sessão criada em outro subdomínio/tenant não é válida aqui (ex.: o tenant
   // foi recriado/resetado e o JWT antigo no navegador ainda referencia o id
   // velho). NÃO dá pra confiar em limpar o cookie aqui: o wrapper auth() do
@@ -286,7 +304,7 @@ export default auth(async (req) => {
   // bateria de novo lá) ou que o bounce pro "/" abaixo reabra o loop.
   const tenantMismatch = !!session && session.user.tenantId !== tenant.id;
 
-  if (tenantMismatch && !isAuthRoute && !isAuthApi) {
+  if (tenantMismatch && !isAuthRoute && !isAuthApi && !isSenhaRoute) {
     return NextResponse.redirect(urlNoHost("/login"));
   }
 
