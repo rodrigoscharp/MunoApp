@@ -109,7 +109,7 @@ describe("os modelos do funil são registro de plataforma", () => {
   // plataforma entrando nela ganharia um filtro por um tenant que não existe,
   // e passaria a devolver nada.
   it.each(MODELOS_DO_FUNIL)("%s fica fora de TENANT_SCOPED_MODELS", (nome) => {
-    expect(TENANT_SCOPED_MODELS).not.toContain(nome);
+    expect([...TENANT_SCOPED_MODELS]).not.toContain(nome);
   });
 
   // A trava que mais importa. `anon` e `authenticated` recebem CRUD em todo o
@@ -704,7 +704,7 @@ Modify `src/proxy.test.ts`. Dentro do `describe("proxy: o domínio raiz serve a 
 
     expect(cookieDe(res)).toMatch(/muno_s=[0-9a-f-]{36}/);
     expect(cookieDe(res)).toContain("HttpOnly");
-    expect(cookieDe(res)).toContain("SameSite=lax");
+    expect(cookieDe(res)).toMatch(/samesite=lax/i);
   });
 
   // O checkout é o outro lado do mesmo funil e mora no mesmo host. Quem chega
@@ -718,8 +718,14 @@ Modify `src/proxy.test.ts`. Dentro do `describe("proxy: o domínio raiz serve a 
   // Reescrever o valor a cada visita mataria a sessão e transformaria um
   // visitante recorrente em vários, deflacionando toda taxa de conversão.
   it("não reescreve o cookie que já veio na requisição", async () => {
-    const req = requisicaoRaiz("/");
-    req.headers.set("cookie", "muno_s=ja-existente");
+    // O cookie vai no construtor, e não num headers.set() depois: o
+    // NextRequest parseia os cookies na construção, e mutar o header adiante
+    // deixaria req.cookies vazio — o teste passaria por engano, afirmando o
+    // contrário do que quer afirmar.
+    const req = new NextRequest(`http://${RAIZ}/`, {
+      headers: { host: RAIZ, cookie: "muno_s=ja-existente" },
+    });
+    (req as unknown as { auth: Sessao }).auth = null;
 
     const res = await proxy(req);
 
@@ -837,7 +843,7 @@ Expected: PASS no arquivo inteiro, inclusive os testes antigos. O `não resolve 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/proxy.ts src/proxy.test.ts src/lib/funil/cookie.ts
+git add src/proxy.ts src/proxy.test.ts
 git commit -m "O proxy planta a sessão anônima no raiz, e não fala com o banco"
 ```
 
@@ -863,7 +869,7 @@ Sem teste próprio: ele é uma linha de `create` embrulhada num `catch`, e o que
 Create `src/lib/funil/registrar.ts`:
 
 ```ts
-import type { TipoEvento } from "@prisma/client";
+import type { Prisma, TipoEvento } from "@prisma/client";
 
 /**
  * O único ponto que escreve EventoFunil, e o único que decide que gravar
@@ -872,18 +878,13 @@ import type { TipoEvento } from "@prisma/client";
  * Aceita tanto prismaUnscoped quanto o `tx` de uma transação, porque o
  * PROVISIONADO precisa nascer dentro da transação que cria a assinatura, e o
  * CHECKOUT_CRIADO precisa nascer fora de qualquer uma.
+ *
+ * O tipo é derivado do Prisma, e não escrito à mão: uma interface estrutural
+ * com a assinatura simplificada de `create` NÃO aceita o PrismaClient real,
+ * porque o create dele é genérico. Pick sobre TransactionClient é satisfeito
+ * pelos dois, que é exatamente o que esta função precisa.
  */
-export type ClienteDeEvento = {
-  eventoFunil: {
-    create(args: {
-      data: {
-        sessaoId: string | null;
-        tipo: TipoEvento;
-        detalhe: string | null;
-      };
-    }): Promise<unknown>;
-  };
-};
+export type ClienteDeEvento = Pick<Prisma.TransactionClient, "eventoFunil">;
 
 export async function registrarEvento(
   cliente: ClienteDeEvento,
@@ -1730,8 +1731,13 @@ function prismaFalso(eventos: unknown[]) {
     sessaoFunil: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
   };
 
+  // Cast porque um punhado de vi.fn() não satisfaz o tipo gerado pelo Prisma,
+  // e tipar o fake por inteiro seria reescrever o client para provar três
+  // asserções.
   return {
-    cliente: { $transaction: (fn: (t: typeof tx) => unknown) => fn(tx) },
+    cliente: {
+      $transaction: (fn: (t: unknown) => unknown) => fn(tx),
+    } as unknown as Parameters<typeof expurgarEventos>[0],
     upsert,
     deleteMany,
   };
@@ -1794,7 +1800,7 @@ Create `src/lib/funil/expurgo.ts`:
 
 ```ts
 import { resumir } from "./resumo";
-import type { TipoEvento } from "@prisma/client";
+import type { Prisma, TipoEvento } from "@prisma/client";
 
 /**
  * O evento cru serve para investigar o mês corrente; a série histórica vive no
@@ -1808,23 +1814,16 @@ export function limiteDoExpurgo(agora: Date): Date {
   return new Date(agora.getTime() - DIAS_DE_EVENTO_CRU * 24 * 60 * 60 * 1000);
 }
 
-type EventoBruto = {
-  tipo: TipoEvento;
-  createdAt: Date;
-  sessao: { utmSource: string | null } | null;
-};
+// Derivados do Prisma pelo mesmo motivo de ClienteDeEvento: uma interface
+// escrita à mão com assinaturas simplificadas não é satisfeita pelo
+// PrismaClient real, cujos métodos são genéricos.
+type ClienteDoExpurgo = Pick<
+  Prisma.TransactionClient,
+  "eventoFunil" | "resumoDiario" | "sessaoFunil"
+>;
 
 type Transacional = {
   $transaction<T>(fn: (tx: ClienteDoExpurgo) => Promise<T>): Promise<T>;
-};
-
-type ClienteDoExpurgo = {
-  eventoFunil: {
-    findMany(args: unknown): Promise<EventoBruto[]>;
-    deleteMany(args: unknown): Promise<{ count: number }>;
-  };
-  resumoDiario: { upsert(args: unknown): Promise<unknown> };
-  sessaoFunil: { deleteMany(args: unknown): Promise<{ count: number }> };
 };
 
 /**
@@ -1842,7 +1841,11 @@ export async function expurgarEventos(
   const limite = limiteDoExpurgo(agora);
 
   return cliente.$transaction(async (tx) => {
-    const antigos = await tx.eventoFunil.findMany({
+    const antigos: {
+      tipo: TipoEvento;
+      createdAt: Date;
+      sessao: { utmSource: string | null } | null;
+    }[] = await tx.eventoFunil.findMany({
       where: { createdAt: { lt: limite } },
       select: {
         tipo: true,
@@ -2007,14 +2010,14 @@ Expected: FAIL no primeiro, com status 200 em vez de 409.
 
 - [ ] **Step 3: Implement in the route**
 
-Modify `src/app/api/platform/leads/[id]/route.ts`. No handler `PATCH`, antes do
-`update` e depois de carregar o lead (se o handler ainda não carrega o lead,
-acrescente o `findUnique` selecionando `origem`):
+Modify `src/app/api/platform/leads/[id]/route.ts`. O handler `PATCH` já carrega
+o lead em `const existing = await prismaUnscoped.lead.findUnique(...)` na linha
+55; a guarda entra logo depois dele e antes do `update` da linha 70:
 
 ```ts
   // A trava fica no servidor, e não só na tela. Botão escondido é conveniência;
   // o que garante que o funil automático não é sobrescrito é isto aqui.
-  if (!podeMoverAMao(lead)) {
+  if (!podeMoverAMao(existing)) {
     return NextResponse.json(
       {
         error:
