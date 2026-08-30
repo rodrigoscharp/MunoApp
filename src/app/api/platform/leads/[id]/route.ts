@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prismaUnscoped } from "@/lib/prisma";
 import { authPlatform } from "@/lib/auth-platform";
+import { podeMoverAMao } from "@/lib/funil/estagio";
 
 // tenantId NÃO está aqui de propósito: esse campo é escrito só pela rota de
 // conversão, que é o único caminho que provisiona um cliente de verdade.
@@ -55,6 +56,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const existing = await prismaUnscoped.lead.findUnique({ where: { id } });
   if (!existing) {
     return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
+  }
+
+  // A trava fica no servidor, e não só na tela. Botão escondido é conveniência;
+  // o que garante que o funil automático não é sobrescrito é isto aqui.
+  if (!podeMoverAMao(existing)) {
+    return NextResponse.json(
+      {
+        error:
+          "Este lead veio do checkout e o estágio dele é derivado do que aconteceu. Não dá para movê-lo à mão.",
+      },
+      { status: 409 }
+    );
   }
 
   const { status, restaurante, ...opcionais } = parsed.data;

@@ -149,3 +149,30 @@ describe("PATCH — campo em branco vira null, nunca string vazia", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("PATCH — o funil de checkout não se move à mão", () => {
+  // O funil de checkout é derivado dos fatos. Um PATCH que sobrescreve o que o
+  // servidor derivou cria divergência entre a tela e o que aconteceu, e é o
+  // tipo de divergência que ninguém percebe: os dois números parecem certos,
+  // cada um por conta própria.
+  it("recusa mudar à mão o status de um lead de checkout", async () => {
+    leadFindUnique.mockResolvedValue({ id: LEAD_ID, origem: "checkout" });
+
+    const res = await PATCH(req({ status: "FECHADO" }), params);
+
+    expect(res.status).toBe(409);
+    expect(leadUpdate).not.toHaveBeenCalled();
+  });
+
+  it.each(["landing", "manual"])(
+    "deixa mudar o status do lead de origem %s",
+    async (origem) => {
+      leadFindUnique.mockResolvedValue({ id: LEAD_ID, origem });
+
+      const res = await PATCH(req({ status: "CONTATADO" }), params);
+
+      expect(res.status).toBe(200);
+      expect(leadUpdate).toHaveBeenCalled();
+    }
+  );
+});

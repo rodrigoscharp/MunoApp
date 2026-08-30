@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { LeadAcoes } from "@/components/platform/LeadAcoes";
 import { ConverterLead } from "@/components/platform/ConverterLead";
 import { PlanoInline } from "@/components/platform/PlanoInline";
+import { podeMoverAMao } from "@/lib/funil/estagio";
 
 export default async function LeadPage({
   params,
@@ -54,9 +55,18 @@ export default async function LeadPage({
         )}
       </div>
 
-      <div className="bg-console-cartao border border-console-linha rounded-2xl p-5">
-        <LeadAcoes leadId={lead.id} statusAtual={lead.status} />
-      </div>
+      {podeMoverAMao(lead) ? (
+        <div className="bg-console-cartao border border-console-linha rounded-2xl p-5">
+          <LeadAcoes leadId={lead.id} statusAtual={lead.status} />
+        </div>
+      ) : (
+        <div className="bg-console-cartao border border-console-linha rounded-2xl p-5">
+          <p className="text-sm text-neutral-500">
+            Este lead veio do checkout. O estágio dele acompanha o que aconteceu
+            de verdade, sem passo manual.
+          </p>
+        </div>
+      )}
 
       {lead.tenant ? (
         <div className="bg-green-50 border border-green-200 rounded-xl p-5 space-y-3">
