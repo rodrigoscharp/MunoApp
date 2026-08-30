@@ -11,6 +11,7 @@ import {
   reconciliarInscricoesPagas,
   type ResultadoReconciliacao,
 } from "@/lib/assinatura/reconciliacao";
+import { registrarEvento } from "@/lib/funil/registrar";
 
 /**
  * Job diário da assinatura. Duas responsabilidades, nesta ordem: gerar a
@@ -184,7 +185,7 @@ async function executar(req: NextRequest) {
         status: "AGUARDANDO_PAGAMENTO",
         expiraEm: { lt: agora },
       },
-      select: { id: true, slug: true, asaasSubscriptionId: true },
+      select: { id: true, slug: true, asaasSubscriptionId: true, sessaoId: true },
     });
 
     // Vencida NÃO é o mesmo que não paga, e a diferença custa um cliente.
@@ -238,6 +239,45 @@ async function executar(req: NextRequest) {
         where: { id: { in: paraApagar } },
       });
       inscricoesExpiradas = resultado.count;
+    }
+
+    // O rastro que a exclusão apagaria. A Inscricao precisa morrer para soltar
+    // o slug (o @unique é o que segura o endereço), mas o fato de alguém ter
+    // chegado até o pagamento e desistido é justamente o degrau onde mais gente
+    // cai, e hoje ele se desfaz em silêncio.
+    //
+    // Em try próprio: fechar lead e registrar evento é relatório, e a mesma
+    // regra do bloco inteiro vale aqui, com mais razão ainda. Slug preso por
+    // mais 24h é irrelevante; fatura não emitida não é.
+    for (const candidata of candidatas.filter((c) => paraApagar.includes(c.id))) {
+      await registrarEvento(prismaUnscoped, {
+        sessaoId: candidata.sessaoId,
+        tipo: "ABANDONOU",
+        detalhe: null,
+      });
+
+      if (!candidata.sessaoId) continue;
+
+      try {
+        // Só o lead daquela sessão, e só se ainda estiver em aberto. FECHADO
+        // não volta atrás por causa de um relógio, e PERDIDO já está perdido.
+        await prismaUnscoped.lead.updateMany({
+          where: {
+            sessaoId: candidata.sessaoId,
+            tenantId: null,
+            status: { notIn: ["FECHADO", "PERDIDO"] },
+          },
+          data: {
+            status: "PERDIDO",
+            motivoPerda: "Checkout expirado sem pagamento",
+          },
+        });
+      } catch (erro) {
+        console.error(
+          `[cron/assinaturas] não foi possível fechar o lead da sessão ${candidata.sessaoId}`,
+          erro
+        );
+      }
     }
   } catch (erro) {
     limpezaDeInscricoesFalhou = true;

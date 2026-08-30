@@ -18,6 +18,8 @@ const inscricaoDeleteMany = vi.fn();
 const inscricaoFindMany = vi.fn();
 const temPagamentoConfirmado = vi.fn();
 const reconciliar = vi.fn();
+const eventoCreate = vi.fn();
+const leadUpdateMany = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
@@ -32,6 +34,12 @@ vi.mock("@/lib/prisma", () => ({
     inscricao: {
       deleteMany: (...args: unknown[]) => inscricaoDeleteMany(...args),
       findMany: (...args: unknown[]) => inscricaoFindMany(...args),
+    },
+    eventoFunil: {
+      create: (...args: unknown[]) => eventoCreate(...args),
+    },
+    lead: {
+      updateMany: (...args: unknown[]) => leadUpdateMany(...args),
     },
   },
 }));
@@ -105,6 +113,8 @@ beforeEach(() => {
   inscricaoFindMany.mockResolvedValue([]);
   temPagamentoConfirmado.mockResolvedValue(false);
   reconciliar.mockResolvedValue({ candidatas: 0, provisionadas: 0, falhas: 0 });
+  eventoCreate.mockResolvedValue({});
+  leadUpdateMany.mockResolvedValue({ count: 0 });
 });
 
 afterEach(() => {
@@ -537,6 +547,59 @@ describe("POST /api/cron/assinaturas — limpeza de inscrição vencida", () => 
       inscricoesExpiradas: 0,
       limpezaDeInscricoesFalhou: true,
     });
+  });
+});
+
+describe("POST /api/cron/assinaturas — lead do checkout abandonado", () => {
+  function candidata(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "insc-vencida",
+      slug: "pizzaria-abandonada",
+      asaasSubscriptionId: null,
+      sessaoId: "s1",
+      ...overrides,
+    };
+  }
+
+  // Hoje a Inscricao vencida é apagada e o Lead fica NEGOCIACAO para sempre,
+  // inflando "leads abertos" na visão geral com gente que desistiu meses atrás.
+  it("fecha como PERDIDO o lead do checkout que expirou", async () => {
+    inscricaoFindMany.mockResolvedValue([candidata()]);
+    inscricaoDeleteMany.mockResolvedValue({ count: 1 });
+
+    await POST(requisicao());
+
+    expect(leadUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          sessaoId: "s1",
+          status: { notIn: ["FECHADO", "PERDIDO"] },
+          tenantId: null,
+        }),
+        data: expect.objectContaining({
+          status: "PERDIDO",
+          motivoPerda: "Checkout expirado sem pagamento",
+        }),
+      })
+    );
+    expect(eventoCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sessaoId: "s1", tipo: "ABANDONOU" }),
+      })
+    );
+  });
+
+  // Um lead que já virou cliente não volta atrás por causa de um relógio, e um
+  // que você moveu à mão não é sobrescrito.
+  it("não toca em lead já fechado", async () => {
+    inscricaoFindMany.mockResolvedValue([candidata()]);
+    inscricaoDeleteMany.mockResolvedValue({ count: 1 });
+
+    await POST(requisicao());
+
+    const where = leadUpdateMany.mock.calls[0][0].where;
+    expect(where.status).toEqual({ notIn: ["FECHADO", "PERDIDO"] });
+    expect(where.tenantId).toBeNull();
   });
 });
 
