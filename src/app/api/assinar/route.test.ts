@@ -15,6 +15,7 @@ const inscricaoCreate = vi.fn();
 const inscricaoUpdate = vi.fn();
 const inscricaoDelete = vi.fn();
 const leadCreate = vi.fn();
+const eventoFunilCreate = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
@@ -29,6 +30,9 @@ vi.mock("@/lib/prisma", () => ({
     },
     lead: {
       create: (...args: unknown[]) => leadCreate(...args),
+    },
+    eventoFunil: {
+      create: (...args: unknown[]) => eventoFunilCreate(...args),
     },
   },
 }));
@@ -59,11 +63,23 @@ let contadorDeIp = 0;
 
 function requisicao(
   body: unknown,
-  { ip = `203.0.113.${++contadorDeIp}` } = {}
+  {
+    ip = `203.0.113.${++contadorDeIp}`,
+    cookie,
+  }: { ip?: string; cookie?: string } = {}
 ): NextRequest {
+  // O cookie precisa ir no construtor, não num headers.set() depois: o
+  // NextRequest lê req.cookies uma vez, na hora em que é criado (ver
+  // RequestCookies em node_modules/next/dist/compiled/@edge-runtime/cookies) —
+  // mutar o header depois não muda o que req.cookies.get() enxerga.
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    "x-forwarded-for": ip,
+  };
+  if (cookie) headers.cookie = cookie;
   return new NextRequest("http://localhost/api/assinar", {
     method: "POST",
-    headers: { "content-type": "application/json", "x-forwarded-for": ip },
+    headers,
     body: JSON.stringify(body),
   });
 }
@@ -100,6 +116,7 @@ beforeEach(() => {
   inscricaoUpdate.mockResolvedValue({});
   inscricaoDelete.mockResolvedValue({});
   leadCreate.mockResolvedValue({ id: "lead-1" });
+  eventoFunilCreate.mockResolvedValue({ id: "evento-1" });
   criarCliente.mockResolvedValue({ id: "cus_123" });
   criarAssinatura.mockResolvedValue({ id: "sub_123" });
   listarCobrancasDaAssinatura.mockResolvedValue({
@@ -454,5 +471,35 @@ describe("POST /api/assinar", () => {
 
     const barrado = await POST(requisicao(corpoValido(), { ip }));
     expect(barrado.status).toBe(429);
+  });
+
+  // A costura entre navegador e servidor. Sem o sessaoId aqui, o checkout é um
+  // evento órfão: dá para contar quantos pagaram e não de onde eles vieram.
+  it("grava o sessaoId do cookie na Inscricao e no Lead", async () => {
+    await POST(requisicao(corpoValido(), { cookie: "muno_s=sessao-1" }));
+
+    expect(inscricaoCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sessaoId: "sessao-1" }),
+      })
+    );
+    expect(leadCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sessaoId: "sessao-1" }),
+      })
+    );
+  });
+
+  // Quem bloqueia cookie compra do mesmo jeito. sessaoId nulável é o que
+  // impede um bloqueador de anúncios de virar erro 500 no meio da compra.
+  it("compra sem cookie nenhum continua funcionando", async () => {
+    const res = await POST(requisicao(corpoValido()));
+
+    expect(res.status).toBe(201);
+    expect(inscricaoCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sessaoId: null }),
+      })
+    );
   });
 });

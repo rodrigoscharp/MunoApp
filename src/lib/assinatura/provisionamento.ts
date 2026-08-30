@@ -4,6 +4,7 @@ import { provisionTenant, ProvisionError } from "@/lib/tenant-provisioning";
 import { PRECOS } from "@/lib/plans";
 import { competenciaDe, DIA_VENCIMENTO_MAX } from "@/lib/assinatura/competencia";
 import { enviarBoasVindas } from "@/lib/assinatura/email-boas-vindas";
+import { registrarEvento } from "@/lib/funil/registrar";
 
 /**
  * Transforma uma Inscricao paga em restaurante no ar.
@@ -223,6 +224,17 @@ export async function provisionarInscricao(
         ...(lead ? { id: { not: lead.id } } : {}),
       },
       data: { status: "FECHADO", motivoPerda: null },
+    });
+
+    // Dentro da transação, ao contrário dos outros eventos. Aqui o evento é
+    // parte do mesmo fato atômico que a Assinatura, a Cobranca e o status
+    // PROVISIONADA: um provisionamento que aconteceu e não aparece no funil
+    // seria um cliente sem origem, e a reentrega do Asaas não o traria de
+    // volta, porque a idempotência lá em cima já a barra.
+    await registrarEvento(tx, {
+      sessaoId: inscricao.sessaoId,
+      tipo: "PROVISIONADO",
+      detalhe: inscricao.plano,
     });
   });
 

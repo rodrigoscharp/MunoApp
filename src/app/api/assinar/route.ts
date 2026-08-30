@@ -11,6 +11,8 @@ import {
   criarCliente,
   listarCobrancasDaAssinatura,
 } from "@/lib/assinatura/asaas";
+import { COOKIE_SESSAO } from "@/lib/funil/cookie";
+import { registrarEvento } from "@/lib/funil/registrar";
 
 /**
  * Rota que transforma o formulário de checkout em cliente cobrando: reserva
@@ -68,6 +70,11 @@ export async function POST(req: NextRequest) {
   }
   const { nome, email, slug, cpfCnpj, plano, ciclo, metodo } = parsed.data;
 
+  // Nulo quando o navegador bloqueia cookie, e isso é aceitável: a compra
+  // acontece igual e o cliente aparece como origem desconhecida, que é
+  // informação. Um campo obrigatório aqui trocaria receita por relatório.
+  const sessaoId = req.cookies.get(COOKIE_SESSAO)?.value ?? null;
+
   // Mensal em PIX não existe: o Asaas só cobra sozinho no cartão. Assinatura
   // mensal em PIX geraria um QR novo a cada mês para o cliente pagar na mão
   // — quem esquecer é bloqueado pela régua, e a plataforma vira cobradora
@@ -118,6 +125,7 @@ export async function POST(req: NextRequest) {
         slug,
         plano,
         ciclo,
+        sessaoId,
         expiraEm: new Date(Date.now() + VALIDADE_MS[metodo]),
       },
     });
@@ -171,7 +179,18 @@ export async function POST(req: NextRequest) {
         plano: PLANO_LABELS[plano],
         origem: "checkout",
         status: "NEGOCIACAO",
+        sessaoId,
       },
+    });
+
+    // Mesma posição do Lead, e pelo mesmo motivo: antes do Asaas e fora do
+    // try que fala com o gateway. Se estivesse lá dentro, uma falha ao gravar
+    // evento acionaria o catch que apaga a Inscricao, com a cobrança viva do
+    // outro lado, e o cliente pagaria por um restaurante que nunca nasce.
+    await registrarEvento(prismaUnscoped, {
+      sessaoId,
+      tipo: "CHECKOUT_CRIADO",
+      detalhe: `${plano}/${ciclo}/${metodo}`,
     });
   } catch (err) {
     // Não-fatal, no mesmo espírito do vínculo de lead em

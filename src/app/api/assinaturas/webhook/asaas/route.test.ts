@@ -36,6 +36,11 @@ const inscricaoUpdateStatus = vi.fn();
 const leadUpdateMany = vi.fn();
 const leadFindFirst = vi.fn();
 const leadUpdate = vi.fn();
+// registrarEvento nunca propaga (cai no próprio catch dela quando o mock
+// falta), então sem este mock os testes continuam verdes mesmo assim — só
+// que com um console.error de mock incompleto sujando a saída. Um só fn:
+// nenhum teste aqui afirma sobre PAGOU/PROVISIONADO especificamente.
+const eventoFunilCreate = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
@@ -45,6 +50,9 @@ vi.mock("@/lib/prisma", () => ({
     },
     tenant: {
       findUnique: (...args: unknown[]) => tenantFindUnique(...args),
+    },
+    eventoFunil: {
+      create: (...args: unknown[]) => eventoFunilCreate(...args),
     },
     // Como em src/lib/tenant-provisioning.test.ts: $transaction chama o
     // callback direto com um objeto "tx" — sem simular rollback de verdade,
@@ -66,6 +74,9 @@ vi.mock("@/lib/prisma", () => ({
           updateMany: (...args: unknown[]) => leadUpdateMany(...args),
           findFirst: (...args: unknown[]) => leadFindFirst(...args),
           update: (...args: unknown[]) => leadUpdate(...args),
+        },
+        eventoFunil: {
+          create: (...args: unknown[]) => eventoFunilCreate(...args),
         },
       }),
   },
@@ -158,6 +169,7 @@ beforeEach(() => {
   leadFindFirst.mockResolvedValue({ id: "lead-1" });
   leadUpdate.mockResolvedValue({ id: "lead-1" });
   enviarBoasVindas.mockResolvedValue(undefined);
+  eventoFunilCreate.mockResolvedValue({ id: "evento-1" });
 });
 
 afterEach(() => {

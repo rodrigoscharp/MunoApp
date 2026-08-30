@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prismaUnscoped } from "@/lib/prisma";
 import { webhookAutorizado } from "@/lib/assinatura/asaas";
 import { provisionarInscricao } from "@/lib/assinatura/provisionamento";
+import { registrarEvento } from "@/lib/funil/registrar";
 
 /**
  * Webhook chamado pelo Asaas quando um pagamento da PLATAFORMA (a Muno
@@ -120,6 +121,18 @@ export async function POST(req: NextRequest) {
   // Idempotência. O Asaas reentrega quando não recebe 200 — sem esta linha,
   // a segunda entrega cria um segundo restaurante para quem pagou uma vez.
   if (inscricao.status === "PROVISIONADA") return ok();
+
+  // O pagamento confirmado, no momento em que ele é conhecido. Fora da
+  // transação de provisionamento de propósito: se o provisionamento falhar e o
+  // Asaas reentregar, este evento já registrou que o dinheiro entrou, que é
+  // exatamente o que você quer enxergar quando o restaurante não nasceu.
+  //
+  // A guarda de idempotência acima é o que evita um PAGOU por reentrega.
+  await registrarEvento(prismaUnscoped, {
+    sessaoId: inscricao.sessaoId,
+    tipo: "PAGOU",
+    detalhe: inscricao.plano,
+  });
 
   await provisionarInscricao(inscricao, {
     valorPago: pagamento.value,
