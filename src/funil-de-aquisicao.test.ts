@@ -344,6 +344,21 @@ describe("costura 4 — o link do e-mail abre a página que sabe recebê-lo", ()
     ).not.toThrow();
   });
 
+  // O último elo: criada a senha, a tela empurra para o login. Se ela mandar
+  // uma marca de primeiro acesso que o login não lê, quem acabou de criar a
+  // senha é recebido com "Bem-vindo de volta" — de volta a um lugar onde nunca
+  // esteve.
+  it("a marca de primeiro acesso passada ao login é lida por ele", () => {
+    const form = lerFonte("src/components/auth/ResetPasswordForm.tsx");
+    const login = lerFonte("src/components/auth/LoginForm.tsx");
+
+    const query = /["'`]\/login\?([^"'`]+)["'`]/.exec(form)?.[1] ?? "";
+    const marca = /(\w+)=/.exec(query)?.[1];
+
+    expect(marca).toBeTruthy();
+    expect(login).toContain(`searchParams.get("${marca}")`);
+  });
+
   it("a página envia o token para uma rota que existe", () => {
     const rota = /fetch\("([^"]+)"/.exec(quemRecebeOLink())?.[1];
 

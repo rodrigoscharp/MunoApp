@@ -23,6 +23,9 @@ export function LoginForm({ restaurantInfo }: { restaurantInfo: RestaurantInfo }
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/";
+  // Posto por ResetPasswordForm depois da criação da primeira senha. Só troca
+  // a saudação: quem entra é a credencial, sempre.
+  const primeiroAcesso = searchParams.get("novo") === "1";
   const registerHref = searchParams.get("callbackUrl")
     ? `/register?callbackUrl=${encodeURIComponent(searchParams.get("callbackUrl")!)}`
     : "/register";
@@ -80,8 +83,14 @@ export function LoginForm({ restaurantInfo }: { restaurantInfo: RestaurantInfo }
           </div>
 
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-neutral-900">Bem-vindo de volta</h2>
-            <p className="text-neutral-500 text-sm mt-1">Entre com suas credenciais para continuar</p>
+            <h2 className="text-2xl font-bold text-neutral-900">
+              {primeiroAcesso ? "Tudo pronto!" : "Bem-vindo de volta"}
+            </h2>
+            <p className="text-neutral-500 text-sm mt-1">
+              {primeiroAcesso
+                ? "Entre com seu e-mail e a senha que você acabou de criar."
+                : "Entre com suas credenciais para continuar"}
+            </p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

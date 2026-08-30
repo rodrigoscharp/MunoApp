@@ -66,7 +66,13 @@ export function ResetPasswordForm({ nomeRestaurante }: { nomeRestaurante?: strin
         return;
       }
       setSuccess(true);
-      setTimeout(() => router.push("/login"), 2500);
+      // A marca segue para o login: sem ela, quem acabou de criar a primeira
+      // senha é recebido com "Bem-vindo de volta", de volta a um lugar onde
+      // nunca esteve.
+      setTimeout(
+        () => router.push(primeiroAcesso ? "/login?novo=1" : "/login"),
+        2500
+      );
     } catch {
       setError("Erro inesperado. Tente novamente.");
     } finally {
