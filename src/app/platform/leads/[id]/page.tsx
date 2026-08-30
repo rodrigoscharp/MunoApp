@@ -55,18 +55,13 @@ export default async function LeadPage({
         )}
       </div>
 
-      {podeMoverAMao(lead) ? (
-        <div className="bg-console-cartao border border-console-linha rounded-2xl p-5">
-          <LeadAcoes leadId={lead.id} statusAtual={lead.status} />
-        </div>
-      ) : (
-        <div className="bg-console-cartao border border-console-linha rounded-2xl p-5">
-          <p className="text-sm text-neutral-500">
-            Este lead veio do checkout. O estágio dele acompanha o que aconteceu
-            de verdade, sem passo manual.
-          </p>
-        </div>
-      )}
+      <div className="bg-console-cartao border border-console-linha rounded-2xl p-5">
+        <LeadAcoes
+          leadId={lead.id}
+          statusAtual={lead.status}
+          podeMoverStatus={podeMoverAMao(lead)}
+        />
+      </div>
 
       {lead.tenant ? (
         <div className="bg-green-50 border border-green-200 rounded-xl p-5 space-y-3">

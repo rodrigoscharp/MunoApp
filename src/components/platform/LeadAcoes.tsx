@@ -14,9 +14,11 @@ const STATUS = [
 export function LeadAcoes({
   leadId,
   statusAtual,
+  podeMoverStatus = true,
 }: {
   leadId: string;
   statusAtual: string;
+  podeMoverStatus?: boolean;
 }) {
   const router = useRouter();
   const [texto, setTexto] = useState("");
@@ -80,22 +82,32 @@ export function LeadAcoes({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {STATUS.map(([valor, rotulo]) => (
-          <button
-            key={valor}
-            onClick={() => mudarStatus(valor)}
-            disabled={salvando || valor === statusAtual}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-full transition ${
-              valor === statusAtual
-                ? "bg-brand text-white"
-                : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
-            }`}
-          >
-            {rotulo}
-          </button>
-        ))}
-      </div>
+      {podeMoverStatus ? (
+        <div className="flex flex-wrap gap-2">
+          {STATUS.map(([valor, rotulo]) => (
+            <button
+              key={valor}
+              onClick={() => mudarStatus(valor)}
+              disabled={salvando || valor === statusAtual}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-full transition ${
+                valor === statusAtual
+                  ? "bg-brand text-white"
+                  : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+              }`}
+            >
+              {rotulo}
+            </button>
+          ))}
+        </div>
+      ) : (
+        // O estágio deste lead vem do que aconteceu, não de um botão. A
+        // anotação continua, porque conversa de WhatsApp não vira evento e
+        // é justamente no lead que abandonou o checkout que ela vale mais.
+        <p className="text-sm text-neutral-500">
+          Este lead veio do checkout. O estágio dele acompanha o que aconteceu
+          de verdade, sem passo manual.
+        </p>
+      )}
 
       <form onSubmit={adicionarNota} className="flex gap-2">
         <input
