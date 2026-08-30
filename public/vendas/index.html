@@ -513,6 +513,13 @@
               <span class="periodo text-gray-500 mb-2" data-mensal="/mês" data-anual="/ano">/mês</span>
             </div>
             <div class="text-gray-500 text-sm mt-2">Cancele quando quiser sem fidelidade</div>
+            <!-- Vazio no mensal, preenchido no anual: o main.js troca o
+                 textContent de qualquer elemento com data-mensal/data-anual,
+                 entao esta linha nao precisa de JS proprio. Ate 30/08/2026 o
+                 "1 mes gratis" so existia no rotulo do switch, longe do preco
+                 que ele justifica. -->
+            <div class="text-terracota text-sm font-semibold mt-1"
+                 data-mensal="" data-anual="Equivale a 11 mensalidades. Um mês grátis."></div>
           </div>
           <ul class="space-y-3 mb-8 text-sm text-gray-700">
             <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Produtos
@@ -548,6 +555,13 @@
               <span class="periodo text-gray-300 mb-2" data-mensal="/mês" data-anual="/ano">/mês</span>
             </div>
             <div class="text-gray-300 text-sm mt-2">Cancele quando quiser sem fidelidade</div>
+            <!-- Vazio no mensal, preenchido no anual: o main.js troca o
+                 textContent de qualquer elemento com data-mensal/data-anual,
+                 entao esta linha nao precisa de JS proprio. Ate 30/08/2026 o
+                 "1 mes gratis" so existia no rotulo do switch, longe do preco
+                 que ele justifica. -->
+            <div class="text-white text-sm font-semibold mt-1"
+                 data-mensal="" data-anual="Equivale a 11 mensalidades. Um mês grátis."></div>
           </div>
           <ul class="space-y-3 mb-8 text-sm text-gray-100">
             <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Tudo do
