@@ -13,23 +13,28 @@
  * a falha só aparece no instante em que o visitante tenta pagar — o pior lugar
  * possível para descobrir uma variável de ambiente esquecida.
  *
- * Por que as três, e não só a chave:
+ * **ASAAS_ENV é o interruptor, não um item da lista.** Ela é a declaração de
+ * que a plataforma passou a cobrar de verdade: `baseUrl()` só aponta para o
+ * host de produção do Asaas quando ela vale "production". Enquanto não estiver
+ * ligada, produção está assumidamente em sandbox, e exigir credencial de
+ * produção ali travaria o deploy de qualquer correção sem relação nenhuma com
+ * assinatura — uma guarda que atrapalha mais do que protege.
+ *
+ * Ligada, aí sim as duas viram obrigatórias:
  *
  *   ASAAS_API_KEY       sem ela o Asaas recusa tudo — ninguém consegue pagar.
- *   ASAAS_ENV           ausente, baseUrl() cai em sandbox (o padrão dele). A
- *                       cobrança "funciona", o cliente vê sucesso, e o dinheiro
- *                       nunca existiu.
  *   ASAAS_WEBHOOK_TOKEN ausente, o handler responde 401 a toda entrega. O
  *                       cliente paga de verdade e nunca é provisionado, e o
  *                       Asaas interrompe a fila após 15 falhas.
  *
- * As três quebram o funil pago em silêncio, cada uma de um jeito. CRON_SECRET
- * fica de fora de propósito: sem ele a rota de cobrança responde 401 e nada
- * acontece — falha fechada, sem cliente lesado, e é um interruptor que se liga
- * quando se quer começar a cobrar.
+ * As duas quebram o funil pago em silêncio, cada uma de um jeito, e o momento
+ * em que passam a ser exigidas é exatamente o momento em que começam a
+ * importar. CRON_SECRET fica de fora de propósito: sem ele a rota de cobrança
+ * responde 401 e nada acontece — falha fechada, sem cliente lesado, e é outro
+ * interruptor, de quando se quer começar a cobrar a mensalidade.
  */
 
-const OBRIGATORIAS = ["ASAAS_API_KEY", "ASAAS_ENV", "ASAAS_WEBHOOK_TOKEN"];
+const OBRIGATORIAS = ["ASAAS_API_KEY", "ASAAS_WEBHOOK_TOKEN"];
 
 /**
  * Recebe o ambiente por parâmetro em vez de ler process.env aqui dentro:
@@ -42,6 +47,8 @@ const OBRIGATORIAS = ["ASAAS_API_KEY", "ASAAS_ENV", "ASAAS_WEBHOOK_TOKEN"];
  */
 function faltantesEmProducao(env) {
   if (env.VERCEL_ENV !== "production") return [];
+  // O interruptor. Sem ele ligado não há cobrança real para proteger.
+  if (env.ASAAS_ENV !== "production") return [];
   // `.trim()` porque `vercel env add` com valor em branco grava "": a variável
   // existe para quem pergunta se existe, e não serve para nada.
   return OBRIGATORIAS.filter((nome) => (env[nome] ?? "").trim() === "");
@@ -63,10 +70,20 @@ if (require.main === module) {
     process.exit(1);
   }
 
+  // Três desfechos, e o log precisa distinguir os dois "passou" — senão um
+  // build de produção com o Asaas ainda em sandbox anunciaria "credenciais
+  // presentes", que é falso e esconde justamente o estado que se quer ver.
   const ambiente = process.env.VERCEL_ENV;
-  console.log(
-    ambiente === "production"
-      ? "[env] deploy de produção: credenciais do Asaas presentes."
-      : `[env] ${ambiente ? `ambiente "${ambiente}"` : "build fora da Vercel"}: pulando. Só o deploy de produção exige as chaves.`
-  );
+  if (ambiente !== "production") {
+    const onde = ambiente ? `ambiente "${ambiente}"` : "build fora da Vercel";
+    console.log(`[env] ${onde}: pulando. Só o deploy de produção confere.`);
+  } else if (process.env.ASAAS_ENV !== "production") {
+    console.log(
+      "[env] deploy de produção com o Asaas ainda em sandbox: pulando.\n" +
+        "      Ligue ASAAS_ENV=production quando for cobrar de verdade — a partir\n" +
+        "      daí a chave e o token do webhook passam a ser obrigatórios."
+    );
+  } else {
+    console.log("[env] deploy de produção cobrando de verdade: credenciais do Asaas presentes.");
+  }
 }

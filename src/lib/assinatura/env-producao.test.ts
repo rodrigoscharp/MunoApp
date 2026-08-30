@@ -33,12 +33,25 @@ describe("variáveis do Asaas exigidas no deploy de produção", () => {
   });
 
   it("acusa todas as que faltam de uma vez", () => {
-    // Uma por deploy quebrado seria três builds até descobrir a terceira.
-    expect(faltantesEmProducao({ VERCEL_ENV: "production" })).toEqual([
-      "ASAAS_API_KEY",
-      "ASAAS_ENV",
-      "ASAAS_WEBHOOK_TOKEN",
-    ]);
+    // Uma por deploy quebrado seria dois builds até descobrir a segunda.
+    expect(
+      faltantesEmProducao({
+        VERCEL_ENV: "production",
+        ASAAS_ENV: "production",
+      })
+    ).toEqual(["ASAAS_API_KEY", "ASAAS_WEBHOOK_TOKEN"]);
+  });
+
+  it("não exige nada enquanto o Asaas não estiver declarado em produção", () => {
+    // ASAAS_ENV é o interruptor: ele é a declaração de que a plataforma
+    // passou a cobrar de verdade. Enquanto não estiver ligado, produção está
+    // assumidamente em sandbox e não faz sentido exigir credencial de
+    // produção — exigir travaria o deploy de correções sem nenhuma relação
+    // com assinatura.
+    expect(faltantesEmProducao({ VERCEL_ENV: "production" })).toEqual([]);
+    expect(
+      faltantesEmProducao({ VERCEL_ENV: "production", ASAAS_ENV: "sandbox" })
+    ).toEqual([]);
   });
 
   it("não exige nada fora do deploy de produção", () => {
