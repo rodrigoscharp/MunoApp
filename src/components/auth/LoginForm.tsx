@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -22,12 +22,14 @@ type FormData = z.infer<typeof schema>;
 export function LoginForm({ restaurantInfo }: { restaurantInfo: RestaurantInfo }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/";
+  // Sem o `?? "/"` de antes: o destino padrão passou a depender do papel de
+  // quem entrou (ver onSubmit), e um default aqui apagaria essa distinção.
+  const callbackUrl = searchParams.get("callbackUrl");
   // Posto por ResetPasswordForm depois da criação da primeira senha. Só troca
   // a saudação: quem entra é a credencial, sempre.
   const primeiroAcesso = searchParams.get("novo") === "1";
-  const registerHref = searchParams.get("callbackUrl")
-    ? `/register?callbackUrl=${encodeURIComponent(searchParams.get("callbackUrl")!)}`
+  const registerHref = callbackUrl
+    ? `/register?callbackUrl=${encodeURIComponent(callbackUrl)}`
     : "/register";
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -55,7 +57,23 @@ export function LoginForm({ restaurantInfo }: { restaurantInfo: RestaurantInfo }
       return;
     }
 
-    router.push(callbackUrl);
+    // O papel não vem no retorno do signIn, então lemos a sessão recém-criada.
+    // Vale o round-trip: mandar todo mundo para /adm e deixar o proxy devolver
+    // quem não é ADMIN faria o cliente ver a tela do painel piscar antes de
+    // ser expulso.
+    const sessao = await getSession();
+
+    // Dono que faz login quer gerenciar, não pedir comida. Antes o destino era
+    // sempre "/", e o dono entrava na Muno pela primeira vez caindo na própria
+    // vitrine, sem nunca encontrar o painel. Para ver o cardápio como cliente
+    // ele abre o endereço, que é público e não pede senha.
+    //
+    // callbackUrl tem precedência: quem foi barrado numa página específica
+    // volta para ela, não para o painel.
+    const destino =
+      callbackUrl ?? (sessao?.user?.role === "ADMIN" ? "/adm" : "/");
+
+    router.push(destino);
     router.refresh();
   }
 

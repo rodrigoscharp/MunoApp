@@ -359,6 +359,18 @@ describe("costura 4 — o link do e-mail abre a página que sabe recebê-lo", ()
     expect(login).toContain(`searchParams.get("${marca}")`);
   });
 
+  // Sem isto o onboarding é inalcançável. O login mandava para "/" (a vitrine),
+  // então o dono entrava na Muno pela primeira vez e caía no próprio cardápio,
+  // como se fosse cliente dele, sem nunca ver o painel onde o onboarding mora.
+  it("o login leva ADMIN ao painel, sem atropelar o callbackUrl", () => {
+    const login = lerFonte("src/components/auth/LoginForm.tsx");
+
+    expect(login).toContain('"/adm"');
+    // callbackUrl continua mandando quando existe: quem foi barrado numa
+    // página específica precisa voltar para ela, não para o painel.
+    expect(login).toContain("callbackUrl");
+  });
+
   it("a página envia o token para uma rota que existe", () => {
     const rota = /fetch\("([^"]+)"/.exec(quemRecebeOLink())?.[1];
 
