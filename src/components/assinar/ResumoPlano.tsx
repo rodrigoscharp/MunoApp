@@ -79,7 +79,7 @@ export function ResumoPlano({
 
         {anual && (
           <p className="mt-2 rounded-xl bg-brand-light px-3 py-2 text-xs font-medium text-brand-dark">
-            Equivale a 11 mensalidades — um mês grátis pelo compromisso anual.
+            Equivale a 11 mensalidades. Um mês grátis.
           </p>
         )}
 
