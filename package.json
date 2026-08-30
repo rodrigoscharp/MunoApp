@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node scripts/guard-local-db.js --dev && node scripts/fix-lightningcss.js && node node_modules/next/dist/bin/next dev --webpack",
-    "build": "prisma generate && node scripts/migrate-on-deploy.js && node node_modules/next/dist/bin/next build --webpack",
+    "build": "prisma generate && node scripts/verificar-env-producao.js && node scripts/migrate-on-deploy.js && node node_modules/next/dist/bin/next build --webpack",
     "start": "node node_modules/next/dist/bin/next start",
     "postinstall": "prisma generate && node scripts/fix-lightningcss.js",
     "lint": "eslint",
