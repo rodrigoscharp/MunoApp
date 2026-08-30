@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PlanoTenant } from "@prisma/client";
 import type { Ciclo } from "@/lib/plans";
 import { sugerirSlug } from "@/lib/inscricao/sugerir-slug";
@@ -65,6 +65,25 @@ export function FormularioAssinatura({
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Uma vez por marco, por montagem. useRef e não useState: registrar um passo
+  // não deve provocar render, e um Set em estado re-renderizaria o formulário
+  // inteiro no meio da digitação.
+  const passosVistos = useRef(new Set<string>());
+
+  function registrarPasso(passo: "endereco" | "documento" | "pagamento") {
+    if (passosVistos.current.has(passo)) return;
+    passosVistos.current.add(passo);
+
+    // Dispara e esquece, como na landing: nada aqui pode atrasar ou atrapalhar
+    // uma compra em andamento.
+    fetch("/api/funil/evento", {
+      method: "POST",
+      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tipo: "CHECKOUT_PASSO", detalhe: passo }),
+    }).catch(() => {});
+  }
+
   function onNomeChange(valor: string) {
     setNome(valor);
     if (!slugTocado) setSlug(sugerirSlug(valor));
@@ -89,6 +108,9 @@ export function FormularioAssinatura({
         );
         const body = await res.json();
         setResultado({ slug, livre: !!body.livre, motivo: body.motivo });
+        // Marco "endereco": só quando a checagem confirma que o slug está
+        // livre, não quando a pessoa apenas digitou algo no campo.
+        if (body.livre) registrarPasso("endereco");
       } catch {
         // Abortada (nova tecla chegou) ou a rede caiu. "ocupado" é o
         // fail-closed certo nos dois casos que sobram: melhor pedir para
@@ -131,6 +153,10 @@ export function FormularioAssinatura({
     isValidCpfCnpj(cpfCnpj);
 
   async function onSubmit(e: React.FormEvent) {
+    // Antes de qualquer await, de propósito: o evento precisa sair mesmo que
+    // o envio falhe — "chegou no pagamento e a compra não completou" é
+    // exatamente o caso que este passo existe para revelar.
+    registrarPasso("pagamento");
     e.preventDefault();
     if (!podeEnviar) return;
 
@@ -275,6 +301,11 @@ export function FormularioAssinatura({
           id="assinar-cpf-cnpj"
           value={cpfCnpj}
           onChange={(e) => setCpfCnpj(maskCpfCnpj(e.target.value))}
+          onBlur={() => {
+            // Marco "documento": só quando o valor já digitado é válido —
+            // saiu do campo no meio de um CPF incompleto não conta.
+            if (isValidCpfCnpj(cpfCnpj)) registrarPasso("documento");
+          }}
           required
           inputMode="numeric"
           placeholder="000.000.000-00"
