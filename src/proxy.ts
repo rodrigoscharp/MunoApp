@@ -3,6 +3,7 @@ import { authPlatform } from "@/lib/auth-platform";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TENANT_PLANO_HEADER } from "@/lib/plans";
+import { COOKIE_SESSAO, MAX_AGE_SESSAO } from "@/lib/funil/cookie";
 
 // Domínios raiz (sem subdomínio de tenant) conhecidos pela plataforma. Eles
 // servem a página de vendas, nunca um restaurante — inclusive em dev, onde o
@@ -50,6 +51,31 @@ function escapaDoBloqueio(pathname: string): boolean {
 // arquivo passar sem tratá-lo como página.
 function isEstatico(pathname: string): boolean {
   return pathname.startsWith("/_next/") || /\.[a-z0-9]+$/i.test(pathname);
+}
+
+/**
+ * Planta a sessão anônima do funil, se ela ainda não existe.
+ *
+ * O proxy gera o id e NÃO fala com o banco. Ele roda em toda requisição de
+ * todos os hosts, e um write aqui transformaria cada visita de cardápio numa
+ * ida ao Postgres — além de quebrar a garantia que src/proxy.test.ts protege,
+ * de que o host raiz não consulta tenant nenhum. Quem grava é
+ * /api/funil/evento, e a linha da sessão nasce no primeiro evento que chega.
+ *
+ * Sem atributo `domain`: host-only, o cookie fica no apex, onde a landing e o
+ * checkout vivem, e não viaja para subdomínio de restaurante.
+ */
+function comSessao(res: NextResponse, req: { cookies: { has(n: string): boolean } }): NextResponse {
+  if (req.cookies.has(COOKIE_SESSAO)) return res;
+
+  res.cookies.set(COOKIE_SESSAO, crypto.randomUUID(), {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: MAX_AGE_SESSAO,
+  });
+  return res;
 }
 
 function resolveSlugFromHost(host: string): string | null {
@@ -170,6 +196,15 @@ export default auth(async (req) => {
     return NextResponse.next();
   }
 
+  // Ingestão de evento do funil, pela mesma razão e na mesma posição da guarda
+  // acima: sair antes do findUnique. Pelo caminho normal a rota resolveria o
+  // slug "default" e morreria junto com o restaurante de demonstração, e no
+  // host raiz ela tomaria o 404 do bloco de baixo — em silêncio, porque o
+  // fetch da landing engole o erro de propósito.
+  if (nextUrl.pathname === "/api/funil/evento") {
+    return NextResponse.next();
+  }
+
   // Cron da Vercel, pelo mesmo motivo e com a mesma consequência: o job dispara
   // contra o domínio do deploy, que não é subdomínio de restaurante nenhum.
   // Pelo caminho normal ele resolveria o slug "default" e tomaria 404 —
@@ -206,7 +241,12 @@ export default auth(async (req) => {
     nextUrl.pathname.startsWith("/assinar/") ||
     nextUrl.pathname.startsWith("/api/assinar")
   ) {
-    return NextResponse.next();
+    // A condição de host importa: este bloco atende qualquer host, e sem ela o
+    // cookie seria plantado também em subdomínio de cliente, que é justamente
+    // o que a ausência de `domain` evita.
+    return resolvedSlug === null
+      ? comSessao(NextResponse.next(), req)
+      : NextResponse.next();
   }
 
   // O domínio raiz serve a página de vendas, e nada mais.
@@ -228,7 +268,7 @@ export default auth(async (req) => {
       return NextResponse.next();
     }
     if (nextUrl.pathname.replace(/\/$/, "") === "") {
-      return NextResponse.rewrite(urlNoHost(LANDING_DOC));
+      return comSessao(NextResponse.rewrite(urlNoHost(LANDING_DOC)), req);
     }
     return new NextResponse(null, { status: 404 });
   }

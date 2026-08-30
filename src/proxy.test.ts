@@ -487,6 +487,62 @@ describe("proxy: o domínio raiz serve a landing, nunca um restaurante", () => {
     expect(findUnique).not.toHaveBeenCalled();
   });
 
+  const cookieDe = (res: Response) => res.headers.get("set-cookie") ?? "";
+
+  // A sessão anônima nasce aqui, e só aqui. O proxy gera o id e devolve o
+  // cookie; quem grava no banco é a rota de ingestão. Um write no middleware
+  // custaria uma ida ao Postgres em toda requisição de todo cardápio.
+  it("planta o cookie de sessão na home do raiz", async () => {
+    const res = await proxy(requisicaoRaiz("/"));
+
+    expect(cookieDe(res)).toMatch(/muno_s=[0-9a-f-]{36}/);
+    expect(cookieDe(res)).toContain("HttpOnly");
+    expect(cookieDe(res)).toMatch(/samesite=lax/i);
+  });
+
+  // O checkout é o outro lado do mesmo funil e mora no mesmo host. Quem chega
+  // de um anúncio direto em /assinar precisa de sessão igual.
+  it("planta o cookie em /assinar", async () => {
+    const res = await proxy(requisicaoRaiz("/assinar"));
+
+    expect(cookieDe(res)).toMatch(/muno_s=/);
+  });
+
+  // Reescrever o valor a cada visita mataria a sessão e transformaria um
+  // visitante recorrente em vários, deflacionando toda taxa de conversão.
+  it("não reescreve o cookie que já veio na requisição", async () => {
+    // O cookie vai no construtor, e não num headers.set() depois: o
+    // NextRequest parseia os cookies na construção, e mutar o header adiante
+    // deixaria req.cookies vazio — o teste passaria por engano, afirmando o
+    // contrário do que quer afirmar.
+    const req = new NextRequest(`http://${RAIZ}/`, {
+      headers: { host: RAIZ, cookie: "muno_s=ja-existente" },
+    });
+    (req as unknown as { auth: Sessao }).auth = null;
+
+    const res = await proxy(req);
+
+    expect(cookieDe(res)).not.toContain("muno_s=");
+  });
+
+  // É por isso que o cookie não tem atributo Domain. Em .munoapp.com.br ele
+  // viajaria em toda requisição de todo cardápio de todo restaurante.
+  it("não planta cookie nenhum em host de restaurante", async () => {
+    const res = await proxy(requisicao("/"));
+
+    expect(cookieDe(res)).not.toContain("muno_s=");
+  });
+
+  // Mesma guarda, mesma posição e mesmo motivo de /api/leads/publico: sem ela
+  // o raiz responde 404 e o painel fica vazio, com o fetch da landing engolindo
+  // o erro de propósito.
+  it("POST /api/funil/evento no raiz passa, sem resolver tenant", async () => {
+    const res = await proxy(requisicaoRaiz("/api/funil/evento", "POST"));
+
+    expect(res.status).toBe(200);
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
   // O espelho da guarda: a landing existe em public/, que responde em
   // qualquer host. Sem isto, a página de vendas da Muno abre dentro do
   // domínio do cliente e o Google a indexa em quantos subdomínios existirem.
