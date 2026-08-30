@@ -99,7 +99,7 @@ export default async function AssinaturaPage() {
         <div className="bg-white rounded-xl border border-neutral-200 p-6">
           <p className="text-sm text-neutral-600 leading-relaxed">
             Ainda não há mensalidade cadastrada para o seu restaurante. Nada a
-            pagar por aqui — a equipe da Muno avisa quando a cobrança começar.
+            pagar por aqui, a equipe da Muno avisa quando a cobrança começar.
           </p>
         </div>
       </div>
