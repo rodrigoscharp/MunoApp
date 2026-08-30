@@ -1,11 +1,6 @@
 import Image from "next/image";
-import {
-  PLANO_LABELS,
-  escolhaDaQueryString,
-  formatarBRL,
-  precoDoCiclo,
-} from "@/lib/plans";
-import { FormularioAssinatura } from "@/components/assinar/FormularioAssinatura";
+import { escolhaDaQueryString } from "@/lib/plans";
+import { Checkout } from "@/components/assinar/Checkout";
 
 // Fora de src/app/(client)/, de propósito: aquele layout chama
 // getRequestTenantId() e devolve notFound() sem x-tenant-id — correto para o
@@ -26,43 +21,30 @@ export default async function AssinarPage({
   // escolhaDaQueryString.
   const { plano, ciclo } = escolhaDaQueryString(params);
 
-  const precoCentavos = precoDoCiclo(plano, ciclo);
-
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col items-center px-4 py-10">
-      <div className="w-full max-w-md">
-        <div className="flex justify-center mb-8">
-          <Image
-            src="/munowbg.png"
-            alt="Muno"
-            width={160}
-            height={60}
-            className="h-14 w-auto object-contain"
-          />
-        </div>
-
-        <div className="bg-white border border-neutral-200 rounded-2xl p-6 mb-6">
-          <p className="text-sm text-neutral-500">Você está assinando</p>
-          <h1 className="text-xl font-bold text-neutral-900 mt-1">
-            {PLANO_LABELS[plano]}
-          </h1>
-          <div className="mt-3 flex items-baseline gap-1">
-            <span className="text-3xl font-black text-brand">
-              R$ {formatarBRL(precoCentavos)}
-            </span>
-            <span className="text-sm text-neutral-400">
-              {ciclo === "ANUAL" ? "/ano" : "/mês"}
-            </span>
-          </div>
-          {ciclo === "ANUAL" && (
-            <p className="mt-1 text-xs text-neutral-400">
-              equivalente a 11 mensalidades — um mês de desconto pelo compromisso anual
-            </p>
-          )}
-        </div>
-
-        <FormularioAssinatura plano={plano} ciclo={ciclo} />
+    // O fundo quente (brand-light) em vez do neutral-50 de antes: a landing
+    // que trouxe a pessoa até aqui é verde e terracota, e cair num cinza de
+    // formulário genérico no passo do pagamento derruba a confiança justamente
+    // onde ela é mais cara.
+    <div className="flex min-h-screen flex-col items-center bg-brand-light px-4 py-10 sm:py-14">
+      <div className="mb-9 flex justify-center">
+        <Image
+          src="/munowbg.png"
+          alt="Muno"
+          width={160}
+          height={60}
+          className="h-16 w-auto object-contain"
+          priority
+        />
       </div>
+
+      {/* A partir daqui é Client Component: o ciclo vira estado para que o
+          toggle não desmonte o formulário. Ver Checkout.tsx. */}
+      <Checkout planoInicial={plano} cicloInicial={ciclo} />
+
+      <p className="mt-8 text-center text-xs text-neutral-500">
+        Dúvidas? Chame a gente no WhatsApp antes de assinar.
+      </p>
     </div>
   );
 }

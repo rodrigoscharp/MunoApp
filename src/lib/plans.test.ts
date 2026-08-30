@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  PLANO_BENEFICIOS,
   PRECOS,
   escolhaDaQueryString,
   formatarBRL,
@@ -97,6 +98,30 @@ describe("o preço anunciado na landing e o preço do código não podem divergi
     for (const preco of new Set(precosNaPagina())) {
       expect(conhecidos).toContain(preco);
     }
+  });
+
+  // Mesmo raciocínio dos preços, aplicado ao que o plano ENTREGA. A tela de
+  // /assinar passou a listar os benefícios ao lado do formulário, e uma
+  // segunda cópia deles divergiria da landing do mesmo jeito que 99,99 e 99
+  // divergiram — só que aqui a divergência é pior de perceber, porque ninguém
+  // confere lista de features lado a lado.
+  //
+  // O HTML quebra linha no meio do texto ("Painel\n  financeiro completo"),
+  // então a comparação normaliza espaço em branco antes de casar. Sem isso o
+  // teste falharia por formatação do arquivo, não por divergência real.
+  const textoDaLanding = landing.replace(/\s+/g, " ");
+
+  it("cada benefício de tabela aparece na página", () => {
+    for (const plano of Object.keys(PLANO_BENEFICIOS) as PlanoTenant[]) {
+      for (const beneficio of PLANO_BENEFICIOS[plano]) {
+        expect(textoDaLanding).toContain(beneficio);
+      }
+    }
+  });
+
+  it("os dois planos têm benefício listado — senão o teste acima passa à toa", () => {
+    expect(PLANO_BENEFICIOS.MEMBRO.length).toBeGreaterThan(0);
+    expect(PLANO_BENEFICIOS.MEMBRO_MESA_QR.length).toBeGreaterThan(0);
   });
 });
 

@@ -182,7 +182,7 @@ export function FormularioAssinatura({
   return (
     <form
       onSubmit={onSubmit}
-      className="bg-white border border-neutral-200 rounded-2xl p-6 space-y-4"
+      className="space-y-4 rounded-3xl border border-neutral-200/80 bg-white p-5 sm:p-7 shadow-[0_1px_2px_rgba(30,61,47,0.04),0_12px_32px_-12px_rgba(30,61,47,0.14)]"
     >
       <div>
         <label
@@ -208,6 +208,13 @@ export function FormularioAssinatura({
         >
           Endereço do seu cardápio *
         </label>
+        {/* `min-w-0` no input não é enfeite: item de flex nasce com
+            `min-width: auto`, e input tem largura mínima intrínseca (~177px,
+            do atributo `size` padrão). Sem ele, `flex-1` não consegue encolher
+            abaixo disso, e com o sufixo em `whitespace-nowrap` a linha exige
+            ~286px. Cabe num iPhone comum e ESTOURA num de 320px, empurrando
+            ".munoapp.com.br" para fora do card — bem no campo que a pessoa
+            mais olha nesta tela. */}
         <div className="flex items-center gap-1">
           <input
             id="assinar-slug"
@@ -217,9 +224,9 @@ export function FormularioAssinatura({
               setSlug(e.target.value.toLowerCase());
             }}
             required
-            className="flex-1 px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand"
+            className="min-w-0 flex-1 px-3 py-2.5 sm:px-4 rounded-lg border border-neutral-200 bg-neutral-50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand"
           />
-          <span className="text-sm text-neutral-400 whitespace-nowrap">
+          <span className="shrink-0 text-xs sm:text-sm text-neutral-400 whitespace-nowrap">
             .munoapp.com.br
           </span>
         </div>
