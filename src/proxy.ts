@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import { authPlatform } from "@/lib/auth-platform";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TENANT_PLANO_HEADER } from "@/lib/plans";
 import { COOKIE_SESSAO, MAX_AGE_SESSAO } from "@/lib/funil/cookie";
@@ -65,7 +65,7 @@ function isEstatico(pathname: string): boolean {
  * Sem atributo `domain`: host-only, o cookie fica no apex, onde a landing e o
  * checkout vivem, e não viaja para subdomínio de restaurante.
  */
-function comSessao(res: NextResponse, req: { cookies: { has(n: string): boolean } }): NextResponse {
+function comSessao(res: NextResponse, req: NextRequest): NextResponse {
   if (req.cookies.has(COOKIE_SESSAO)) return res;
 
   res.cookies.set(COOKIE_SESSAO, crypto.randomUUID(), {

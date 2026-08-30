@@ -498,6 +498,8 @@ describe("proxy: o domínio raiz serve a landing, nunca um restaurante", () => {
     expect(cookieDe(res)).toMatch(/muno_s=[0-9a-f-]{36}/);
     expect(cookieDe(res)).toContain("HttpOnly");
     expect(cookieDe(res)).toMatch(/samesite=lax/i);
+    expect(cookieDe(res)).toContain("Max-Age=31536000");
+    expect(cookieDe(res)).toContain("Path=/");
   });
 
   // O checkout é o outro lado do mesmo funil e mora no mesmo host. Quem chega
@@ -526,12 +528,18 @@ describe("proxy: o domínio raiz serve a landing, nunca um restaurante", () => {
   });
 
   // É por isso que o cookie não tem atributo Domain. Em .munoapp.com.br ele
-  // viajaria em toda requisição de todo cardápio de todo restaurante.
-  it("não planta cookie nenhum em host de restaurante", async () => {
-    const res = await proxy(requisicao("/"));
+  // viajaria em toda requisição de todo cardápio de todo restaurante. O caso
+  // de "/assinar" é o que importa de verdade: é o único ponto de plantio que
+  // um host de tenant alcança, já que "/" num host de tenant nunca passa perto
+  // de comSessao — segue direto para a resolução do tenant.
+  it.each(["/", "/assinar"])(
+    "não planta cookie nenhum em host de restaurante (%s)",
+    async (caminho) => {
+      const res = await proxy(requisicao(caminho));
 
-    expect(cookieDe(res)).not.toContain("muno_s=");
-  });
+      expect(cookieDe(res)).not.toContain("muno_s=");
+    }
+  );
 
   // Mesma guarda, mesma posição e mesmo motivo de /api/leads/publico: sem ela
   // o raiz responde 404 e o painel fica vazio, com o fetch da landing engolindo
