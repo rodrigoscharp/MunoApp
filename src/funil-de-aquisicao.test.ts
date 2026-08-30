@@ -314,13 +314,25 @@ describe("costura 4 — o link do e-mail abre a página que sabe recebê-lo", ()
   // O buraco: o e-mail monta a URL com uma string, a página lê o parâmetro com
   // outra. Renomear de um lado gera um link que abre a página e não faz nada —
   // e é a ÚNICA porta de entrada de quem acabou de pagar.
-  it("o parâmetro do link é o que a página de redefinição lê", async () => {
-    const url = await linkDoEmail();
-    const pagina = lerFonte("src/app/(client)/redefinir-senha/page.tsx");
+  // Desde 30/08/2026 a página é Server Component (ela busca o nome do
+  // restaurante) e quem lê a query string é o formulário ao lado. A dupla
+  // conta como "quem recebe o link", e a asserção passou a cobrir TODO
+  // parâmetro em vez de exigir que exista um só: o e-mail agora manda também
+  // `novo=1`, e um parâmetro que ninguém lê é tão quebrado quanto um
+  // renomeado.
+  const quemRecebeOLink = () =>
+    lerFonte("src/app/(client)/redefinir-senha/page.tsx") +
+    lerFonte("src/components/auth/ResetPasswordForm.tsx");
 
-    const nomeDoParametro = [...url.searchParams.keys()];
-    expect(nomeDoParametro).toHaveLength(1);
-    expect(pagina).toContain(`searchParams.get("${nomeDoParametro[0]}")`);
+  it("todo parâmetro do link é lido por quem recebe a página", async () => {
+    const url = await linkDoEmail();
+    const recebe = quemRecebeOLink();
+
+    const parametros = [...url.searchParams.keys()];
+    expect(parametros).toContain("token");
+    for (const nome of parametros) {
+      expect(recebe).toContain(`searchParams.get("${nome}")`);
+    }
   });
 
   it("o caminho do link é uma rota que existe no app", async () => {
@@ -332,9 +344,35 @@ describe("costura 4 — o link do e-mail abre a página que sabe recebê-lo", ()
     ).not.toThrow();
   });
 
+  // O último elo: criada a senha, a tela empurra para o login. Se ela mandar
+  // uma marca de primeiro acesso que o login não lê, quem acabou de criar a
+  // senha é recebido com "Bem-vindo de volta" — de volta a um lugar onde nunca
+  // esteve.
+  it("a marca de primeiro acesso passada ao login é lida por ele", () => {
+    const form = lerFonte("src/components/auth/ResetPasswordForm.tsx");
+    const login = lerFonte("src/components/auth/LoginForm.tsx");
+
+    const query = /["'`]\/login\?([^"'`]+)["'`]/.exec(form)?.[1] ?? "";
+    const marca = /(\w+)=/.exec(query)?.[1];
+
+    expect(marca).toBeTruthy();
+    expect(login).toContain(`searchParams.get("${marca}")`);
+  });
+
+  // Sem isto o onboarding é inalcançável. O login mandava para "/" (a vitrine),
+  // então o dono entrava na Muno pela primeira vez e caía no próprio cardápio,
+  // como se fosse cliente dele, sem nunca ver o painel onde o onboarding mora.
+  it("o login leva ADMIN ao painel, sem atropelar o callbackUrl", () => {
+    const login = lerFonte("src/components/auth/LoginForm.tsx");
+
+    expect(login).toContain('"/adm"');
+    // callbackUrl continua mandando quando existe: quem foi barrado numa
+    // página específica precisa voltar para ela, não para o painel.
+    expect(login).toContain("callbackUrl");
+  });
+
   it("a página envia o token para uma rota que existe", () => {
-    const pagina = lerFonte("src/app/(client)/redefinir-senha/page.tsx");
-    const rota = /fetch\("([^"]+)"/.exec(pagina)?.[1];
+    const rota = /fetch\("([^"]+)"/.exec(quemRecebeOLink())?.[1];
 
     expect(rota).toBe("/api/auth/reset-password");
     expect(() =>

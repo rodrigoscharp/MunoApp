@@ -317,6 +317,42 @@ describe("proxy: sessão de outro tenant não pode trancar o NextAuth", () => {
     expect(destino(res)).toBe(`http://${HOST}/login`);
   });
 
+  // A porta de quem acabou de pagar. O e-mail de boas-vindas manda para
+  // /redefinir-senha, e quem chega ali AINDA NÃO TEM SENHA. Redirecionar essa
+  // pessoa para /login é trancá-la do lado de fora: a única porta que ela tem
+  // passa a exigir justamente a credencial que ela veio criar. Basta ela já
+  // ser dona de outro restaurante na Muno, ou ter um cookie de um tenant
+  // recriado, para cair nisso.
+  it.each(["/redefinir-senha", "/esqueci-senha"])(
+    "%s responde mesmo com sessão de outro tenant",
+    async (caminho) => {
+      comAssinatura(null);
+
+      const res = await proxy(requisicao(caminho, DE_OUTRO_TENANT));
+
+      expect(destino(res)).toBeNull();
+      expect(res.status).toBe(200);
+    }
+  );
+
+  // E o contrário também precisa valer: quem ESTÁ logado neste tenant e pediu
+  // troca de senha continua chegando na tela. /login e /register expulsam quem
+  // já tem sessão; estas não podem, senão o link do e-mail vira um bounce para
+  // a home no meio de uma troca de senha legítima.
+  it.each(["/redefinir-senha", "/esqueci-senha"])(
+    "%s não expulsa quem já está logado no próprio tenant",
+    async (caminho) => {
+      comAssinatura(null);
+
+      const res = await proxy(
+        requisicao(caminho, { user: { id: "u1", role: "ADMIN", tenantId: TENANT_ID } })
+      );
+
+      expect(destino(res)).toBeNull();
+      expect(res.status).toBe(200);
+    }
+  );
+
   it.each([
     "/api/auth/session",
     "/api/auth/callback/credentials",

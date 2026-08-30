@@ -113,3 +113,50 @@ body {
   font-weight: 600;
   letter-spacing: -0.015em;
 }
+
+/* O letreiro.
+   A tela de /assinar/obrigado tem dois estados que já eram dois textos
+   diferentes: o pagamento caiu mas o restaurante ainda não nasceu, e o
+   restaurante nasceu. O que a pessoa acabou de comprar é um endereço, que é o
+   letreiro da casa nova dela — então os dois estados viram o letreiro apagado
+   e o letreiro aceso, e a espera deixa de ser tempo morto para virar
+   expectativa.
+
+   É a assinatura desta tela, no mesmo espírito do .arco: uma vez, num lugar
+   só, e nada mais se mexe em volta. */
+.letreiro {
+  text-shadow:
+    0 0 24px rgba(212, 97, 42, 0.55),
+    0 0 64px rgba(212, 97, 42, 0.25);
+}
+
+/* Neon não acende liso: hesita, apaga e firma. A sequência abaixo é essa
+   hesitação, e roda UMA vez, quando o provisionamento confirma. */
+.letreiro-acende {
+  animation: acender 1100ms ease-out both;
+}
+@keyframes acender {
+  0%   { opacity: 0.18; text-shadow: none; }
+  12%  { opacity: 0.90; text-shadow: 0 0 18px rgba(212, 97, 42, 0.50); }
+  20%  { opacity: 0.25; text-shadow: none; }
+  32%  { opacity: 1;    text-shadow: 0 0 26px rgba(212, 97, 42, 0.60); }
+  42%  { opacity: 0.40; text-shadow: 0 0 8px rgba(212, 97, 42, 0.30); }
+  100% { opacity: 1;
+         text-shadow: 0 0 24px rgba(212, 97, 42, 0.55),
+                      0 0 64px rgba(212, 97, 42, 0.25); }
+}
+
+/* Enquanto não acende: o brilho respira, para a tela não parecer travada. */
+.letreiro-espera {
+  animation: letreiroEspera 2.4s ease-in-out infinite;
+}
+@keyframes letreiroEspera {
+  0%, 100% { opacity: 0.28; }
+  50%      { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .letreiro-acende,
+  .letreiro-espera { animation: none; }
+  .letreiro-espera { opacity: 0.45; }
+}

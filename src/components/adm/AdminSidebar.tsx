@@ -19,6 +19,7 @@ import {
   MessageSquare,
   CreditCard,
   Receipt,
+  ExternalLink,
 } from "lucide-react";
 
 // Função pura (não um valor fixo) porque "Mesas (QR)" só entra no grupo
@@ -114,6 +115,24 @@ export function AdminSidebar({ user, temMesaQr }: Props) {
             <p className="text-xs font-medium text-neutral-900 truncate">{user.name}</p>
             <p className="text-xs text-neutral-400 truncate">{user.email}</p>
           </div>
+          {/* A saída do painel de volta para a loja pública.
+              NÃO se chama "Cardápio": esse nome já é do item de navegação
+              acima, que abre /adm/menu para GERENCIAR o cardápio. Dois
+              rótulos iguais indo para lugares diferentes é a confusão que
+              este nome evita.
+
+              Mora aqui embaixo, junto do "Sair", porque é ação de deixar o
+              painel, não destino de navegação dentro dele. E abre em nova aba
+              para o dono não perder a tela em que estava. */}
+          <a
+            href="/"
+            target="_blank"
+            rel="noopener"
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-neutral-500 hover:bg-neutral-100 transition"
+          >
+            <ExternalLink size={16} />
+            Ver minha loja
+          </a>
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
             className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-neutral-500 hover:bg-neutral-100 transition"
@@ -200,6 +219,16 @@ export function AdminSidebar({ user, temMesaQr }: Props) {
                 <p className="text-sm font-medium text-neutral-900 truncate">{user.name}</p>
                 <p className="text-xs text-neutral-400 truncate">{user.email}</p>
               </div>
+              <a
+                href="/"
+                target="_blank"
+                rel="noopener"
+                onClick={() => setDrawerOpen(false)}
+                className="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-sm text-neutral-500 hover:bg-neutral-100 transition"
+              >
+                <ExternalLink size={18} />
+                Ver minha loja
+              </a>
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
                 className="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-sm text-neutral-500 hover:bg-neutral-100 transition"

@@ -38,6 +38,7 @@ async function rotaNova() {
 function inscricao(over: Record<string, unknown> = {}) {
   return {
     id: "insc-1",
+    nome: "Pizzaria do João",
     slug: "pizzaria",
     status: "AGUARDANDO_PAGAMENTO",
     asaasSubscriptionId: "sub_1",
@@ -68,6 +69,7 @@ describe("POST /api/assinar/reconciliar", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       provisionada: true,
+      nome: "Pizzaria do João",
       url: "https://pizzaria.munoapp.com.br",
     });
     expect(provisionar).toHaveBeenCalledWith(
@@ -86,6 +88,7 @@ describe("POST /api/assinar/reconciliar", () => {
 
     expect(await res.json()).toEqual({
       provisionada: true,
+      nome: "Pizzaria do João",
       url: "https://pizzaria.munoapp.com.br",
     });
     expect(provisionar).not.toHaveBeenCalled();
