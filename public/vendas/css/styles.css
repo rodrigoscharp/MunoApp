@@ -502,3 +502,22 @@ nav.sticky-active {
 @media (max-width: 767px) {
   .whatsapp-float { display: none !important; }
 }
+
+/* --------------------------------------------------
+   Chama do selo "Mais escolhido"
+   -------------------------------------------------- */
+/* transform-origin embaixo: a chama treme a partir da base, como fogo preso
+   no pavio. No centro ela balança inteira e parece um ícone girando. */
+.flame-anim {
+  animation: flamejar 1.5s ease-in-out infinite;
+  transform-origin: 50% 90%;
+}
+@keyframes flamejar {
+  0%, 100% { transform: scale(1)    rotate(-2deg); opacity: 0.9; }
+  25%      { transform: scale(1.12) rotate(2deg);  opacity: 1; }
+  50%      { transform: scale(0.96) rotate(-1deg); opacity: 0.95; }
+  75%      { transform: scale(1.08) rotate(3deg);  opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flame-anim { animation: none; }
+}
