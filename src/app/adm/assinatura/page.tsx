@@ -1,6 +1,7 @@
 import { AlertTriangle, Lock } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { withRequestTenant } from "@/lib/tenant-request";
+import { getRequestTenantPlano, withRequestTenant } from "@/lib/tenant-request";
+import { UpgradeMesaQr } from "@/components/adm/UpgradeMesaQr";
 import { formatCurrency } from "@/lib/utils";
 import { avisoDeAtraso } from "@/lib/assinatura/aviso";
 import { proximoVencimento } from "@/lib/assinatura/competencia";
@@ -51,6 +52,10 @@ export default async function AssinaturaPage() {
   // preguiçosa: devolvê-la sem esperar faz a query começar depois que o
   // AsyncLocalStorage já saiu de escopo, e a extensão de tenant estoura com
   // "Nenhum tenant no contexto da request".
+  // O plano vem do header que o proxy injeta (x-tenant-plano), então saber se
+  // cabe oferta de upgrade não custa consulta nenhuma.
+  const plano = await getRequestTenantPlano();
+
   const assinatura = await withRequestTenant(async (tenantId) =>
     await prisma.assinatura.findFirst({
       where: { tenantId },
@@ -135,11 +140,11 @@ export default async function AssinaturaPage() {
       {cabecalho}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-neutral-200 p-5">
-          <p className="text-xs text-neutral-400 font-medium uppercase tracking-wide">
+        <div className="rounded-3xl border border-neutral-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(30,61,47,0.04),0_12px_32px_-12px_rgba(30,61,47,0.14)]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-forest/60">
             Situação
           </p>
-          <p className={`text-2xl font-bold mt-1 ${situacao.classe}`}>
+          <p className={`display mt-1 text-2xl ${situacao.classe}`}>
             {situacao.texto}
           </p>
           <p className="text-xs text-neutral-400 mt-0.5">
@@ -151,11 +156,11 @@ export default async function AssinaturaPage() {
           </p>
         </div>
 
-        <div className="bg-white rounded-xl border border-neutral-200 p-5">
-          <p className="text-xs text-neutral-400 font-medium uppercase tracking-wide">
+        <div className="rounded-3xl border border-neutral-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(30,61,47,0.04),0_12px_32px_-12px_rgba(30,61,47,0.14)]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-forest/60">
             Mensalidade
           </p>
-          <p className="text-2xl font-bold text-neutral-900 mt-1">
+          <p className="display mt-1 text-2xl text-forest-dark">
             {formatCurrency(Number(assinatura.valorMensal))}
           </p>
           <p className="text-xs text-neutral-400 mt-0.5">
@@ -163,11 +168,11 @@ export default async function AssinaturaPage() {
           </p>
         </div>
 
-        <div className="bg-white rounded-xl border border-neutral-200 p-5">
-          <p className="text-xs text-neutral-400 font-medium uppercase tracking-wide">
+        <div className="rounded-3xl border border-neutral-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(30,61,47,0.04),0_12px_32px_-12px_rgba(30,61,47,0.14)]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-forest/60">
             {cancelada ? "Encerrada em" : "Próximo vencimento"}
           </p>
-          <p className="text-2xl font-bold text-neutral-900 mt-1">
+          <p className="display mt-1 text-2xl text-forest-dark">
             {cancelada ? "—" : formatarData(proximo)}
           </p>
           <p className="text-xs text-neutral-400 mt-0.5">
@@ -181,6 +186,12 @@ export default async function AssinaturaPage() {
           </p>
         </div>
       </div>
+
+      {/* A oferta só para quem está no plano de baixo, e só com a assinatura
+          saudável. Oferecer upgrade a quem está devendo é de mau gosto, e
+          disputa atenção com a única tela que resolve a pendência: esta é a
+          única de gestão que continua aberta no bloqueio. */}
+      {plano === "MEMBRO" && !bloqueada && !cancelada && !aviso && <UpgradeMesaQr />}
 
       {/* O painel do bloqueio. O que ele precisa deixar claro, nesta ordem: o
           cardápio não caiu, o que exatamente parou, e como voltar. */}
