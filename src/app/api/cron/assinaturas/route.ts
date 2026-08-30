@@ -12,6 +12,7 @@ import {
   type ResultadoReconciliacao,
 } from "@/lib/assinatura/reconciliacao";
 import { registrarEvento } from "@/lib/funil/registrar";
+import { expurgarEventos } from "@/lib/funil/expurgo";
 
 /**
  * Job diário da assinatura. Duas responsabilidades, nesta ordem: gerar a
@@ -287,6 +288,21 @@ async function executar(req: NextRequest) {
     );
   }
 
+  // Por último, como a limpeza de slug e pelo mesmo motivo: conveniência não
+  // derruba receita. Um erro aqui não pode fazer o job sair sem gerar a fatura
+  // de ninguém.
+  let funil = { resumidos: 0, apagados: 0 };
+  let expurgoDoFunilFalhou = false;
+  try {
+    funil = await expurgarEventos(prismaUnscoped, agora);
+  } catch (erro) {
+    expurgoDoFunilFalhou = true;
+    console.error(
+      "[cron/assinaturas] falha ao resumir e expurgar eventos do funil",
+      erro
+    );
+  }
+
   const resposta = {
     competencia,
     reconciliacao,
@@ -296,6 +312,8 @@ async function executar(req: NextRequest) {
     cobrancasCriadas,
     cobrancasJaExistentes,
     statusAtualizados,
+    funil,
+    ...(expurgoDoFunilFalhou ? { expurgoDoFunilFalhou: true } : {}),
   };
 
   // Contador honesto: se a limpeza falhou, inscricoesExpiradas fica 0 (nada
