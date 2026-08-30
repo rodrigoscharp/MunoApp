@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Letreiro } from "./Letreiro";
 
 /**
  * O desfecho da compra, na volta do gateway.
@@ -48,14 +49,6 @@ export function ConfirmacaoAssinatura({ inscricaoId }: { inscricaoId?: string })
   // Sem o protocolo: é o endereço como a pessoa vai dizer para os clientes
   // dela, não como o navegador escreve.
   const endereco = casa?.url.replace(/^https?:\/\//, "") ?? "";
-  // Quebra no primeiro ponto, e não onde couber. Um `break-all` parte no meio
-  // da palavra ("cantina-da-ana.local / host:3000"), que é ilegível e ainda
-  // sugere um endereço que não existe. Separado assim, o nome da casa fica
-  // grande e o domínio recua para o tamanho de rodapé de letreiro — que é a
-  // hierarquia real: o que muda de cliente para cliente é o nome.
-  const corte = endereco.indexOf(".");
-  const nomeNoLetreiro = corte === -1 ? endereco : endereco.slice(0, corte);
-  const dominio = corte === -1 ? "" : endereco.slice(corte);
 
   return (
     <>
@@ -67,16 +60,9 @@ export function ConfirmacaoAssinatura({ inscricaoId }: { inscricaoId?: string })
             </p>
             {/* O endereço é o troféu da tela: é o que a pessoa vai digitar,
                 mandar no WhatsApp e imprimir no cardápio. */}
-            <p className="letreiro-acende mt-4">
-              <span className="display letreiro block break-words text-[1.75rem] leading-tight text-brand sm:text-[2.25rem]">
-                {nomeNoLetreiro}
-              </span>
-              {dominio && (
-                <span className="mt-1 block text-sm font-medium tracking-wide text-brand/70">
-                  {dominio}
-                </span>
-              )}
-            </p>
+            <div className="mt-4">
+              <Letreiro endereco={endereco} acende />
+            </div>
           </>
         ) : (
           <>

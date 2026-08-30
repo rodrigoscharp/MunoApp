@@ -75,10 +75,16 @@ export function ResetPasswordForm({ nomeRestaurante }: { nomeRestaurante?: strin
   }
 
   return (
-    <div className="w-full max-w-sm">
-      <div className="flex justify-center mb-8 lg:hidden">
-        <Image src="/munowbg.png" alt="MUNO" width={160} height={60} className="h-16 w-auto object-contain" />
-      </div>
+    <div className="w-full">
+      {/* A largura vem da page. No primeiro acesso o logo do celular sai: o
+          card do letreiro logo acima já ancora a tela, e dois blocos de marca
+          empilhados empurram o formulário para baixo da dobra justamente em
+          quem abriu o e-mail no telefone. */}
+      {!primeiroAcesso && (
+        <div className="flex justify-center mb-8 lg:hidden">
+          <Image src="/munowbg.png" alt="MUNO" width={160} height={60} className="h-16 w-auto object-contain" />
+        </div>
+      )}
 
       {success ? (
         <div className="text-center space-y-4">
