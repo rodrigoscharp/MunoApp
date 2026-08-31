@@ -15,7 +15,7 @@ no gateway do próprio dono — e o CRM que vende tudo isso.
 ![Prisma](https://img.shields.io/badge/Prisma-6-23201E?style=flat-square&labelColor=23201E&color=2B5240)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-23201E?style=flat-square&labelColor=23201E&color=2B5240)
 ![Tailwind](https://img.shields.io/badge/Tailwind-4-23201E?style=flat-square&labelColor=23201E&color=2B5240)
-![Testes](https://img.shields.io/badge/testes-448-23201E?style=flat-square&labelColor=23201E&color=2B5240)
+![Testes](https://img.shields.io/badge/testes-1749-23201E?style=flat-square&labelColor=23201E&color=2B5240)
 
 </div>
 
@@ -29,8 +29,8 @@ clientes e o próprio gateway de pagamento. O dinheiro do pedido cai direto na
 conta do restaurante — a Muno nunca é parte da transação.
 
 ```
-munoapp.com.br              landing de vendas (repositório separado)
-app.munoapp.com.br          API pública (captação de lead da landing)
+munoapp.com.br              landing de vendas e checkout self-service
+app.munoapp.com.br          API pública
 admin.munoapp.com.br        console da plataforma — CRM e cobrança
 <slug>.munoapp.com.br       o restaurante: cardápio, painel, cozinha, entrega
 ```
@@ -117,10 +117,16 @@ polling de 30s como rede de segurança.
 O lado comercial da Muno, com login separado (cookie próprio, `PlatformAdmin`).
 
 - **Visão geral** — MRR, leads da semana, funil por etapa e cobranças a receber
+- **Conversão** — quanto do lead vira cliente, recortado por origem e por coorte
+  de entrada, a escada da visita ao restaurante no ar com a perda em cada
+  degrau, tempo mediano até fechar e receita por plano e ciclo
 - **Leads** — captação automática pela landing (com dedupe por telefone,
   honeypot e limite por IP) ou cadastro manual; funil
   `NOVO → CONTATADO → NEGOCIAÇÃO → FECHADO / PERDIDO`, notas por lead e motivo
-  de perda
+  de perda. A lista mostra a situação de cobrança de cada um: quanto paga, se
+  está em dia, em atraso, bloqueado ou em cortesia
+- **Tema claro e escuro** — com a opção de seguir o sistema, aplicada antes da
+  primeira pintura para a tela não piscar
 - **Conversão em um clique** — provisiona o tenant inteiro: cria o restaurante,
   o usuário admin com senha gerada, o cadastro inicial, o plano contratado e a
   assinatura com dias de cortesia negociados. Devolve a URL pronta
@@ -139,6 +145,38 @@ O lado comercial da Muno, com login separado (cookie próprio, `PlatformAdmin`).
 Inadimplência nunca derruba o storefront. E mesmo bloqueado, o dono continua
 alcançando pedidos, chats e a própria fatura: quem pagaria o preço de fechar
 essas telas seria o cliente do restaurante, que não deve nada a ninguém.
+
+---
+
+## O funil, medido
+
+Desde 30/08/2026 a Muno mede a própria venda. Um cookie anônimo nasce no
+domínio raiz e atravessa a landing, o checkout, o pagamento e o
+provisionamento, ligando "visita vinda de um anúncio" a "membro pagante".
+
+```
+proxy (host raiz)  →  Set-Cookie: muno_s=<uuid>
+landing e checkout →  VISITA, VIU_PRECO, CLICOU_ASSINAR, ABRIU_WHATSAPP,
+                      CHECKOUT_PASSO
+servidor           →  CHECKOUT_CRIADO, PAGOU, PROVISIONADO, ABANDONOU
+cron das 9h        →  resume os 90 dias e apaga o evento cru
+```
+
+Três regras atravessam o desenho:
+
+- **Nada de relatório derruba receita.** Todo evento do navegador é
+  `keepalive` sem `await`; todo evento do servidor passa por uma função que
+  nunca propaga exceção. Se a instrumentação cair, a venda acontece igual e só
+  o número se perde.
+- **O proxy não fala com o banco.** Ele gera o id e devolve o cookie. Um write
+  ali custaria uma ida ao Postgres em cada visita de cardápio.
+- **O evento cru vive 90 dias.** Depois disso vira contagem por dia, tipo e
+  origem, resumida antes de ser apagada, na mesma transação. A série histórica
+  nunca encolhe; o detalhe individual sim.
+
+Nada disso escapa da regra do isolamento: as três tabelas novas são registro de
+plataforma, sem `tenantId`, com RLS ligado e sem policy, que é o que nega tudo
+para a chave pública do Supabase.
 
 ---
 
@@ -231,7 +269,7 @@ sessão de outro tenant tratada como deslogada · rotas de API com 404 em vez de
 | IA | Groq — LLaMA 3.3 70B |
 | E-mail | Resend |
 | Arquivos | Supabase Storage (imagens) e Vercel Blob (backups) |
-| Testes | Vitest — 448 testes |
+| Testes | Vitest — 1749 testes |
 | Deploy | Vercel, região `gru1` (São Paulo) |
 
 ---
@@ -255,18 +293,22 @@ src/
 │       ├── motoboy/ chat/ analytics/ settings/ upload/ ai/
 │       ├── platform/           # leads, clientes, cobranças
 │       ├── leads/publico/      # captação vinda da landing
-│       └── cron/assinaturas/   # job diário de cobrança
+│       ├── funil/evento/       # ingestão dos eventos do funil
+│       ├── assinar/            # checkout self-service
+│       └── cron/assinaturas/   # job diário: cobrança, régua e expurgo
 ├── components/                 # por área: adm, menu, mesa, kitchen, motoboy, platform…
 ├── hooks/                      # carrinho, chat, cozinha, rastreio, notificações
 └── lib/
     ├── prisma.ts               # cliente com escopo automático de tenant
     ├── tenant-*.ts             # contexto, provisionamento, remoção, URLs
     ├── payments/               # um adapter por gateway + fábrica
-    ├── assinatura/             # régua de inadimplência, competência, baixa
+    ├── assinatura/             # régua de inadimplência, competência, baixa, situação
+    ├── funil/                  # cookie, estágio, resumo, expurgo, registro de evento
+    ├── platform-conversao.ts   # as contas da tela de conversão
     └── coupon, delivery-fee, faturamento, plans, realtime, business-hours…
 prisma/
-├── schema.prisma               # 20 models
-├── migrations/                 # 15 migrações, RLS incluído
+├── schema.prisma               # 24 models
+├── migrations/                 # 18 migrações, RLS incluído
 └── seed.ts
 ```
 
@@ -282,8 +324,9 @@ prisma/
 `Coupon` · `DeliveryZone` · `DeliveryTracking` · `ChatMessage` · `Setting` ·
 `PasswordResetToken` · `PaymentConnection`
 
-**Da plataforma**
-`PlatformAdmin` · `Lead` · `LeadNote` · `Assinatura` · `Cobranca`
+**Da plataforma** (sem `tenantId`, lidas por `prismaUnscoped`, com RLS sem policy)
+`PlatformAdmin` · `Lead` · `LeadNote` · `Assinatura` · `Cobranca` · `Inscricao` ·
+`SessaoFunil` · `EventoFunil` · `ResumoDiario`
 
 Ciclo do pedido:
 
@@ -369,7 +412,7 @@ restaurante, use `<slug>.localhost:3000`.
 ```bash
 npm run dev              # servidor local (passa pela trava de banco)
 npm run build            # build de produção
-npm test                 # 448 testes
+npm test                 # 1749 testes
 npm run test:watch
 npm run lint
 ```
