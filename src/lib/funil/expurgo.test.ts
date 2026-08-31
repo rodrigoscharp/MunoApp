@@ -21,16 +21,21 @@ function prismaFalso(eventos: unknown[]) {
     sessaoFunil: { deleteMany: sessaoDeleteMany },
   };
 
+  const transaction = vi.fn(
+    (fn: (t: unknown) => unknown, _options?: unknown) => fn(tx)
+  );
+
   // Cast porque um punhado de vi.fn() não satisfaz o tipo gerado pelo Prisma,
   // e tipar o fake por inteiro seria reescrever o client para provar três
   // asserções.
   return {
     cliente: {
-      $transaction: (fn: (t: unknown) => unknown) => fn(tx),
+      $transaction: transaction,
     } as unknown as Parameters<typeof expurgarEventos>[0],
     upsert,
     deleteMany,
     sessaoDeleteMany,
+    transaction,
   };
 }
 
@@ -106,5 +111,22 @@ describe("expurgarEventos", () => {
     expect(deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
       sessaoDeleteMany.mock.invocationCallOrder[0]
     );
+  });
+
+  // Sob o timeout padrão de 5s do Prisma 6, a primeira vez que a varredura
+  // de 90 dias estourar faz rollback (P2028) e a passada seguinte tem MAIS
+  // dado que a anterior — uma catraca que nunca se recupera sozinha.
+  it("passa timeout e maxWait maiores que o padrão do Prisma, contra a catraca do P2028", async () => {
+    const { cliente, transaction } = prismaFalso([]);
+
+    await expurgarEventos(cliente, AGORA);
+
+    expect(transaction).toHaveBeenCalledTimes(1);
+    const opcoes = transaction.mock.calls[0][1] as {
+      timeout?: number;
+      maxWait?: number;
+    };
+    expect(opcoes.timeout).toBeGreaterThan(5000);
+    expect(opcoes.maxWait).toBeGreaterThan(0);
   });
 });

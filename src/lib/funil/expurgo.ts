@@ -1,5 +1,5 @@
 import { resumir } from "./resumo";
-import type { Prisma, TipoEvento } from "@prisma/client";
+import type { Prisma, PrismaClient, TipoEvento } from "@prisma/client";
 
 /**
  * O evento cru serve para investigar o mês corrente; a série histórica vive no
@@ -21,8 +21,16 @@ type ClienteDoExpurgo = Pick<
   "eventoFunil" | "resumoDiario" | "sessaoFunil"
 >;
 
+// As opções aceitas pela transação interativa, derivadas do próprio
+// PrismaClient — e não escritas à mão — para não divergir se o Prisma mudar
+// a forma desse segundo argumento numa versão futura.
+type OpcoesDaTransacao = Parameters<PrismaClient["$transaction"]>[1];
+
 type Transacional = {
-  $transaction<T>(fn: (tx: ClienteDoExpurgo) => Promise<T>): Promise<T>;
+  $transaction<T>(
+    fn: (tx: ClienteDoExpurgo) => Promise<T>,
+    options?: OpcoesDaTransacao
+  ): Promise<T>;
 };
 
 /**
@@ -39,75 +47,88 @@ export async function expurgarEventos(
 ): Promise<{ resumidos: number; apagados: number }> {
   const limite = limiteDoExpurgo(agora);
 
-  return cliente.$transaction(async (tx) => {
-    const antigos: {
-      tipo: TipoEvento;
-      createdAt: Date;
-      sessao: { utmSource: string | null } | null;
-    }[] = await tx.eventoFunil.findMany({
-      where: { createdAt: { lt: limite } },
-      select: {
-        tipo: true,
-        createdAt: true,
-        sessao: { select: { utmSource: true } },
-      },
-    });
-
-    let resumidos = 0;
-    let apagados = 0;
-
-    if (antigos.length > 0) {
-      const linhas = resumir(
-        antigos.map((e) => ({
-          tipo: e.tipo,
-          createdAt: e.createdAt,
-          origem: e.sessao?.utmSource ?? null,
-        }))
-      );
-
-      for (const linha of linhas) {
-        // increment, e não set: o cron rodando duas vezes no mesmo dia soma no
-        // lugar de duplicar, e um dia parcialmente resumido numa passada
-        // anterior é completado, nunca substituído.
-        await tx.resumoDiario.upsert({
-          where: {
-            dia_tipo_origem: {
-              dia: linha.dia,
-              tipo: linha.tipo,
-              origem: linha.origem,
-            },
-          },
-          create: linha,
-          update: { n: { increment: linha.n } },
-        });
-      }
-
-      const resultado = await tx.eventoFunil.deleteMany({
+  return cliente.$transaction(
+    async (tx) => {
+      const antigos: {
+        tipo: TipoEvento;
+        createdAt: Date;
+        sessao: { utmSource: string | null } | null;
+      }[] = await tx.eventoFunil.findMany({
         where: { createdAt: { lt: limite } },
+        select: {
+          tipo: true,
+          createdAt: true,
+          sessao: { select: { utmSource: true } },
+        },
       });
 
-      resumidos = linhas.length;
-      apagados = resultado.count;
+      let resumidos = 0;
+      let apagados = 0;
+
+      if (antigos.length > 0) {
+        const linhas = resumir(
+          antigos.map((e) => ({
+            tipo: e.tipo,
+            createdAt: e.createdAt,
+            origem: e.sessao?.utmSource ?? null,
+          }))
+        );
+
+        for (const linha of linhas) {
+          // increment, e não set: o cron rodando duas vezes no mesmo dia soma
+          // no lugar de duplicar, e um dia parcialmente resumido numa passada
+          // anterior é completado, nunca substituído.
+          await tx.resumoDiario.upsert({
+            where: {
+              dia_tipo_origem: {
+                dia: linha.dia,
+                tipo: linha.tipo,
+                origem: linha.origem,
+              },
+            },
+            create: linha,
+            update: { n: { increment: linha.n } },
+          });
+        }
+
+        const resultado = await tx.eventoFunil.deleteMany({
+          where: { createdAt: { lt: limite } },
+        });
+
+        resumidos = linhas.length;
+        apagados = resultado.count;
+      }
+
+      // Fora do if de propósito: a sessão órfã é medida pelo createdAt dela,
+      // não pelo dos eventos — as duas checagens são independentes. Amarrar
+      // esta faxina à existência de evento velho a desligaria justamente no
+      // caso que ela existe para pegar, o visitante que saiu antes de
+      // qualquer evento ser registrado (cookie plantado, checkout aberto
+      // direto). Sessão de visitante que nunca voltou não precisa viver para
+      // sempre — o que ela representa já está no resumo, quando há resumo.
+      // Só as que ficaram sem evento, sem lead e sem inscrição: as outras
+      // são a costura de alguém que comprou.
+      await tx.sessaoFunil.deleteMany({
+        where: {
+          createdAt: { lt: limite },
+          eventos: { none: {} },
+          leads: { none: {} },
+          inscricoes: { none: {} },
+        },
+      });
+
+      return { resumidos, apagados };
+    },
+    {
+      // Sob o timeout padrão de 5s do Prisma 6, a primeira vez que esta
+      // varredura de 90 dias estourar faz rollback (P2028) — e a passada de
+      // amanhã tem MAIS dado que a de hoje, nunca menos. É uma catraca que
+      // nunca se recupera sozinha, e ela dispara 90 dias depois do merge,
+      // exatamente quando ninguém está olhando. 60s de teto e 10s de espera
+      // pela conexão dão folga real para o volume descrito na spec sem
+      // deixar um job travado prender a conexão para sempre.
+      timeout: 60_000,
+      maxWait: 10_000,
     }
-
-    // Fora do if de propósito: a sessão órfã é medida pelo createdAt dela, não
-    // pelo dos eventos — as duas checagens são independentes. Amarrar esta
-    // faxina à existência de evento velho a desligaria justamente no caso que
-    // ela existe para pegar, o visitante que saiu antes de qualquer evento ser
-    // registrado (cookie plantado, checkout aberto direto). Sessão de
-    // visitante que nunca voltou não precisa viver para sempre — o que ela
-    // representa já está no resumo, quando há resumo. Só as que ficaram sem
-    // evento, sem lead e sem inscrição: as outras são a costura de alguém que
-    // comprou.
-    await tx.sessaoFunil.deleteMany({
-      where: {
-        createdAt: { lt: limite },
-        eventos: { none: {} },
-        leads: { none: {} },
-        inscricoes: { none: {} },
-      },
-    });
-
-    return { resumidos, apagados };
-  });
+  );
 }
