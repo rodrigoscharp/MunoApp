@@ -2,6 +2,7 @@ import Image from "next/image";
 import { authPlatform } from "@/lib/auth-platform";
 import { MenuLateral } from "@/components/platform/MenuLateral";
 import { BotaoSair } from "@/components/platform/BotaoSair";
+import { TemaBotao } from "@/components/platform/TemaBotao";
 
 export default async function PlatformLayout({
   children,
@@ -37,6 +38,7 @@ export default async function PlatformLayout({
         <MenuLateral />
 
         <div className="hidden md:block mt-auto pt-4 border-t border-console-linha space-y-2">
+          <TemaBotao />
           <p className="text-xs text-console-tinta/45 truncate px-2">
             {session.user.email}
           </p>

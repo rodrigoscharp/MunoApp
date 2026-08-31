@@ -40,7 +40,35 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR" className={`${geistSans.variable} ${geistMono.variable} ${fredoka.variable} h-full antialiased`}>
+    // suppressHydrationWarning cobre UM atributo e por um motivo declarado: o
+    // script logo abaixo escreve data-tema no <html> antes da hidratação, e o
+    // servidor não tem como saber a preferência de quem ainda não pediu página
+    // nenhuma. A divergência é deliberada, e sem isto o React reclama dela em
+    // toda navegação. Vale só para este elemento, não para a árvore.
+    <html
+      suppressHydrationWarning
+      lang="pt-BR"
+      className={`${geistSans.variable} ${geistMono.variable} ${fredoka.variable} h-full antialiased`}
+    >
+      <head>
+        {/*
+          Aplica o tema escolhido ANTES da primeira pintura.
+          Sem isto, quem escolheu escuro vê o console claro por um quadro e
+          então ele pisca para escuro, em toda navegação de página inteira.
+          Precisa ser síncrono e inline por isso: qualquer script adiado já
+          chega depois da pintura.
+
+          Só grava o atributo quando há escolha explícita gravada. Ausência é o
+          estado "sistema", em que quem manda é prefers-color-scheme, e escrever
+          o atributo aqui tiraria essa resposta automática de quem nunca
+          escolheu nada.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem('muno-tema');if(t==='claro'||t==='escuro'){document.documentElement.dataset.tema=t}}catch(e){}`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {/*
           O SessionProvider do NextAuth NÃO mora aqui. Ele pede

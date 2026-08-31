@@ -24,15 +24,73 @@
      garfo — o detalhe preciso dentro da palavra. Então terracota é campo de
      marca (barra lateral, tela de entrada) e o verde carrega o dado.
      O papel é o mesmo creme do app: o console é a Muno por dentro, não outra
-     empresa. */
-  --color-console-campo: #D4612A;
-  --color-console-campo-esc: #B5501F;
-  --color-console-papel: #F5F2EE;
-  --color-console-cartao: #FFFFFF;
-  --color-console-linha: #E9E2DB;
-  --color-console-tinta: #23201E;
-  --color-console-dado: #2B5240;
+     empresa.
+
+     Os sete tokens do console apontam para variáveis, e não para hex direto,
+     porque é isso que permite o tema escuro trocar os VALORES sem que nenhum
+     componente troque de classe. `@theme inline` existe exatamente para isso:
+     sem `inline`, o Tailwind resolveria a cor no build e a troca em tempo de
+     execução não teria efeito. */
+  --color-console-campo: var(--console-campo);
+  --color-console-campo-esc: var(--console-campo-esc);
+  --color-console-papel: var(--console-papel);
+  --color-console-cartao: var(--console-cartao);
+  --color-console-linha: var(--console-linha);
+  --color-console-tinta: var(--console-tinta);
+  --color-console-dado: var(--console-dado);
+  --color-console-sobre-campo: var(--console-sobre-campo);
   --font-display: var(--font-fredoka);
+}
+
+/* ---- Tema do console -----------------------------------------------------
+
+   Três estados, não dois. Escolha explícita de claro, escolha explícita de
+   escuro, e o padrão do sistema quando ninguém escolheu. A escolha explícita
+   precisa vencer nos DOIS sentidos: quem roda o sistema no escuro e prefere a
+   Muno clara também é uma pessoa.
+
+   O escuro não é o claro com as cores invertidas. O papel escuro fica no mesmo
+   eixo quente do creme (é a mesma tinta #23201E puxada até o fundo), e os dois
+   acentos sobem de luminosidade, porque terracota #D4612A e verde #2B5240 sobre
+   preto ficam abaixo do contraste mínimo e o dado desapareceria. */
+
+:root {
+  --console-campo: #D4612A;
+  --console-campo-esc: #B5501F;
+  --console-papel: #F5F2EE;
+  --console-cartao: #FFFFFF;
+  --console-linha: #E9E2DB;
+  --console-tinta: #23201E;
+  --console-dado: #2B5240;
+  /* O que se escreve por cima do bloco saturado. */
+  --console-sobre-campo: #FFFFFF;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) {
+    --console-campo: #E8794A;
+    /* No escuro, "mais" é mais claro: o hover sobe de luminosidade em vez de
+       descer, senão o retorno visual do clique aponta para o lado errado. */
+    --console-campo-esc: #F2946B;
+    --console-papel: #181411;
+    --console-cartao: #211B17;
+    --console-linha: #332A24;
+    --console-tinta: #F2ECE4;
+    --console-dado: #5C9C79;
+    /* Tinta escura sobre o terracota claro: branco sobre ele daria 2,6:1. */
+    --console-sobre-campo: #1A1411;
+  }
+}
+
+:root[data-tema="escuro"] {
+  --console-campo: #E8794A;
+  --console-campo-esc: #F2946B;
+  --console-papel: #181411;
+  --console-cartao: #211B17;
+  --console-linha: #332A24;
+  --console-tinta: #F2ECE4;
+  --console-dado: #5C9C79;
+  --console-sobre-campo: #1A1411;
 }
 
 html,

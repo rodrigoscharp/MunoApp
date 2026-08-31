@@ -75,7 +75,12 @@ export default async function ConversaoPage() {
 
   const total = taxaDeConversao(leads);
   const porOrigem = conversaoPorOrigem(leads);
-  const coorte = coorteMensal(leads, new Date());
+  const coorteCompleta = coorteMensal(leads, new Date());
+  // Meses vazios ANTES do primeiro lead são ruído: eles não dizem "convertemos
+  // mal em março", dizem "a Muno ainda não existia". Os vazios do meio ficam,
+  // porque ali o zero é informação.
+  const inicio = coorteCompleta.findIndex((l) => l.leads > 0);
+  const coorte = inicio === -1 ? coorteCompleta.slice(-3) : coorteCompleta.slice(inicio);
   const mediana = medianaDeDiasAteFechar(leads);
   const degraus = degrausDoFunil(contagens);
   const temEvento = degraus.some((d) => d.n > 0);
@@ -133,31 +138,52 @@ export default async function ConversaoPage() {
               visitante depois do deploy, porque evento não tem passado.
             </p>
           ) : (
-            <ul className="space-y-2.5">
-              {degraus.map((d) => {
+            <ol className="space-y-0">
+              {degraus.map((d, i) => {
                 const maior = Math.max(1, degraus[0].n);
+                const anterior = i === 0 ? null : degraus[i - 1].n;
+                const saiu = anterior === null ? 0 : anterior - d.n;
+
                 return (
-                  <li key={d.chave} className="flex items-center gap-3">
-                    <span className="text-[13px] text-console-tinta/55 w-40 shrink-0">
-                      {d.rotulo}
-                    </span>
-                    <span className="flex-1 h-2 rounded-full bg-console-tinta/6 overflow-hidden">
-                      <span
-                        className="block h-full rounded-full"
-                        style={{
-                          width: `${Math.max(d.n === 0 ? 0 : 2, (d.n / maior) * 100)}%`,
-                          background: "#2B5240",
-                        }}
-                      />
-                    </span>
-                    <span className="tabular text-[14px] w-10 text-right">{d.n}</span>
-                    <span className="tabular text-[12px] text-console-tinta/45 w-14 text-right">
-                      {d.doAnterior === null ? "" : formatarTaxa(d.doAnterior)}
-                    </span>
+                  <li key={d.chave}>
+                    {/* A perda entre um degrau e o seguinte, dita antes do
+                        degrau que sobrou. É o número que responde "onde a
+                        venda vaza", e por isso ele vem antes, e não como
+                        rodapé de uma coluna à direita que o olho não visita. */}
+                    {anterior !== null && (
+                      <p className="flex items-baseline gap-2 pl-[9.5rem] py-1.5 text-[12px]">
+                        <span className="tabular text-console-tinta/70">
+                          {formatarTaxa(d.doAnterior)}
+                        </span>
+                        <span className="text-console-tinta/35">seguiu</span>
+                        {saiu > 0 && (
+                          <span className="text-console-tinta/35">
+                            · {saiu} {saiu === 1 ? "saiu" : "saíram"}
+                          </span>
+                        )}
+                      </p>
+                    )}
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-[13px] text-console-tinta/55 w-36 shrink-0">
+                        {d.rotulo}
+                      </span>
+                      <span className="flex-1 h-2.5 rounded-full bg-console-tinta/6 overflow-hidden">
+                        <span
+                          className="block h-full rounded-full bg-console-dado"
+                          style={{
+                            width: `${d.n === 0 ? 0 : Math.max(2, (d.n / maior) * 100)}%`,
+                          }}
+                        />
+                      </span>
+                      <span className="tabular text-[15px] w-12 text-right">
+                        {d.n}
+                      </span>
+                    </div>
                   </li>
                 );
               })}
-            </ul>
+            </ol>
           )}
         </Cartao>
 
@@ -229,18 +255,18 @@ function Tile({
     <div
       className={`rounded-2xl border px-5 py-4 ${
         ancora
-          ? "bg-console-campo text-white border-transparent"
+          ? "bg-console-campo text-console-sobre-campo border-transparent"
           : "bg-console-cartao border-console-linha"
       }`}
     >
       <p
-        className={`text-[13px] ${ancora ? "text-white/65" : "text-console-tinta/45"}`}
+        className={`text-[13px] ${ancora ? "text-console-sobre-campo/70" : "text-console-tinta/45"}`}
       >
         {rotulo}
       </p>
       <p className="tabular text-[1.75rem] leading-tight mt-1">{valor}</p>
       <p
-        className={`text-[12px] mt-0.5 ${ancora ? "text-white/65" : "text-console-tinta/45"}`}
+        className={`text-[12px] mt-0.5 ${ancora ? "text-console-sobre-campo/70" : "text-console-tinta/45"}`}
       >
         {apoio}
       </p>
