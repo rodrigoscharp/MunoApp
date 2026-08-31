@@ -13,3 +13,15 @@ export const COOKIE_SESSAO = "muno_s";
 
 /** Um ano. Sessão curta transformaria visitante recorrente em vários. */
 export const MAX_AGE_SESSAO = 60 * 60 * 24 * 365;
+
+/**
+ * O proxy só emite crypto.randomUUID(), então recusar qualquer outra forma não
+ * rejeita nada legítimo. Sem isto, o valor do cookie, que é controlado pelo
+ * cliente, vira chave primária de SessaoFunil sem passar por lugar nenhum.
+ */
+const FORMATO_SESSAO =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function sessaoValida(valor: string | undefined): valor is string {
+  return valor !== undefined && FORMATO_SESSAO.test(valor);
+}

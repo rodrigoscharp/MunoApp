@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prismaUnscoped } from "@/lib/prisma";
 import { criarLimitador } from "@/lib/rate-limit";
-import { COOKIE_SESSAO } from "@/lib/funil/cookie";
+import { COOKIE_SESSAO, sessaoValida } from "@/lib/funil/cookie";
 import { registrarEvento } from "@/lib/funil/registrar";
 
 /**
@@ -93,8 +93,10 @@ export async function POST(req: NextRequest) {
   // Sem sessão não há o que costurar, e criar uma a partir do corpo deixaria
   // a tabela aberta para qualquer um inventar id. 204 porque o navegador que
   // bloqueia cookie não fez nada de errado: ele some do numerador e do
-  // denominador ao mesmo tempo.
-  if (!sessaoId) return semConteudo();
+  // denominador ao mesmo tempo. Formato inválido segue o mesmo caminho: o
+  // cookie é controlado pelo cliente e vira chave primária de SessaoFunil sem
+  // passar por lugar nenhum — mesmo desfecho de quem não manda cookie algum.
+  if (!sessaoValida(sessaoId)) return semConteudo();
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {

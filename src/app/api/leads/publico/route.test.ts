@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 const ORIGEM_OK = "https://join.munoapp.com.br";
+const SESSAO_VALIDA = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
 
 // --- mocks -----------------------------------------------------------------
 
@@ -69,7 +70,7 @@ beforeEach(() => {
   findMany.mockResolvedValue([]);
   create.mockResolvedValue({ id: "lead-novo" });
   update.mockResolvedValue({ id: "lead-existente" });
-  sessaoUpsert.mockResolvedValue({ id: "sessao-1" });
+  sessaoUpsert.mockResolvedValue({ id: SESSAO_VALIDA });
 });
 
 // --- testes ----------------------------------------------------------------
@@ -130,15 +131,15 @@ describe("POST /api/leads/publico", () => {
   // WhatsApp e o de checkout da mesma pessoa deixem de virar dois leads sem
   // conexão nenhuma entre si.
   it("grava o sessaoId do cookie ao criar", async () => {
-    const res = await POST(requisicao(VALIDO, { cookie: "muno_s=sessao-1" }));
+    const res = await POST(requisicao(VALIDO, { cookie: `muno_s=${SESSAO_VALIDA}` }));
 
     expect(res.status).toBe(201);
     expect(sessaoUpsert).toHaveBeenCalledWith({
-      where: { id: "sessao-1" },
-      create: { id: "sessao-1" },
+      where: { id: SESSAO_VALIDA },
+      create: { id: SESSAO_VALIDA },
       update: {},
     });
-    expect(create.mock.calls[0][0].data).toMatchObject({ sessaoId: "sessao-1" });
+    expect(create.mock.calls[0][0].data).toMatchObject({ sessaoId: SESSAO_VALIDA });
   });
 
   it("sem cookie, grava o lead com sessaoId nulo", async () => {
@@ -149,10 +150,21 @@ describe("POST /api/leads/publico", () => {
     expect(create.mock.calls[0][0].data).toMatchObject({ sessaoId: null });
   });
 
+  // O cookie é controlado pelo cliente e vira chave primária de SessaoFunil
+  // sem passar por lugar nenhum. Formato inválido não pode derrubar a
+  // captação de lead nem criar sessão nenhuma.
+  it("cookie com formato inválido não grava sessão, e o lead segue sem origem", async () => {
+    const res = await POST(requisicao(VALIDO, { cookie: "muno_s=qualquer-coisa" }));
+
+    expect(res.status).toBe(201);
+    expect(sessaoUpsert).not.toHaveBeenCalled();
+    expect(create.mock.calls[0][0].data).toMatchObject({ sessaoId: null });
+  });
+
   it("se a sessão não puder ser garantida, degrada para lead sem origem em vez de erro", async () => {
     sessaoUpsert.mockRejectedValue(new Error("conexão recusada"));
 
-    const res = await POST(requisicao(VALIDO, { cookie: "muno_s=sessao-1" }));
+    const res = await POST(requisicao(VALIDO, { cookie: `muno_s=${SESSAO_VALIDA}` }));
 
     expect(res.status).toBe(201);
     expect(create.mock.calls[0][0].data).toMatchObject({ sessaoId: null });
@@ -170,7 +182,7 @@ describe("POST /api/leads/publico", () => {
       },
     ]);
 
-    await POST(requisicao(VALIDO, { cookie: "muno_s=sessao-nova" }));
+    await POST(requisicao(VALIDO, { cookie: `muno_s=${SESSAO_VALIDA}` }));
 
     expect(update.mock.calls[0][0].data).not.toHaveProperty("sessaoId");
   });

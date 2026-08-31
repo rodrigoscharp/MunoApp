@@ -11,7 +11,7 @@ import {
   criarCliente,
   listarCobrancasDaAssinatura,
 } from "@/lib/assinatura/asaas";
-import { COOKIE_SESSAO } from "@/lib/funil/cookie";
+import { COOKIE_SESSAO, sessaoValida } from "@/lib/funil/cookie";
 import { registrarEvento } from "@/lib/funil/registrar";
 
 /**
@@ -77,7 +77,12 @@ export async function POST(req: NextRequest) {
   //
   // Falhar aqui degrada para "origem desconhecida", nunca para 500. Uma tabela
   // de relatório não pode ter poder de veto sobre a venda.
-  let sessaoId = req.cookies.get(COOKIE_SESSAO)?.value ?? null;
+  // Formato inválido é tratado como cookie ausente: o valor é controlado
+  // pelo cliente, e sem esta checagem ele vira chave primária de SessaoFunil
+  // sem passar por lugar nenhum — qualquer um poderia inserir linha com um
+  // id arbitrário só mandando um Cookie forjado.
+  const cookieBruto = req.cookies.get(COOKIE_SESSAO)?.value;
+  let sessaoId: string | null = sessaoValida(cookieBruto) ? cookieBruto : null;
   if (sessaoId) {
     try {
       await prismaUnscoped.sessaoFunil.upsert({
@@ -163,14 +168,53 @@ export async function POST(req: NextRequest) {
         { status: 409 }
       );
     }
-    // Qualquer outro erro (conexão recusada, etc.) não é "slug em uso" — 500
-    // genérico, e não um 409 que mandaria o cliente trocar de nome por um
-    // problema que não tem nada a ver com o slug escolhido.
-    console.error("Falha ao gravar a Inscricao:", err);
-    return NextResponse.json(
-      { error: "Erro ao processar o pedido" },
-      { status: 500 }
-    );
+
+    // P2003 aqui só pode ser a FK de sessaoId: a SessaoFunil garantida pelo
+    // upsert acima pode ter sido apagada pelo expurgo de 90 dias na janela de
+    // milissegundos entre aquele upsert e este create — só alcançável com um
+    // cookie de quase um ano cuja sessão já não tem evento, lead nem
+    // inscrição viva. Uma tabela de relatório não pode ter poder de veto
+    // sobre a venda: degrada para "sem origem" e tenta de novo, uma única
+    // vez, no mesmo espírito do sessaoId = null acima.
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2003" &&
+      sessaoId !== null
+    ) {
+      console.error(
+        "[assinar] sessão do funil sumiu entre o upsert e o create (expurgo?) — recriando sem sessaoId",
+        err
+      );
+      sessaoId = null;
+      try {
+        inscricao = await prismaUnscoped.inscricao.create({
+          data: {
+            nome,
+            email,
+            slug,
+            plano,
+            ciclo,
+            sessaoId,
+            expiraEm: new Date(Date.now() + VALIDADE_MS[metodo]),
+          },
+        });
+      } catch (err2) {
+        console.error("Falha ao gravar a Inscricao mesmo sem sessaoId:", err2);
+        return NextResponse.json(
+          { error: "Erro ao processar o pedido" },
+          { status: 500 }
+        );
+      }
+    } else {
+      // Qualquer outro erro (conexão recusada, etc.) não é "slug em uso" —
+      // 500 genérico, e não um 409 que mandaria o cliente trocar de nome por
+      // um problema que não tem nada a ver com o slug escolhido.
+      console.error("Falha ao gravar a Inscricao:", err);
+      return NextResponse.json(
+        { error: "Erro ao processar o pedido" },
+        { status: 500 }
+      );
+    }
   }
 
   // O Lead entra aqui, logo depois da Inscricao e ANTES de qualquer chamada

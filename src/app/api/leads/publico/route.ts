@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prismaUnscoped } from "@/lib/prisma";
 import { criarLimitador } from "@/lib/rate-limit";
-import { COOKIE_SESSAO } from "@/lib/funil/cookie";
+import { COOKIE_SESSAO, sessaoValida } from "@/lib/funil/cookie";
 import {
   JANELA_DEDUPE_MS,
   ORIGEM_LANDING,
@@ -173,7 +173,11 @@ export async function POST(req: NextRequest) {
   //
   // Falhar aqui degrada para lead sem origem, nunca para erro: a conversa de
   // WhatsApp já está acontecendo do outro lado.
-  let sessaoId = req.cookies.get(COOKIE_SESSAO)?.value ?? null;
+  // Formato inválido é tratado como cookie ausente: o valor é controlado
+  // pelo cliente, e sem esta checagem ele vira chave primária de SessaoFunil
+  // sem passar por lugar nenhum.
+  const cookieBruto = req.cookies.get(COOKIE_SESSAO)?.value;
+  let sessaoId: string | null = sessaoValida(cookieBruto) ? cookieBruto : null;
   if (sessaoId) {
     try {
       await prismaUnscoped.sessaoFunil.upsert({

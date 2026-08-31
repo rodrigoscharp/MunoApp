@@ -68,6 +68,8 @@ const { POST } = await import("@/app/api/assinar/route");
 // com o que ele afirma. Quem testa o 429 passa um IP fixo de propósito.
 let contadorDeIp = 0;
 
+const SESSAO_VALIDA = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+
 function requisicao(
   body: unknown,
   {
@@ -112,6 +114,16 @@ function violacaoDeSlugUnico() {
   return new Prisma.PrismaClientKnownRequestError(
     "Unique constraint failed on the fields: (`slug`)",
     { code: "P2002", clientVersion: "6.19.3", meta: { target: ["slug"] } }
+  );
+}
+
+// O erro que o Postgres devolve quando a FK de Inscricao.sessaoId aponta para
+// uma SessaoFunil que sumiu entre o upsert e este create — o expurgo de 90
+// dias apagando uma sessão órfã bem nessa janela de milissegundos.
+function violacaoDeFkDeSessao() {
+  return new Prisma.PrismaClientKnownRequestError(
+    "Foreign key constraint failed on the field: `sessaoId`",
+    { code: "P2003", clientVersion: "6.19.3", meta: { field_name: "sessaoId" } }
   );
 }
 
@@ -484,16 +496,16 @@ describe("POST /api/assinar", () => {
   // A costura entre navegador e servidor. Sem o sessaoId aqui, o checkout é um
   // evento órfão: dá para contar quantos pagaram e não de onde eles vieram.
   it("grava o sessaoId do cookie na Inscricao e no Lead", async () => {
-    await POST(requisicao(corpoValido(), { cookie: "muno_s=sessao-1" }));
+    await POST(requisicao(corpoValido(), { cookie: `muno_s=${SESSAO_VALIDA}` }));
 
     expect(inscricaoCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ sessaoId: "sessao-1" }),
+        data: expect.objectContaining({ sessaoId: SESSAO_VALIDA }),
       })
     );
     expect(leadCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ sessaoId: "sessao-1" }),
+        data: expect.objectContaining({ sessaoId: SESSAO_VALIDA }),
       })
     );
   });
@@ -511,13 +523,31 @@ describe("POST /api/assinar", () => {
     );
   });
 
+  // O cookie é controlado pelo cliente e vira chave primária de SessaoFunil
+  // sem passar por lugar nenhum. Um valor forjado precisa degradar para "sem
+  // origem", nunca virar linha nova na tabela — e o checkout tem que
+  // continuar funcionando igual.
+  it("cookie com formato inválido degrada para sessaoId nulo, sem derrubar o checkout", async () => {
+    const res = await POST(
+      requisicao(corpoValido(), { cookie: "muno_s=qualquer-coisa" })
+    );
+
+    expect(res.status).toBe(201);
+    expect(sessaoUpsert).not.toHaveBeenCalled();
+    expect(inscricaoCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sessaoId: null }),
+      })
+    );
+  });
+
   // A propriedade mais cara do arquivo inteiro: relatório de funil não pode
   // ter poder de veto sobre uma venda. Se isto voltasse a propagar, o teste
   // capturaria a rejeição (o POST lançaria) e a asserção de 201 falharia.
   it("falha ao gravar evento não derruba o checkout", async () => {
     eventoFunilCreate.mockRejectedValue(new Error("banco fora do ar"));
 
-    const res = await POST(requisicao(corpoValido(), { cookie: "muno_s=sessao-1" }));
+    const res = await POST(requisicao(corpoValido(), { cookie: `muno_s=${SESSAO_VALIDA}` }));
 
     expect(res.status).toBe(201);
     expect(inscricaoDelete).not.toHaveBeenCalled();
@@ -530,7 +560,7 @@ describe("POST /api/assinar", () => {
   it("falha ao garantir a sessão não derruba o checkout, só perde a origem", async () => {
     sessaoUpsert.mockRejectedValue(new Error("banco fora do ar"));
 
-    const res = await POST(requisicao(corpoValido(), { cookie: "muno_s=sessao-1" }));
+    const res = await POST(requisicao(corpoValido(), { cookie: `muno_s=${SESSAO_VALIDA}` }));
 
     expect(res.status).toBe(201);
     expect(inscricaoCreate).toHaveBeenCalledWith(
@@ -538,5 +568,37 @@ describe("POST /api/assinar", () => {
         data: expect.objectContaining({ sessaoId: null }),
       })
     );
+  });
+
+  // A última corrida de FK que ainda alcançava um 500 no checkout: a sessão
+  // upsertada acima pode ter sido apagada pelo expurgo entre esse upsert e
+  // este create. Uma tabela de relatório não pode vetar a venda — degrada
+  // para "sem origem" e tenta de novo, uma única vez.
+  it("P2003 na FK de sessaoId recria sem sessaoId, em vez de 500", async () => {
+    inscricaoCreate
+      .mockRejectedValueOnce(violacaoDeFkDeSessao())
+      .mockResolvedValueOnce({ id: "insc-1" });
+
+    const res = await POST(
+      requisicao(corpoValido(), { cookie: `muno_s=${SESSAO_VALIDA}` })
+    );
+
+    expect(res.status).toBe(201);
+    expect(inscricaoCreate).toHaveBeenCalledTimes(2);
+    expect(inscricaoCreate.mock.calls[1][0].data).toMatchObject({
+      sessaoId: null,
+    });
+  });
+
+  it("se a segunda tentativa (sem sessaoId) também falhar, devolve 500 genérico", async () => {
+    inscricaoCreate
+      .mockRejectedValueOnce(violacaoDeFkDeSessao())
+      .mockRejectedValueOnce(new Error("conexão recusada"));
+
+    const res = await POST(
+      requisicao(corpoValido(), { cookie: `muno_s=${SESSAO_VALIDA}` })
+    );
+
+    expect(res.status).toBe(500);
   });
 });

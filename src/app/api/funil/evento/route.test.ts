@@ -12,12 +12,13 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const ORIGEM = "http://localhost:3000";
+const SESSAO_VALIDA = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
 
 function requisicao(corpo: unknown, opcoes: { origem?: string | null; cookie?: string | null } = {}) {
   const headers = new Headers({ "content-type": "application/json" });
   const origem = opcoes.origem === undefined ? ORIGEM : opcoes.origem;
   if (origem) headers.set("origin", origem);
-  const cookie = opcoes.cookie === undefined ? "muno_s=sessao-1" : opcoes.cookie;
+  const cookie = opcoes.cookie === undefined ? `muno_s=${SESSAO_VALIDA}` : opcoes.cookie;
   if (cookie) headers.set("cookie", cookie);
 
   return new NextRequest(`${ORIGEM}/api/funil/evento`, {
@@ -30,7 +31,7 @@ function requisicao(corpo: unknown, opcoes: { origem?: string | null; cookie?: s
 describe("POST /api/funil/evento", () => {
   beforeEach(() => {
     vi.resetModules();
-    upsert.mockReset().mockResolvedValue({ id: "sessao-1" });
+    upsert.mockReset().mockResolvedValue({ id: SESSAO_VALIDA });
     create.mockReset().mockResolvedValue({});
   });
 
@@ -45,7 +46,7 @@ describe("POST /api/funil/evento", () => {
     expect(res.status).toBe(204);
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ sessaoId: "sessao-1", tipo: "VIU_PRECO" }),
+        data: expect.objectContaining({ sessaoId: SESSAO_VALIDA, tipo: "VIU_PRECO" }),
       })
     );
   });
@@ -55,6 +56,17 @@ describe("POST /api/funil/evento", () => {
   // navegador que bloqueia cookie não fez nada de errado.
   it("sem cookie, não grava nada", async () => {
     const res = await post({ tipo: "VISITA" }, { cookie: null });
+
+    expect(res.status).toBe(204);
+    expect(create).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  // O cookie é controlado pelo cliente e vira chave primária de SessaoFunil
+  // sem passar por lugar nenhum. Um valor forjado precisa seguir o mesmo
+  // caminho de "sem cookie", não virar linha nova na tabela.
+  it("cookie com formato inválido não grava sessão nenhuma", async () => {
+    const res = await post({ tipo: "VISITA" }, { cookie: "muno_s=qualquer-coisa" });
 
     expect(res.status).toBe(204);
     expect(create).not.toHaveBeenCalled();
@@ -88,7 +100,7 @@ describe("POST /api/funil/evento", () => {
     });
 
     const args = upsert.mock.calls[0][0];
-    expect(args.create).toMatchObject({ id: "sessao-1", utmSource: "google" });
+    expect(args.create).toMatchObject({ id: SESSAO_VALIDA, utmSource: "google" });
     expect(args.update).toEqual({});
   });
 
