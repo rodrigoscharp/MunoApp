@@ -247,9 +247,12 @@ async function executar(req: NextRequest) {
     // chegado até o pagamento e desistido é justamente o degrau onde mais gente
     // cai, e hoje ele se desfaz em silêncio.
     //
-    // Em try próprio: fechar lead e registrar evento é relatório, e a mesma
-    // regra do bloco inteiro vale aqui, com mais razão ainda. Slug preso por
-    // mais 24h é irrelevante; fatura não emitida não é.
+    // Este laço roda DENTRO do try da exclusão acima, não num try próprio —
+    // e é seguro porque registrarEvento nunca propaga (ver
+    // src/lib/funil/registrar.ts) e o update do lead, logo abaixo, tem o
+    // try/catch dele. Se um dia isso deixar de ser verdade, o erro subiria
+    // para o catch externo e marcaria limpezaDeInscricoesFalhou depois de a
+    // exclusão já ter dado certo — reportando slug preso quando não está.
     for (const candidata of candidatas.filter((c) => paraApagar.includes(c.id))) {
       await registrarEvento(prismaUnscoped, {
         sessaoId: candidata.sessaoId,

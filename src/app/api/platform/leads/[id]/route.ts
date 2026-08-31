@@ -58,9 +58,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Lead não encontrado" }, { status: 404 });
   }
 
-  // A trava fica no servidor, e não só na tela. Botão escondido é conveniência;
-  // o que garante que o funil automático não é sobrescrito é isto aqui.
-  if (!podeMoverAMao(existing)) {
+  const { status, restaurante, ...opcionais } = parsed.data;
+
+  // A trava fica no servidor, e não só na tela — mas só quando o PATCH tenta
+  // mudar o status. O lead de checkout é justamente o que tem e-mail e não
+  // tem telefone: se a guarda barrasse o corpo inteiro, um PATCH só com
+  // telefone/cidade/endereco (o operador que conseguiu o número no
+  // WhatsApp) seria recusado com uma mensagem que só fala de estágio.
+  if (status !== undefined && !podeMoverAMao(existing)) {
     return NextResponse.json(
       {
         error:
@@ -69,8 +74,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       { status: 409 }
     );
   }
-
-  const { status, restaurante, ...opcionais } = parsed.data;
 
   // Campo opcional em branco vira null, nunca string vazia — mesma convenção
   // usada na criação do lead. Só entram no update os campos que vieram no

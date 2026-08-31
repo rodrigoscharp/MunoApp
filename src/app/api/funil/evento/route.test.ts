@@ -110,4 +110,20 @@ describe("POST /api/funil/evento", () => {
     const { detalhe } = create.mock.calls[0][0].data;
     expect(detalhe).toHaveLength(60);
   });
+
+  // Atrás de CGNAT móvel, ~20 visitantes por IP bastam para bater o teto, e
+  // o 204 devolvido não deixa rastro nenhum do lado do cliente — sem log, o
+  // descarte é invisível, e enviesa o denominador contra o segmento medido.
+  it("estouro do teto vira log, no mesmo espírito de /api/leads/publico", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const cookie = `muno_s=${SESSAO_VALIDA}`;
+
+    for (let i = 0; i < 60; i++) await post({ tipo: "VISITA" }, { cookie });
+    const barrado = await post({ tipo: "VISITA" }, { cookie });
+
+    expect(barrado.status).toBe(204);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining("teto estourado"));
+
+    spy.mockRestore();
+  });
 });

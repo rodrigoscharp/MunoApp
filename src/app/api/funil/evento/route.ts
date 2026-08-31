@@ -86,6 +86,12 @@ export async function POST(req: NextRequest) {
     .split(",")[0]
     .trim();
   if (!limitador.permitir(ip, Date.now())) {
+    // Atrás de CGNAT móvel brasileiro — o tráfego que a spec nomeia como o
+    // que mais importa medir — uns 20 visitantes por IP bastam para bater
+    // aqui, e o 204 devolvido não deixa rastro nenhum do lado do cliente.
+    // Sem este log, o teto vira viés silencioso contra exatamente o
+    // segmento que a instrumentação existe para medir.
+    console.error(`[funil/evento] descartado — teto estourado pelo IP ${ip}`);
     return semConteudo();
   }
 

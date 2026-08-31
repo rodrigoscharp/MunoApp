@@ -175,4 +175,19 @@ describe("PATCH — o funil de checkout não se move à mão", () => {
       expect(leadUpdate).toHaveBeenCalled();
     }
   );
+
+  // O lead de checkout é justamente o que tem e-mail e não tem telefone: se
+  // a guarda barrasse o corpo inteiro, o operador que conseguisse o número
+  // no WhatsApp não conseguiria salvar, por causa de um campo que o PATCH
+  // nem tentou mudar.
+  it("PATCH só com telefone num lead de checkout passa, mesmo sem poder mover o status", async () => {
+    leadFindUnique.mockResolvedValue({ id: LEAD_ID, origem: "checkout" });
+
+    const res = await PATCH(req({ telefone: "11999998888" }), params);
+
+    expect(res.status).toBe(200);
+    expect(leadUpdate).toHaveBeenCalled();
+    expect(dados()).not.toHaveProperty("status");
+    expect(dados().telefone).toBe("11999998888");
+  });
 });
