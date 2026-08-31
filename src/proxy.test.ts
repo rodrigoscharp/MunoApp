@@ -396,6 +396,22 @@ describe("proxy: upload de logo funciona a partir da plataforma", () => {
     expect(res.headers.get("x-middleware-rewrite")).toContain("/platform/leads");
   });
 
+  // A busca sobrevive ao rewrite. urlNoHost monta a URL a partir do caminho, e
+  // esquecer nextUrl.search descarta toda query string do console em silêncio:
+  // a tela de leads filtra por estágio pela URL e recebia sempre a lista
+  // inteira, sem erro nenhum para denunciar o motivo.
+  it("preserva a query string no rewrite da plataforma", async () => {
+    vi.mocked(authPlatform).mockResolvedValue({
+      user: { id: "admin-1" },
+    } as never);
+
+    const res = await proxy(requisicaoPlataforma("/leads?estagio=FECHADO"));
+
+    expect(res.headers.get("x-middleware-rewrite")).toContain(
+      "/platform/leads?estagio=FECHADO"
+    );
+  });
+
   // authPlatform já volta null por padrão (beforeEach do arquivo), então esta
   // requisição chega sem sessão nenhuma — o caso de uma sessão de plataforma
   // expirada no meio do formulário de lead.

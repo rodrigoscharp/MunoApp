@@ -168,7 +168,13 @@ export default auth(async (req) => {
     ) {
       return NextResponse.next();
     }
-    return NextResponse.rewrite(urlNoHost(`/platform${nextUrl.pathname}`));
+    // `${nextUrl.search}` não é decoração: urlNoHost monta a URL a partir do
+    // caminho, e sem a busca toda query string do console é descartada em
+    // silêncio. A tela de leads filtra por estágio pela URL, e sem isto ela
+    // recebia sempre a lista inteira sem nenhum erro para denunciar.
+    return NextResponse.rewrite(
+      urlNoHost(`/platform${nextUrl.pathname}${nextUrl.search}`)
+    );
   }
 
   // /platform/* e /api/platform/* só existem sob o subdomínio da plataforma.

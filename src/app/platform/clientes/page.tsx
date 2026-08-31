@@ -3,30 +3,10 @@ import { authPlatform } from "@/lib/auth-platform";
 import { calcularMrr } from "@/lib/platform-metrics";
 import { buildTenantBaseUrl } from "@/lib/tenant-provisioning";
 import { formatCurrency } from "@/lib/utils";
-import { diasDeAtraso, type StatusAssinatura } from "@/lib/assinatura/regua";
+import { diasDeAtraso } from "@/lib/assinatura/regua";
+import { CLASSE_DO_TOM, situacaoDoCliente } from "@/lib/assinatura/situacao";
 import { MensalidadeInline } from "@/components/platform/MensalidadeInline";
 import { DarBaixa } from "@/components/platform/DarBaixa";
-
-/**
- * A situação de cobrança na lista, decidida pelo status da assinatura **e**
- * pelo atraso da cobrança em aberto mais antiga.
- *
- * Ler só o status deixaria a coluna dizendo "em dia" nos seis primeiros dias
- * de atraso, que é justamente quando um telefonema ainda resolve sem atrito
- * (ver statusPelaRegua: até o sétimo dia o status segue ATIVA de propósito).
- */
-function situacaoDaAssinatura(
-  status: StatusAssinatura,
-  dias: number
-): { texto: string; classe: string } {
-  if (status === "CANCELADA") return { texto: "cancelada", classe: "text-neutral-400" };
-  if (status === "BLOQUEADA") return { texto: "bloqueada", classe: "text-red-600" };
-  if (status === "INADIMPLENTE")
-    return { texto: "inadimplente", classe: "text-orange-500" };
-  return dias >= 1
-    ? { texto: "em atraso", classe: "text-amber-600" }
-    : { texto: "em dia", classe: "text-neutral-500" };
-}
 
 export default async function ClientesPage() {
   const session = await authPlatform();
@@ -85,9 +65,14 @@ export default async function ClientesPage() {
             // vencimento, é como a conta se acerta.
             const maisAntiga = t.assinatura?.cobrancas[0] ?? null;
             const dias = maisAntiga ? diasDeAtraso(maisAntiga.vencimento, agora) : 0;
-            const situacao = t.assinatura
-              ? situacaoDaAssinatura(t.assinatura.status, dias)
-              : null;
+            const situacao = situacaoDoCliente({
+              temAssinatura: t.assinatura !== null,
+              status: t.assinatura?.status,
+              diasDeAtraso: dias,
+              emCortesia: t.assinatura
+                ? t.assinatura.inicioCobranca > agora
+                : false,
+            });
 
             return (
             <li
@@ -138,7 +123,7 @@ export default async function ClientesPage() {
                     varre a lista quando cai um PIX. */}
                 {situacao && (
                   <div className="text-right">
-                    <p className={`text-sm font-medium ${situacao.classe}`}>
+                    <p className={`text-sm font-medium ${CLASSE_DO_TOM[situacao.tom]}`}>
                       {situacao.texto}
                     </p>
                     <p className="text-[11px] text-neutral-400">

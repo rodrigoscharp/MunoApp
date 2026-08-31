@@ -39,6 +39,7 @@
   --color-console-tinta: var(--console-tinta);
   --color-console-dado: var(--console-dado);
   --color-console-sobre-campo: var(--console-sobre-campo);
+  --color-console-aviso: var(--console-aviso);
   --font-display: var(--font-fredoka);
 }
 
@@ -64,6 +65,10 @@
   --console-dado: #2B5240;
   /* O que se escreve por cima do bloco saturado. */
   --console-sobre-campo: #FFFFFF;
+  /* Atenção: o atraso que ainda se resolve com um telefonema. Âmbar e não
+     vermelho, porque vermelho é para o bloqueio, e ter os dois no mesmo tom
+     treina o olho a ignorar os dois. */
+  --console-aviso: #A96114;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -79,6 +84,7 @@
     --console-dado: #5C9C79;
     /* Tinta escura sobre o terracota claro: branco sobre ele daria 2,6:1. */
     --console-sobre-campo: #1A1411;
+    --console-aviso: #E0A458;
   }
 }
 
@@ -91,6 +97,7 @@
   --console-tinta: #F2ECE4;
   --console-dado: #5C9C79;
   --console-sobre-campo: #1A1411;
+  --console-aviso: #E0A458;
 }
 
 html,
