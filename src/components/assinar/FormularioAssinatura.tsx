@@ -137,7 +137,6 @@ export function FormularioAssinatura({
         : "desktop";
 
     evento("VISITA", undefined, { utm, referrer, dispositivo });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function onNomeChange(valor: string) {
