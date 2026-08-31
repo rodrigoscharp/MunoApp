@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, Users, Store } from "lucide-react";
+import { LayoutGrid, Users, Store, TrendingUp } from "lucide-react";
 
 // Minúsculas: a marca fala assim. O logotipo é "muno", não "MUNO".
+//
+// Conversão fica depois de leads porque é a leitura de cima do mesmo assunto:
+// leads é a lista, conversão é o que ela virou.
 const DESTINOS = [
   { href: "/", rotulo: "visão geral", Icone: LayoutGrid },
   { href: "/leads", rotulo: "leads", Icone: Users },
+  { href: "/conversao", rotulo: "conversão", Icone: TrendingUp },
   { href: "/clientes", rotulo: "clientes", Icone: Store },
 ] as const;
 
