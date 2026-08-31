@@ -250,6 +250,10 @@ precisam continuar verdadeiras:
 3. **`app` e `join` estão em `RESERVED_SLUGS`.** `join` porque a Vercel o
    redireciona para o apex antes de o app ver a requisição; `app` porque é o
    host da API.
+4. **A rota grava `sessaoId`, e garante a linha antes de referenciá-la.** Ver
+   "O funil" abaixo: a foreign key existe, e o `VISITA` que cria a sessão sai
+   da mesma página, num `fetch` concorrente a este. Sem o upsert antes, a
+   captação de lead morre por violação de FK numa corrida que ninguém vê.
 
 Mexer em domínio aqui pede os dois roteiros, nesta ordem de leitura:
 `docs/superpowers/specs/2026-08-10-porta-de-entrada-no-dominio-raiz.md`, que
@@ -257,3 +261,150 @@ tirou o raiz deste projeto, e
 `docs/superpowers/specs/2026-08-26-landing-para-dentro-do-app-design.md`, que o
 trouxe de volta. Os dois existem pelo mesmo motivo: a ordem dos passos é o que
 evita a janela em que a landing fica fora do ar.
+
+
+# O funil
+
+Desde 30/08/2026 a Muno mede a si mesma. Um cookie anônimo nasce no domínio
+raiz e atravessa landing, checkout, pagamento e provisionamento, e é ele que
+liga "visita vinda do Instagram" a "membro pagante".
+
+```
+proxy (host raiz)  →  Set-Cookie: muno_s=<uuid>
+landing e checkout →  POST /api/funil/evento
+/api/assinar       →  Inscricao.sessaoId e Lead.sessaoId
+webhook do Asaas   →  PAGOU
+provisionamento    →  PROVISIONADO
+cron das 9h        →  ABANDONOU, e o resumo dos 90 dias
+```
+
+A spec é
+`docs/superpowers/specs/2026-08-30-instrumentacao-do-funil-design.md`, e o plano
+das dez tasks está ao lado, em `docs/superpowers/plans/`.
+
+## O proxy planta o cookie e não fala com o banco
+
+`comSessao()` em `src/proxy.ts` gera o uuid e devolve o cookie. Nada além
+disso. O proxy roda em toda requisição de todos os hosts, e um `write` ali
+custaria uma ida ao Postgres em cada visita de cardápio. Quem grava é
+`/api/funil/evento`, e a linha da sessão nasce no primeiro evento.
+
+Três coisas que parecem detalhe e não são:
+
+* **O cookie não tem atributo `Domain`.** Em `.munoapp.com.br` ele viajaria em
+  toda requisição de todo cardápio de todo restaurante. Host-only, ele fica no
+  apex, onde a landing e o checkout vivem.
+* **Ele só é plantado quando `resolvedSlug === null`.** O bloco de `/assinar`
+  atende qualquer host, e sem essa condição o cookie apareceria em subdomínio
+  de cliente, que é justamente o que a ausência de `Domain` evita.
+  `src/proxy.test.ts` cobre isso com um caso que fica vermelho se a condição
+  sumir.
+* **O valor é validado antes de virar chave primária.** `sessaoValida()` em
+  `src/lib/funil/cookie.ts` recusa qualquer coisa que não seja um uuid. Cookie
+  é tão forjável quanto campo de corpo, e sem essa checagem qualquer um insere
+  linha em `SessaoFunil` com a chave que quiser.
+
+## A foreign key que derruba o checkout
+
+`Lead.sessaoId`, `Inscricao.sessaoId` e `EventoFunil.sessaoId` apontam para
+`SessaoFunil`. A linha da sessão nasce no primeiro evento, e o cookie nasce
+antes disso. **Quem abre `/assinar` direto, de um anúncio, tem cookie e não tem
+linha.**
+
+Por isso todo ponto que grava `sessaoId` faz `sessaoFunil.upsert` antes, e
+degrada para `sessaoId = null` se o upsert falhar. São três: `/api/assinar`,
+`/api/leads/publico` e a própria rota de ingestão. **Um quarto ponto que grave
+`sessaoId` sem esse upsert reabre um 500 no meio da compra**, e o cookie vale um
+ano, então a pessoa fica travada até limpar o navegador.
+
+## Nada de relatório derruba receita
+
+`registrarEvento()` em `src/lib/funil/registrar.ts` é o único ponto que escreve
+`EventoFunil`, e ele nunca propaga exceção. Do lado do navegador, todo evento é
+`fetch` com `keepalive`, sem `await` e com `.catch(() => {})`.
+
+A posição de cada evento no código é decisão, não acaso:
+
+* **`CHECKOUT_CRIADO` fica FORA do `try` que fala com o Asaas.** Dentro, uma
+  falha ao gravar evento acionaria o `catch` que apaga a `Inscricao`, com a
+  cobrança viva no gateway: o cliente paga e o restaurante nunca nasce.
+* **`PAGOU` é emitido antes de provisionar**, para que um provisionamento que
+  falhe ainda registre que o dinheiro entrou. Ele sai em três lugares: o
+  webhook, `reconciliacao.ts` e `/api/assinar/reconciliar`. **Os dois últimos
+  não são caminho raro**: a tela de obrigado dispara a reconciliação a cada
+  volta do gateway, e quando ela ganha do webhook, a guarda de idempotência
+  impede o webhook de emitir. Sem os três, o funil mostra mais restaurantes no
+  ar do que pagamentos.
+* **`PROVISIONADO` fica DENTRO da transação** que cria assinatura e cobrança,
+  porque ali ele é parte do mesmo fato atômico.
+
+Os tipos de evento de servidor (`CHECKOUT_CRIADO`, `PAGOU`, `PROVISIONADO`,
+`ABANDONOU`) ficam fora do enum aceito pela rota pública, senão qualquer um
+declara que pagou.
+
+## O expurgo dos 90 dias
+
+O cron das 9h resume os eventos crus em `ResumoDiario` e então os apaga, na
+mesma transação. Resumir antes de apagar, e as duas coisas juntas ou nenhuma: a
+ordem inversa perde o histórico para sempre, e fora de uma transação existe a
+janela em que o dia foi apagado e não foi contado. O `upsert` usa `increment`,
+então rodar duas vezes soma em vez de duplicar.
+
+Sessão órfã (sem evento, sem lead e sem inscrição) é apagada junto. É o filtro
+das três relações que torna o `ON DELETE SET NULL` das FKs inalcançável na
+prática, e `src/lib/funil/expurgo.test.ts` trava isso: trocar `none` por `some`
+apagaria exatamente as sessões que são a costura de quem comprou.
+
+A transação leva `timeout` explícito. Sem ele, ela roda sob o padrão de 5
+segundos do Prisma, e a primeira vez que estourar vira catraca: o dia seguinte
+tem mais dado que o anterior, e o expurgo nunca mais roda. Ele dispara 90 dias
+depois do deploy, quando ninguém está olhando.
+
+## O estágio do lead de checkout não se move à mão
+
+`podeMoverAMao()` em `src/lib/funil/estagio.ts` é falso para `origem ===
+"checkout"`. A trava está na tela **e** na rota (`409` em
+`/api/platform/leads/[id]`), porque botão escondido é conveniência e o que
+garante é a recusa no servidor. A guarda vale só quando `status` vem no corpo:
+telefone e endereço de um lead de checkout continuam editáveis, e é justamente
+esse lead que chega com e-mail e sem telefone.
+
+O `LeadAcoes` esconde só os botões de status. A anotação continua, porque
+conversa de WhatsApp não vira evento e é no lead que abandonou o checkout que
+ela mais vale.
+
+# O console
+
+## Tema claro e escuro
+
+Os tokens `--color-console-*` em `src/app/globals.css` apontam para variáveis,
+e não para hex direto. É `@theme inline` que permite a troca em tempo de
+execução: sem `inline`, o Tailwind resolveria a cor no build.
+
+São três estados, não dois: sistema, claro e escuro. A escolha explícita vence
+`prefers-color-scheme` nos dois sentidos, e ausência do atributo `data-tema` é
+o estado "sistema". Um script inline no `<head>` do layout raiz aplica a escolha
+antes da primeira pintura, e o `<html>` leva `suppressHydrationWarning` por
+causa desse script, que é o único motivo.
+
+O escuro não é o claro invertido: os acentos sobem de luminosidade, porque
+terracota e verde da marca sobre preto ficam abaixo do contraste mínimo.
+
+## O rewrite do console preserva a query string
+
+`NextResponse.rewrite(urlNoHost(...))` monta a URL a partir do caminho.
+**Esquecer `nextUrl.search` descarta toda query string do console em silêncio.**
+Isso ficou escondido por meses, até a tela de leads passar a filtrar por
+estágio pela URL e receber sempre a lista inteira, sem erro nenhum. Tem teste em
+`src/proxy.test.ts`.
+
+## A situação de cobrança mora numa lib
+
+`situacaoDoCliente()` em `src/lib/assinatura/situacao.ts` é usada pela lista de
+clientes e pelo funil. Ler só o status da assinatura **mente durante os seis
+primeiros dias de atraso**, porque `statusPelaRegua` a mantém `ATIVA` até o
+sétimo dia de propósito, e é essa a janela em que um telefonema resolve. Por
+isso o atraso da cobrança em aberto mais antiga entra na conta.
+
+"Sem mensalidade" não é inadimplência: é cliente que existe e cujo valor
+ninguém cadastrou. Pintar os dois de vermelho treina o olho a ignorar os dois.
