@@ -1,6 +1,7 @@
 import { prismaUnscoped } from "@/lib/prisma";
 import { assinaturaTemPagamentoConfirmado } from "@/lib/assinatura/asaas";
 import { provisionarInscricao } from "@/lib/assinatura/provisionamento";
+import { registrarEvento } from "@/lib/funil/registrar";
 
 /**
  * Teto por execução. O job roda uma vez por dia e cada candidata custa uma
@@ -67,6 +68,18 @@ export async function reconciliarInscricoesPagas(
         inscricao.asaasSubscriptionId!
       );
       if (!pago) continue;
+
+      // PAGOU precisa sair também por este caminho. Quando /assinar/obrigado
+      // ganha a corrida contra o webhook (rotineiro no PIX), a Inscricao já
+      // vira PROVISIONADA por ali e a entrega do webhook, ao chegar depois,
+      // bate na guarda de idempotência e retorna antes de emitir PAGOU — a
+      // venda nunca ganha o evento, de ninguém. Aqui é o mesmo caso, só que
+      // pela rede de segurança diária em vez da volta do cliente.
+      await registrarEvento(prismaUnscoped, {
+        sessaoId: inscricao.sessaoId,
+        tipo: "PAGOU",
+        detalhe: inscricao.plano,
+      });
 
       await provisionarInscricao(inscricao, { origem: "cron/reconciliacao" });
       provisionadas++;

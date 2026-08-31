@@ -1,9 +1,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 const inscricaoFindMany = vi.fn();
+const eventoFunilCreate = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
     inscricao: { findMany: (...a: unknown[]) => inscricaoFindMany(...a) },
+    eventoFunil: { create: (...a: unknown[]) => eventoFunilCreate(...a) },
   },
 }));
 
@@ -25,6 +27,8 @@ function inscricao(over: Record<string, unknown> = {}) {
     slug: "pizzaria",
     email: "dono@pizzaria.com",
     asaasSubscriptionId: "sub_1",
+    sessaoId: "sessao-1",
+    plano: "MEMBRO",
     ...over,
   };
 }
@@ -36,6 +40,7 @@ beforeEach(() => {
   inscricaoFindMany.mockResolvedValue([]);
   temPagamento.mockResolvedValue(false);
   provisionar.mockResolvedValue({ tenantId: "tenant-1" });
+  eventoFunilCreate.mockResolvedValue({});
   erroSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -135,6 +140,25 @@ describe("reconciliarInscricoesPagas", () => {
     const resultado = await reconciliarInscricoesPagas(AGORA);
 
     expect(resultado).toMatchObject({ candidatas: 1, provisionadas: 0, falhas: 1 });
+  });
+
+  // Este é o outro caminho que não é o webhook: quando ele não chega, esta
+  // reconciliação é quem provisiona — e é ela quem precisa emitir PAGOU,
+  // porque nada mais vai emitir para esta sessão.
+  it("emite PAGOU antes de provisionar", async () => {
+    inscricaoFindMany.mockResolvedValue([inscricao()]);
+    temPagamento.mockResolvedValue(true);
+
+    await reconciliarInscricoesPagas(AGORA);
+
+    expect(eventoFunilCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sessaoId: "sessao-1", tipo: "PAGOU" }),
+      })
+    );
+    expect(
+      eventoFunilCreate.mock.invocationCallOrder[0]
+    ).toBeLessThan(provisionar.mock.invocationCallOrder[0]);
   });
 
   // Teto por execução: o job roda uma vez por dia e não pode virar uma

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prismaUnscoped } from "@/lib/prisma";
 import { criarLimitador } from "@/lib/rate-limit";
+import { COOKIE_SESSAO } from "@/lib/funil/cookie";
 import {
   JANELA_DEDUPE_MS,
   ORIGEM_LANDING,
@@ -165,6 +166,30 @@ export async function POST(req: NextRequest) {
 
   const agora = new Date();
 
+  // Mesmo padrão de /api/assinar: a FK de Lead.sessaoId aponta para
+  // SessaoFunil, e o VISITA que cria essa linha sai da mesma página, num fetch
+  // concorrente a este. Sem garantir a linha antes, a captação de lead morre
+  // por violação de FK numa corrida que ninguém veria.
+  //
+  // Falhar aqui degrada para lead sem origem, nunca para erro: a conversa de
+  // WhatsApp já está acontecendo do outro lado.
+  let sessaoId = req.cookies.get(COOKIE_SESSAO)?.value ?? null;
+  if (sessaoId) {
+    try {
+      await prismaUnscoped.sessaoFunil.upsert({
+        where: { id: sessaoId },
+        create: { id: sessaoId },
+        update: {},
+      });
+    } catch (erro) {
+      console.error(
+        "[leads/publico] não foi possível garantir a sessão do funil",
+        erro
+      );
+      sessaoId = null;
+    }
+  }
+
   try {
     // Rota pública sem autenticação, e o limitador é por IP: um bot
     // distribuído rotacionando IP furou o teto e pode ter deixado muitas
@@ -200,7 +225,13 @@ export async function POST(req: NextRequest) {
       await prismaUnscoped.lead.create({
         // "" normaliza para null, como o campo digitado à mão: string vazia
         // não é um plano, é ausência de resposta.
-        data: { restaurante, telefone, plano: plano || null, origem: ORIGEM_LANDING },
+        data: {
+          restaurante,
+          telefone,
+          plano: plano || null,
+          origem: ORIGEM_LANDING,
+          sessaoId,
+        },
       });
     }
   } catch (erro) {

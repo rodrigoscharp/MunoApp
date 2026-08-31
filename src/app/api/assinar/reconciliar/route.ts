@@ -4,6 +4,7 @@ import { criarLimitador } from "@/lib/rate-limit";
 import { assinaturaTemPagamentoConfirmado } from "@/lib/assinatura/asaas";
 import { provisionarInscricao } from "@/lib/assinatura/provisionamento";
 import { buildTenantBaseUrl } from "@/lib/tenant-provisioning";
+import { registrarEvento } from "@/lib/funil/registrar";
 
 /**
  * O caminho rápido do provisionamento, disparado pela volta do cliente do
@@ -77,6 +78,17 @@ export async function POST(req: NextRequest) {
       inscricao.asaasSubscriptionId
     );
     if (!pago) return aindaNao();
+
+    // Este é o caminho que mais frequentemente ganha do webhook (o PIX
+    // sobretudo): a Inscricao vira PROVISIONADA aqui, e a entrega do webhook,
+    // ao chegar depois, bate na guarda de idempotência e retorna sem nunca
+    // emitir PAGOU. Sem esta linha, essa venda nunca ganha o evento, de
+    // ninguém — o degrau PROVISIONADO ficaria maior que o PAGOU acima dele.
+    await registrarEvento(prismaUnscoped, {
+      sessaoId: inscricao.sessaoId,
+      tipo: "PAGOU",
+      detalhe: inscricao.plano,
+    });
 
     await provisionarInscricao(inscricao, { origem: "assinar/reconciliar" });
 

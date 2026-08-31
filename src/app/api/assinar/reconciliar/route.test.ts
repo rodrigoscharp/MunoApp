@@ -2,9 +2,11 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 const inscricaoFindUnique = vi.fn();
+const eventoFunilCreate = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
     inscricao: { findUnique: (...a: unknown[]) => inscricaoFindUnique(...a) },
+    eventoFunil: { create: (...a: unknown[]) => eventoFunilCreate(...a) },
   },
 }));
 
@@ -42,6 +44,8 @@ function inscricao(over: Record<string, unknown> = {}) {
     slug: "pizzaria",
     status: "AGUARDANDO_PAGAMENTO",
     asaasSubscriptionId: "sub_1",
+    sessaoId: "sessao-1",
+    plano: "MEMBRO",
     ...over,
   };
 }
@@ -51,6 +55,7 @@ beforeEach(() => {
   inscricaoFindUnique.mockResolvedValue(inscricao());
   temPagamento.mockResolvedValue(true);
   provisionar.mockResolvedValue({ tenantId: "tenant-1" });
+  eventoFunilCreate.mockResolvedValue({});
 });
 
 // Fecha a janela entre pagar e ter o restaurante. O job diário é a rede de
@@ -75,6 +80,25 @@ describe("POST /api/assinar/reconciliar", () => {
     expect(provisionar).toHaveBeenCalledWith(
       expect.objectContaining({ id: "insc-1" }),
       expect.objectContaining({ origem: "assinar/reconciliar" })
+    );
+  });
+
+  // O caminho rápido, disparado pela volta do cliente, é o que mais vezes
+  // ganha do webhook (o PIX sobretudo). Quando ganha, é ele quem precisa
+  // emitir PAGOU — a entrega do webhook, ao chegar depois, para na guarda de
+  // idempotência e nunca emitiria nada.
+  it("emite PAGOU antes de provisionar", async () => {
+    const POST = await rotaNova();
+
+    await POST(requisicao({ inscricaoId: "insc-1" }));
+
+    expect(eventoFunilCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sessaoId: "sessao-1", tipo: "PAGOU" }),
+      })
+    );
+    expect(eventoFunilCreate.mock.invocationCallOrder[0]).toBeLessThan(
+      provisionar.mock.invocationCallOrder[0]
     );
   });
 

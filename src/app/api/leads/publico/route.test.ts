@@ -8,6 +8,7 @@ const ORIGEM_OK = "https://join.munoapp.com.br";
 const findMany = vi.fn();
 const create = vi.fn();
 const update = vi.fn();
+const sessaoUpsert = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
@@ -15,6 +16,12 @@ vi.mock("@/lib/prisma", () => ({
       findMany: (...args: unknown[]) => findMany(...args),
       create: (...args: unknown[]) => create(...args),
       update: (...args: unknown[]) => update(...args),
+    },
+    // A rota garante a SessaoFunil (upsert) antes de referenciar o sessaoId
+    // em Lead — mesmo padrão de /api/assinar, contra a FK derrubando a
+    // captação numa corrida com o VISITA concorrente da mesma página.
+    sessaoFunil: {
+      upsert: (...args: unknown[]) => sessaoUpsert(...args),
     },
   },
 }));
@@ -31,15 +38,21 @@ let contadorDeIp = 0;
 
 function requisicao(
   body: unknown,
-  { origem = ORIGEM_OK, ip = `203.0.113.${++contadorDeIp}` } = {}
+  {
+    origem = ORIGEM_OK,
+    ip = `203.0.113.${++contadorDeIp}`,
+    cookie,
+  }: { origem?: string; ip?: string; cookie?: string } = {}
 ): NextRequest {
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    origin: origem,
+    "x-forwarded-for": ip,
+  };
+  if (cookie) headers.cookie = cookie;
   return new NextRequest("http://localhost/api/leads/publico", {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      origin: origem,
-      "x-forwarded-for": ip,
-    },
+    headers,
     body: JSON.stringify(body),
   });
 }
@@ -56,6 +69,7 @@ beforeEach(() => {
   findMany.mockResolvedValue([]);
   create.mockResolvedValue({ id: "lead-novo" });
   update.mockResolvedValue({ id: "lead-existente" });
+  sessaoUpsert.mockResolvedValue({ id: "sessao-1" });
 });
 
 // --- testes ----------------------------------------------------------------
@@ -110,6 +124,55 @@ describe("POST /api/leads/publico", () => {
 
     expect(res.status).toBe(201);
     expect(create.mock.calls[0][0].data).toMatchObject({ plano: null });
+  });
+
+  // A landing e o checkout guardam o mesmo sessaoId, para que o lead de
+  // WhatsApp e o de checkout da mesma pessoa deixem de virar dois leads sem
+  // conexão nenhuma entre si.
+  it("grava o sessaoId do cookie ao criar", async () => {
+    const res = await POST(requisicao(VALIDO, { cookie: "muno_s=sessao-1" }));
+
+    expect(res.status).toBe(201);
+    expect(sessaoUpsert).toHaveBeenCalledWith({
+      where: { id: "sessao-1" },
+      create: { id: "sessao-1" },
+      update: {},
+    });
+    expect(create.mock.calls[0][0].data).toMatchObject({ sessaoId: "sessao-1" });
+  });
+
+  it("sem cookie, grava o lead com sessaoId nulo", async () => {
+    const res = await POST(requisicao(VALIDO, { cookie: undefined }));
+
+    expect(res.status).toBe(201);
+    expect(sessaoUpsert).not.toHaveBeenCalled();
+    expect(create.mock.calls[0][0].data).toMatchObject({ sessaoId: null });
+  });
+
+  it("se a sessão não puder ser garantida, degrada para lead sem origem em vez de erro", async () => {
+    sessaoUpsert.mockRejectedValue(new Error("conexão recusada"));
+
+    const res = await POST(requisicao(VALIDO, { cookie: "muno_s=sessao-1" }));
+
+    expect(res.status).toBe(201);
+    expect(create.mock.calls[0][0].data).toMatchObject({ sessaoId: null });
+  });
+
+  // O reenvio dentro da janela de 24h não pode roubar a atribuição de
+  // primeiro toque de um lead que já tinha sessaoId gravado.
+  it("reenvio dentro da janela de 24h não sobrescreve o sessaoId já gravado", async () => {
+    findMany.mockResolvedValue([
+      {
+        id: "lead-42",
+        telefone: "11999999999",
+        origem: "landing",
+        createdAt: new Date(),
+      },
+    ]);
+
+    await POST(requisicao(VALIDO, { cookie: "muno_s=sessao-nova" }));
+
+    expect(update.mock.calls[0][0].data).not.toHaveProperty("sessaoId");
   });
 
   it("devolve 500 com cabeçalho de CORS quando o Prisma falha", async () => {
