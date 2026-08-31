@@ -16,6 +16,28 @@ const MOTIVO_LABEL: Record<string, string> = {
   EM_USO: "Este endereço já está em uso.",
 };
 
+/**
+ * Dispara e esquece, como na landing (public/vendas/js/main.js): nada aqui
+ * pode atrasar ou atrapalhar uma compra em andamento. keepalive para
+ * sobreviver à navegação para o gateway logo em seguida.
+ */
+function evento(
+  tipo: string,
+  detalhe?: string,
+  meta?: {
+    utm?: { source?: string; medium?: string; campaign?: string };
+    referrer?: string;
+    dispositivo?: "celular" | "desktop";
+  }
+) {
+  fetch("/api/funil/evento", {
+    method: "POST",
+    keepalive: true,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tipo, detalhe, ...meta }),
+  }).catch(() => {});
+}
+
 // CPF tem 11 dígitos, CNPJ tem 14 — a máscara decide qual aplicar pela
 // contagem do que já foi digitado, sem exigir que a pessoa avise antes qual
 // documento vai usar.
@@ -73,16 +95,50 @@ export function FormularioAssinatura({
   function registrarPasso(passo: "endereco" | "documento" | "pagamento") {
     if (passosVistos.current.has(passo)) return;
     passosVistos.current.add(passo);
-
-    // Dispara e esquece, como na landing: nada aqui pode atrasar ou atrapalhar
-    // uma compra em andamento.
-    fetch("/api/funil/evento", {
-      method: "POST",
-      keepalive: true,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tipo: "CHECKOUT_PASSO", detalhe: passo }),
-    }).catch(() => {});
+    evento("CHECKOUT_PASSO", passo);
   }
+
+  // O proxy planta o cookie de sessão em /assinar de propósito para quem
+  // chega direto (anúncio, link do popup de saída da landing), mas nada
+  // nesta página mandava UTM: a sessão nascia sem atribuição no primeiro
+  // evento (CHECKOUT_PASSO), o primeiro toque tranca, e uma visita posterior
+  // à landing com UTM não corrige mais. Efeito com array de dependências
+  // vazio: uma vez por montagem, como o VISITA da landing.
+  //
+  // Contar uma segunda VISITA para quem clicou a partir da landing é
+  // correto e não distorce — VISITA já significa "chegou numa página", e
+  // recarregar a landing também conta duas. O que importa é a sessão ser
+  // única, e ela é.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const utm = {
+      source: params.get("utm_source") || undefined,
+      medium: params.get("utm_medium") || undefined,
+      campaign: params.get("utm_campaign") || undefined,
+    };
+
+    // Só o host de quem indicou, nunca a URL inteira — mesmo raciocínio de
+    // main.js.
+    let referrer: string | undefined;
+    try {
+      referrer = document.referrer
+        ? new URL(document.referrer).hostname
+        : undefined;
+    } catch {
+      referrer = undefined;
+    }
+
+    // jsdom (ambiente de teste) não implementa matchMedia — guard evita que
+    // a suíte quebre por um detalhe de ambiente, não de comportamento.
+    const dispositivo =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(max-width: 767px)").matches
+        ? "celular"
+        : "desktop";
+
+    evento("VISITA", undefined, { utm, referrer, dispositivo });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function onNomeChange(valor: string) {
     setNome(valor);

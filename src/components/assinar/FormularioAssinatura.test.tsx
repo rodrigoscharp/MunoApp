@@ -234,6 +234,43 @@ describe("FormularioAssinatura", () => {
 
   // O cartão é digitado no domínio do Asaas, nunca numa página nossa — é o
   // que dispensa afrouxar Permissions-Policy e X-Frame-Options.
+  // O proxy planta o cookie de sessão em /assinar para quem chega direto de
+  // um anúncio (ou do popup de saída da landing, que linka direto para cá).
+  // Sem este evento, a sessão nascia sem atribuição no primeiro
+  // CHECKOUT_PASSO, e o primeiro toque tranca — o único ponto da branch que
+  // produzia número ERRADO, não faltando.
+  it("emite VISITA com UTM ao montar, para quem chega direto em /assinar", async () => {
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: {
+        get href() {
+          return destino;
+        },
+        set href(v: string) {
+          destino = v;
+        },
+        search: "?utm_source=instagram&utm_medium=story",
+      },
+    });
+
+    render(<FormularioAssinatura plano="MEMBRO" ciclo="MENSAL" />);
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([url]) => url === "/api/funil/evento")
+      ).toBe(true);
+    });
+
+    const chamada = fetchMock.mock.calls.find(
+      ([url]) => url === "/api/funil/evento"
+    )!;
+    const corpo = JSON.parse(chamada[1].body);
+    expect(corpo).toMatchObject({
+      tipo: "VISITA",
+      utm: { source: "instagram", medium: "story" },
+    });
+  });
+
   it("manda o cliente para a URL de pagamento que a API devolveu", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<FormularioAssinatura plano="MEMBRO" ciclo="MENSAL" />);
