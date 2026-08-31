@@ -40,9 +40,39 @@ O `src/proxy.ts` resolve o tenant pelo subdomínio a cada requisição e injeta
 **toda** consulta automaticamente — quem esquecer o `tenantId` não vaza dado de
 outro restaurante, porque não tem como.
 
+O domínio raiz é a exceção: ele serve a landing e **não pode virar restaurante
+nenhum**. Já virou uma vez, em 10/08/2026, quando quem digitava o endereço da
+marca encontrava a hamburgueria do seed. Hoje não existe linha capaz de
+transformar o raiz num tenant, e um teste afirma isso verificando que o raiz
+sequer consulta a tabela.
+
 ---
 
 ## Funcionalidades
+
+### A venda — landing e checkout self-service
+
+A página de vendas mora em `public/vendas/`, servida pelo filesystem no domínio
+raiz, e desde 26/08/2026 vive **neste** repositório: era um projeto separado, e
+com isso o preço anunciado e o preço cobrado divergiam sem ninguém perceber.
+Hoje `src/lib/plans.ts` é a fonte única, e um teste lê o HTML da landing e
+falha se ela anunciar um valor que a tabela não conhece.
+
+Dali saem dois caminhos:
+
+- **Falar com um humano** — o formulário abre o WhatsApp e grava o lead no CRM
+  em paralelo, com dedupe por telefone, honeypot e limite por IP. O envio nunca
+  bloqueia a conversa: se a gravação falhar, o lead se perde e o WhatsApp abre
+  do mesmo jeito
+- **Assinar sozinho** — `/assinar` reserva o endereço do restaurante, cria a
+  assinatura no Asaas e devolve para onde pagar. Pago, o webhook provisiona o
+  restaurante inteiro e manda as credenciais por e-mail. A `Inscricao` segura o
+  slug antes de qualquer cobrança existir, para ninguém pagar por um endereço
+  que outra pessoa levou no meio do caminho
+
+Quem acabou de nascer cai num roteiro de primeiros passos no `/adm`
+(`src/lib/onboarding.ts`), que leva do restaurante vazio ao primeiro item no
+cardápio.
 
 ### Cardápio digital — o cliente
 
@@ -117,22 +147,29 @@ polling de 30s como rede de segurança.
 O lado comercial da Muno, com login separado (cookie próprio, `PlatformAdmin`).
 
 - **Visão geral** — MRR, leads da semana, funil por etapa e cobranças a receber
-- **Conversão** — quanto do lead vira cliente, recortado por origem e por coorte
-  de entrada, a escada da visita ao restaurante no ar com a perda em cada
-  degrau, tempo mediano até fechar e receita por plano e ciclo
+- **Conversão** — quanto do lead vira cliente, recortado por porta de entrada e
+  por coorte de entrada, a escada da visita ao restaurante no ar com a perda em
+  cada degrau, tempo mediano até fechar e receita por plano e ciclo
 - **Leads** — captação automática pela landing (com dedupe por telefone,
   honeypot e limite por IP) ou cadastro manual; funil
   `NOVO → CONTATADO → NEGOCIAÇÃO → FECHADO / PERDIDO`, notas por lead e motivo
   de perda. A lista mostra a situação de cobrança de cada um: quanto paga, se
   está em dia, em atraso, bloqueado ou em cortesia
-- **Tema claro e escuro** — com a opção de seguir o sistema, aplicada antes da
-  primeira pintura para a tela não piscar
-- **Conversão em um clique** — provisiona o tenant inteiro: cria o restaurante,
-  o usuário admin com senha gerada, o cadastro inicial, o plano contratado e a
-  assinatura com dias de cortesia negociados. Devolve a URL pronta
+- **Fechar na mão, em um clique** — para o lead que veio pelo WhatsApp: provisiona
+  o tenant inteiro, cria o restaurante, o usuário admin com senha gerada, o
+  cadastro inicial, o plano e a assinatura com os dias de cortesia negociados.
+  Devolve a URL pronta. Quem assina sozinho pelo `/assinar` não passa por aqui
 - **Clientes** — todos os restaurantes ativos, com plano e mensalidade
 - **Cobrança** — assinatura com valor e dia de vencimento, geração automática da
   fatura do mês por job diário, baixa manual do PIX e régua de inadimplência
+
+O console tem **tema claro e escuro**, com a opção de seguir o sistema, aplicado
+antes da primeira pintura para a tela não piscar a cada navegação.
+
+O estágio do lead que veio do checkout **não se move à mão**: ele é derivado do
+que aconteceu, e a recusa está na rota, não só no botão escondido. O lead de
+WhatsApp continua sendo movido por você, porque nenhum evento captura "ela pediu
+para eu voltar em janeiro".
 
 **A régua**, que roda todo dia às 9h UTC:
 
@@ -203,6 +240,9 @@ omissão.
 
 Cada restaurante conecta o **próprio** gateway em `/adm/pagamentos` e recebe
 direto na conta dele. A Muno não intermedia dinheiro de pedido.
+
+(A mensalidade **da Muno** é outra coisa, e corre pelo Asaas da própria
+plataforma. Os dois usos de gateway não se cruzam.)
 
 | Gateway | PIX | Cartão |
 |---|:---:|:---:|
@@ -287,6 +327,7 @@ src/
 │   ├── dashboard/              # cozinha (KDS)
 │   ├── motoboy/                # app do entregador
 │   ├── platform/               # console da plataforma (CRM e cobrança)
+│   ├── assinar/                # checkout self-service e a tela de obrigado
 │   └── api/
 │       ├── orders/ menu/ categories/ coupons/ tables/ delivery-zones/
 │       ├── payments/           # cobrança, conexões, webhook por tenant
@@ -296,7 +337,7 @@ src/
 │       ├── funil/evento/       # ingestão dos eventos do funil
 │       ├── assinar/            # checkout self-service
 │       └── cron/assinaturas/   # job diário: cobrança, régua e expurgo
-├── components/                 # por área: adm, menu, mesa, kitchen, motoboy, platform…
+├── components/                 # por área: adm, menu, mesa, kitchen, motoboy, platform, assinar…
 ├── hooks/                      # carrinho, chat, cozinha, rastreio, notificações
 └── lib/
     ├── prisma.ts               # cliente com escopo automático de tenant
@@ -306,6 +347,8 @@ src/
     ├── funil/                  # cookie, estágio, resumo, expurgo, registro de evento
     ├── platform-conversao.ts   # as contas da tela de conversão
     └── coupon, delivery-fee, faturamento, plans, realtime, business-hours…
+public/
+└── vendas/                     # a landing, HTML estático servido no domínio raiz
 prisma/
 ├── schema.prisma               # 24 models
 ├── migrations/                 # 18 migrações, RLS incluído
@@ -379,8 +422,14 @@ DIRECT_URL="postgresql://muno:muno@localhost:5433/muno"
 npm run dev
 ```
 
-`http://localhost:3000` cai no tenant `default` do seed. Para testar outro
-restaurante, use `<slug>.localhost:3000`.
+`http://localhost:3000` é o **domínio raiz**: ele mostra a landing de vendas, e
+não um restaurante. O storefront do seed fica em
+`http://default.localhost:3000`, e qualquer outro em `<slug>.localhost:3000`.
+
+O console da plataforma responde em `http://admin.localhost:3000`.
+
+É atrito de propósito: aplicar a guarda do domínio raiz só em produção faria
+desenvolvimento e produção divergirem exatamente no ramo onde o bug mora.
 
 ### Variáveis de ambiente
 
@@ -396,8 +445,14 @@ restaurante, use `<slug>.localhost:3000`.
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | E-mail de recuperação de senha |
 | `GROQ_API_KEY` | Assistente de IA do cardápio |
 | `CRON_SECRET` | Autentica o job diário de cobrança |
-| `LANDING_ORIGIN` | Origens autorizadas a gravar lead. Sem ela, produção recusa todas |
+| `LANDING_ORIGIN` | Origens autorizadas a gravar lead e evento de funil. Sem ela, produção recusa todas |
+| `ASAAS_API_KEY`, `ASAAS_ENV`, `ASAAS_WEBHOOK_TOKEN` | A cobrança **da Muno**, no checkout self-service. Nada a ver com o gateway do restaurante |
 | `BLOB_READ_WRITE_TOKEN` | Envio dos backups |
+
+> A chave do Asaas começa com `$`, e o `$` precisa vir **escapado como `\$`** no
+> `.env`. O carregador do Next expande variáveis: um `$` solto vira referência a
+> algo que não existe e a chave chega vazia na aplicação, enquanto um `curl`
+> lendo o arquivo direto funciona. Aspas não protegem; só a barra invertida.
 
 > Cuidado com o `.env.local`: `vercel env pull` e `vercel link` escrevem o
 > `DATABASE_URL` **de produção** nele, e o Next o carrega com prioridade sobre o
