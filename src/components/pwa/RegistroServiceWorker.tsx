@@ -16,8 +16,33 @@ import { useEffect } from "react";
  */
 export function RegistroServiceWorker() {
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") return;
-    if (!("serviceWorker" in navigator)) return;
+    // Checa o objeto, e não a chave: `"serviceWorker" in navigator` é
+    // verdadeiro quando a propriedade existe valendo undefined, e aí a linha
+    // seguinte estoura.
+    if (!navigator.serviceWorker) return;
+
+    if (process.env.NODE_ENV !== "production") {
+      // Fora de produção não basta NÃO registrar: é preciso apagar o que
+      // sobrou. Service worker vive por ORIGEM, não por build, e localhost é a
+      // única origem onde o build de produção e o `npm run dev` são o mesmo
+      // host. Quem rodasse `next build && next start` uma vez ficaria com o
+      // worker daquele build interceptando o dev server para sempre, servindo
+      // a tela de offline a cada vez que o servidor estivesse fora do ar, e
+      // sem nada na tela ligando uma coisa à outra.
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((registros) => registros.forEach((r) => r.unregister()))
+        .catch(() => {});
+      // Os caches vão junto: sem isto o bundle hasheado do build de produção
+      // continua sendo servido por cima do que o dev acabou de compilar.
+      // window.caches, e não `caches` solto: identificador nu que não existe
+      // lança ReferenceError, que o `?.` não cobre.
+      window.caches
+        ?.keys()
+        .then((chaves) => chaves.forEach((c) => window.caches.delete(c)))
+        .catch(() => {});
+      return;
+    }
 
     // Depois do load: o registro concorre com o carregamento do cardápio pela
     // mesma banda, e nada aqui é urgente.
