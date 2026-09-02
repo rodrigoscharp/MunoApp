@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#D4612A" />
+    <title>Sem conexão</title>
+    <!--
+      Página de fallback do service worker (public/sw.js).
+
+      Ela é um ARQUIVO em public/, e não uma rota /offline do App Router, por
+      causa do proxy: no domínio raiz qualquer caminho que não seja "/" leva
+      404 de propósito (ver o bloco de resolvedSlug === null em src/proxy.ts),
+      e a extensão .html é o que faz isEstatico() deixar passar. Como rota ela
+      funcionaria no subdomínio do restaurante e morreria no raiz.
+
+      Sem CSS externo e sem fonte remota de propósito: quem abre esta página
+      está sem rede, e todo link daqui para fora seria um quadro em branco.
+    -->
+    <style>
+      :root {
+        --papel: #f5f2ee;
+        --tinta: #23201e;
+        --terracota: #d4612a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: var(--papel);
+        color: var(--tinta);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        text-align: center;
+      }
+      .cartao { max-width: 22rem; }
+      img { width: 72px; height: 72px; border-radius: 18px; }
+      h1 { font-size: 1.375rem; margin: 20px 0 8px; letter-spacing: -0.01em; }
+      p { margin: 0; font-size: 0.9375rem; line-height: 1.5; opacity: 0.72; }
+      button {
+        margin-top: 24px;
+        padding: 12px 24px;
+        border: 0;
+        border-radius: 12px;
+        background: var(--terracota);
+        color: #fff;
+        font: inherit;
+        font-weight: 600;
+        font-size: 0.9375rem;
+        cursor: pointer;
+      }
+      button:active { opacity: 0.85; }
+      @media (prefers-color-scheme: dark) {
+        :root { --papel: #181411; --tinta: #f2ece4; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="cartao">
+      <img src="/icons/icone-192.png" alt="" />
+      <h1>Você está sem conexão</h1>
+      <p>
+        Não conseguimos carregar esta página. Verifique sua internet e tente de
+        novo.
+      </p>
+      <button type="button" onclick="location.reload()">Tentar de novo</button>
+    </div>
+  </body>
+</html>

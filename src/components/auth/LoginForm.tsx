@@ -10,6 +10,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Mail, Lock, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { AuthBrandPanel } from "@/components/auth/AuthBrandPanel";
+import { pedirConviteAposLogin } from "@/components/pwa/convitePosLogin";
 import type { RestaurantInfo } from "@/lib/restaurant";
 
 const schema = z.object({
@@ -72,6 +73,18 @@ export function LoginForm({ restaurantInfo }: { restaurantInfo: RestaurantInfo }
     // volta para ela, não para o painel.
     const destino =
       callbackUrl ?? (sessao?.user?.role === "ADMIN" ? "/adm" : "/");
+
+    // Deixa o bilhete do convite de instalação, que o ConviteDeInstalacao
+    // consome na tela seguinte. Aqui não dá para mostrá-lo: o router.push
+    // logo abaixo troca a tela antes de qualquer coisa ser lida.
+    //
+    // Só para quem cai na área do cliente. O painel de gestão e a cozinha não
+    // montam o convite (ele vive no layout de (client)), e sem esta condição o
+    // bilhete ficaria guardado esperando o dono abrir o próprio cardápio, para
+    // aí convidá-lo do nada, sem login nenhum por perto.
+    if (!destino.startsWith("/adm") && !destino.startsWith("/dashboard")) {
+      pedirConviteAposLogin();
+    }
 
     router.push(destino);
     router.refresh();
