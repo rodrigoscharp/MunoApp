@@ -154,6 +154,37 @@ O `Lead` é a exceção — ele só perde o vínculo. Lead é registro de prospe
 plataforma, não dado do restaurante, e apagá-lo junto reescreveria o histórico
 comercial por causa de um cliente que saiu.
 
+## Senha do console da plataforma
+
+```
+npm run platform:create-admin -- "Nome" "email"        cria um admin (banco do .env)
+npm run platform:senha -- --email "x"                  mostra o alvo e sai
+npm run platform:senha -- --email "x" --confirmar "x"  troca a senha
+npm run platform:senha:prod -- --email "x" --confirmar "x"   produção
+```
+
+`platform:senha` existe porque não havia caminho de volta. O
+`platform:create-admin` recusa e-mail que já existe, e o console da plataforma
+não tem tela de "esqueci minha senha" — a que existe é a dos restaurantes. Com
+um único `PlatformAdmin` cadastrado, uma senha perdida trancava o console até
+alguém abrir o psql na mão, que é o que os outros scripts de produção existem
+para evitar.
+
+A confirmação repete o e-mail, como em `tenant:remove`: o erro que ela pega é
+redefinir a senha do admin errado num dia em que existam vários, e para isso é
+preciso ler o nome na tela antes de digitar.
+
+**Sem backup obrigatório**, ao contrário do `db:deploy` e do
+`tenant:remove:prod`, e a diferença é deliberada: aqueles apagam ou reescrevem
+dado de cliente e não têm desfazer, enquanto este troca uma coluna de uma linha
+que o próprio dono controla. Exigir um dump de produção inteiro para trocar a
+própria senha transformaria a operação de emergência na mais lenta que existe.
+
+A senha gerada sai de um alfabeto sem `0/O` e sem `1/l/I`: ela vai ser digitada
+num teclado de celular, agora que o console instala na tela inicial, e
+ambiguidade ali não é questão de elegância — é o motivo de a pessoa achar que
+errou a senha.
+
 # Os domínios
 
 Desde 26/08/2026, **tudo** é servido por este projeto:

@@ -24,7 +24,9 @@
     "tenant:remove:prod": "./scripts/remover-tenant-producao.sh",
     "platform:create-admin": "tsx scripts/create-platform-admin.ts",
     "assinatura:webhook-teste": "tsx scripts/webhook-assinatura-teste.ts",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "platform:senha": "tsx scripts/redefinir-senha-plataforma.ts",
+    "platform:senha:prod": "./scripts/senha-plataforma-producao.sh"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
