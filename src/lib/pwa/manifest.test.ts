@@ -70,3 +70,49 @@ describe("montarManifest", () => {
     }
   });
 });
+
+describe("montarManifest: de quem é o ícone", () => {
+  const LOGO = "https://abc.supabase.co/storage/v1/object/public/x/logo.png";
+
+  it("sem logo cadastrado, usa os ícones da Muno", () => {
+    // É o que mantém o tenant "default", cujo logoUrl é o padrão, com a marca
+    // da plataforma.
+    for (const semLogo of [null, undefined, "", "/munowbg.png"]) {
+      const icones = montarManifest("Muno Food", semLogo).icons ?? [];
+      expect(icones.every((i) => i.src.startsWith("/icons/"))).toBe(true);
+    }
+  });
+
+  it("com logo cadastrado, aponta para a rota do restaurante", () => {
+    const icones = montarManifest("Pizzaria Nona", LOGO).icons ?? [];
+    expect(icones.every((i) => i.src.startsWith("/icone/"))).toBe(true);
+    const chave = icones.map((i) => `${i.sizes}:${i.purpose ?? "any"}`);
+    expect(chave).toContain("192x192:any");
+    expect(chave).toContain("512x512:any");
+    expect(chave).toContain("512x512:maskable");
+  });
+
+  it("carimba a versão do logo na URL", () => {
+    // O Cache-Control da rota é `immutable`. Sem este carimbo, quem trocasse
+    // de logo ficaria preso ao antigo no navegador de todo mundo, por um ano.
+    const antes = montarManifest("Pizzaria", LOGO).icons ?? [];
+    const depois = montarManifest("Pizzaria", LOGO + "?2").icons ?? [];
+    expect(antes[0].src).toMatch(/\?v=[a-z0-9]+$/);
+    expect(antes[0].src).not.toBe(depois[0].src);
+  });
+
+  it("a versão é estável para o mesmo logo", () => {
+    // Instável, ela invalidaria a CDN a cada request e o cache imutável não
+    // valeria nada.
+    expect(montarManifest("X", LOGO).icons?.[0].src).toBe(
+      montarManifest("X", LOGO).icons?.[0].src
+    );
+  });
+
+  it("logo fora da allowlist cai nos ícones da Muno", () => {
+    // A rota também recusaria, mas anunciar no manifest um ícone que sempre
+    // redireciona é gastar uma ida à rede em cada instalação.
+    const icones = montarManifest("X", "https://evil.com/logo.png").icons ?? [];
+    expect(icones.every((i) => i.src.startsWith("/icons/"))).toBe(true);
+  });
+});

@@ -7,15 +7,23 @@ import { getRestaurantInfo } from "@/lib/restaurant";
 import { getBusinessHours } from "@/lib/business-hours";
 import { getRequestTenantId } from "@/lib/tenant-request";
 import { ConviteDeInstalacao } from "@/components/pwa/ConviteDeInstalacao";
+import { origemDoLogo } from "@/lib/pwa/logo-do-tenant";
+import { versaoDoLogo } from "@/lib/pwa/manifest";
 
 /**
- * O nome que o iPhone escreve embaixo do ícone na tela inicial.
+ * A identidade do restaurante nas tags que o manifest não alcança.
  *
- * O Safari lê apple-mobile-web-app-title e ignora o name do manifest, então
- * sem isto o cliente do restaurante instalaria um atalho chamado "Muno": o
- * nome da plataforma que ele não conhece, no lugar do negócio onde ele pede
- * comida. O manifest resolve o mesmo problema pelo lado do Android
- * (src/app/manifest.ts).
+ * São duas coisas, e as duas existem porque o Safari lê meta tag e ignora boa
+ * parte do manifest:
+ *
+ * - **O nome** embaixo do ícone, via apple-mobile-web-app-title. Sem ele o
+ *   cliente instalaria um atalho chamado "Muno", o nome da plataforma que ele
+ *   não conhece, no lugar do negócio onde ele pede comida.
+ *
+ * - **O ícone**, via apple-touch-icon (a tela inicial do iPhone) e icon (a aba
+ *   do navegador). O manifest cobre o Android; estes dois cobrem o iOS e a aba
+ *   em todo lugar. Sem logo cadastrado nada é sobrescrito, e valem os arquivos
+ *   da Muno que a convenção do Next já serve.
  *
  * getRestaurantInfo é cacheado por tenant, então esta é a mesma leitura que o
  * layout abaixo já faz, não uma segunda ida ao banco.
@@ -23,7 +31,20 @@ import { ConviteDeInstalacao } from "@/components/pwa/ConviteDeInstalacao";
 export async function generateMetadata(): Promise<Metadata> {
   const tenantId = await getRequestTenantId();
   const info = await getRestaurantInfo(tenantId);
-  return { appleWebApp: { capable: true, title: info.name || "Muno" } };
+
+  const appleWebApp = { capable: true, title: info.name || "Muno" };
+  if (!origemDoLogo(info.logoUrl)) return { appleWebApp };
+
+  // Mesmo carimbo do manifest, pelo mesmo motivo: a rota responde `immutable`,
+  // e é a URL que muda quando o dono troca o logo.
+  const v = versaoDoLogo(info.logoUrl);
+  return {
+    appleWebApp,
+    icons: {
+      icon: { url: `/icone/192.png?v=${v}`, type: "image/png", sizes: "192x192" },
+      apple: { url: `/icone/apple.png?v=${v}`, type: "image/png", sizes: "180x180" },
+    },
+  };
 }
 
 export default async function ClientLayout({

@@ -25,7 +25,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
 
   try {
     const info = await getRestaurantInfo(tenantId);
-    return montarManifest(info.name);
+    return montarManifest(info.name, info.logoUrl);
   } catch {
     // Um manifest que lança vira 500, e um 500 aqui não degrada a aparência:
     // ele tira a instalação do ar por completo, sem nada na tela para
