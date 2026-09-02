@@ -5,6 +5,7 @@ import { getRequestTenantId } from "@/lib/tenant-request";
 import { CategoryNav } from "@/components/menu/CategoryNav";
 import { ProductCard } from "@/components/menu/ProductCard";
 import { MenuAIAssistant } from "@/components/menu/MenuAIAssistant";
+import { FaixaDeInstalacao } from "@/components/pwa/FaixaDeInstalacao";
 import { MenuItemWithCategory } from "@/types";
 import { getBusinessHours, checkIsOpen } from "@/lib/business-hours";
 
@@ -72,6 +73,17 @@ export default async function MenuPage() {
               )}
               restaurantOpen={isOpen}
             />
+            {/*
+              Convite permanente de instalação. Fica logo abaixo da navegação
+              de categorias, e não no Header, por dois motivos: o Header já
+              disputa o lado direito entre carrinho, conta e menu no celular, e
+              aqui a faixa some sozinha quando não há o que oferecer (app já
+              instalado, convite dispensado, navegador sem suporte), sem deixar
+              buraco no cabeçalho.
+            */}
+            <div className="mt-3">
+              <FaixaDeInstalacao />
+            </div>
           </div>
           <div className="max-w-5xl mx-auto px-4 py-8 space-y-10">
             {nonEmpty.map((category) => (

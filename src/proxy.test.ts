@@ -600,3 +600,72 @@ describe("proxy: o domínio raiz serve a landing, nunca um restaurante", () => {
     }
   );
 });
+
+describe("proxy: os arquivos do PWA respondem nos quatro hosts", () => {
+  // O manifest, o service worker e a página de offline precisam responder em
+  // TODO host, porque cada subdomínio é uma origem instalável separada. O
+  // risco mora no domínio raiz: lá qualquer caminho que não seja "/" leva 404
+  // de propósito, e é só a extensão do arquivo que faz isEstatico() deixar
+  // passar antes daquela guarda.
+  //
+  // O sintoma de uma regressão aqui é silencioso nos três casos. Manifest com
+  // 404: o navegador simplesmente deixa de oferecer a instalação. Service
+  // worker com 404: o registro falha dentro de um catch vazio. Offline com
+  // 404: só aparece no dia em que alguém perde a rede.
+  const RAIZ = "localhost:3000";
+
+  function requisicaoRaiz(caminho: string): NextRequest {
+    const req = new NextRequest(`http://${RAIZ}${caminho}`, {
+      headers: { host: RAIZ },
+    });
+    (req as unknown as { auth: Sessao }).auth = null;
+    return req;
+  }
+
+  const ARQUIVOS = ["/manifest.webmanifest", "/sw.js", "/offline.html"];
+
+  it.each(ARQUIVOS)("%s responde no domínio raiz, sem resolver tenant", async (caminho) => {
+    const res = await proxy(requisicaoRaiz(caminho));
+
+    expect(res.status).toBe(200);
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it.each(ARQUIVOS)("%s responde no host do restaurante", async (caminho) => {
+    const res = await proxy(requisicao(caminho));
+
+    expect(res.status).toBe(200);
+    expect(destino(res)).toBeNull();
+  });
+
+  // O manifest é dinâmico e lê x-tenant-id para saber de quem é o nome do app.
+  // Sem o header injetado ele cai para "Muno", e o cliente do restaurante
+  // instala um atalho com o nome da plataforma.
+  it("o manifest recebe o x-tenant-id no host do restaurante", async () => {
+    const res = await proxy(requisicao("/manifest.webmanifest"));
+
+    expect(tenantInjetado(res)).toBe(TENANT_ID);
+  });
+
+  it.each(ARQUIVOS)(
+    "%s responde em admin. sem exigir sessão de plataforma",
+    async (caminho) => {
+      // Sem sessão: authPlatform devolve null no beforeEach. Se estes arquivos
+      // não contassem como estáticos, o console redirecionaria o pedido do
+      // manifest para /platform/login e o CRM nunca seria instalável.
+      const res = await proxy(requisicaoPlataforma(caminho));
+
+      expect(res.status).toBe(200);
+      expect(destino(res)).toBeNull();
+    }
+  );
+
+  // Espelho da guarda de /vendas/: o service worker controla a origem inteira,
+  // e um escopo maior que o pretendido seria concedido por um arquivo servido
+  // de onde não devia.
+  it("o sw.js do host do restaurante não é reescrito para lugar nenhum", async () => {
+    const res = await proxy(requisicao("/sw.js"));
+
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+  });
+});
