@@ -382,6 +382,37 @@ ela mais vale.
 
 # O console
 
+## Quem resolve host mora em src/lib/hosts.ts
+
+`ROOT_DOMAINS`, `PLATFORM_SUBDOMAIN` e `resolveSlugFromHost` viviam dentro do
+`src/proxy.ts`. Desde 02/09/2026 eles moram em `src/lib/hosts.ts`, e o proxy
+importa de lá, porque o manifest do PWA (`src/app/manifest.ts`) precisa da
+MESMA resposta para saber qual dos três produtos está sendo servido:
+
+```
+<slug>.<dominio>   o cardápio, com nome e logo do restaurante
+admin.<dominio>    o console, "Muno Admin", com GESTÃO no ícone
+<dominio>          a landing e o checkout, "Muno"
+```
+
+**Não recrie uma cópia dessa lógica.** É a mesma armadilha do `tenant-url.ts`
+descrita acima: duas implementações de host divergiram em silêncio e o link de
+recuperação de senha saiu fora do certificado curinga. `tipoDeHost()` é a
+função que responde a pergunta, e `src/lib/hosts.test.ts` existe porque agora
+há dois consumidores — um erro ali erra também o nome do app instalado, e
+ninguém abre chamado por causa disso.
+
+## O console instala na tela inicial
+
+Ele é uma origem separada, então convive na tela inicial com a landing e com
+os cardápios. Por isso ele tem nome e ícone próprios: sem o rótulo GESTÃO, o
+ícone era idêntico ao da landing. `orientation` é `"any"`, e não `portrait`
+como no cardápio, porque travar retrato tira a leitura de tabela em paisagem.
+
+O `BotaoInstalar` fica montado em dois lugares do layout (a barra do topo no
+celular e o rodapé da coluna no desktop), cada um escondido pelo breakpoint do
+outro. Ele some sozinho quando não há o que oferecer.
+
 ## Tema claro e escuro
 
 Os tokens `--color-console-*` em `src/app/globals.css` apontam para variáveis,

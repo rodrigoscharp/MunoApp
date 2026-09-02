@@ -69,6 +69,11 @@ const DESTINO = path.join(RAIZ, "public/icons");
 // não lê CSS, e um ícone que destoa do papel do app é o tipo de divergência
 // que ninguém nota até ver o aparelho de alguém.
 const PAPEL = "#F5F2EE";
+// O verde da marca. No logotipo ele é o garfo, o detalhe preciso dentro da
+// palavra; no console ele é quem carrega o dado (ver AGENTS.md). "GESTÃO" é
+// qualificador, então é papel dele. Em terracota a palavra competiria com o
+// próprio logotipo, que já é terracota.
+const VERDE = "#2B5240";
 
 /**
  * Onde está o garfo verde dentro do logotipo.
@@ -115,6 +120,56 @@ async function acharGarfoVerde() {
     );
   }
   return { left: x0, top: y0, width, height };
+}
+
+/**
+ * A palavra "muno" com "GESTÃO" embaixo: o ícone do console.
+ *
+ * O console é outra ORIGEM (admin.munoapp.com.br), então ele instala como um
+ * app separado e fica na tela inicial ao lado dos outros. Sem o rótulo, o
+ * ícone dele é idêntico ao da landing e a pessoa abre um achando que é o
+ * outro.
+ *
+ * O texto é desenhado por SVG na hora da geração. O PNG resultante é
+ * commitado, então a fonte só precisa existir em quem RODA este script: se
+ * alguém regerar noutra máquina e a fonte cair para outra, o rótulo muda de
+ * desenho. É o preço de não carregar um arquivo de fonte no repositório por
+ * causa de seis letras.
+ */
+async function comAPalavraEGestao(
+  tamanho: number,
+  ocupacao: number,
+  saida: string
+) {
+  const marca = await sharp(LOGO)
+    .trim({ threshold: 10 })
+    .resize({ width: Math.round(tamanho * ocupacao) })
+    .toBuffer();
+  const { width = 0, height = 0 } = await sharp(marca).metadata();
+
+  const corpo = Math.round(tamanho * 0.095);
+  const respiro = Math.round(tamanho * 0.045);
+  const bloco = height + respiro + corpo;
+  const topo = Math.round((tamanho - bloco) / 2);
+
+  const rotulo = Buffer.from(
+    `<svg width="${tamanho}" height="${tamanho}">` +
+      `<text x="${tamanho / 2}" y="${topo + height + respiro + corpo * 0.82}" ` +
+      `font-family="Helvetica, Arial, sans-serif" font-size="${corpo}" ` +
+      `font-weight="700" letter-spacing="${corpo * 0.16}" fill="${VERDE}" ` +
+      `text-anchor="middle">GESTÃO</text></svg>`
+  );
+
+  await sharp({
+    create: { width: tamanho, height: tamanho, channels: 4, background: PAPEL },
+  })
+    .composite([
+      { input: marca, left: Math.round((tamanho - width) / 2), top: topo },
+      { input: rotulo, top: 0, left: 0 },
+    ])
+    .png()
+    .toFile(saida);
+  console.log(`  ${path.relative(RAIZ, saida)}  ${tamanho}  palavra + GESTÃO`);
 }
 
 /** A palavra "muno" centrada num quadrado de fundo opaco. */
@@ -202,6 +257,22 @@ async function main() {
       `no ponto ${recorte.left},${recorte.top})`
   );
   await comOGarfo(128, recorte, path.join(RAIZ, "src/app/icon.png"));
+
+  /*
+   * O console (admin.munoapp.com.br). Outra origem, outro app instalável.
+   *
+   * O bloco aqui é mais alto que a palavra sozinha (logotipo + rótulo), então
+   * a maskable encolhe mais: o que precisa caber no círculo de 80% é a
+   * DIAGONAL do bloco inteiro, não a largura do logotipo.
+   */
+  await comAPalavraEGestao(192, 0.7, path.join(DESTINO, "gestao-192.png"));
+  await comAPalavraEGestao(512, 0.7, path.join(DESTINO, "gestao-512.png"));
+  await comAPalavraEGestao(
+    512,
+    0.56,
+    path.join(DESTINO, "gestao-maskable-512.png")
+  );
+  await comAPalavraEGestao(180, 0.7, path.join(RAIZ, "public/icons/gestao-apple-180.png"));
 
   // Dentro de página: a palavra sem fundo nenhum.
   const marca = path.join(DESTINO, "marca.png");

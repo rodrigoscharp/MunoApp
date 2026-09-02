@@ -71,6 +71,24 @@ const ICONES_DA_MUNO: MetadataRoute.Manifest["icons"] = [
   },
 ];
 
+/**
+ * Os ícones do console: o mesmo logotipo, com GESTÃO embaixo.
+ *
+ * O console é outra ORIGEM (admin.<dominio>), então ele instala como um app
+ * separado e convive na tela inicial com a landing e com os cardápios. Sem o
+ * rótulo, o ícone dele seria idêntico ao da landing.
+ */
+const ICONES_DO_CONSOLE: MetadataRoute.Manifest["icons"] = [
+  { src: "/icons/gestao-192.png", sizes: "192x192", type: "image/png" },
+  { src: "/icons/gestao-512.png", sizes: "512x512", type: "image/png" },
+  {
+    src: "/icons/gestao-maskable-512.png",
+    sizes: "512x512",
+    type: "image/png",
+    purpose: "maskable",
+  },
+];
+
 /** Os ícones do restaurante, servidos por src/app/icone/[medida]/route.ts. */
 function iconesDoRestaurante(logoUrl: string): MetadataRoute.Manifest["icons"] {
   const v = versaoDoLogo(logoUrl);
@@ -139,5 +157,36 @@ export function montarManifest(
       logoUrl && origemDoLogo(logoUrl)
         ? iconesDoRestaurante(logoUrl)
         : ICONES_DA_MUNO,
+  };
+}
+
+/**
+ * O manifest do console da plataforma (admin.<dominio>).
+ *
+ * Função separada, e não um terceiro ramo de `montarManifest`, porque o
+ * console não é uma variação do cardápio: ele não tem nome de restaurante,
+ * não tem logo de cliente, e o que ele quer da tela inicial é diferente.
+ *
+ * `orientation: "any"`, ao contrário do cardápio: travar em retrato faz
+ * sentido para quem pede comida com uma mão, e tira a leitura em paisagem de
+ * quem abre uma tabela de cobranças.
+ *
+ * `start_url: "/"` porque no host da plataforma o proxy reescreve a raiz para
+ * /platform. Sem sessão ele manda para /platform/login, que é o que se espera
+ * de um app de gestão aberto pela tela inicial.
+ */
+export function montarManifestDaPlataforma(): MetadataRoute.Manifest {
+  return {
+    name: "Muno Admin",
+    // O que cabe embaixo do ícone sem o aparelho cortar com reticências.
+    short_name: "Admin",
+    description: "Console da plataforma Muno: leads, clientes e cobranças.",
+    start_url: "/",
+    display: "standalone",
+    orientation: "any",
+    lang: "pt-BR",
+    background_color: PAPEL,
+    theme_color: TERRACOTA,
+    icons: ICONES_DO_CONSOLE,
   };
 }

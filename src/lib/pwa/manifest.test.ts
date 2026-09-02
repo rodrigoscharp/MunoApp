@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { montarManifest, nomeCurto } from "./manifest";
+import { montarManifest, montarManifestDaPlataforma, nomeCurto } from "./manifest";
 
 describe("nomeCurto", () => {
   it("devolve o nome inteiro quando ele já cabe", () => {
@@ -114,5 +114,45 @@ describe("montarManifest: de quem é o ícone", () => {
     // redireciona é gastar uma ida à rede em cada instalação.
     const icones = montarManifest("X", "https://evil.com/logo.png").icons ?? [];
     expect(icones.every((i) => i.src.startsWith("/icons/"))).toBe(true);
+  });
+});
+
+describe("montarManifestDaPlataforma", () => {
+  it("se chama Admin, e não Muno", () => {
+    // O console é outra origem e instala como app separado. Com o mesmo nome
+    // dos outros, ele fica indistinguível na tela inicial de quem também
+    // instalou a landing ou um cardápio.
+    const m = montarManifestDaPlataforma();
+    expect(m.name).toBe("Muno Admin");
+    expect(m.short_name).toBe("Admin");
+  });
+
+  it("não descreve o console como se fosse um cardápio", () => {
+    // A descrição herdada era "Peça online com facilidade e acompanhe seu
+    // pedido em tempo real", texto de cliente final, dentro do CRM.
+    const d = montarManifestDaPlataforma().description ?? "";
+    expect(d).not.toMatch(/peça|pedido/i);
+  });
+
+  it("usa os ícones com GESTÃO, e não os da landing", () => {
+    const icones = montarManifestDaPlataforma().icons ?? [];
+    expect(icones.every((i) => i.src.includes("gestao"))).toBe(true);
+    const chave = icones.map((i) => `${i.sizes}:${i.purpose ?? "any"}`);
+    expect(chave).toContain("192x192:any");
+    expect(chave).toContain("512x512:any");
+    expect(chave).toContain("512x512:maskable");
+  });
+
+  it("não trava a orientação", () => {
+    // Retrato faz sentido num cardápio. Num painel com tabela e gráfico, tira
+    // a leitura em paisagem sem ganhar nada.
+    expect(montarManifestDaPlataforma().orientation).toBe("any");
+  });
+
+  it("mantém o resto do contrato de instalabilidade", () => {
+    const m = montarManifestDaPlataforma();
+    expect(m.start_url).toBe("/");
+    expect(m.display).toBe("standalone");
+    expect(m.lang).toBe("pt-BR");
   });
 });

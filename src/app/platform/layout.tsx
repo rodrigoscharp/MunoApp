@@ -1,8 +1,32 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import { authPlatform } from "@/lib/auth-platform";
 import { MenuLateral } from "@/components/platform/MenuLateral";
 import { BotaoSair } from "@/components/platform/BotaoSair";
 import { TemaBotao } from "@/components/platform/TemaBotao";
+import { BotaoInstalar } from "@/components/platform/BotaoInstalar";
+
+/**
+ * A identidade do console nas tags que o manifest não alcança.
+ *
+ * O Safari ignora boa parte do manifest e lê meta tag, então sem isto o
+ * console instalado num iPhone se chamaria "Muno" e usaria o ícone da landing:
+ * dois atalhos idênticos na mesma tela inicial, para dois produtos diferentes.
+ * O manifest (src/app/manifest.ts) resolve o mesmo pelo lado do Android.
+ */
+export const metadata: Metadata = {
+  title: "Muno Admin",
+  applicationName: "Muno Admin",
+  appleWebApp: { capable: true, title: "Admin", statusBarStyle: "default" },
+  icons: {
+    icon: { url: "/icons/gestao-192.png", type: "image/png", sizes: "192x192" },
+    apple: {
+      url: "/icons/gestao-apple-180.png",
+      type: "image/png",
+      sizes: "180x180",
+    },
+  },
+};
 
 export default async function PlatformLayout({
   children,
@@ -42,6 +66,9 @@ export default async function PlatformLayout({
           <p className="text-xs text-console-tinta/45 truncate px-2">
             {session.user.email}
           </p>
+          {/* Some sozinho quando não há o que oferecer, então pode ficar aqui
+              e na barra do celular ao mesmo tempo. */}
+          <BotaoInstalar />
           <BotaoSair />
         </div>
       </aside>
@@ -56,7 +83,12 @@ export default async function PlatformLayout({
           className="h-6 w-auto object-contain"
           priority
         />
-        <BotaoSair />
+        <div className="flex items-center gap-1">
+          {/* No celular é aqui que o botão aparece: o rodapé é o menu, e o
+              bloco do desktop está escondido pelo breakpoint. */}
+          <BotaoInstalar />
+          <BotaoSair />
+        </div>
       </div>
 
       <main className="md:ml-60 px-5 md:px-8 py-7 md:py-9 pb-28 md:pb-12 max-w-[1180px]">

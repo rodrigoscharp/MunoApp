@@ -4,16 +4,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { TENANT_PLANO_HEADER } from "@/lib/plans";
 import { COOKIE_SESSAO, MAX_AGE_SESSAO } from "@/lib/funil/cookie";
-
-// Domínios raiz (sem subdomínio de tenant) conhecidos pela plataforma. Eles
-// servem a página de vendas, nunca um restaurante — inclusive em dev, onde o
-// padrão localhost:3000 é raiz e o storefront do seed mora em
-// default.localhost:3000.
-const ROOT_DOMAINS = (process.env.ROOT_DOMAIN ?? "localhost:3000").split(",");
-
-// Subdomínio reservado da plataforma. Já consta em RESERVED_SLUGS
-// (src/lib/tenant-provisioning.ts), então nenhum restaurante pode tomá-lo.
-const PLATFORM_SUBDOMAIN = "admin";
+// ROOT_DOMAINS, PLATFORM_SUBDOMAIN e resolveSlugFromHost moram em @/lib/hosts
+// para o manifest do PWA usar a MESMA implementação. Não recrie uma cópia
+// aqui: ver o docblock daquele módulo, e o caso do tenant-url.ts no AGENTS.md.
+import { PLATFORM_SUBDOMAIN, resolveSlugFromHost } from "@/lib/hosts";
 
 // A página de vendas, servida do filesystem. LANDING_BASE é o prefixo que o
 // namespace protege: public/ do app já tem um munowbg.png diferente do da
@@ -76,18 +70,6 @@ function comSessao(res: NextResponse, req: NextRequest): NextResponse {
     maxAge: MAX_AGE_SESSAO,
   });
   return res;
-}
-
-function resolveSlugFromHost(host: string): string | null {
-  const hostname = host.split(":")[0];
-  for (const root of ROOT_DOMAINS) {
-    const rootHostname = root.split(":")[0];
-    if (hostname === rootHostname) return null;
-    if (hostname.endsWith(`.${rootHostname}`)) {
-      return hostname.slice(0, hostname.length - rootHostname.length - 1);
-    }
-  }
-  return null;
 }
 
 export default auth(async (req) => {
