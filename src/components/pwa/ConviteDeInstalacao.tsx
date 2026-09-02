@@ -59,12 +59,17 @@ export function ConviteDeInstalacao() {
     >
       <div className="pointer-events-auto mx-auto w-full max-w-md bg-white rounded-2xl border border-neutral-200 shadow-xl p-4 sm:p-5">
         <div className="flex items-start gap-3">
+          {/*
+            A marca sem fundo. Os ícones quadrados do manifest têm campo creme,
+            que sumiria no branco deste cartão, e a 48px a palavra dentro deles
+            não se leria de qualquer forma.
+          */}
           <Image
-            src="/icons/icone-192.png"
-            alt=""
-            width={48}
-            height={48}
-            className="rounded-xl shrink-0"
+            src="/icons/marca.png"
+            alt="Muno"
+            width={80}
+            height={18}
+            className="shrink-0 mt-1"
           />
           <div className="min-w-0 flex-1">
             <p className="font-bold text-neutral-900 leading-tight">

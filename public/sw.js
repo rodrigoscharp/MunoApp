@@ -39,7 +39,7 @@ const OFFLINE = "/offline.html";
 // Só o indispensável para a tela de offline aparecer sem rede. Uma lista maior
 // atrasa a primeira instalação do worker, e o install falha inteiro se um só
 // dos arquivos não responder.
-const PRECACHE = [OFFLINE, "/icons/icone-192.png"];
+const PRECACHE = [OFFLINE, "/icons/marca.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

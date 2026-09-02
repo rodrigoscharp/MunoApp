@@ -73,11 +73,16 @@ export function montarManifest(
     icons: [
       // Caminhos absolutos: o manifest é servido em /manifest.webmanifest e um
       // caminho relativo resolveria contra a URL dele, não contra a origem.
+      // A PALAVRA "muno", e não o garfo do favicon: nestes tamanhos ela é
+      // legível, e é aqui que a pessoa precisa reconhecer a marca entre
+      // dezenas de ícones na tela inicial. A 16px, na aba, ela não se lê, e
+      // por isso o favicon é outro desenho (ver o script).
       { src: "/icons/icone-192.png", sizes: "192x192", type: "image/png" },
       { src: "/icons/icone-512.png", sizes: "512x512", type: "image/png" },
-      // Gerada por scripts/gerar-icones-pwa.ts sangrando até a borda: quem
-      // arredonda a maskable é o sistema, e um canto redondo por baixo da
-      // máscara do aparelho deixa uma casca clara acompanhando a curva.
+      // Gerada por scripts/gerar-icones-pwa.ts sangrando até a borda, e com a
+      // palavra encolhida para caber no círculo central de 80%, que é a zona
+      // segura do Android. Quem arredonda é o aparelho: um canto redondo no
+      // arquivo, por baixo da máscara, deixa uma casca clara na curva.
       {
         src: "/icons/icone-maskable-512.png",
         sizes: "512x512",
