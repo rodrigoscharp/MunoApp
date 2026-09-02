@@ -214,11 +214,18 @@ página do App Router, por dois motivos:
   `.shadow-sm`) com valores diferentes. Não quebra o build: entorta a página em
   silêncio.
 
-Os arquivos vieram de `~/Dev/MunoSellPage` sem alteração, exceto por dois
+Os arquivos vieram de `~/Dev/MunoSellPage` sem alteração, exceto por três
 pontos: as referências de asset viraram absolutas (`/vendas/css/...`), porque a
-URL exibida continua sendo `/`, e o endpoint de lead virou relativo — o
+URL exibida continua sendo `/`; o endpoint de lead virou relativo, porque o
 endereço absoluto de produção faria a página, aberta em localhost, gravar lead
-no banco dos clientes.
+no banco dos clientes; e o favicon passou a ser o do app.
+
+O terceiro entrou em 02/09/2026. A landing trazia um `favicon.svg` próprio, com
+um "M" desenhado à mão sobre verde `#1F3F34`: letra que não existe no logotipo
+e cor que não é a da marca (`#2B5240`). Como a landing é servida por este
+projeto, `/icon.png` e `/apple-icon.png` são mesma origem e resolvem dali, então
+a página de vendas passou a usar exatamente o mesmo ícone do produto. O arquivo
+antigo foi removido.
 
 **Preço não se digita duas vezes.** `PRECOS` em `src/lib/plans.ts` é a fonte
 única; a sugestão de mensalidade do CRM sai dela, e `src/lib/plans.test.ts` lê

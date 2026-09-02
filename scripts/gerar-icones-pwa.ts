@@ -138,7 +138,14 @@ async function comAPalavra(
   console.log(`  ${path.relative(RAIZ, saida)}  ${tamanho}  palavra sobre ${fundo}`);
 }
 
-/** O garfo verde num azulejo creme de cantos arredondados. */
+/**
+ * O garfo verde num azulejo creme de cantos arredondados.
+ *
+ * Sai pequeno de propósito. Favicon é desenhado a 16 ou 32px, e mesmo numa
+ * tela 4x isso é 128: gerar 512 custava 60KB entregues em toda visita de todo
+ * cardápio e da landing, contra menos de 5KB aqui. `palette: true` reduz para
+ * a paleta indexada, que é exatamente o caso de uma peça de duas cores chapadas.
+ */
 async function comOGarfo(tamanho: number, recorte: sharp.Region, saida: string) {
   const garfo = await sharp(LOGO)
     .extract(recorte)
@@ -162,7 +169,7 @@ async function comOGarfo(tamanho: number, recorte: sharp.Region, saida: string) 
       // cima dos cantos já removidos.
       { input: cantos, blend: "dest-in" },
     ])
-    .png()
+    .png({ compressionLevel: 9, palette: true })
     .toFile(saida);
   console.log(`  ${path.relative(RAIZ, saida)}  ${tamanho}  garfo verde sobre ${PAPEL}`);
 }
@@ -194,7 +201,7 @@ async function main() {
     `  (garfo verde localizado em ${recorte.width}x${recorte.height} ` +
       `no ponto ${recorte.left},${recorte.top})`
   );
-  await comOGarfo(512, recorte, path.join(RAIZ, "src/app/icon.png"));
+  await comOGarfo(128, recorte, path.join(RAIZ, "src/app/icon.png"));
 
   // Dentro de página: a palavra sem fundo nenhum.
   const marca = path.join(DESTINO, "marca.png");

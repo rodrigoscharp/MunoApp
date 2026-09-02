@@ -18,9 +18,20 @@
     window.addEventListener('pageshow', e => { if (e.persisted) window.scrollTo(0, 0); });
   </script>
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/svg+xml" href="/vendas/img/favicon.svg" />
-  <link rel="apple-touch-icon" href="/vendas/img/munowbg.png" />
+  <!--
+    Favicon: os MESMOS arquivos do app, e não uma peça própria.
+
+    A landing é servida pelo domínio raiz deste projeto desde 26/08/2026, então
+    /icon.png e /apple-icon.png são mesma origem e resolvem daqui. Até
+    02/09/2026 havia um favicon.svg só dela, com um "M" desenhado à mão sobre
+    verde #1F3F34: letra que não existe no logotipo e cor que não é a da marca
+    (#2B5240). A aba da página de vendas mostrava uma identidade que o produto
+    não tem em lugar nenhum.
+
+    Os dois saem de scripts/gerar-icones-pwa.ts, derivados do logotipo.
+  -->
+  <link rel="icon" type="image/png" href="/icon.png" />
+  <link rel="apple-touch-icon" href="/apple-icon.png" />
 
   <!-- Fontes -->
   <link
