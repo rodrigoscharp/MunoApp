@@ -288,6 +288,7 @@ describe("proxy: rotas que não pertencem a tenant nenhum", () => {
     "/api/cron/assinaturas",
     "/api/leads/publico",
     "/api/assinaturas/webhook/asaas",
+    "/api/payments/webhook/mercado_pago/tenant-1",
   ])(
     "%s passa sem resolver tenant",
     async (caminho) => {

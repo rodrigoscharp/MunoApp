@@ -217,6 +217,21 @@ export default auth(async (req) => {
     return NextResponse.next();
   }
 
+  // Webhook de pagamento por-tenant (Stripe/Mercado Pago/PagBank/Abacate
+  // Pay), pelo mesmo motivo: a URL cadastrada em cada gateway usa
+  // NEXT_PUBLIC_APP_URL (o domínio raiz do deploy), não o subdomínio do
+  // tenant — o tenantId já vem no próprio path. Sem esta guarda, essas
+  // chamadas caíam no bloco de host-raiz abaixo e tomavam 404 antes de
+  // chegar à validação de assinatura da rota, e o gateway reentregaria esse
+  // 404 para sempre: pedido pago, confirmação que nunca chega.
+  //
+  // Sem x-tenant-id injetado: o handler resolve o tenant pelo segmento da
+  // própria URL e usa prismaUnscoped/runWithTenant conscientemente, como o
+  // webhook do Asaas acima.
+  if (nextUrl.pathname.startsWith("/api/payments/webhook/")) {
+    return NextResponse.next();
+  }
+
   // O checkout público (assinatura de um novo restaurante) não pertence a
   // tenant nenhum, e é para o raiz que a landing manda o botão de assinar.
   // Mesma razão e mesma posição da guarda de /api/leads/publico: sair antes do
