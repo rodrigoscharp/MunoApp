@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prismaUnscoped } from "@/lib/prisma";
+import { criarLimitador } from "@/lib/rate-limit";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -8,6 +9,11 @@ const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
 });
+
+// Por tenant + e-mail, não por IP: o que se quer conter é tentativa repetida
+// de senha contra UMA conta, sem punir várias contas atrás do mesmo NAT/rede
+// de escritório digitando errado ao mesmo tempo.
+const limitador = criarLimitador({ max: 10, janelaMs: 10 * 60 * 1000 });
 
 /**
  * Exportada para ser testável: dentro do objeto do CredentialsProvider a função
@@ -25,6 +31,8 @@ export async function autorizarCredenciais(
   // Preenchido pelo proxy.ts a partir do subdomínio da request.
   const tenantId = request.headers.get("x-tenant-id");
   if (!tenantId) return null;
+
+  if (!limitador.permitir(`${tenantId}:${parsed.data.email}`, Date.now())) return null;
 
   // NextAuth roda esse callback dentro do bundle do proxy/middleware,
   // que tem seu próprio escopo global — por isso usa prismaUnscoped

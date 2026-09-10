@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import { gerarTokenSeguro } from "@/lib/crypto";
+import { escapeHtml, paraAssunto } from "@/lib/email-html";
+import { criarLimitador } from "@/lib/rate-limit";
 import { resend } from "@/lib/resend";
 import { getRestaurantInfo } from "@/lib/restaurant";
 import { buildTenantBaseUrl } from "@/lib/tenant-provisioning";
@@ -9,11 +12,16 @@ const schema = z.object({
   email: z.string().email(),
 });
 
+// Por IP, não por e-mail: e-mail já é neutralizado pelo { ok: true } sempre
+// devolvido abaixo, então o que sobra para conter é o volume — alguém
+// disparando esta rota em loop para gerar carga de envio de e-mail.
+const limitador = criarLimitador({ max: 20, janelaMs: 10 * 60 * 1000 });
+
 function buildEmailHtml({
-  userName,
-  restaurantName,
-  restaurantAddress,
-  restaurantPhone,
+  userName: userNameRaw,
+  restaurantName: restaurantNameRaw,
+  restaurantAddress: restaurantAddressRaw,
+  restaurantPhone: restaurantPhoneRaw,
   logoUrl,
   resetUrl,
 }: {
@@ -24,11 +32,26 @@ function buildEmailHtml({
   logoUrl: string | null;
   resetUrl: string;
 }) {
-  const logoBlock = logoUrl
+  // userName/restaurantName/restaurantAddress/restaurantPhone são texto livre
+  // gravado pelo ADMIN do tenant (settings/restaurant, cadastro de usuário) e
+  // vão direto para dentro de tags HTML abaixo. Sem escapar, um restaurante
+  // com nome malformado injeta marcação/links num e-mail que sai com o
+  // remetente da própria Muno para o cliente final — mesmo risco documentado
+  // em src/lib/assinatura/email-boas-vindas.ts.
+  const userName = escapeHtml(userNameRaw);
+  const restaurantName = escapeHtml(restaurantNameRaw);
+  const restaurantAddress = escapeHtml(restaurantAddressRaw);
+  const restaurantPhone = escapeHtml(restaurantPhoneRaw);
+  // logoUrl é montado a partir de Restaurant.logoUrl (texto livre, mesma
+  // origem de restaurantName acima) — escapar também aqui evita que alguém
+  // quebre o atributo `src` com aspas/`<` e injete markup.
+  const logoUrlSafe = logoUrl ? escapeHtml(logoUrl) : null;
+
+  const logoBlock = logoUrlSafe
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 20px;">
                       <tr>
                         <td style="background:#ffffff;border-radius:16px;padding:14px 24px;line-height:0;">
-                          <img src="${logoUrl}" alt="${restaurantName}" width="140" height="48" style="display:block;width:140px;height:48px;border:0;" />
+                          <img src="${logoUrlSafe}" alt="${restaurantName}" width="140" height="48" style="display:block;width:140px;height:48px;border:0;" />
                         </td>
                       </tr>
                     </table>`
@@ -193,6 +216,13 @@ export async function POST(req: NextRequest) {
   const tenantId = getTenantIdFromRequest(req);
   if (!tenantId) return apiError("Tenant não identificado", 400);
 
+  const ip = (req.headers.get("x-forwarded-for") ?? "desconhecido")
+    .split(",")[0]
+    .trim();
+  if (!limitador.permitir(ip, Date.now())) {
+    return NextResponse.json({ error: "Muitas tentativas." }, { status: 429 });
+  }
+
   return withTenant(tenantId, async () => {
     const body = await req.json();
     const parsed = schema.safeParse(body);
@@ -217,7 +247,7 @@ export async function POST(req: NextRequest) {
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hora
 
     const resetToken = await prisma.passwordResetToken.create({
-      data: { tenantId, email, expiresAt },
+      data: { tenantId, email, expiresAt, token: gerarTokenSeguro() },
     });
 
     const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { slug: true } });
@@ -239,7 +269,7 @@ export async function POST(req: NextRequest) {
     const { error: erroDeEnvio } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev",
       to: email,
-      subject: `Redefina sua senha — ${restaurantInfo.name}`,
+      subject: `Redefina sua senha — ${paraAssunto(restaurantInfo.name)}`,
       html: buildEmailHtml({
         userName: user.name,
         restaurantName: restaurantInfo.name,

@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prismaUnscoped } from "@/lib/prisma";
+import { criarLimitador } from "@/lib/rate-limit";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 
@@ -8,6 +9,12 @@ const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
 });
+
+// Por e-mail, não por IP: o console da plataforma tem poucos admins
+// cadastrados (às vezes um só — ver platform:senha em AGENTS.md), e o que
+// importa conter é tentativa repetida de senha contra UMA conta, não volume
+// por origem de rede.
+const limitador = criarLimitador({ max: 10, janelaMs: 10 * 60 * 1000 });
 
 // Instância separada da autenticação de restaurante (src/lib/auth.ts) de
 // propósito. O nome de cookie próprio é o que garante o isolamento: uma sessão
@@ -43,6 +50,8 @@ export const {
       async authorize(credentials) {
         const parsed = loginSchema.safeParse(credentials);
         if (!parsed.success) return null;
+
+        if (!limitador.permitir(parsed.data.email, Date.now())) return null;
 
         const admin = await prismaUnscoped.platformAdmin.findUnique({
           where: { email: parsed.data.email },

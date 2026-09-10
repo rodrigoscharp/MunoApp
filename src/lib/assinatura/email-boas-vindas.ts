@@ -1,4 +1,6 @@
 import { prismaUnscoped } from "@/lib/prisma";
+import { gerarTokenSeguro } from "@/lib/crypto";
+import { escapeHtml, paraAssunto } from "@/lib/email-html";
 import { getResend } from "@/lib/resend";
 import { buildTenantBaseUrl } from "@/lib/tenant-provisioning";
 
@@ -14,31 +16,12 @@ import { buildTenantBaseUrl } from "@/lib/tenant-provisioning";
 const VALIDADE_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Escapa as cinco entidades HTML. `nome` e `email` chegam aqui a partir do
- * que o cliente digitou no checkout (`Inscricao.nome`/`.email`, texto livre
- * validado só por tamanho — ver o schema de `/api/assinar`), e vão direto
- * para dentro de tags. Sem isto, um restaurante chamado `Bar do "Zé" <Centro>`
- * quebra a marcação do e-mail, e um nome deliberadamente malformado injeta
- * conteúdo HTML numa mensagem que sai com o remetente da Muno.
+ * `nome` e `email` chegam aqui a partir do que o cliente digitou no checkout
+ * (`Inscricao.nome`/`.email`, texto livre validado só por tamanho — ver o
+ * schema de `/api/assinar`), e vão direto para dentro de tags — por isso
+ * passam por `escapeHtml`/`paraAssunto` (`@/lib/email-html`) antes de
+ * interpolar no template ou no assunto.
  */
-function escapeHtml(valor: string): string {
-  return valor
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-/**
- * `subject` não é HTML — escapar entidades ali não protege nada. O risco em
- * campo de cabeçalho de e-mail é outro: uma quebra de linha no valor
- * interpolado permite injetar um cabeçalho novo (ex.: um segundo `Bcc:`).
- * Remover `\r` e `\n` fecha essa porta sem mexer no resto do texto.
- */
-function paraAssunto(valor: string): string {
-  return valor.replace(/[\r\n]+/g, " ");
-}
 
 /**
  * E-mail de boas-vindas enviado depois que o pagamento confirma e o
@@ -64,6 +47,7 @@ export async function enviarBoasVindas(input: {
       tenantId: input.tenantId,
       email: input.email,
       expiresAt: new Date(Date.now() + VALIDADE_MS),
+      token: gerarTokenSeguro(),
     },
   });
 

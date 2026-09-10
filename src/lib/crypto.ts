@@ -46,3 +46,15 @@ export function decryptSecret(payload: string): string {
 
   return plaintext.toString("utf8");
 }
+
+/**
+ * Token para link de e-mail sensível (redefinição de senha, criação de senha
+ * do link de boas-vindas). 32 bytes de `crypto.randomBytes` — puramente
+ * aleatório, sem timestamp/contador embutido — em vez do `cuid()` que o
+ * Prisma geraria como default para PasswordResetToken.token: cuid foi
+ * desenhado para ser um id único e ordenável, não um segredo, e carrega
+ * estrutura previsível que um gerador de segurança não deveria ter.
+ */
+export function gerarTokenSeguro(): string {
+  return crypto.randomBytes(32).toString("hex");
+}
