@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import sharp from "sharp";
+import sharp, { type Region } from "sharp";
 
 /**
  * Deriva todos os ícones do projeto do logotipo da Muno.
@@ -201,7 +201,7 @@ async function comAPalavra(
  * cardápio e da landing, contra menos de 5KB aqui. `palette: true` reduz para
  * a paleta indexada, que é exatamente o caso de uma peça de duas cores chapadas.
  */
-async function comOGarfo(tamanho: number, recorte: sharp.Region, saida: string) {
+async function comOGarfo(tamanho: number, recorte: Region, saida: string) {
   const garfo = await sharp(LOGO)
     .extract(recorte)
     .resize({ height: Math.round(tamanho * 0.58) })
