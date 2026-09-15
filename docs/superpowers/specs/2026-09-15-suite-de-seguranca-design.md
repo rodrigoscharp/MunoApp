@@ -96,7 +96,9 @@ apagada, também.
 está em `aceita`: nenhuma sessão, cada um dos quatro papéis de tenant, e sessão de
 plataforma. Para `SEGREDO`, chama sem o segredo. Em todos os casos exige:
 
-* status fora da faixa 2xx;
+* status 401 ou 403. Um 400 de validação do corpo não prova recusa: numa rota que valida
+  o corpo logo depois do papel, apagar a checagem de papel também dá 400, sem tocar o
+  banco;
 * **nenhum acesso** a `prisma`, `prismaUnscoped` ou `supabaseAdmin`.
 
 Os três clientes são mockados por um `Proxy` que registra qualquer propriedade lida. A

@@ -4,9 +4,12 @@
  * Três afirmações, e a ordem importa para ler uma falha:
  *
  * 1. Cobertura. Todo handler tem política e toda política tem handler.
- * 2. Negação. Quem não está na política recebe resposta fora de 2xx E a rota
- *    não toca o banco. A segunda metade é a que pega o bug sutil: consultar e
- *    só depois checar o papel já vazou tempo de resposta e efeito colateral,
+ * 2. Negação. Quem não está na política recebe 401 ou 403 E a rota não toca o
+ *    banco. Um 400 de validação do corpo não prova recusa: numa rota que
+ *    valida o corpo logo depois do papel, apagar a checagem de papel também
+ *    dá 400, sem tocar o banco — por isso a negação exige o status exato, não
+ *    só "fora de 2xx". A segunda metade pega o bug sutil: consultar e só
+ *    depois checar o papel já vazou tempo de resposta e efeito colateral,
  *    mesmo que o fim seja um 403.
  * 3. Controle positivo. Quem está na política não leva 401 nem 403. Sem isto a
  *    matriz passaria contra uma rota que recusa todo mundo, ou contra um mock
@@ -220,7 +223,9 @@ describe("quem não está na política é recusado antes do banco", () => {
     const res = await chamar(alvo);
 
     expect(res, `lançou em vez de responder: ${String(res)}`).toBeInstanceOf(Response);
-    expect((res as Response).status, "respondeu 2xx").not.toBeLessThan(300);
+    expect([401, 403], "recusou com status que não é de acesso negado").toContain(
+      (res as Response).status
+    );
     expect(espiao.acessos, "tocou o banco antes de recusar").toEqual([]);
   });
 });
@@ -237,7 +242,9 @@ describe("rota de segredo sem o segredo é recusada antes do banco", () => {
     const res = await chamar(alvo);
 
     expect(res).toBeInstanceOf(Response);
-    expect((res as Response).status).not.toBeLessThan(300);
+    expect([401, 403], "recusou com status que não é de acesso negado").toContain(
+      (res as Response).status
+    );
     expect(espiao.acessos).toEqual([]);
   });
 });
