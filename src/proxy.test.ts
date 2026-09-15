@@ -373,6 +373,21 @@ describe("proxy: sessão de outro tenant não pode trancar o NextAuth", () => {
     expect(destino(res)).toBeNull();
     expect(res.status).toBe(200);
   });
+
+  // O handler de API confere o papel e não o tenant da sessão. Um ADMIN do
+  // restaurante A com o cookie colado no host do restaurante B passaria. Quem
+  // barra é o tenantMismatch daqui, e só ele.
+  it.each(["/api/coupons", "/api/orders", "/api/settings/restaurant"])(
+    "%s com sessão de outro tenant não chega ao handler",
+    async (caminho) => {
+      comAssinatura(null);
+
+      const res = await proxy(requisicao(caminho, DE_OUTRO_TENANT));
+
+      expect(tenantInjetado(res)).toBeNull();
+      expect(res.status).not.toBe(200);
+    }
+  );
 });
 
 describe("proxy: upload de logo funciona a partir da plataforma", () => {
@@ -668,5 +683,67 @@ describe("proxy: os arquivos do PWA respondem nos quatro hosts", () => {
     const res = await proxy(requisicao("/sw.js"));
 
     expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+  });
+});
+
+describe("proxy: header de tenant forjado não atravessa rota sem tenant", () => {
+  // x-tenant-id é a chave de escopo de toda rota de restaurante. No caminho
+  // normal o proxy sobrescreve o valor. Nos ramos que saem antes (checkout,
+  // webhooks, cron, landing, plataforma) ele não sobrescrevia nada, e o valor
+  // mandado pelo navegador chegava intacto. Nenhuma rota dali lê o header
+  // hoje; a primeira que ler confiaria num tenant escolhido pelo cliente.
+  const FORJADOS = { "x-tenant-id": "tenant-forjado", "x-tenant-plano": "MEMBRO_MESA_QR" };
+
+  function forjada(host: string, caminho: string, method = "GET"): NextRequest {
+    const req = new NextRequest(`http://${host}${caminho}`, {
+      method,
+      headers: { host, ...FORJADOS },
+    });
+    (req as unknown as { auth: Sessao }).auth = null;
+    return req;
+  }
+
+  function semHeaderDeTenant(res: Response) {
+    const lista = res.headers.get("x-middleware-override-headers");
+    // Sem a lista, o Next repassa o request inteiro como veio do navegador.
+    expect(lista).not.toBeNull();
+    const repassados = lista!.split(",").map((nome) => nome.trim());
+    expect(repassados).toContain("host");
+    expect(repassados).not.toContain("x-tenant-id");
+    expect(repassados).not.toContain("x-tenant-plano");
+    expect(tenantInjetado(res)).toBeNull();
+    expect(planoInjetado(res)).toBeNull();
+  }
+
+  it.each([
+    ["/api/cron/assinaturas", "GET"],
+    ["/api/leads/publico", "POST"],
+    ["/api/funil/evento", "POST"],
+    ["/api/assinaturas/webhook/asaas", "POST"],
+    ["/api/payments/webhook/mercado_pago/tenant-1", "POST"],
+    ["/api/assinar", "POST"],
+  ])("%s em host de restaurante", async (caminho, method) => {
+    semHeaderDeTenant(await proxy(forjada(HOST, caminho, method)));
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it.each(["/", "/assinar", "/api/assinar/slug", "/api/funil/evento"])(
+    "%s no domínio raiz",
+    async (caminho) => {
+      semHeaderDeTenant(await proxy(forjada("localhost:3000", caminho)));
+    }
+  );
+
+  it.each(["/api/platform/leads", "/leads"])("%s no host da plataforma", async (caminho) => {
+    vi.mocked(authPlatform).mockResolvedValue({ user: { id: "admin-1" } } as never);
+
+    semHeaderDeTenant(await proxy(forjada(ADMIN_HOST, caminho)));
+  });
+
+  it("no host de restaurante o valor forjado é trocado pelo tenant resolvido", async () => {
+    const res = await proxy(forjada(HOST, "/"));
+
+    expect(tenantInjetado(res)).toBe(TENANT_ID);
+    expect(planoInjetado(res)).toBe("MEMBRO");
   });
 });

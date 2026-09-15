@@ -72,6 +72,23 @@ function comSessao(res: NextResponse, req: NextRequest): NextResponse {
   return res;
 }
 
+// Os headers que só o proxy tem autoridade para escrever.
+const HEADERS_DE_TENANT = ["x-tenant-id", TENANT_PLANO_HEADER];
+
+/**
+ * Encaminhamento para os ramos que saem antes de resolver tenant.
+ *
+ * `NextResponse.next()` sem argumento repassa o request exatamente como o
+ * navegador mandou, com um x-tenant-id que qualquer um escreve. Passar os
+ * headers explicitamente faz o Next gravar x-middleware-override-headers, e o
+ * servidor apaga do request tudo o que ficou fora da lista.
+ */
+function semHeadersDeTenant(req: NextRequest) {
+  const headers = new Headers(req.headers);
+  for (const nome of HEADERS_DE_TENANT) headers.delete(nome);
+  return { request: { headers } };
+}
+
 export default auth(async (req) => {
   const { nextUrl } = req;
   const session = req.auth;
@@ -91,6 +108,8 @@ export default auth(async (req) => {
       : "https";
   const urlNoHost = (caminho: string) =>
     new URL(caminho, `${protocolo}://${host}`);
+
+  const semTenant = semHeadersDeTenant(req);
 
   // A área de plataforma não pertence a nenhum tenant: não resolvemos tenant e
   // não injetamos x-tenant-id, o que obriga o código de lá a usar
@@ -148,14 +167,15 @@ export default auth(async (req) => {
       isApiUpload ||
       estatico
     ) {
-      return NextResponse.next();
+      return NextResponse.next(semTenant);
     }
     // `${nextUrl.search}` não é decoração: urlNoHost monta a URL a partir do
     // caminho, e sem a busca toda query string do console é descartada em
     // silêncio. A tela de leads filtra por estágio pela URL, e sem isto ela
     // recebia sempre a lista inteira sem nenhum erro para denunciar.
     return NextResponse.rewrite(
-      urlNoHost(`/platform${nextUrl.pathname}${nextUrl.search}`)
+      urlNoHost(`/platform${nextUrl.pathname}${nextUrl.search}`),
+      semTenant
     );
   }
 
@@ -181,7 +201,7 @@ export default auth(async (req) => {
   // Sem x-tenant-id injetado, o que obriga a rota a usar prismaUnscoped
   // conscientemente, como a área de plataforma.
   if (nextUrl.pathname === "/api/leads/publico") {
-    return NextResponse.next();
+    return NextResponse.next(semTenant);
   }
 
   // Ingestão de evento do funil, pela mesma razão e na mesma posição da guarda
@@ -190,7 +210,7 @@ export default auth(async (req) => {
   // host raiz ela tomaria o 404 do bloco de baixo — em silêncio, porque o
   // fetch da landing engole o erro de propósito.
   if (nextUrl.pathname === "/api/funil/evento") {
-    return NextResponse.next();
+    return NextResponse.next(semTenant);
   }
 
   // Cron da Vercel, pelo mesmo motivo e com a mesma consequência: o job dispara
@@ -201,7 +221,7 @@ export default auth(async (req) => {
   // Sem x-tenant-id injetado: quem cobra é a plataforma, e o job usa
   // prismaUnscoped conscientemente. A porta é o CRON_SECRET, não o proxy.
   if (nextUrl.pathname.startsWith("/api/cron/")) {
-    return NextResponse.next();
+    return NextResponse.next(semTenant);
   }
 
   // Webhook do Asaas, pelo mesmo motivo e com a mesma consequência do cron: o
@@ -214,7 +234,7 @@ export default auth(async (req) => {
   // (asaasPaymentId/asaasSubscriptionId/externalReference), não pelo host, e
   // usa prismaUnscoped conscientemente.
   if (nextUrl.pathname.startsWith("/api/assinaturas/webhook/")) {
-    return NextResponse.next();
+    return NextResponse.next(semTenant);
   }
 
   // Webhook de pagamento por-tenant (Stripe/Mercado Pago/PagBank/Abacate
@@ -229,7 +249,7 @@ export default auth(async (req) => {
   // própria URL e usa prismaUnscoped/runWithTenant conscientemente, como o
   // webhook do Asaas acima.
   if (nextUrl.pathname.startsWith("/api/payments/webhook/")) {
-    return NextResponse.next();
+    return NextResponse.next(semTenant);
   }
 
   // O checkout público (assinatura de um novo restaurante) não pertence a
@@ -248,8 +268,8 @@ export default auth(async (req) => {
     // cookie seria plantado também em subdomínio de cliente, que é justamente
     // o que a ausência de `domain` evita.
     return resolvedSlug === null
-      ? comSessao(NextResponse.next(), req)
-      : NextResponse.next();
+      ? comSessao(NextResponse.next(semTenant), req)
+      : NextResponse.next(semTenant);
   }
 
   // O domínio raiz serve a página de vendas, e nada mais.
@@ -268,10 +288,10 @@ export default auth(async (req) => {
   // linha capaz de transformar o raiz num tenant.
   if (resolvedSlug === null) {
     if (isEstatico(nextUrl.pathname)) {
-      return NextResponse.next();
+      return NextResponse.next(semTenant);
     }
     if (nextUrl.pathname.replace(/\/$/, "") === "") {
-      return comSessao(NextResponse.rewrite(urlNoHost(LANDING_DOC)), req);
+      return comSessao(NextResponse.rewrite(urlNoHost(LANDING_DOC), semTenant), req);
     }
     return new NextResponse(null, { status: 404 });
   }
