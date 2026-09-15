@@ -57,6 +57,7 @@ type Papel = "CUSTOMER" | "ADMIN" | "KITCHEN" | "MOTOBOY";
 
 type Nivel =
   | { tipo: "PUBLICO"; motivo: string }
+  | { tipo: "DONO_DO_RECURSO"; motivo: string }
   | { tipo: "SEGREDO"; motivo: string }
   | { tipo: "AUTENTICADO"; aceita: Array<Papel | "PLATAFORMA"> };
 ```
@@ -69,6 +70,10 @@ type Nivel =
 * `AUTENTICADO` lista **explicitamente** quem é aceito, em vez de uma hierarquia. As rotas
   divergem (a cozinha aceita `ADMIN` e `KITCHEN`, o upload aceita `ADMIN` e a plataforma),
   e uma hierarquia implícita esconderia exatamente a divergência que interessa.
+* `DONO_DO_RECURSO` entrou na escrita do plano. As rotas que decidem pelo dono do
+  pedido (`canViewOrder`, o chat do pedido, a cobrança) precisam ler o registro
+  antes de decidir, então não cabem em "nenhum acesso ao banco" e também não são
+  públicas. A matriz não as exercita; o motivo aponta o teste que cobre.
 
 O webhook de pagamento por tenant é `PUBLICO`, não `SEGREDO`: ele responde 200 idêntico
 para qualquer chamada sem conexão cadastrada, de propósito, para não revelar quais tenants
