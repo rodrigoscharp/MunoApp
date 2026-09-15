@@ -24,6 +24,23 @@ const WHERE_OPERATIONS = new Set([
 
 const DATA_ARRAY_OPERATIONS = new Set(["createMany", "createManyAndReturn"]);
 
+// Escritas que recebem `data` de uma linha que já existe. O where escopado
+// impede de alcançar a linha de outro restaurante; prenderAoTenant impede de
+// mandar a própria linha para outro restaurante.
+const UPDATE_OPERATIONS = new Set(["update", "updateMany", "updateManyAndReturn"]);
+
+/**
+ * Se a escrita tentou mexer no tenant, pela coluna ou pela relação, o tenant
+ * passa a ser o do contexto. Se não tentou, o data sai intacto: injetar
+ * tenantId em todo update mudaria os argumentos de toda escrita legítima.
+ */
+function prenderAoTenant(data: unknown, tenantId: unknown): unknown {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return data;
+  if (!("tenantId" in data) && !("tenant" in data)) return data;
+  const { tenant: _tenant, ...resto } = data as Record<string, unknown>;
+  return { ...resto, tenantId };
+}
+
 function createPrismaClient() {
   const basePrisma = new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
@@ -53,8 +70,13 @@ function createPrismaClient() {
             a.data = { ...a.data, tenantId };
           }
 
+          if (UPDATE_OPERATIONS.has(operation)) {
+            a.data = prenderAoTenant(a.data, tenantId);
+          }
+
           if (operation === "upsert") {
             a.create = { ...a.create, tenantId };
+            a.update = prenderAoTenant(a.update, tenantId);
           }
 
           if (DATA_ARRAY_OPERATIONS.has(operation) && Array.isArray(a.data)) {

@@ -172,3 +172,47 @@ describe("toda operação de escrita e leitura do client precisa ser escopada", 
     expect((entregue.where as ArgsQualquer).tenantId).toBe("restaurante-a");
   });
 });
+
+/**
+ * O where escopado impede de ALCANÇAR a linha de outro restaurante. Não impedia
+ * de MANDAR a própria linha para outro restaurante: um
+ * `update({ where: { id }, data: { tenantId: "b" } })` passava com o where certo
+ * e o data errado. Hoje nenhuma rota faz isso porque o zod descarta campo
+ * desconhecido antes, o que é coincidência e não garantia.
+ */
+describe("update não muda a linha de restaurante", () => {
+  const ATUALIZACOES = ["update", "updateMany", "updateManyAndReturn"];
+
+  it.each(ATUALIZACOES)("%s troca data.tenantId pelo do contexto", async (operacao) => {
+    const entregue = await argsEntregues("MenuItem", operacao, {
+      where: { id: "item-1" },
+      data: { name: "X", tenantId: "restaurante-b" },
+    });
+    expect(entregue.data).toEqual({ name: "X", tenantId: "restaurante-a" });
+  });
+
+  it.each(ATUALIZACOES)("%s descarta a forma relacional data.tenant", async (operacao) => {
+    const entregue = await argsEntregues("MenuItem", operacao, {
+      where: { id: "item-1" },
+      data: { name: "X", tenant: { connect: { id: "restaurante-b" } } },
+    });
+    expect(entregue.data).toEqual({ name: "X", tenantId: "restaurante-a" });
+  });
+
+  it("o update do upsert segue a mesma regra", async () => {
+    const entregue = await argsEntregues("Setting", "upsert", {
+      where: { id: "s-1" },
+      create: { key: "k", value: "v" },
+      update: { value: "v2", tenantId: "restaurante-b" },
+    });
+    expect(entregue.update).toEqual({ value: "v2", tenantId: "restaurante-a" });
+  });
+
+  it("update que não mexe no tenant sai intacto", async () => {
+    const entregue = await argsEntregues("MenuItem", "update", {
+      where: { id: "item-1" },
+      data: { name: "X" },
+    });
+    expect(entregue.data).toEqual({ name: "X" });
+  });
+});
