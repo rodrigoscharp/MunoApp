@@ -503,7 +503,11 @@ proxy, e só ele.
 * `NEXT_PUBLIC_*` fica em lista fechada;
 * toda tabela criada em migração tem `ENABLE ROW LEVEL SECURITY`, e todo model
   nasce numa migração;
-* os headers de segurança do `next.config.js` continuam lá.
+* os headers de segurança do `next.config.js` continuam lá;
+* todo branch de `src/proxy.ts` que sai antes do pipeline de tenant encaminha
+  com `semTenant` (`NextResponse.next(semTenant)` ou
+  `NextResponse.rewrite(url, semTenant)`), e `invariantes.test.ts` quebra se um
+  branch novo esquecer e repassar o `x-tenant-id` do navegador como veio.
 
 `callbackUrl` e qualquer outro destino vindo da URL passam por `destinoSeguro()`
 (`src/lib/redirect-seguro.ts`) antes de `router.push` ou `redirect`.

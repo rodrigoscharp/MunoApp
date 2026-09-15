@@ -167,6 +167,106 @@ describe("portas de injeção continuam fechadas", () => {
   });
 });
 
+// --- proxy: nenhum branch novo esquece semTenant --------------------------------
+
+/**
+ * Remove comentário de bloco e de linha, para a varredura abaixo não achar
+ * `NextResponse.next()` dentro do docblock que explica por que ele é perigoso.
+ * Bloco primeiro: um `//` dentro de `/* ... *\/` não pode sobrar como comentário
+ * de linha depois de cortado o bloco pela metade.
+ */
+function semComentarios(texto: string): string {
+  return texto.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+}
+
+/**
+ * Conta vírgulas do primeiro nível dentro dos parênteses de uma chamada, a
+ * partir do índice do "(" de abertura. Pula aspas simples, aspas duplas e
+ * template literal — inclusive o que está dentro de uma substituição ${...},
+ * que pode ter seus próprios parênteses e vírgulas — para não confundir
+ * argumento de uma chamada aninhada (ex.: urlNoHost(...)) com argumento da
+ * chamada de fora.
+ */
+function virgulasDoTopo(texto: string, indiceAbertura: number): number {
+  let i = indiceAbertura;
+  let profundidade = 0;
+  let virgulas = 0;
+
+  while (i < texto.length) {
+    const c = texto[i];
+
+    if (c === "(") {
+      profundidade++;
+    } else if (c === ")") {
+      profundidade--;
+      if (profundidade === 0) {
+        i++;
+        break;
+      }
+    } else if (c === "," && profundidade === 1) {
+      virgulas++;
+    } else if (c === '"' || c === "'") {
+      const aspas = c;
+      i++;
+      while (i < texto.length && texto[i] !== aspas) {
+        i += texto[i] === "\\" ? 2 : 1;
+      }
+    } else if (c === "`") {
+      i++;
+      while (i < texto.length && texto[i] !== "`") {
+        if (texto[i] === "\\") {
+          i += 2;
+          continue;
+        }
+        if (texto[i] === "$" && texto[i + 1] === "{") {
+          i += 2;
+          let chaves = 1;
+          while (i < texto.length && chaves > 0) {
+            if (texto[i] === "{") chaves++;
+            else if (texto[i] === "}") chaves--;
+            i++;
+          }
+          continue;
+        }
+        i++;
+      }
+    }
+    i++;
+  }
+
+  return virgulas;
+}
+
+// Um branch que sai do proxy ANTES do pipeline de tenant e encaminha sem
+// semTenant repassa ao handler o x-tenant-id que o navegador mandou — o
+// próprio header que o proxy existe para arbitrar. NextResponse.next() sem
+// argumento e NextResponse.rewrite() com um só argumento são as duas formas
+// de fazer isso por acidente: as duas herdam o request como veio. A matriz de
+// acesso e o resto da suíte não pegam isso, porque nenhuma delas lê o texto de
+// src/proxy.ts — testam comportamento de um branch existente, não a ausência
+// de cuidado num branch que ainda vai ser escrito.
+describe("proxy: nenhum branch novo esquece de passar semTenant", () => {
+  const texto = semComentarios(ler("src/proxy.ts"));
+
+  it("a varredura encontra chamadas de NextResponse.next e NextResponse.rewrite", () => {
+    expect([...texto.matchAll(/NextResponse\.next\(/g)].length).toBeGreaterThan(0);
+    expect([...texto.matchAll(/NextResponse\.rewrite\(/g)].length).toBeGreaterThan(0);
+  });
+
+  it("nenhum NextResponse.next() está sem argumento", () => {
+    expect(/NextResponse\.next\(\s*\)/.test(texto)).toBe(false);
+  });
+
+  it("todo NextResponse.rewrite(...) passa o segundo argumento com os headers", () => {
+    const chamadas = [...texto.matchAll(/NextResponse\.rewrite\(/g)];
+    const semSegundoArgumento = chamadas.filter((m) => {
+      const indiceAbertura = m.index + m[0].length - 1;
+      return virgulasDoTopo(texto, indiceAbertura) < 1;
+    });
+    expect(semSegundoArgumento).toEqual([]);
+  });
+});
+
 // --- RLS ------------------------------------------------------------------------
 
 const MIGRACOES = readdirSync(path.join(RAIZ, "prisma/migrations"), { withFileTypes: true })
