@@ -181,16 +181,22 @@ describe("limite de tentativas", () => {
     expect(await res.json()).toEqual({ error: "Muitas tentativas. Tente de novo em alguns minutos." });
   });
 
-  it("recusa com 429 a vigésima primeira tentativa do mesmo IP", async () => {
-    for (let i = 0; i < 20; i++) {
-      const res = await POST(req({ ...corpoValido, email: `g${i}@exemplo.com` }, true, "203.0.113.20"));
-      expect(res.status).toBe(201);
-    }
+  it(
+    "recusa com 429 a vigésima primeira tentativa do mesmo IP",
+    async () => {
+      // 20 cadastros de verdade passam por bcrypt.hash de 12 rounds cada; sob a
+      // suíte inteira rodando em paralelo isso estoura o timeout padrão de 5s.
+      for (let i = 0; i < 20; i++) {
+        const res = await POST(req({ ...corpoValido, email: `g${i}@exemplo.com` }, true, "203.0.113.20"));
+        expect(res.status).toBe(201);
+      }
 
-    const res = await POST(req(corpoValido, true, "203.0.113.20"));
+      const res = await POST(req(corpoValido, true, "203.0.113.20"));
 
-    expect(res.status).toBe(429);
-  });
+      expect(res.status).toBe(429);
+    },
+    15000
+  );
 
   it("outro IP continua passando", async () => {
     userFindUnique.mockResolvedValue({ id: "user-existente" });
