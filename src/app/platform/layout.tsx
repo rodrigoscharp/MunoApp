@@ -93,17 +93,19 @@ export default async function PlatformLayout({
           cinza do papel, e só os cartões do conteúdo são brancos, então a
           navegação some e o dado fica sendo o que se destaca. */}
       <aside className="hidden md:flex fixed inset-y-0 left-0 z-20 w-[272px] flex-col px-5 pt-8 pb-5 overflow-y-auto no-scrollbar">
+        {/* O logotipo é a marca escrita, não o ícone do atalho: é assim que o
+            console se apresentava antes do redesenho, e é o desenho que a Muno
+            usa em toda peça sua. */}
         <div className="px-2.5 mb-10">
           <Image
-            src="/icons/icone-192.png"
+            src="/muno-marca.png"
             alt="Muno"
-            width={192}
-            height={192}
-            // O ícone é claro, e o papel do console também: sem a moldura ele
-            // não lê como um bloco, lê como a palavra solta no canto.
-            className="size-11 rounded-[14px] bg-console-cartao border border-console-linha shadow-[0_1px_2px_rgba(0,0,0,0.06),0_8px_20px_-10px_rgba(0,0,0,0.25)]"
+            width={682}
+            height={155}
+            className="h-7 w-auto object-contain"
             priority
           />
+          <p className="text-[12px] text-console-mudo mt-1.5">plataforma</p>
         </div>
 
         <MenuLateral contagens={contagens} />
@@ -129,11 +131,11 @@ export default async function PlatformLayout({
       {/* Sair sobe para o topo no celular, onde o rodapé é o menu. */}
       <div className="md:hidden sticky top-0 z-20 flex items-center justify-between bg-console-papel/85 backdrop-blur-md px-4 py-3">
         <Image
-          src="/icons/icone-192.png"
+          src="/muno-marca.png"
           alt="Muno"
-          width={192}
-          height={192}
-          className="size-9 rounded-xl"
+          width={682}
+          height={155}
+          className="h-6 w-auto object-contain"
           priority
         />
         <div className="flex items-center gap-1">

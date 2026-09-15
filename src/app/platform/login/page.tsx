@@ -21,19 +21,14 @@ export default function PlatformLoginPage() {
       <div className="w-full max-w-[380px]">
         <div className="flex flex-col items-center mb-7">
           <Image
-            src="/icons/icone-192.png"
+            src="/muno-marca.png"
             alt="Muno"
-            width={192}
-            height={192}
-            className="size-14 rounded-[18px] shadow-[0_1px_2px_rgba(0,0,0,0.08),0_10px_24px_-10px_rgba(0,0,0,0.25)]"
+            width={682}
+            height={155}
+            className="h-11 w-auto object-contain"
             priority
           />
-          <h1 className="mt-5 text-[26px] font-semibold tracking-[-0.03em]">
-            Muno <span className="text-console-segunda">Admin</span>
-          </h1>
-          <p className="text-[14px] text-console-mudo mt-1">
-            o console da plataforma
-          </p>
+          <p className="text-[14px] text-console-mudo mt-3">plataforma</p>
         </div>
 
         <form
