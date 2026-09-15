@@ -27,12 +27,18 @@ vi.mock("@/lib/prisma", () => ({
 
 import { POST } from "./route";
 
-function req(body: Record<string, unknown>, comTenant = true) {
+// Cada requisição sai de um IP diferente por padrão: o limitador vive no módulo
+// e dura o arquivo inteiro, e os testes que não são sobre o limite não podem
+// esbarrar nele.
+let ipSequencial = 0;
+
+function req(body: Record<string, unknown>, comTenant = true, ip = `ip-${++ipSequencial}`) {
   return new NextRequest("http://localhost/api/auth/register", {
     method: "POST",
     headers: {
       ...(comTenant ? { "x-tenant-id": TENANT } : {}),
       "Content-Type": "application/json",
+      "x-forwarded-for": ip,
     },
     body: JSON.stringify(body),
   });
@@ -144,5 +150,42 @@ describe("conta criada", () => {
 
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "Erro interno do servidor" });
+  });
+});
+
+describe("limite de tentativas", () => {
+  // Sem limite, a rota responde "Email já cadastrado" para quantos e-mails
+  // alguém quiser testar, e a lista de clientes do restaurante sai por
+  // tentativa. O 409 fica, porque a tela de cadastro depende dele; o limite é
+  // o que contém a enumeração.
+  it("recusa com 429 a sexta tentativa do mesmo IP", async () => {
+    for (let i = 0; i < 5; i++) {
+      const res = await POST(req({ ...corpoValido, email: `c${i}@exemplo.com` }, true, "203.0.113.7"));
+      expect(res.status).toBe(201);
+    }
+
+    const res = await POST(req(corpoValido, true, "203.0.113.7"));
+
+    expect(res.status).toBe(429);
+    expect(userFindUnique).toHaveBeenCalledTimes(5);
+  });
+
+  it("outro IP continua passando", async () => {
+    for (let i = 0; i < 5; i++) await POST(req(corpoValido, true, "203.0.113.8"));
+
+    const res = await POST(req(corpoValido, true, "203.0.113.9"));
+
+    expect(res.status).toBe(201);
+  });
+
+  it("conta só o primeiro IP do x-forwarded-for", async () => {
+    // A Vercel põe o IP do cliente primeiro. Os seguintes são proxies, e contar
+    // a lista inteira deixaria o cliente fugir do limite trocando o próprio
+    // header.
+    for (let i = 0; i < 5; i++) await POST(req(corpoValido, true, "198.51.100.1, 10.0.0.1"));
+
+    const res = await POST(req(corpoValido, true, "198.51.100.1, 10.0.0.2"));
+
+    expect(res.status).toBe(429);
   });
 });
