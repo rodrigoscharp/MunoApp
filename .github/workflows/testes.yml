@@ -1,0 +1,41 @@
+name: Testes
+
+# O build da Vercel não roda vitest. Sem isto, a suíte só protege quem lembra
+# de rodá-la, e as regras de src/security/ existem justamente para quem não
+# lembra.
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: testes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # --ignore-scripts porque o postinstall (scripts/fix-lightningcss.js)
+      # instala binários de macOS, que aqui não servem e só atrasam. O único
+      # passo do postinstall que os testes precisam é o client do Prisma.
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+
+      - run: npm run lint
+      - run: npm test
+
+      # Avisa e não reprova: em 15/09/2026 há quatro vulnerabilidades high
+      # abertas (prisma, @prisma/config, deepmerge-ts, ws), e reprovar todo PR
+      # até elas subirem faria alguém desligar o passo inteiro.
+      - name: npm audit (só avisa)
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high

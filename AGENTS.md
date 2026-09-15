@@ -477,3 +477,36 @@ isso o atraso da cobrança em aberto mais antiga entra na conta.
 
 "Sem mensalidade" não é inadimplência: é cliente que existe e cujo valor
 ninguém cadastrou. Pintar os dois de vermelho treina o olho a ignorar os dois.
+
+# A suíte de segurança
+
+`src/security/` guarda testes sobre o projeto inteiro, que falham quando um
+arquivo **novo** viola uma regra. A spec é
+`docs/superpowers/specs/2026-09-15-suite-de-seguranca-design.md`.
+
+**Rota de API nova precisa de entrada em `src/security/politica-de-acesso.ts`.**
+Sem ela, `matriz-de-acesso.test.ts` quebra. A matriz chama cada handler com as
+sessões que não estão na política e exige duas coisas: status 401 ou 403, e
+**nenhum acesso ao banco antes de recusar**. Se ela acusar "tocou o banco", o
+bug é da rota, que consulta antes de checar o papel. Não afrouxe o teste.
+
+A matriz testa o handler isolado, e o handler não compara o tenant da sessão
+com o do host. Quem barra a sessão de outro restaurante é o `tenantMismatch` do
+proxy, e só ele.
+
+`invariantes.test.ts` trava o resto:
+
+* importar `prismaUnscoped` exige entrada em `USO_DE_PRISMA_UNSCOPED`, com
+  motivo;
+* componente `"use client"` não importa `prisma`, `crypto`, `supabase-admin`,
+  `auth`, `auth-platform` nem `resend`;
+* `NEXT_PUBLIC_*` fica em lista fechada;
+* toda tabela criada em migração tem `ENABLE ROW LEVEL SECURITY`, e todo model
+  nasce numa migração;
+* os headers de segurança do `next.config.js` continuam lá.
+
+`callbackUrl` e qualquer outro destino vindo da URL passam por `destinoSeguro()`
+(`src/lib/redirect-seguro.ts`) antes de `router.push` ou `redirect`.
+
+O GitHub Actions roda lint e testes em todo push (`.github/workflows/testes.yml`).
+O `npm audit` ali só avisa.
