@@ -55,6 +55,6 @@ export function situacaoDoCliente(entrada: EntradaDaSituacao): Situacao {
 export const CLASSE_DO_TOM: Record<TomDaSituacao, string> = {
   ok: "text-console-dado",
   atencao: "text-console-aviso",
-  alerta: "text-console-campo",
+  alerta: "text-console-alerta",
   neutro: "text-console-tinta/45",
 };

@@ -40,6 +40,18 @@
   --color-console-dado: var(--console-dado);
   --color-console-sobre-campo: var(--console-sobre-campo);
   --color-console-aviso: var(--console-aviso);
+  /* Os tons do Core: cinzas em escada, o verde do gráfico e o laranja que só
+     aparece para o que pede atenção. */
+  --color-console-segunda: var(--console-segunda);
+  --color-console-mudo: var(--console-mudo);
+  --color-console-suave: var(--console-suave);
+  --color-console-grafico: var(--console-grafico);
+  --color-console-alerta: var(--console-alerta);
+  --color-console-positivo: var(--console-positivo);
+  --color-console-positivo-fundo: var(--console-positivo-fundo);
+  --color-console-negativo-fundo: var(--console-negativo-fundo);
+  --color-console-selo-laranja: var(--console-selo-laranja);
+  --color-console-selo-verde: var(--console-selo-verde);
   --font-display: var(--font-fredoka);
 }
 
@@ -50,54 +62,104 @@
    precisa vencer nos DOIS sentidos: quem roda o sistema no escuro e prefere a
    Muno clara também é uma pessoa.
 
-   O escuro não é o claro com as cores invertidas. O papel escuro fica no mesmo
-   eixo quente do creme (é a mesma tinta #23201E puxada até o fundo), e os dois
-   acentos sobem de luminosidade, porque terracota #D4612A e verde #2B5240 sobre
-   preto ficam abaixo do contraste mínimo e o dado desapareceria. */
+   Desde 15/09/2026 a paleta segue o Core 2.0 (UI8): papel cinza #F1F1F1,
+   cartão branco, tinta quase preta e uma escada de cinzas (#5A5A5A, #B4B4B4,
+   #E8E8E8). A cor sobra para o dado: verde #50AD77 no traço dos gráficos e
+   laranja #FF8051 para o que pede atenção.
+
+   "Campo" continua sendo a cor de ação, só que agora ação é a tinta: botão
+   escuro com texto claro, como no Core. O verde de texto (--console-dado e
+   --console-positivo) é mais escuro que o #50AD77 do traço, porque o traço
+   tem 2,6:1 sobre branco e texto de 13px precisa de mais que isso. */
 
 :root {
-  --console-campo: #D4612A;
-  --console-campo-esc: #B5501F;
-  --console-papel: #F5F2EE;
+  --console-campo: #141414;
+  --console-campo-esc: #3A3A3A;
+  --console-papel: #F1F1F1;
   --console-cartao: #FFFFFF;
-  --console-linha: #E9E2DB;
-  --console-tinta: #23201E;
-  --console-dado: #2B5240;
+  --console-linha: #E8E8E8;
+  --console-tinta: #141414;
+  --console-dado: #1B8A55;
   /* O que se escreve por cima do bloco saturado. */
   --console-sobre-campo: #FFFFFF;
   /* Atenção: o atraso que ainda se resolve com um telefonema. Âmbar e não
      vermelho, porque vermelho é para o bloqueio, e ter os dois no mesmo tom
      treina o olho a ignorar os dois. */
-  --console-aviso: #A96114;
+  --console-aviso: #A9650F;
+  --console-segunda: #5A5A5A;
+  --console-mudo: #B4B4B4;
+  --console-suave: #F1F1F1;
+  --console-grafico: #50AD77;
+  /* O laranja do Core é #FF8051. Como texto ele não passa de 2,4:1, então o
+     texto de alerta desce um tom; o #FF8051 fica para seta, barra e selo. */
+  --console-alerta: #D9531F;
+  --console-positivo: #1FA266;
+  --console-positivo-fundo: #EEF8F2;
+  --console-negativo-fundo: #FFF1EB;
+  --console-selo-laranja: #FFBC99;
+  --console-selo-verde: #B4E4C9;
+  /* O vidro canelado dos cartões: faixas verticais de 56px, cada uma clareando
+     na borda esquerda, sobre um degradê que escurece para a direita. */
+  --console-vidro-inicio: #FFFFFF;
+  --console-vidro-fim: #F3F3F3;
+  --console-vidro-listra: rgba(20, 20, 20, 0.022);
+  --console-vidro-brilho: rgba(255, 255, 255, 0.9);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-tema="claro"]) {
-    --console-campo: #E8794A;
     /* No escuro, "mais" é mais claro: o hover sobe de luminosidade em vez de
        descer, senão o retorno visual do clique aponta para o lado errado. */
-    --console-campo-esc: #F2946B;
-    --console-papel: #181411;
-    --console-cartao: #211B17;
-    --console-linha: #332A24;
-    --console-tinta: #F2ECE4;
-    --console-dado: #5C9C79;
-    /* Tinta escura sobre o terracota claro: branco sobre ele daria 2,6:1. */
-    --console-sobre-campo: #1A1411;
+    --console-campo: #F1F1F1;
+    --console-campo-esc: #FFFFFF;
+    --console-papel: #0F0F0F;
+    --console-cartao: #1A1A1A;
+    --console-linha: #2A2A2A;
+    --console-tinta: #F1F1F1;
+    --console-dado: #5FC48C;
+    --console-sobre-campo: #141414;
     --console-aviso: #E0A458;
+    --console-segunda: #A3A3A3;
+    --console-mudo: #6B6B6B;
+    --console-suave: #262626;
+    --console-grafico: #50AD77;
+    --console-alerta: #FF8051;
+    --console-positivo: #5FC48C;
+    --console-positivo-fundo: rgba(80, 173, 119, 0.14);
+    --console-negativo-fundo: rgba(255, 128, 81, 0.14);
+    --console-selo-laranja: #FFBC99;
+    --console-selo-verde: #B4E4C9;
+    --console-vidro-inicio: #1C1C1C;
+    --console-vidro-fim: #161616;
+    --console-vidro-listra: rgba(0, 0, 0, 0.10);
+    --console-vidro-brilho: rgba(255, 255, 255, 0.018);
   }
 }
 
 :root[data-tema="escuro"] {
-  --console-campo: #E8794A;
-  --console-campo-esc: #F2946B;
-  --console-papel: #181411;
-  --console-cartao: #211B17;
-  --console-linha: #332A24;
-  --console-tinta: #F2ECE4;
-  --console-dado: #5C9C79;
-  --console-sobre-campo: #1A1411;
+  --console-campo: #F1F1F1;
+  --console-campo-esc: #FFFFFF;
+  --console-papel: #0F0F0F;
+  --console-cartao: #1A1A1A;
+  --console-linha: #2A2A2A;
+  --console-tinta: #F1F1F1;
+  --console-dado: #5FC48C;
+  --console-sobre-campo: #141414;
   --console-aviso: #E0A458;
+  --console-segunda: #A3A3A3;
+  --console-mudo: #6B6B6B;
+  --console-suave: #262626;
+  --console-grafico: #50AD77;
+  --console-alerta: #FF8051;
+  --console-positivo: #5FC48C;
+  --console-positivo-fundo: rgba(80, 173, 119, 0.14);
+  --console-negativo-fundo: rgba(255, 128, 81, 0.14);
+  --console-selo-laranja: #FFBC99;
+  --console-selo-verde: #B4E4C9;
+  --console-vidro-inicio: #1C1C1C;
+  --console-vidro-fim: #161616;
+  --console-vidro-listra: rgba(0, 0, 0, 0.10);
+  --console-vidro-brilho: rgba(255, 255, 255, 0.018);
 }
 
 html,
@@ -224,4 +286,118 @@ body {
   .letreiro-acende,
   .letreiro-espera { animation: none; }
   .letreiro-espera { opacity: 0.45; }
+}
+
+/* ---- O console no desenho do Core 2.0 ------------------------------------
+
+   Tudo aqui vale só dentro de [data-console], que é o wrapper do layout da
+   plataforma. `.display` e `.tabular` são usados também pelo painel do
+   restaurante e pelo checkout, e lá continuam Fredoka e Geist Mono. */
+
+[data-console] {
+  font-family: var(--font-inter), var(--font-geist-sans), sans-serif;
+  font-feature-settings: "cv11", "ss01";
+}
+
+[data-console] .display {
+  font-family: inherit;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+[data-console] .tabular {
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.console-vidro {
+  background-color: var(--console-cartao);
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      var(--console-vidro-brilho) 0px,
+      transparent 14px,
+      var(--console-vidro-listra) 56px
+    ),
+    linear-gradient(90deg, var(--console-vidro-inicio), var(--console-vidro-fim));
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 12px 32px -18px rgba(0, 0, 0, 0.08);
+}
+
+/* Entrada dos cartões: sobem 10px e acendem, em cascata pelo --atraso. */
+@keyframes console-sobe {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.console-entra {
+  animation: console-sobe 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: var(--atraso, 0ms);
+}
+
+/* O traço do sparkline se desenha da esquerda para a direita. O path leva
+   pathLength="1", então o dash vale para qualquer comprimento real. */
+@keyframes console-traca {
+  from { stroke-dashoffset: 1; }
+  to   { stroke-dashoffset: 0; }
+}
+.console-traco {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: console-traca 1100ms cubic-bezier(0.65, 0, 0.35, 1) 150ms forwards;
+}
+
+@keyframes console-cresce {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+.console-barra {
+  transform-origin: bottom;
+  animation: console-cresce 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: var(--atraso, 0ms);
+}
+
+@keyframes console-estica {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.console-faixa {
+  transform-origin: left;
+  animation: console-estica 800ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: var(--atraso, 0ms);
+}
+
+@keyframes console-abre {
+  from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+.console-menu {
+  transform-origin: top right;
+  animation: console-abre 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes console-aparece {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+.console-aparece {
+  animation: console-aparece 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* A semana que ainda não terminou, listrada no mesmo verde. */
+.console-em-curso {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--console-grafico) 55%, transparent) 0 3px,
+    color-mix(in srgb, var(--console-grafico) 14%, transparent) 3px 7px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .console-entra,
+  .console-barra,
+  .console-faixa,
+  .console-menu,
+  .console-aparece { animation: none; }
+  .console-traco { animation: none; stroke-dashoffset: 0; }
 }

@@ -86,6 +86,7 @@ const USO_DE_PRISMA_UNSCOPED: Record<string, string> = {
   "src/app/platform/clientes/page.tsx": PLATAFORMA,
   "src/app/platform/conversao/page.tsx": PLATAFORMA,
   "src/app/platform/leads/[id]/page.tsx": PLATAFORMA,
+  "src/app/platform/layout.tsx": PLATAFORMA,
   "src/app/platform/leads/page.tsx": PLATAFORMA,
   "src/app/platform/page.tsx": PLATAFORMA,
 
