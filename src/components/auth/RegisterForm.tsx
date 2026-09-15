@@ -10,6 +10,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Mail, Lock, User, AlertCircle } from "lucide-react";
 import { AuthBrandPanel } from "@/components/auth/AuthBrandPanel";
+import { destinoSeguro } from "@/lib/redirect-seguro";
 import type { RestaurantInfo } from "@/lib/restaurant";
 
 const schema = z
@@ -29,9 +30,12 @@ type FormData = z.infer<typeof schema>;
 export function RegisterForm({ restaurantInfo }: { restaurantInfo: RestaurantInfo }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/";
-  const loginHref = searchParams.get("callbackUrl")
-    ? `/login?callbackUrl=${encodeURIComponent(searchParams.get("callbackUrl")!)}`
+  // Só destino interno, e o mesmo valor limpo segue para o link de login.
+  // Ver src/lib/redirect-seguro.ts.
+  const callbackSeguro = destinoSeguro(searchParams.get("callbackUrl"), null);
+  const callbackUrl = callbackSeguro ?? "/";
+  const loginHref = callbackSeguro
+    ? `/login?callbackUrl=${encodeURIComponent(callbackSeguro)}`
     : "/login";
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);

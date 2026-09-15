@@ -11,6 +11,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Mail, Lock, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { AuthBrandPanel } from "@/components/auth/AuthBrandPanel";
 import { pedirConviteAposLogin } from "@/components/pwa/convitePosLogin";
+import { destinoSeguro } from "@/lib/redirect-seguro";
 import type { RestaurantInfo } from "@/lib/restaurant";
 
 const schema = z.object({
@@ -25,7 +26,9 @@ export function LoginForm({ restaurantInfo }: { restaurantInfo: RestaurantInfo }
   const searchParams = useSearchParams();
   // Sem o `?? "/"` de antes: o destino padrão passou a depender do papel de
   // quem entrou (ver onSubmit), e um default aqui apagaria essa distinção.
-  const callbackUrl = searchParams.get("callbackUrl");
+  // Só destino interno. Um callbackUrl externo conta como ausente, e o destino
+  // volta a depender do papel. Ver src/lib/redirect-seguro.ts.
+  const callbackUrl = destinoSeguro(searchParams.get("callbackUrl"), null);
   // Posto por ResetPasswordForm depois da criação da primeira senha. Só troca
   // a saudação: quem entra é a credencial, sempre.
   const primeiroAcesso = searchParams.get("novo") === "1";
