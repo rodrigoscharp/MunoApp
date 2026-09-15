@@ -154,34 +154,58 @@ describe("conta criada", () => {
 });
 
 describe("limite de tentativas", () => {
-  // Sem limite, a rota responde "Email já cadastrado" para quantos e-mails
-  // alguém quiser testar, e a lista de clientes do restaurante sai por
-  // tentativa. O 409 fica, porque a tela de cadastro depende dele; o limite é
-  // o que contém a enumeração.
-  it("recusa com 429 a sexta tentativa do mesmo IP", async () => {
-    for (let i = 0; i < 5; i++) {
+  // Dois limitadores, não um. Contar cadastro bem-sucedido no mesmo balde do
+  // 409 refusava o sexto cliente real atrás do mesmo IP de operadora — CGNAT
+  // põe muita gente atrás de poucos IPs públicos, e uma promoção de
+  // restaurante esbarraria nisso no primeiro dia. Quem é limitado a 5 é só a
+  // enumeração (o 409 é o que ela lê); cadastro de verdade tem uma janela
+  // maior, geral, contra bot.
+  it("seis cadastros bem-sucedidos do mesmo IP passam todos", async () => {
+    for (let i = 0; i < 6; i++) {
       const res = await POST(req({ ...corpoValido, email: `c${i}@exemplo.com` }, true, "203.0.113.7"));
       expect(res.status).toBe(201);
     }
+  });
 
-    const res = await POST(req(corpoValido, true, "203.0.113.7"));
+  it("com e-mail já cadastrado, a sexta tentativa do mesmo IP recusa com 429 em vez de 409", async () => {
+    userFindUnique.mockResolvedValue({ id: "user-existente" });
+
+    for (let i = 0; i < 5; i++) {
+      const res = await POST(req(corpoValido, true, "203.0.113.10"));
+      expect(res.status).toBe(409);
+    }
+
+    const res = await POST(req(corpoValido, true, "203.0.113.10"));
 
     expect(res.status).toBe(429);
-    expect(userFindUnique).toHaveBeenCalledTimes(5);
+    expect(await res.json()).toEqual({ error: "Muitas tentativas. Tente de novo em alguns minutos." });
+  });
+
+  it("recusa com 429 a vigésima primeira tentativa do mesmo IP", async () => {
+    for (let i = 0; i < 20; i++) {
+      const res = await POST(req({ ...corpoValido, email: `g${i}@exemplo.com` }, true, "203.0.113.20"));
+      expect(res.status).toBe(201);
+    }
+
+    const res = await POST(req(corpoValido, true, "203.0.113.20"));
+
+    expect(res.status).toBe(429);
   });
 
   it("outro IP continua passando", async () => {
+    userFindUnique.mockResolvedValue({ id: "user-existente" });
     for (let i = 0; i < 5; i++) await POST(req(corpoValido, true, "203.0.113.8"));
 
     const res = await POST(req(corpoValido, true, "203.0.113.9"));
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(409);
   });
 
   it("conta só o primeiro IP do x-forwarded-for", async () => {
     // A Vercel põe o IP do cliente primeiro. Os seguintes são proxies, e contar
     // a lista inteira deixaria o cliente fugir do limite trocando o próprio
     // header.
+    userFindUnique.mockResolvedValue({ id: "user-existente" });
     for (let i = 0; i < 5; i++) await POST(req(corpoValido, true, "198.51.100.1, 10.0.0.1"));
 
     const res = await POST(req(corpoValido, true, "198.51.100.1, 10.0.0.2"));

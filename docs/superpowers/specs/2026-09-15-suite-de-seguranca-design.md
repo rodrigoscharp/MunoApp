@@ -181,11 +181,16 @@ tenant passam a encaminhar o request sem `x-tenant-id` e sem `x-tenant-plano`. A
 implementação precisa confirmar, no teste, que o Next de fato remove o header, e não só o
 omite da lista de sobrescritos.
 
-**4. Rate limit no cadastro.** `/api/auth/register` ganha `criarLimitador` por tenant e
-IP, com a mesma forma de obter o IP que as rotas com limite já usam, e 429 ao estourar. O
-409 continua: a tela de cadastro depende dele para dizer "este e-mail já tem conta", e
-trocá-lo por uma resposta genérica pioraria o cadastro legítimo para conter uma
-enumeração que o limite já contém.
+**4. Rate limit no cadastro.** `/api/auth/register` ganha dois `criarLimitador`, os dois
+por tenant e IP, com a mesma forma de obter o IP que as rotas com limite já usam. Um só
+limitador, contando todo POST, refusava o sexto cliente real atrás do mesmo IP de
+operadora — CGNAT põe muita gente atrás de poucos IPs públicos, e uma promoção de
+restaurante esbarra nisso na primeira hora. `limitadorGeral` (20 por 10 min, como o
+forgot-password) cobre todo POST e contém bot; `limitadorDeEmailExistente` (5 por 10 min)
+é consumido só quando o e-mail já existe, bem antes do 409 — é essa resposta que uma
+enumeração está lendo, e estourado o limite ela vira o mesmo 429 genérico, para não
+revelar a existência do e-mail a quem já passou de 5 tentativas. O 409 em si continua: a
+tela de cadastro depende dele para dizer "este e-mail já tem conta".
 
 **5. CI.** `.github/workflows/testes.yml`, em todo push e pull request: `npm ci`,
 `npm run lint`, `npm test`, e `npm audit --omit=dev --audit-level=high` com

@@ -11,22 +11,31 @@ const registerSchema = z.object({
   password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
 });
 
-// Por tenant e IP. O 409 de e-mail já cadastrado responde a quem perguntar, e
-// sem limite a lista de clientes de um restaurante sai por tentativa. O tenant
-// entra na chave para que o volume num restaurante não trave o cadastro em
-// outro atrás do mesmo IP.
-const limitador = criarLimitador({ max: 5, janelaMs: 10 * 60 * 1000 });
+// Dois limitadores, não um, os dois por tenant e IP.
+//
+// O 409 de e-mail já cadastrado é o que uma enumeração lê: alguém testando
+// e-mails para descobrir quem já é cliente do restaurante. Contar cadastro
+// bem-sucedido no mesmo balde do 409 refusava o sexto cliente real — operadora
+// de celular brasileira põe muita gente atrás de poucos IPs públicos (CGNAT),
+// e uma promoção de restaurante esbarra nisso na primeira hora. Por isso a
+// enumeração tem o limite apertado (5) e o cadastro em si tem um geral, mais
+// largo (20, o mesmo do forgot-password), só para conter bot.
+const limitadorGeral = criarLimitador({ max: 20, janelaMs: 10 * 60 * 1000 });
+const limitadorDeEmailExistente = criarLimitador({ max: 5, janelaMs: 10 * 60 * 1000 });
 
 export async function POST(req: NextRequest) {
   const tenantId = getTenantIdFromRequest(req);
   if (!tenantId) return apiError("Tenant não identificado", 400);
 
   const ip = (req.headers.get("x-forwarded-for") ?? "desconhecido").split(",")[0].trim();
-  if (!limitador.permitir(`${tenantId}:${ip}`, Date.now())) {
-    return NextResponse.json(
-      { error: "Muitas tentativas. Tente de novo em alguns minutos." },
-      { status: 429 }
-    );
+  const chave = `${tenantId}:${ip}`;
+  const muitasTentativas = NextResponse.json(
+    { error: "Muitas tentativas. Tente de novo em alguns minutos." },
+    { status: 429 }
+  );
+
+  if (!limitadorGeral.permitir(chave, Date.now())) {
+    return muitasTentativas;
   }
 
   return withTenant(tenantId, async () => {
@@ -46,6 +55,13 @@ export async function POST(req: NextRequest) {
       where: { tenantId_email: { tenantId, email } },
     });
     if (existing) {
+      // Consumido só aqui, não em todo POST: é o 409 que devolve a existência
+      // do e-mail, e é ele que uma enumeração está testando. Estourado o
+      // limite, a resposta vira o mesmo 429 genérico, para não confirmar nem
+      // negar o e-mail a quem já passou de 5 tentativas.
+      if (!limitadorDeEmailExistente.permitir(chave, Date.now())) {
+        return muitasTentativas;
+      }
       return NextResponse.json(
         { error: "Email já cadastrado" },
         { status: 409 }
