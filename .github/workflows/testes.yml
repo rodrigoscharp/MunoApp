@@ -3,9 +3,21 @@ name: Testes
 # O build da Vercel não roda vitest. Sem isto, a suíte só protege quem lembra
 # de rodá-la, e as regras de src/security/ existem justamente para quem não
 # lembra.
+#
+# push restrito a main: PR já roda pelo pull_request, e sem esse escopo cada
+# PR rodava duas vezes (uma pelo push do branch, outra pelo próprio
+# pull_request). push em main continua cobrindo commit direto, sem passar por
+# PR.
 on:
   push:
+    branches: [main]
   pull_request:
+
+# Menos do que o padrão do token do GITHUB_TOKEN, que é escrita. Este workflow
+# só lê o repositório e roda testes; não empurra commit, não cria release, não
+# comenta PR.
+permissions:
+  contents: read
 
 concurrency:
   group: testes-${{ github.ref }}

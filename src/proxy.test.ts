@@ -385,7 +385,14 @@ describe("proxy: sessão de outro tenant não pode trancar o NextAuth", () => {
       const res = await proxy(requisicao(caminho, DE_OUTRO_TENANT));
 
       expect(tenantInjetado(res)).toBeNull();
-      expect(res.status).not.toBe(200);
+      // Hoje o proxy trata API igual página aqui: redirect 307 para /login, não
+      // JSON 401. É comportamento de hoje, não uma garantia — se um dia a API
+      // passar a responder 401 em JSON (como faz para sessão ausente), essa
+      // troca precisa ser deliberada, mexendo neste teste, não um efeito
+      // colateral que passa despercebido porque a asserção antiga aceitava
+      // qualquer coisa que não fosse 200.
+      expect(res.status).toBe(307);
+      expect(destino(res)).toBe(`http://${HOST}/login`);
     }
   );
 });

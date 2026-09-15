@@ -118,6 +118,11 @@ const USE_CLIENT = /^(?:\s*(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/))*\s*["']use client["'
 
 // Carregam credencial ou acesso irrestrito ao banco. Num componente cliente,
 // viram código público no bundle de todo cardápio.
+//
+// O limite: só pega import direto de um destes módulos. Um "use client" que
+// importa @/lib/api, @/lib/restaurant ou @/lib/tenant-request — que por sua
+// vez importam prisma — passa batido por esta varredura. Quem pega isso é o
+// bundling server-only do próprio Next, não este teste.
 const MODULO_DE_SERVIDOR =
   /from\s*["']@\/lib\/(?:prisma|crypto|supabase-admin|auth-platform|auth|resend)["']/;
 
@@ -304,6 +309,15 @@ describe("toda tabela nasce com RLS", () => {
     // mapeado.
     const models = nomes(/^model (\w+) \{/gm, ler("prisma/schema.prisma"));
     expect([...models].filter((m) => !criadas.has(m))).toEqual([]);
+  });
+
+  it("nenhuma migração desliga RLS depois de ligado", () => {
+    // As duas checagens acima olham só se RLS foi ligado alguma vez; uma
+    // migração posterior que desligue passa batido por elas. Grep em
+    // 15/09/2026, antes deste teste: nenhuma migração contém a frase, então
+    // ele nasce verde — não é sabotagem que precisa ser desfeita, é a
+    // ausência de hoje que ele existe para travar daqui para frente.
+    expect(/DISABLE ROW LEVEL SECURITY/i.test(MIGRACOES)).toBe(false);
   });
 });
 

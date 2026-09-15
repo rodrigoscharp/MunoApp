@@ -115,9 +115,10 @@ A requisição do harness é sempre a mesma: `x-tenant-id` presente, `x-tenant-p
 plano mais alto (para que a trava de plano não mascare a falta de trava de papel), corpo
 JSON `{}`, e `"id-teste"` em todo segmento dinâmico dos `params`.
 
-Uma rota que precise de exceção ao harness (por exemplo, 403 legítimo com sessão aceita
-porque o recurso é de outro cliente) declara isso no manifesto, com motivo. Exceção sem
-motivo não compila.
+Uma rota cujo acesso depende de quem é o dono do registro (por exemplo, 403 legítimo com
+sessão aceita porque o pedido é de outro cliente) é declarada `DONO_DO_RECURSO` no
+manifesto, com motivo obrigatório, e a matriz não a exercita — quem cobre é o route.test.ts
+da própria rota. Não existe outro mecanismo de exceção.
 
 ### O que a matriz não cobre, e quem cobre
 

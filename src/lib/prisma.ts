@@ -33,6 +33,12 @@ const UPDATE_OPERATIONS = new Set(["update", "updateMany", "updateManyAndReturn"
  * Se a escrita tentou mexer no tenant, pela coluna ou pela relação, o tenant
  * passa a ser o do contexto. Se não tentou, o data sai intacto: injetar
  * tenantId em todo update mudaria os argumentos de toda escrita legítima.
+ *
+ * Só olha o primeiro nível de `data` da própria operação. Uma escrita
+ * aninhada (`data: { items: { updateMany: { data: { tenantId } } } }`) não
+ * passa por aqui: prenderAoTenant nunca é chamado para o `data` de dentro da
+ * relação, só para o de fora. Continua sendo uma lacuna pré-existente, não
+ * coberta por este override.
  */
 function prenderAoTenant(data: unknown, tenantId: unknown): unknown {
   if (!data || typeof data !== "object" || Array.isArray(data)) return data;

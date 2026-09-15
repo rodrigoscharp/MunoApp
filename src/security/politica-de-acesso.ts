@@ -98,7 +98,7 @@ export const POLITICA: Record<string, Nivel> = {
   "POST /api/motoboy/orders/[orderId]/complete": autenticado("MOTOBOY", "ADMIN"),
   "POST /api/motoboy/orders/[orderId]/location": autenticado("MOTOBOY", "ADMIN"),
   "GET /api/motoboy/orders/[orderId]/location": donoDoRecurso(
-    "rastreio decidido por canViewOrder depois de ler o pedido; ver src/lib/order-access.test.ts"
+    "rastreio decidido por canViewOrder depois de ler o pedido; ver o route.test.ts ao lado"
   ),
 
   "GET /api/orders": autenticado(...QUALQUER_CONTA_DO_RESTAURANTE),
