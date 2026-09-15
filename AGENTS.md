@@ -513,4 +513,13 @@ proxy, e só ele.
 (`src/lib/redirect-seguro.ts`) antes de `router.push` ou `redirect`.
 
 O GitHub Actions roda lint e testes em todo push (`.github/workflows/testes.yml`).
-O `npm audit` ali só avisa.
+O `npm audit --omit=dev --audit-level=high` ali **reprova**: dependência nova com
+vulnerabilidade high ou critical quebra o push.
+
+O `overrides` do `package.json` força `deepmerge-ts` para a 8. A 7 tem estouro
+de pilha em grafo recursivo (GHSA-ggr8-5vv4-36mx) e chega pelo `@prisma/config`,
+que o CLI do Prisma carrega em `generate` e `migrate`; nenhum Prisma estável
+traz a versão corrigida, só o `8.1.0-dev`. O uso é o `deepmerge` simples, que a
+8 não mudou. **Remova o override quando um Prisma estável depender de
+`deepmerge-ts` 8**, conferindo com `npm view @prisma/config@<versão>
+dependencies`.

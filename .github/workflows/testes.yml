@@ -45,9 +45,10 @@ jobs:
       - run: npm run lint
       - run: npm test
 
-      # Avisa e não reprova: em 15/09/2026 há quatro vulnerabilidades high
-      # abertas (prisma, @prisma/config, deepmerge-ts, ws), e reprovar todo PR
-      # até elas subirem faria alguém desligar o passo inteiro.
-      - name: npm audit (só avisa)
-        continue-on-error: true
+      # Reprova em high ou critical. Até 15/09/2026 este passo só avisava,
+      # porque havia quatro high abertas e reprovar todo PR faria alguém
+      # desligá-lo; elas foram fechadas (ver o `overrides` do package.json e o
+      # AGENTS.md), e a partir daqui dependência nova com high não entra
+      # calada. Moderate e low continuam aparecendo no log sem reprovar.
+      - name: npm audit (reprova em high)
         run: npm audit --omit=dev --audit-level=high
