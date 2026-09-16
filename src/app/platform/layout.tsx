@@ -128,23 +128,40 @@ export default async function PlatformLayout({
         </div>
       </aside>
 
-      {/* Sair sobe para o topo no celular, onde o rodapé é o menu. */}
-      <div className="md:hidden sticky top-0 z-20 flex items-center justify-between bg-console-papel/85 backdrop-blur-md px-4 py-3">
-        <Image
-          src="/muno-marca.png"
-          alt="Muno"
-          width={682}
-          height={155}
-          className="h-6 w-auto object-contain"
-          priority
-        />
-        <div className="flex items-center gap-1">
-          {/* No celular é aqui que o botão aparece: o rodapé é o menu, e o
-              bloco do desktop está escondido pelo breakpoint. */}
-          <BotaoInstalar />
-          <BotaoSair />
+      {/* A barra do topo no celular, onde o rodapé é o menu.
+          Três decisões de desenho moram aqui:
+          * ela reserva o safe-area do iPhone, porque o console instala na tela
+            inicial e sem isso a marca fica embaixo do relógio;
+          * o fundo é o próprio papel com blur, e a separação é um fio que
+            desbota nas pontas, em vez de uma borda de ponta a ponta — barra e
+            conteúdo são a mesma superfície, e uma linha cheia aqui corta a
+            tela em duas;
+          * as ações viram alvos redondos de 40px com ícone, e não texto: em
+            375px, "Instalar" e "Sair" escritos ocupam a largura que o polegar
+            precisa para acertar. */}
+      <header className="md:hidden sticky top-0 z-30 bg-console-papel/80 backdrop-blur-xl pt-[env(safe-area-inset-top)]">
+        <div className="flex items-center justify-between gap-2 px-4 h-[60px]">
+          <Image
+            src="/muno-marca.png"
+            alt="Muno"
+            width={682}
+            height={155}
+            className="h-6 w-auto object-contain"
+            priority
+          />
+          <div className="flex items-center gap-1">
+            <TemaBotao compacto />
+            {/* No celular é aqui que o botão aparece: o rodapé é o menu, e o
+                bloco do desktop está escondido pelo breakpoint. */}
+            <BotaoInstalar compacto />
+            <BotaoSair compacto />
+          </div>
         </div>
-      </div>
+        <div
+          aria-hidden
+          className="h-px bg-gradient-to-r from-transparent via-console-linha to-transparent"
+        />
+      </header>
 
       <div className="md:hidden fixed bottom-0 inset-x-0 z-20 bg-console-papel/90 backdrop-blur-md border-t border-console-linha pb-[env(safe-area-inset-bottom)]">
         <MenuInferior contagens={contagens} />

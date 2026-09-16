@@ -19,22 +19,33 @@ import { useInstalacao } from "@/components/pwa/useInstalacao";
  * No iOS não existe API de instalação, então o botão abre a instrução manual
  * em vez de um diálogo.
  */
-export function BotaoInstalar() {
+export function BotaoInstalar({ compacto = false }: { compacto?: boolean } = {}) {
   const { estado, instalar } = useInstalacao();
   const [aberto, setAberto] = useState(false);
 
   if (estado !== "android" && estado !== "ios") return null;
 
-  const classe =
-    "flex items-center gap-2 px-2 py-1 text-sm text-console-tinta/50 " +
-    "hover:text-console-campo transition focus-visible:outline-2 " +
-    "focus-visible:outline-offset-2 focus-visible:outline-console-campo";
+  // `compacto` é a forma da barra do topo no celular: só o ícone, num alvo
+  // redondo de 40px, alinhado com as outras duas ações.
+  const classe = compacto
+    ? "size-10 rounded-full flex items-center justify-center text-console-segunda " +
+      "hover:text-console-tinta hover:bg-console-tinta/[0.05] transition " +
+      "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-tinta"
+    : "flex items-center gap-2 px-2 py-1 text-sm text-console-segunda " +
+      "hover:text-console-tinta transition focus-visible:outline-2 " +
+      "focus-visible:outline-offset-2 focus-visible:outline-console-tinta";
 
   if (estado === "android") {
     return (
-      <button type="button" onClick={instalar} className={classe}>
-        <Download size={15} />
-        Instalar
+      <button
+        type="button"
+        onClick={instalar}
+        className={classe}
+        aria-label={compacto ? "Instalar o console" : undefined}
+        title={compacto ? "Instalar" : undefined}
+      >
+        <Download size={compacto ? 18 : 15} />
+        {!compacto && "Instalar"}
       </button>
     );
   }
@@ -46,9 +57,11 @@ export function BotaoInstalar() {
         onClick={() => setAberto(true)}
         aria-expanded={aberto}
         className={classe}
+        aria-label={compacto ? "Instalar o console" : undefined}
+        title={compacto ? "Instalar" : undefined}
       >
-        <Download size={15} />
-        Instalar
+        <Download size={compacto ? 18 : 15} />
+        {!compacto && "Instalar"}
       </button>
 
       {aberto && (

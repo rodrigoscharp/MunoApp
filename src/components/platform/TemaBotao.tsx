@@ -66,7 +66,7 @@ function escolher(novo: Tema) {
   for (const ouvinte of ouvintes) ouvinte();
 }
 
-export function TemaBotao() {
+export function TemaBotao({ compacto = false }: { compacto?: boolean } = {}) {
   const tema = useSyncExternalStore(assinar, lerDoDocumento, lerNoServidor);
 
   // A escrita no documento vive num efeito, não no clique: falar com o mundo de
@@ -100,7 +100,9 @@ export function TemaBotao() {
     <div
       role="radiogroup"
       aria-label="Tema do console"
-      className="flex gap-0.5 p-0.5 rounded-xl bg-console-tinta/5"
+      className={`flex gap-0.5 p-0.5 rounded-xl bg-console-tinta/5 ${
+        compacto ? "shrink-0" : ""
+      }`}
     >
       {OPCOES.map(({ valor, rotulo, Icone }) => {
         const ativo = tema === valor;
@@ -113,7 +115,9 @@ export function TemaBotao() {
             aria-label={rotulo}
             title={rotulo}
             onClick={() => escolher(valor)}
-            className={`flex-1 flex items-center justify-center py-1.5 rounded-[10px] transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-campo ${
+            className={`flex items-center justify-center rounded-[10px] transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-campo ${
+              compacto ? "size-9" : "flex-1 py-1.5"
+            } ${
               ativo
                 ? "bg-console-cartao text-console-tinta shadow-sm"
                 : "text-console-tinta/45 hover:text-console-tinta"
