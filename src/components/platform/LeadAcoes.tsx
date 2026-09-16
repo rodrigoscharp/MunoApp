@@ -91,8 +91,8 @@ export function LeadAcoes({
               disabled={salvando || valor === statusAtual}
               className={`text-xs font-semibold px-3 py-1.5 rounded-full transition ${
                 valor === statusAtual
-                  ? "bg-brand text-white"
-                  : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                  ? "bg-console-campo text-console-sobre-campo"
+                  : "bg-console-tinta/[0.06] text-console-segunda hover:bg-console-tinta/[0.10]"
               }`}
             >
               {rotulo}
@@ -103,7 +103,7 @@ export function LeadAcoes({
         // O estágio deste lead vem do que aconteceu, não de um botão. A
         // anotação continua, porque conversa de WhatsApp não vira evento e
         // é justamente no lead que abandonou o checkout que ela vale mais.
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-console-segunda">
           Este lead veio do checkout. O estágio dele acompanha o que aconteceu
           de verdade, sem passo manual.
         </p>
@@ -114,18 +114,18 @@ export function LeadAcoes({
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
           placeholder="Anotar algo sobre este lead..."
-          className="flex-1 px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+          className="flex-1 px-4 py-2.5 rounded-lg border border-console-linha bg-console-papel text-sm focus:outline-none focus:ring-2 focus:ring-console-tinta/15"
         />
         <button
           type="submit"
           disabled={salvando}
-          className="bg-brand hover:bg-brand-dark disabled:opacity-50 text-white text-sm font-semibold px-4 rounded-lg transition"
+          className="bg-console-campo hover:bg-console-campo-esc disabled:opacity-50 text-console-sobre-campo text-sm font-semibold px-4 rounded-lg transition"
         >
           Anotar
         </button>
       </form>
 
-      {erro && <p className="text-sm text-red-600">{erro}</p>}
+      {erro && <p className="text-sm text-console-alerta">{erro}</p>}
     </div>
   );
 }

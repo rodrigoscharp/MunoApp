@@ -66,7 +66,7 @@ export function DarBaixa({ cobrancaId, valor, competencia }: Props) {
           setErro("");
           setConfirmando(true);
         }}
-        className="shrink-0 rounded-lg border border-console-linha px-2.5 py-1 text-xs font-semibold text-brand hover:bg-brand/5 transition"
+        className="shrink-0 h-9 px-3.5 rounded-xl border border-console-linha bg-console-cartao text-[13px] font-semibold text-console-tinta hover:border-console-mudo transition"
       >
         dar baixa
       </button>
@@ -78,7 +78,7 @@ export function DarBaixa({ cobrancaId, valor, competencia }: Props) {
       <button
         onClick={baixar}
         disabled={salvando}
-        className="rounded-lg bg-brand hover:bg-brand-dark px-2.5 py-1 text-xs font-semibold text-white disabled:opacity-50 transition"
+        className="h-9 px-3.5 rounded-xl bg-console-campo hover:bg-console-campo-esc text-[13px] font-semibold text-console-sobre-campo disabled:opacity-50 transition"
       >
         pagou {formatCurrency(valor)} · {formatarCompetencia(competencia)}
       </button>
@@ -86,11 +86,11 @@ export function DarBaixa({ cobrancaId, valor, competencia }: Props) {
         type="button"
         onClick={() => setConfirmando(false)}
         aria-label="Cancelar baixa"
-        className="text-xs text-neutral-400"
+        className="size-9 shrink-0 rounded-xl text-[13px] text-console-mudo hover:text-console-tinta transition"
       >
-        x
+        ✕
       </button>
-      {erro && <span className="text-xs text-red-600">{erro}</span>}
+      {erro && <span className="text-xs text-console-alerta">{erro}</span>}
     </div>
   );
 }

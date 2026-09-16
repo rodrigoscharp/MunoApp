@@ -97,7 +97,9 @@ export default async function ConversaoPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="display text-[2rem] leading-none mb-1">conversão</h1>
+      <h1 className="text-[30px] sm:text-[40px] font-semibold tracking-[-0.04em] leading-none pt-2 pb-1 sm:pb-3">
+        Conversão
+      </h1>
 
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Tile
@@ -125,11 +127,11 @@ export default async function ConversaoPage() {
 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <Cartao
-          titulo="a escada, da visita ao restaurante no ar"
+          titulo="A escada"
           nota={
             temEvento
-              ? "conta só o que aconteceu depois da instrumentação entrar no ar"
-              : undefined
+              ? "da visita ao restaurante no ar; conta só o que aconteceu depois da instrumentação"
+              : "da visita ao restaurante no ar"
           }
         >
           {!temEvento ? (
@@ -151,7 +153,7 @@ export default async function ConversaoPage() {
                         venda vaza", e por isso ele vem antes, e não como
                         rodapé de uma coluna à direita que o olho não visita. */}
                     {anterior !== null && (
-                      <p className="flex items-baseline gap-2 pl-[9.5rem] py-1.5 text-[12px]">
+                      <p className="flex items-baseline gap-2 pl-[6.5rem] sm:pl-[9.5rem] py-1.5 text-[12px]">
                         <span className="tabular text-console-tinta/70">
                           {formatarTaxa(d.doAnterior)}
                         </span>
@@ -165,7 +167,7 @@ export default async function ConversaoPage() {
                     )}
 
                     <div className="flex items-center gap-3">
-                      <span className="text-[13px] text-console-tinta/55 w-36 shrink-0">
+                      <span className="text-[13px] text-console-segunda w-24 sm:w-36 shrink-0 leading-snug">
                         {d.rotulo}
                       </span>
                       <span className="flex-1 h-2.5 rounded-full bg-console-tinta/6 overflow-hidden">
@@ -187,7 +189,7 @@ export default async function ConversaoPage() {
           )}
         </Cartao>
 
-        <Cartao titulo="conversão por origem">
+        <Cartao titulo="Conversão por origem">
           <Tabela
             colunas={["origem", "leads", "clientes", "taxa"]}
             linhas={porOrigem.map((l) => [
@@ -203,7 +205,7 @@ export default async function ConversaoPage() {
 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <Cartao
-          titulo="coorte de entrada"
+          titulo="Coorte de entrada"
           nota="a turma que entrou em cada mês, e quanto dela já fechou"
         >
           <Tabela
@@ -222,7 +224,7 @@ export default async function ConversaoPage() {
           </p>
         </Cartao>
 
-        <Cartao titulo="receita por plano e ciclo">
+        <Cartao titulo="Receita por plano e ciclo">
           <Tabela
             colunas={["plano", "assinaturas", "por mês"]}
             linhas={[...porPlano.entries()]
@@ -253,20 +255,25 @@ function Tile({
 }) {
   return (
     <div
-      className={`rounded-2xl border px-5 py-4 ${
+      className={`rounded-[22px] sm:rounded-[28px] px-4 sm:px-6 py-4 sm:py-5 ${
         ancora
-          ? "bg-console-campo text-console-sobre-campo border-transparent"
-          : "bg-console-cartao border-console-linha"
+          ? "bg-console-campo text-console-sobre-campo"
+          : "console-vidro"
       }`}
     >
       <p
-        className={`text-[13px] ${ancora ? "text-console-sobre-campo/70" : "text-console-tinta/45"}`}
+        className={`text-[13px] ${ancora ? "text-console-sobre-campo/70" : "text-console-segunda"}`}
       >
         {rotulo}
       </p>
-      <p className="tabular text-[1.75rem] leading-tight mt-1">{valor}</p>
+      {/* O número quebra em duas linhas quando é palavra ("sem dado"), e é por
+          isso que ele tem altura mínima: sem ela, um tile de texto fica mais
+          baixo que os vizinhos e a fileira desalinha no celular. */}
+      <p className="tabular text-[24px] sm:text-[30px] font-semibold tracking-[-0.03em] leading-tight mt-1.5 min-h-[1.2em]">
+        {valor}
+      </p>
       <p
-        className={`text-[12px] mt-0.5 ${ancora ? "text-console-sobre-campo/70" : "text-console-tinta/45"}`}
+        className={`text-[12px] mt-1 leading-snug ${ancora ? "text-console-sobre-campo/70" : "text-console-mudo"}`}
       >
         {apoio}
       </p>
@@ -284,11 +291,15 @@ function Cartao({
   children: React.ReactNode;
 }) {
   return (
-    <section className="bg-console-cartao rounded-2xl border border-console-linha px-5 py-4 h-full">
-      <div className="mb-4">
-        <p className="text-[13px] text-console-tinta/45">{titulo}</p>
+    <section className="console-vidro rounded-[22px] sm:rounded-[28px] px-4 sm:px-7 py-4 sm:py-6 h-full">
+      <div className="mb-4 sm:mb-5">
+        <p className="text-[17px] sm:text-[20px] font-semibold tracking-[-0.015em] text-console-tinta">
+          {titulo}
+        </p>
         {nota && (
-          <p className="text-[12px] text-console-tinta/35 mt-0.5">{nota}</p>
+          <p className="text-[12px] sm:text-[13px] text-console-mudo mt-1 leading-snug">
+            {nota}
+          </p>
         )}
       </div>
       {children}
@@ -310,9 +321,9 @@ function Tabela({
   }
 
   return (
-    <table className="w-full text-[14px]">
+    <table className="w-full text-[13px] sm:text-[14px]">
       <thead>
-        <tr className="text-[12px] text-console-tinta/45">
+        <tr className="text-[12px] text-console-mudo">
           {colunas.map((c, i) => (
             <th
               key={c}

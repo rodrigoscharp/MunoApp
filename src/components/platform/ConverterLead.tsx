@@ -110,20 +110,20 @@ export function ConverterLead({
   if (credenciais) {
     const texto = `${credenciais.url}\nLogin: ${credenciais.email}\nSenha: ${credenciais.senha}`;
     return (
-      <div className="bg-green-50 border border-green-200 rounded-xl p-5 space-y-3">
-        <p className="font-semibold text-green-800">Cliente criado!</p>
+      <div className="bg-console-positivo-fundo border border-console-positivo/25 rounded-xl p-5 space-y-3">
+        <p className="font-semibold text-console-positivo">Cliente criado!</p>
 
         <dl className="text-sm space-y-1">
           <div>
-            <dt className="text-green-700 inline">URL: </dt>
+            <dt className="text-console-positivo inline">URL: </dt>
             <dd className="inline font-mono">{credenciais.url}</dd>
           </div>
           <div>
-            <dt className="text-green-700 inline">Login: </dt>
+            <dt className="text-console-positivo inline">Login: </dt>
             <dd className="inline font-mono">{credenciais.email}</dd>
           </div>
           <div>
-            <dt className="text-green-700 inline">Senha: </dt>
+            <dt className="text-console-positivo inline">Senha: </dt>
             <dd className="inline font-mono font-bold">{credenciais.senha}</dd>
           </div>
         </dl>
@@ -134,14 +134,14 @@ export function ConverterLead({
           </p>
         )}
 
-        <p className="text-xs text-green-700">
+        <p className="text-xs text-console-positivo">
           Anote a senha agora — ela aparece uma única vez e não é recuperável.
         </p>
 
         <div className="flex gap-2">
           <button
             onClick={() => navigator.clipboard.writeText(texto)}
-            className="bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-xl transition"
+            className="bg-console-campo hover:bg-console-campo-esc text-console-sobre-campo text-sm font-semibold px-4 py-2 rounded-xl transition"
           >
             Copiar
           </button>
@@ -150,7 +150,7 @@ export function ConverterLead({
               setCredenciais(null);
               router.refresh();
             }}
-            className="text-sm text-green-700 px-4 py-2"
+            className="text-sm text-console-positivo px-4 py-2"
           >
             Já anotei
           </button>
@@ -163,7 +163,7 @@ export function ConverterLead({
     return (
       <button
         onClick={() => setAberto(true)}
-        className="w-full bg-brand hover:bg-brand-dark text-white font-semibold py-3 rounded-xl transition"
+        className="w-full bg-console-campo hover:bg-console-campo-esc text-console-sobre-campo font-semibold py-3 rounded-xl transition"
       >
         Converter em cliente
       </button>
@@ -173,12 +173,12 @@ export function ConverterLead({
   return (
     <form
       onSubmit={onSubmit}
-      className="bg-white border border-neutral-200 rounded-xl p-5 space-y-3"
+      className="bg-console-cartao border border-console-linha rounded-xl p-5 space-y-3"
     >
       <div>
         <label
           htmlFor="converter-slug"
-          className="block text-sm font-medium text-neutral-700 mb-1"
+          className="block text-sm font-medium text-console-tinta mb-1"
         >
           Endereço do restaurante *
         </label>
@@ -188,16 +188,16 @@ export function ConverterLead({
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
             required
-            className="flex-1 px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand"
+            className="flex-1 px-4 py-2.5 rounded-lg border border-console-linha bg-console-papel text-sm font-mono focus:outline-none focus:ring-2 focus:ring-console-tinta/15"
           />
-          <span className="text-sm text-neutral-400">.munoapp.com.br</span>
+          <span className="text-sm text-console-mudo">.munoapp.com.br</span>
         </div>
       </div>
 
       <div>
         <label
           htmlFor="converter-email"
-          className="block text-sm font-medium text-neutral-700 mb-1"
+          className="block text-sm font-medium text-console-tinta mb-1"
         >
           E-mail do dono *
         </label>
@@ -208,12 +208,12 @@ export function ConverterLead({
           onChange={(e) => setEmail(e.target.value)}
           required
           placeholder="joao@pizzaria.com"
-          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+          className="w-full px-4 py-2.5 rounded-lg border border-console-linha bg-console-papel text-sm focus:outline-none focus:ring-2 focus:ring-console-tinta/15"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">
+        <label className="block text-sm font-medium text-console-tinta mb-1">
           Plano
         </label>
         <div className="flex gap-2">
@@ -224,8 +224,8 @@ export function ConverterLead({
               onClick={() => escolherPlano(opcao)}
               className={`flex-1 px-3 py-2.5 rounded-lg border text-sm font-medium transition ${
                 plano === opcao
-                  ? "border-brand bg-brand-light text-brand-dark"
-                  : "border-neutral-200 bg-neutral-50 text-neutral-600"
+                  ? "border-console-tinta bg-console-tinta/[0.06] text-console-tinta"
+                  : "border-console-linha bg-console-papel text-console-segunda"
               }`}
             >
               {PLANO_LABELS[opcao]}
@@ -237,7 +237,7 @@ export function ConverterLead({
       <div>
         <label
           htmlFor="converter-mensalidade"
-          className="block text-sm font-medium text-neutral-700 mb-1"
+          className="block text-sm font-medium text-console-tinta mb-1"
         >
           Mensalidade (opcional)
         </label>
@@ -251,7 +251,7 @@ export function ConverterLead({
             setMensalidade(e.target.value);
           }}
           placeholder="0,00"
-          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+          className="w-full px-4 py-2.5 rounded-lg border border-console-linha bg-console-papel text-sm focus:outline-none focus:ring-2 focus:ring-console-tinta/15"
         />
       </div>
 
@@ -264,7 +264,7 @@ export function ConverterLead({
           <div>
             <label
               htmlFor="converter-vencimento"
-              className="block text-sm font-medium text-neutral-700 mb-1"
+              className="block text-sm font-medium text-console-tinta mb-1"
             >
               Dia do vencimento
             </label>
@@ -276,16 +276,16 @@ export function ConverterLead({
               value={diaVencimento}
               onChange={(e) => setDiaVencimento(e.target.value)}
               placeholder="10"
-              className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+              className="w-full px-4 py-2.5 rounded-lg border border-console-linha bg-console-papel text-sm focus:outline-none focus:ring-2 focus:ring-console-tinta/15"
             />
             {/* O teto de 28 não é arbitrário: é o maior dia que existe em todo
                 mês, e é o que dispensa regra de fim de fevereiro. */}
-            <p className="mt-1 text-[11px] text-neutral-400">de 1 a 28</p>
+            <p className="mt-1 text-[11px] text-console-mudo">de 1 a 28</p>
           </div>
           <div>
             <label
               htmlFor="converter-cortesia"
-              className="block text-sm font-medium text-neutral-700 mb-1"
+              className="block text-sm font-medium text-console-tinta mb-1"
             >
               Dias de cortesia
             </label>
@@ -297,29 +297,29 @@ export function ConverterLead({
               value={diasDeCortesia}
               onChange={(e) => setDiasDeCortesia(e.target.value)}
               placeholder="0"
-              className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+              className="w-full px-4 py-2.5 rounded-lg border border-console-linha bg-console-papel text-sm focus:outline-none focus:ring-2 focus:ring-console-tinta/15"
             />
-            <p className="mt-1 text-[11px] text-neutral-400">
+            <p className="mt-1 text-[11px] text-console-mudo">
               antes da primeira cobrança
             </p>
           </div>
         </div>
       )}
 
-      {erro && <p className="text-sm text-red-600">{erro}</p>}
+      {erro && <p className="text-sm text-console-alerta">{erro}</p>}
 
       <div className="flex gap-2">
         <button
           type="submit"
           disabled={loading}
-          className="bg-brand hover:bg-brand-dark disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition"
+          className="bg-console-campo hover:bg-console-campo-esc disabled:opacity-50 text-console-sobre-campo text-sm font-semibold px-4 py-2 rounded-xl transition"
         >
           {loading ? "Criando..." : "Criar cliente"}
         </button>
         <button
           type="button"
           onClick={() => setAberto(false)}
-          className="text-sm text-neutral-500 px-4 py-2"
+          className="text-sm text-console-segunda px-4 py-2"
         >
           Cancelar
         </button>

@@ -71,7 +71,7 @@ export function NovoLeadForm() {
     return (
       <button
         onClick={() => setAberto(true)}
-        className="flex items-center gap-2 bg-brand hover:bg-brand-dark text-white text-sm font-semibold px-4 py-2 rounded-xl transition"
+        className="flex items-center gap-2 bg-console-campo hover:bg-console-campo-esc text-console-sobre-campo text-sm font-semibold px-4 py-2 rounded-xl transition h-10 sm:h-auto"
       >
         <Plus size={16} />
         Novo lead
@@ -82,10 +82,10 @@ export function NovoLeadForm() {
   return (
     <form
       onSubmit={onSubmit}
-      className="w-full bg-white border border-neutral-200 rounded-xl p-5 space-y-3"
+      className="w-full bg-console-cartao border border-console-linha rounded-xl p-5 space-y-3"
     >
       <div>
-        <label className="block text-sm font-medium text-neutral-700 mb-1">
+        <label className="block text-sm font-medium text-console-tinta mb-1">
           Restaurante *
         </label>
         <input
@@ -95,7 +95,7 @@ export function NovoLeadForm() {
           minLength={2}
           autoFocus
           placeholder="Pizzaria do João"
-          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+          className="w-full px-4 py-2.5 rounded-lg border border-console-linha bg-console-papel text-sm focus:outline-none focus:ring-2 focus:ring-console-tinta/15"
         />
       </div>
 
@@ -103,7 +103,7 @@ export function NovoLeadForm() {
       <div className="grid grid-cols-2 gap-3">
         {CAMPOS.map((campo) => (
           <div key={campo.name}>
-            <label className="block text-xs font-medium text-neutral-600 mb-1">
+            <label className="block text-xs font-medium text-console-segunda mb-1">
               {campo.label}
             </label>
             <input
@@ -111,14 +111,14 @@ export function NovoLeadForm() {
               onChange={(e) =>
                 setExtras((prev) => ({ ...prev, [campo.name]: e.target.value }))
               }
-              className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+              className="w-full px-3 py-2 rounded-lg border border-console-linha bg-console-papel text-sm focus:outline-none focus:ring-2 focus:ring-console-tinta/15"
             />
           </div>
         ))}
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-neutral-600 mb-1">
+        <label className="block text-xs font-medium text-console-segunda mb-1">
           Logo (opcional)
         </label>
         <div className="flex items-center gap-2">
@@ -126,13 +126,13 @@ export function NovoLeadForm() {
             type="button"
             onClick={() => logoInputRef.current?.click()}
             disabled={enviandoLogo}
-            className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 transition"
+            className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border border-console-linha text-console-segunda hover:bg-console-papel disabled:opacity-50 transition"
           >
             <Upload size={12} />
             {enviandoLogo ? "Enviando..." : "Escolher arquivo"}
           </button>
           {extras.logoUrl && (
-            <div className="relative w-8 h-8 rounded border border-neutral-200 overflow-hidden shrink-0">
+            <div className="relative w-8 h-8 rounded border border-console-linha overflow-hidden shrink-0">
               <Image
                 src={extras.logoUrl}
                 alt="Preview da logo"
@@ -155,20 +155,20 @@ export function NovoLeadForm() {
         />
       </div>
 
-      {erro && <p className="text-sm text-red-600">{erro}</p>}
+      {erro && <p className="text-sm text-console-alerta">{erro}</p>}
 
       <div className="flex gap-2">
         <button
           type="submit"
           disabled={loading}
-          className="bg-brand hover:bg-brand-dark disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-xl transition"
+          className="bg-console-campo hover:bg-console-campo-esc disabled:opacity-50 text-console-sobre-campo text-sm font-semibold px-4 py-2 rounded-xl transition h-10 sm:h-auto"
         >
           {loading ? "Salvando..." : "Salvar"}
         </button>
         <button
           type="button"
           onClick={() => setAberto(false)}
-          className="text-sm text-neutral-500 px-4 py-2"
+          className="text-sm text-console-segunda px-4 py-2"
         >
           Cancelar
         </button>

@@ -3,7 +3,7 @@ import { authPlatform } from "@/lib/auth-platform";
 import { buildTenantBaseUrl } from "@/lib/tenant-provisioning";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { LeadAcoes } from "@/components/platform/LeadAcoes";
 import { ConverterLead } from "@/components/platform/ConverterLead";
 import { PlanoInline } from "@/components/platform/PlanoInline";
@@ -37,25 +37,36 @@ export default async function LeadPage({
   ].filter(Boolean);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-5">
+      {/* Alvo de 40px de altura: no celular esta é a única saída da ficha, e
+          um link de texto de 16px é um alvo de 16px. */}
       <Link
         href="/leads"
-        className="flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-700"
+        className="inline-flex items-center gap-2 h-10 -ml-1 px-1 text-[14px] font-medium text-console-segunda hover:text-console-tinta transition"
       >
-        <ArrowLeft size={16} />
+        <ArrowLeft size={17} />
         Voltar ao funil
       </Link>
 
       <div>
-        <h1 className="display text-[1.75rem] leading-tight">
+        <h1 className="text-[26px] sm:text-[36px] font-semibold tracking-[-0.035em] leading-tight">
           {lead.restaurante}
         </h1>
         {contato.length > 0 && (
-          <p className="text-sm text-neutral-500 mt-1">{contato.join(" · ")}</p>
+          // Uma linha por dado no celular: telefone e e-mail separados por
+          // ponto viram uma parede de texto que ninguém consegue tocar para
+          // copiar.
+          <ul className="mt-2 flex flex-col sm:flex-row sm:flex-wrap gap-x-2 gap-y-1 text-[14px] text-console-segunda">
+            {contato.map((dado) => (
+              <li key={dado} className="sm:after:content-['·'] sm:after:ml-2 sm:after:text-console-mudo last:sm:after:content-['']">
+                {dado}
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 
-      <div className="bg-console-cartao border border-console-linha rounded-2xl p-5">
+      <div className="console-vidro rounded-[22px] sm:rounded-[28px] p-4 sm:p-6">
         <LeadAcoes
           leadId={lead.id}
           statusAtual={lead.status}
@@ -64,15 +75,16 @@ export default async function LeadPage({
       </div>
 
       {lead.tenant ? (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-5 space-y-3">
-          <p className="font-semibold text-green-800">Cliente criado</p>
+        <div className="rounded-[22px] sm:rounded-[28px] bg-console-positivo-fundo border border-console-positivo/25 p-4 sm:p-6 space-y-3">
+          <p className="font-semibold text-console-positivo">Cliente criado</p>
           <a
             href={buildTenantBaseUrl(lead.tenant.slug)}
             target="_blank"
             rel="noreferrer"
-            className="text-sm text-green-700 underline"
+            className="inline-flex items-center gap-1.5 text-[14px] text-console-tinta underline decoration-console-mudo underline-offset-4 break-all"
           >
             {buildTenantBaseUrl(lead.tenant.slug)}
+            <ExternalLink size={14} className="shrink-0" />
           </a>
           <PlanoInline leadId={lead.id} planoAtual={lead.tenant.plano} />
         </div>
@@ -80,23 +92,23 @@ export default async function LeadPage({
         <ConverterLead leadId={lead.id} restauranteNome={lead.restaurante} />
       )}
 
-      <section>
-        <h2 className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-3">
+      <section className="pt-1">
+        <h2 className="text-[17px] sm:text-[20px] font-semibold tracking-[-0.015em] mb-3">
           Histórico
         </h2>
         {lead.notas.length === 0 ? (
-          <p className="text-sm text-neutral-400">Nenhuma anotação ainda.</p>
+          <p className="text-[14px] text-console-mudo">Nenhuma anotação ainda.</p>
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-2.5">
             {lead.notas.map((nota) => (
               <li
                 key={nota.id}
-                className="bg-console-cartao border border-console-linha rounded-2xl px-4 py-3"
+                className="console-vidro rounded-[18px] sm:rounded-[22px] px-4 py-3.5"
               >
-                <p className="text-xs text-neutral-400">
+                <p className="text-[12px] text-console-mudo tabular">
                   {nota.createdAt.toLocaleString("pt-BR")}
                 </p>
-                <p className="text-sm text-neutral-800 mt-1">{nota.texto}</p>
+                <p className="text-[15px] leading-snug mt-1.5">{nota.texto}</p>
               </li>
             ))}
           </ul>

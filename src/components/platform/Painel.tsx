@@ -23,17 +23,17 @@ export function Painel({
 }) {
   return (
     <section
-      className={`console-vidro console-entra rounded-[28px] p-5 sm:p-7 h-full ${className}`}
+      className={`console-vidro console-entra rounded-[22px] sm:rounded-[28px] p-4 sm:p-7 h-full ${className}`}
       style={{ "--atraso": `${atraso}ms` } as React.CSSProperties}
     >
       {titulo && (
-        <header className="flex items-start justify-between gap-3 mb-6">
+        <header className="flex items-start justify-between gap-3 mb-5 sm:mb-6">
           <div className="min-w-0">
-            <h2 className="text-[19px] sm:text-[20px] font-semibold tracking-[-0.015em] text-console-tinta">
+            <h2 className="text-[17px] sm:text-[20px] font-semibold tracking-[-0.015em] text-console-tinta">
               {titulo}
             </h2>
             {subtitulo && (
-              <p className="text-[13px] text-console-mudo mt-1 leading-snug">
+              <p className="text-[12px] sm:text-[13px] text-console-mudo mt-1 leading-snug">
                 {subtitulo}
               </p>
             )}

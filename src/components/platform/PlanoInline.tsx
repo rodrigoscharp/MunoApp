@@ -43,7 +43,7 @@ export function PlanoInline({
 
   return (
     <div className="flex items-center gap-2 text-sm">
-      <span className="text-green-700">Plano:</span>
+      <span className="text-console-positivo">Plano:</span>
       <div className="flex gap-1.5">
         {(Object.keys(PLANO_LABELS) as PlanoTenant[]).map((opcao) => (
           <button
@@ -53,15 +53,15 @@ export function PlanoInline({
             disabled={salvando !== null}
             className={`px-2.5 py-1 rounded-lg text-xs font-medium transition disabled:opacity-50 ${
               opcao === planoAtual
-                ? "bg-green-700 text-white"
-                : "bg-white border border-green-300 text-green-700 hover:bg-green-100"
+                ? "bg-console-campo text-console-sobre-campo"
+                : "bg-console-cartao border border-console-positivo/30 text-console-positivo hover:bg-console-positivo-fundo"
             }`}
           >
             {salvando === opcao ? "Salvando..." : PLANO_LABELS[opcao]}
           </button>
         ))}
       </div>
-      {erro && <span className="text-xs text-red-600">{erro}</span>}
+      {erro && <span className="text-xs text-console-alerta">{erro}</span>}
     </div>
   );
 }

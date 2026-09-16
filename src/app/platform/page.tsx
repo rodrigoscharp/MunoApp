@@ -313,7 +313,7 @@ export default async function VisaoGeralPage() {
           atraso={380}
         >
           <GraficoBarras
-            altura={220}
+            className="h-[180px] sm:h-[220px]"
             unidade={["lead", "leads"]}
             ultimaEmCurso
             barras={semanasDeLeads.map((s) => ({

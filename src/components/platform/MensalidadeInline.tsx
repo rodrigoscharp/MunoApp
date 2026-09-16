@@ -71,17 +71,19 @@ export function MensalidadeInline({
     return (
       <button
         onClick={abrir}
-        className="tabular text-sm text-console-tinta hover:text-brand transition text-right"
+        className="tabular text-sm font-medium text-console-tinta hover:text-console-segunda transition text-right whitespace-nowrap"
       >
         {valorAtual != null ? formatCurrency(valorAtual) : "definir"}
         {diaAtual != null && (
-          <span className="text-neutral-400"> · dia {diaAtual}</span>
+          <span className="text-console-mudo font-normal"> · dia {diaAtual}</span>
         )}
       </button>
     );
   }
 
   return (
+    // Os campos encolhem no celular em vez de manter a largura do desktop:
+    // com w-24 fixo o editor inteiro saía pela direita da tela em 375px.
     <form onSubmit={salvar} className="flex items-center gap-1.5">
       <input
         type="number"
@@ -91,7 +93,7 @@ export function MensalidadeInline({
         onChange={(e) => setValor(e.target.value)}
         autoFocus
         aria-label="Mensalidade"
-        className="tabular w-24 px-2 py-1 rounded border border-console-linha bg-console-papel text-sm text-right"
+        className="tabular w-20 sm:w-24 h-9 px-2.5 rounded-xl border border-console-linha bg-console-cartao text-sm text-right outline-none focus:border-console-tinta"
       />
       <input
         type="number"
@@ -102,13 +104,13 @@ export function MensalidadeInline({
         onChange={(e) => setDia(e.target.value)}
         aria-label="Dia de vencimento"
         placeholder="dia"
-        className="tabular w-14 px-2 py-1 rounded border border-console-linha bg-console-papel text-sm text-right"
+        className="tabular w-12 sm:w-14 h-9 px-2 rounded-xl border border-console-linha bg-console-cartao text-sm text-right outline-none focus:border-console-tinta"
       />
       <button
         type="submit"
         disabled={salvando}
         aria-label="Salvar mensalidade"
-        className="text-xs font-semibold text-brand disabled:opacity-50"
+        className="h-9 px-3 rounded-xl bg-console-campo text-console-sobre-campo text-[13px] font-semibold disabled:opacity-50"
       >
         ok
       </button>
@@ -116,11 +118,11 @@ export function MensalidadeInline({
         type="button"
         onClick={cancelar}
         aria-label="Cancelar"
-        className="text-xs text-neutral-400"
+        className="size-9 shrink-0 rounded-xl text-[13px] text-console-mudo hover:text-console-tinta transition"
       >
-        x
+        ✕
       </button>
-      {erro && <span className="text-xs text-red-600">{erro}</span>}
+      {erro && <span className="text-xs text-console-alerta">{erro}</span>}
     </form>
   );
 }

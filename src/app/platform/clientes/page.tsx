@@ -42,18 +42,20 @@ export default async function ClientesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <h1 className="display text-[2rem] leading-none">clientes</h1>
-        <div className="text-right">
-          <p className="tabular text-[11px] uppercase tracking-[0.16em] text-neutral-400">
-            Receita mensal
+      <div className="flex items-end justify-between gap-3 pt-2 pb-1 sm:pb-3">
+        <h1 className="text-[30px] sm:text-[40px] font-semibold tracking-[-0.04em] leading-none">
+          Clientes
+        </h1>
+        <div className="text-right shrink-0">
+          <p className="text-[12px] text-console-mudo">Receita mensal</p>
+          <p className="tabular text-[20px] sm:text-[24px] font-semibold tracking-[-0.02em]">
+            {formatCurrency(mrr)}
           </p>
-          <p className="tabular text-xl font-semibold">{formatCurrency(mrr)}</p>
         </div>
       </div>
 
       {tenants.length === 0 ? (
-        <p className="text-neutral-500 py-16 text-center">
+        <p className="text-console-mudo py-16 text-center">
           Nenhum cliente ainda. Eles aparecem aqui quando você converte um lead.
         </p>
       ) : (
@@ -77,7 +79,11 @@ export default async function ClientesPage() {
             return (
             <li
               key={t.id}
-              className="bg-console-cartao rounded-2xl border border-console-linha px-5 py-4 flex items-center justify-between gap-4"
+              // No celular a linha vira cartão empilhado: nome em cima, número
+              // no meio, ação embaixo em largura cheia. Em 375px a versão
+              // horizontal espremia o nome em três letras e jogava o editor de
+              // mensalidade para fora da tela.
+              className="console-vidro rounded-[22px] sm:rounded-[28px] px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4"
             >
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -87,10 +93,10 @@ export default async function ClientesPage() {
                       assinatura não for cancelada. Verde discreto, nunca
                       terracota: terracota é ação, e status não é ação. */}
                   <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                    className={`shrink-0 rounded-lg px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                       t.status === "active"
-                        ? "bg-forest-light text-console-dado"
-                        : "bg-neutral-100 text-neutral-500"
+                        ? "bg-console-positivo-fundo text-console-positivo"
+                        : "bg-console-tinta/[0.06] text-console-mudo"
                     }`}
                   >
                     {t.status === "active" ? "ativo" : t.status}
@@ -100,33 +106,40 @@ export default async function ClientesPage() {
                   href={buildTenantBaseUrl(t.slug)}
                   target="_blank"
                   rel="noreferrer"
-                  className="tabular text-xs text-neutral-400 hover:text-brand transition"
+                  className="tabular text-xs text-console-mudo hover:text-console-tinta transition"
                 >
                   {t.slug}
                 </a>
+                {/* No celular pedidos e desde não cabem como coluna, mas cabem
+                    como linha de apoio embaixo do nome. */}
+                <p className="sm:hidden text-[12px] text-console-mudo mt-1 tabular">
+                  {t._count.orders} {t._count.orders === 1 ? "pedido" : "pedidos"}
+                  {" · desde "}
+                  {t.createdAt.toLocaleDateString("pt-BR")}
+                </p>
               </div>
 
-              <div className="flex items-center gap-6 shrink-0">
+              <div className="flex flex-wrap items-center justify-between sm:justify-end gap-x-4 gap-y-3 sm:gap-6 sm:shrink-0">
                 <div className="text-right hidden sm:block">
                   <p className="tabular text-sm">{t._count.orders}</p>
-                  <p className="text-[11px] text-neutral-400">pedidos</p>
+                  <p className="text-[11px] text-console-mudo">pedidos</p>
                 </div>
                 <div className="text-right hidden sm:block">
                   <p className="tabular text-sm">
                     {t.createdAt.toLocaleDateString("pt-BR")}
                   </p>
-                  <p className="text-[11px] text-neutral-400">desde</p>
+                  <p className="text-[11px] text-console-mudo">desde</p>
                 </div>
 
                 {/* A situação da cobrança. Fica visível em qualquer largura,
                     ao contrário de pedidos e desde: é por ela que o operador
                     varre a lista quando cai um PIX. */}
                 {situacao && (
-                  <div className="text-right">
+                  <div className="text-left sm:text-right order-first sm:order-none basis-full sm:basis-auto">
                     <p className={`text-sm font-medium ${CLASSE_DO_TOM[situacao.tom]}`}>
                       {situacao.texto}
                     </p>
-                    <p className="text-[11px] text-neutral-400">
+                    <p className="text-[11px] text-console-mudo">
                       {dias >= 1
                         ? dias === 1
                           ? "vencida há 1 dia"
