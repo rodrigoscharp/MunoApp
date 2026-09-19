@@ -57,9 +57,6 @@
     };
   </script>
 
-  <!-- Three.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
@@ -79,9 +76,6 @@
 
   <!-- Barra de progresso de scroll -->
   <div id="scrollProgress"></div>
-
-  <!-- Canvas 3D (Three.js) — fixed, some behind hero only via fade -->
-  <div id="canvas-container"></div>
 
   <!-- ======================================================
        ANNOUNCEMENT BAR
@@ -115,29 +109,116 @@
   <!-- ======================================================
        HERO
        ====================================================== -->
-  <header class="content-layer min-h-[88vh] flex items-center justify-center px-4 pt-6 pb-24">
-    <div class="max-w-4xl w-full text-center space-y-7">
+  <header class="content-layer px-4 pt-8 pb-16 md:pt-12 md:pb-20">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-12 lg:gap-16 items-center">
 
-      <h1 class="text-4xl md:text-6xl lg:text-7xl font-black leading-[1.1] text-gastrogreen">
-        <span class="hl-mask"><span class="hl-line">Do Cardápio ao Caixa,</span></span>
-        <span class="hl-mask"><span class="hl-line text-terracota">Tudo no Seu Controle</span></span>
-      </h1>
+      <!-- Coluna de texto -->
+      <div class="text-center lg:text-left">
+        <h1 class="text-4xl md:text-5xl lg:text-[3.35rem] font-black leading-[1.1] text-gastrogreen">
+          <span class="hl-mask"><span class="hl-line">Do Cardápio ao Caixa,</span></span>
+          <span class="hl-mask"><span class="hl-line text-terracota">Tudo no Seu Controle</span></span>
+        </h1>
 
-      <p
-        class="hero-anim text-base md:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed bg-cream/70 backdrop-blur-sm px-4 py-2 rounded-xl">
-        Cardápio, pedidos e pagamentos num só lugar, no ar em <strong class="text-gastrogreen">minutos</strong>.
-      </p>
+        <p class="hero-anim mt-6 text-base md:text-lg text-gray-600 max-w-xl mx-auto lg:mx-0 leading-relaxed">
+          Cardápio, pedidos e pagamentos num só lugar, no ar em <strong class="text-gastrogreen">minutos</strong>.
+        </p>
 
-      <div class="hero-anim flex flex-col sm:flex-row gap-4 justify-center items-center pt-2">
-        <a href="#planos"
-          class="w-full sm:w-auto btn-primary text-lg px-8 py-4 rounded-xl flex items-center justify-center gap-2">
-          Quero Gerenciar Meu Restaurante <i data-lucide="arrow-right" class="w-5 h-5"></i>
-        </a>
-        <a href="#como-funciona"
-          class="w-full sm:w-auto btn-secondary text-lg px-8 py-4 rounded-xl flex items-center justify-center gap-2">
-          <i data-lucide="play-circle" class="w-5 h-5"></i> Ver Como Funciona
-        </a>
+        <div class="hero-anim mt-8 flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
+          <a href="#planos"
+            class="btn-primary text-base px-7 py-4 rounded-xl inline-flex items-center justify-center gap-2">
+            Quero Gerenciar Meu Restaurante <i data-lucide="arrow-right" class="w-5 h-5"></i>
+          </a>
+          <a href="#como-funciona"
+            class="btn-secondary text-base px-7 py-4 rounded-xl inline-flex items-center justify-center gap-2">
+            <i data-lucide="play-circle" class="w-5 h-5"></i> Ver Como Funciona
+          </a>
+        </div>
+
+        <ul class="hero-anim mt-8 flex flex-wrap justify-center lg:justify-start gap-x-6 gap-y-2 text-sm text-gray-600">
+          <li class="flex items-center gap-1.5">
+            <i data-lucide="check-circle" class="w-4 h-4 text-sage flex-shrink-0"></i> Sem taxa por pedido
+          </li>
+          <li class="flex items-center gap-1.5">
+            <i data-lucide="check-circle" class="w-4 h-4 text-sage flex-shrink-0"></i> No ar em minutos
+          </li>
+          <li class="flex items-center gap-1.5">
+            <i data-lucide="check-circle" class="w-4 h-4 text-sage flex-shrink-0"></i> Cancele quando quiser
+          </li>
+        </ul>
       </div>
+
+      <!--
+        Mockup do produto, desenhado em HTML/CSS.
+
+        Até 18/09/2026 este espaço era uma cena Three.js (js/scene.js) com um
+        hambúrguer e uma pizza flutuando atrás da página inteira. Ela
+        rasterizava num canvas de tamanho fixo e aparecia serrilhada, além de
+        custar WebGL e ~600KB de CDN em toda visita. O substituto é vetorial:
+        escala em qualquer densidade de tela, e mostra o produto em vez de
+        comida genérica.
+
+        aria-hidden porque é ilustração: tudo que ela diz já está no texto ao
+        lado.
+
+        Os R$ daqui são prato de restaurante fictício, não mensalidade. Os
+        marcadores inicio:ilustracao/fim:ilustracao existem para que
+        src/lib/plans.test.ts saiba disso: dentro deles ele exige o oposto do
+        resto da página, que nenhum preço de plano apareça. Ver o teste.
+      -->
+      <!-- inicio:ilustracao -->
+      <div class="hero-mock hero-anim" aria-hidden="true">
+        <div class="mock-glow"></div>
+
+        <div class="mock-phone">
+          <div class="mock-screen">
+            <div class="mock-topbar">
+              <span class="mock-avatar"><i data-lucide="utensils-crossed"></i></span>
+              <span class="mock-ident">
+                <b>Cantina da Esquina</b>
+                <i><span class="mock-dot"></span> Aberto agora</i>
+              </span>
+            </div>
+
+            <div class="mock-item">
+              <span class="mock-thumb mock-thumb-a"><i data-lucide="sandwich"></i></span>
+              <span class="mock-item-text">
+                <b>Burger da Casa</b>
+                <i>Blend 180g, cheddar</i>
+              </span>
+              <span class="mock-price">R$ 32,00</span>
+            </div>
+
+            <div class="mock-item">
+              <span class="mock-thumb mock-thumb-b"><i data-lucide="pizza"></i></span>
+              <span class="mock-item-text">
+                <b>Pizza Margherita</b>
+                <i>Manjericão fresco</i>
+              </span>
+              <span class="mock-price">R$ 48,00</span>
+            </div>
+
+            <div class="mock-cta">Fazer pedido · R$ 80,00</div>
+          </div>
+        </div>
+
+        <div class="mock-float mock-float-venda">
+          <span class="mock-float-label">Faturamento hoje</span>
+          <span class="mock-float-value">R$ 1.240</span>
+          <span class="mock-bars">
+            <i style="height:34%"></i><i style="height:58%"></i><i style="height:42%"></i><i
+              style="height:74%"></i><i style="height:60%"></i><i style="height:95%"></i>
+          </span>
+        </div>
+
+        <div class="mock-float mock-float-pedido">
+          <span class="mock-check"><i data-lucide="check"></i></span>
+          <span class="mock-float-text">
+            <b>Pedido #184</b>
+            <i>pago no Pix</i>
+          </span>
+        </div>
+      </div>
+      <!-- fim:ilustracao -->
 
     </div>
   </header>
@@ -235,12 +316,12 @@
             tempo real. Tudo no celular.</p>
           <div class="mt-4 text-xs text-sage font-semibold flex items-center gap-1">
             <i data-lucide="check-circle" class="w-4 h-4"></i> Dados atualizados em segundos
-          </div>f
+          </div>
         </div>
 
         <div class="glass-card p-7 rounded-2xl hover:bg-white transition duration-300 group reveal">
           <div
-            class="bg-yellow-50 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-yellow-600 group-hover:bg-yellow-400 group-hover:text-white transition duration-300">
+            class="bg-terracota/10 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-terracota group-hover:bg-terracota group-hover:text-white transition duration-300">
             <i data-lucide="qr-code" class="w-7 h-7"></i>
           </div>
           <h3 class="text-xl font-bold text-gastrogreen mb-2">QR Code de Mesa</h3>
@@ -253,7 +334,7 @@
 
         <div class="glass-card p-7 rounded-2xl hover:bg-white transition duration-300 group reveal reveal-delay-1">
           <div
-            class="bg-blue-50 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition duration-300">
+            class="bg-sage/20 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-gastrogreen group-hover:bg-gastrogreen group-hover:text-white transition duration-300">
             <i data-lucide="credit-card" class="w-7 h-7"></i>
           </div>
           <h3 class="text-xl font-bold text-gastrogreen mb-2">Pagamento Integrado</h3>
@@ -266,7 +347,7 @@
 
         <div class="glass-card p-7 rounded-2xl hover:bg-white transition duration-300 group reveal reveal-delay-2">
           <div
-            class="bg-terracota/10 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-terracota group-hover:bg-terracota group-hover:text-white transition duration-300">
+            class="bg-gastrogreen/10 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-gastrogreen group-hover:bg-gastrogreen group-hover:text-white transition duration-300">
             <i data-lucide="headphones" class="w-7 h-7"></i>
           </div>
           <h3 class="text-xl font-bold text-gastrogreen mb-2">Suporte Humanizado</h3>
@@ -284,9 +365,9 @@
   <!-- ======================================================
        COMO FUNCIONA
        ====================================================== -->
-  <section id="como-funciona" class="content-layer py-20 px-4 bg-gastrogreen/5">
+  <section id="como-funciona" class="content-layer section-alt py-20 px-4">
     <div class="max-w-5xl mx-auto">
-      <div class="text-center mb-14 reveal">
+      <div class="text-center mb-12 reveal">
         <span class="text-terracota font-bold tracking-wider text-sm uppercase">Sem complicação</span>
         <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">Do zero à gestão completa em 3 passos</h2>
       </div>
@@ -334,7 +415,7 @@
        GARANTIAS
        ====================================================== -->
   <section class="content-layer py-20 px-4">
-    <div class="max-w-md mx-auto text-center mb-14 reveal">
+    <div class="max-w-md mx-auto text-center mb-12 reveal">
       <span class="text-terracota font-bold tracking-wider text-sm uppercase">Sem pegadinha</span>
       <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">As garantias que a gente assina embaixo</h2>
       <p class="text-gray-500 mt-2 text-sm">Nada de depoimento fabricado. Só o que a gente cumpre, por escrito.</p>
@@ -401,9 +482,9 @@
   <!-- ======================================================
        COMPARAÇÃO
        ====================================================== -->
-  <section class="content-layer py-20 px-4 bg-gastrogreen/5">
+  <section class="content-layer section-alt py-20 px-4">
     <div class="max-w-4xl mx-auto">
-      <div class="text-center mb-10 reveal">
+      <div class="text-center mb-12 reveal">
         <span class="text-terracota font-bold tracking-wider text-sm uppercase">Por que MUNOFOOD</span>
         <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">Nós vs. os outros</h2>
         <p class="text-gray-500 mt-2 max-w-lg mx-auto text-sm">Compare e veja por que restaurantes estão trocando de
@@ -491,7 +572,7 @@
        ====================================================== -->
   <section id="planos" class="content-layer py-20 px-4">
     <div class="max-w-7xl mx-auto">
-      <div class="text-center mb-8 reveal">
+      <div class="text-center mb-12 reveal">
         <span class="text-sage font-bold tracking-wider text-sm uppercase">Investimento</span>
         <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">Seja Membro MUNO</h2>
         <p class="text-gray-600 mt-2">Sem taxa sobre vendas. Você fica com <strong>100% do lucro</strong>.</p>
@@ -629,7 +710,7 @@
   <!-- ======================================================
        FAQ
        ====================================================== -->
-  <section class="content-layer py-20 px-4 bg-gastrogreen/5">
+  <section class="content-layer section-alt py-20 px-4">
     <div class="max-w-3xl mx-auto">
       <div class="text-center mb-12 reveal">
         <span class="text-terracota font-bold tracking-wider text-sm uppercase">Dúvidas frequentes</span>
@@ -891,7 +972,6 @@
   <!-- ======================================================
        SCRIPTS (ao final do body, após o DOM)
        ====================================================== -->
-  <script src="/vendas/js/scene.js"></script>
   <script src="/vendas/js/main.js"></script>
   <script src="/vendas/js/hero-motion.js"></script>
 

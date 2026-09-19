@@ -62,12 +62,50 @@ describe("o preço anunciado na landing e o preço do código não podem divergi
     "utf8"
   );
 
-  const precosNaPagina = () => [
-    ...landing.matchAll(/R\$\s*((?:\d{1,3}\.)*\d{1,3},\d{2})/g),
-  ].map((m) => m[1]);
+  const PRECO = /R\$\s*((?:\d{1,3}\.)*\d{1,3},\d{2})/g;
+  const precosEm = (html: string) =>
+    [...html.matchAll(PRECO)].map((m) => m[1]);
+
+  // O hero traz um mockup do produto — um celular com dois pratos e seus
+  // preços — e prato de restaurante fictício não é mensalidade. Sem separar os
+  // dois, "R$ 32,00" quebraria a direção 2 como se fosse preço de plano
+  // digitado errado.
+  //
+  // A separação é por marcador no HTML, e não por heurística, porque o custo
+  // de errar é assimétrico: uma heurística que engula demais desliga a trava
+  // em silêncio. As duas metades são cobradas, cada uma com a regra oposta —
+  // fora da ilustração, todo preço tem que ser de plano; dentro dela, nenhum
+  // pode ser. Junto, isso não deixa buraco: não há lugar no arquivo onde um
+  // preço escape das duas verificações.
+  const ILUSTRACAO = /<!--\s*inicio:ilustracao\s*-->[\s\S]*?<!--\s*fim:ilustracao\s*-->/g;
+
+  const ilustracoes = landing.match(ILUSTRACAO) ?? [];
+  const foraDaIlustracao = landing.replace(ILUSTRACAO, "");
+
+  const precosNaPagina = () => precosEm(foraDaIlustracao);
 
   it("a página anuncia algum preço — senão as asserções abaixo passam à toa", () => {
     expect(precosNaPagina().length).toBeGreaterThan(0);
+  });
+
+  // Se alguém apagar um dos marcadores, o regex para de casar e a ilustração
+  // inteira volta a ser cobrada como anúncio de preço: a trava aperta, não
+  // afrouxa. Este teste é o aviso de que foi isso que aconteceu, para o erro
+  // não ser lido como divergência de preço.
+  it("os marcadores da ilustração continuam de pé", () => {
+    expect(ilustracoes).toHaveLength(1);
+    expect(foraDaIlustracao.length).toBeGreaterThan(landing.length * 0.8);
+  });
+
+  it("a ilustração não anuncia preço de plano nenhum", () => {
+    const conhecidos = Object.values(PRECOS).flatMap((p) => [
+      formatarBRL(p.mensalCentavos),
+      formatarBRL(p.anualCentavos),
+    ]);
+
+    for (const preco of precosEm(ilustracoes.join(""))) {
+      expect(conhecidos).not.toContain(preco);
+    }
   });
 
   it("cobra os preços de tabela de 2026-08", () => {

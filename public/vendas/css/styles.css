@@ -20,16 +20,14 @@ body {
 }
 
 /* --------------------------------------------------
-   Canvas 3D — fixo atrás de tudo
+   Faixas de seção
+
+   O alternado era bg-gastrogreen/5, que tingia de verde
+   acinzentado tudo que caísse dentro, inclusive os cards
+   brancos. Um tom de papel um pouco mais fundo que o
+   cream do body separa as seções sem colorir nada.
    -------------------------------------------------- */
-#canvas-container {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100vh;
-  z-index: 1;
-  pointer-events: none;
-  transition: opacity 0.1s linear;
-}
+.section-alt { background: #EAE5DE; }
 
 .content-layer {
   position: relative;
@@ -99,6 +97,253 @@ body {
 }
 
 /* --------------------------------------------------
+   Hero — mockup do produto
+
+   Desenhado em HTML/CSS de propósito. O que estava aqui
+   antes era uma cena Three.js rasterizada num canvas de
+   tamanho fixo: em tela de alta densidade ela chegava
+   serrilhada, e o conserto seria aumentar o pixel ratio,
+   que é exatamente o que já custava caro. Vetor não tem
+   esse eixo.
+   -------------------------------------------------- */
+.hero-mock {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 54px 0;
+}
+
+.mock-glow {
+  position: absolute;
+  inset: 6% 10%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, rgba(198, 86, 42, 0.22), transparent 68%);
+  filter: blur(40px);
+  z-index: 0;
+}
+
+.mock-phone {
+  position: relative;
+  z-index: 1;
+  width: 284px;
+  max-width: 100%;
+  padding: 10px;
+  border-radius: 36px;
+  background: linear-gradient(165deg, #2d5a47 0%, var(--gastrogreen) 100%);
+  box-shadow: 0 30px 64px rgba(31, 63, 52, 0.30);
+}
+
+.mock-screen {
+  background: #fff;
+  border-radius: 27px;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Cabeçalho do cardápio */
+.mock-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(31, 63, 52, 0.08);
+}
+.mock-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: var(--gastrogreen);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.mock-avatar svg { width: 17px; height: 17px; }
+.mock-ident { display: flex; flex-direction: column; min-width: 0; }
+.mock-ident b {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gastrogreen);
+  line-height: 1.2;
+}
+.mock-ident i {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--sage);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+}
+.mock-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sage);
+  flex-shrink: 0;
+}
+
+/* Itens do cardápio */
+.mock-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px;
+  border-radius: 14px;
+  background: #FAF8F6;
+  border: 1px solid rgba(31, 63, 52, 0.06);
+}
+.mock-thumb {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.mock-thumb svg { width: 19px; height: 19px; }
+.mock-thumb-a { background: rgba(198, 86, 42, 0.12); color: var(--terracota); }
+.mock-thumb-b { background: rgba(106, 143, 122, 0.20); color: var(--gastrogreen); }
+
+.mock-item-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.mock-item-text b {
+  font-size: 12px;
+  font-weight: 700;
+  color: #3E3E3E;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mock-item-text i {
+  font-style: normal;
+  font-size: 10.5px;
+  color: #9ca3af;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mock-price {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--gastrogreen);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.mock-cta {
+  margin-top: 2px;
+  background: var(--terracota);
+  color: #fff;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 11px;
+  border-radius: 13px;
+  box-shadow: 0 6px 16px rgba(198, 86, 42, 0.28);
+}
+
+/* Cartões soltos ao redor do celular */
+.mock-float {
+  position: absolute;
+  z-index: 2;
+  max-width: 44%;
+  background: #fff;
+  border: 1px solid rgba(31, 63, 52, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 14px 34px rgba(31, 63, 52, 0.16);
+  padding: 12px 14px;
+}
+
+.mock-float-venda {
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: flutuar 6s ease-in-out infinite;
+}
+.mock-float-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+.mock-float-value {
+  font-size: 19px;
+  font-weight: 900;
+  color: var(--gastrogreen);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.mock-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 22px;
+  margin-top: 5px;
+}
+.mock-bars i {
+  width: 5px;
+  border-radius: 2px;
+  background: var(--sage);
+  opacity: 0.55;
+}
+.mock-bars i:last-child { background: var(--terracota); opacity: 1; }
+
+.mock-float-pedido {
+  bottom: 4px;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  animation: flutuar 6s ease-in-out infinite 3s;
+}
+.mock-check {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--sage);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.mock-check svg { width: 14px; height: 14px; }
+.mock-float-text { display: flex; flex-direction: column; }
+.mock-float-text b { font-size: 12px; font-weight: 700; color: var(--gastrogreen); line-height: 1.2; }
+.mock-float-text i { font-style: normal; font-size: 10px; color: #9ca3af; margin-top: 1px; }
+
+@keyframes flutuar {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-9px); }
+}
+
+@media (max-width: 480px) {
+  .hero-mock { padding: 46px 0; }
+  .mock-phone { width: 244px; }
+  .mock-float { padding: 9px 11px; border-radius: 13px; }
+  .mock-float-value { font-size: 16px; }
+  .mock-bars { height: 17px; }
+  .mock-float-venda  { top: 0; left: 0; }
+  .mock-float-pedido { bottom: 3%; right: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mock-float-venda, .mock-float-pedido { animation: none; }
+}
+
+/* --------------------------------------------------
    Navbar Sticky
    -------------------------------------------------- */
 nav.sticky-active {
@@ -115,12 +360,15 @@ nav.sticky-active {
 /* --------------------------------------------------
    Glass Cards
    -------------------------------------------------- */
+/* Sólido, não translúcido: o backdrop-filter existia para
+   desfocar a cena 3D que ficava atrás da página. Sem a cena
+   ele não filtra nada e continua custando uma camada de
+   composição por card, em telas que têm seis deles. */
 .glass-card {
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.65);
-  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.08);
+  background: #FFFFFF;
+  border: 1px solid rgba(31, 63, 52, 0.10);
+  box-shadow: 0 2px 4px rgba(31, 63, 52, 0.04),
+              0 12px 28px rgba(31, 63, 52, 0.06);
 }
 
 .glass-card-highlight {
@@ -404,9 +652,9 @@ nav.sticky-active {
 .compare-table tbody tr:last-child td { border-bottom: none; }
 .compare-table tbody tr:hover td { background: rgba(198, 86, 42, 0.03); }
 .compare-col-highlight        { background: rgba(31, 63, 52, 0.04); }
-.compare-yes    { color: #16a34a; font-weight: 700; }
-.compare-no     { color: #dc2626; }
-.compare-partial { color: #d97706; }
+.compare-yes    { color: #2F7D53; font-weight: 700; }
+.compare-no     { color: #B23B2E; }
+.compare-partial { color: #A9761B; }
 
 /* --------------------------------------------------
    FAQ Accordion

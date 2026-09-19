@@ -17,20 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }, { passive: true });
   }
 
-  /* ── Fade-out cena 3D ao sair do hero ────────────── */
-  const canvasContainer = document.getElementById('canvas-container');
-  const heroSection     = document.querySelector('header');
-  if (canvasContainer && heroSection) {
-    window.addEventListener('scroll', () => {
-      const heroHeight = heroSection.offsetHeight;
-      const fadeStart  = heroHeight * 0.55;
-      const fadeEnd    = heroHeight * 0.80;
-      const scrollY    = window.scrollY;
-      const opacity    = 1 - Math.min(1, Math.max(0, (scrollY - fadeStart) / (fadeEnd - fadeStart)));
-      canvasContainer.style.opacity = opacity;
-    }, { passive: true });
-  }
-
   /* ── Sticky Navbar ────────────────────────────────── */
   const nav            = document.querySelector('nav');
   const announcementH  = document.querySelector('.announcement-bar')?.offsetHeight || 36;
