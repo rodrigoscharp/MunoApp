@@ -123,18 +123,7 @@
           Cardápio, pedidos e pagamentos num só lugar, no ar em <strong class="text-gastrogreen">minutos</strong>.
         </p>
 
-        <div class="hero-anim mt-7 flex flex-col sm:flex-row gap-2.5 sm:gap-3 justify-center lg:justify-start">
-          <a href="#planos"
-            class="btn-primary text-sm sm:text-base px-5 sm:px-7 py-3 sm:py-4 rounded-xl inline-flex items-center justify-center gap-2">
-            Quero Gerenciar Meu Restaurante <i data-lucide="arrow-right" class="w-5 h-5"></i>
-          </a>
-          <a href="#como-funciona"
-            class="btn-secondary text-sm sm:text-base px-5 sm:px-7 py-3 sm:py-4 rounded-xl inline-flex items-center justify-center gap-2">
-            <i data-lucide="play-circle" class="w-5 h-5"></i> Ver Como Funciona
-          </a>
-        </div>
-
-        <ul class="hero-anim mt-8 flex flex-wrap justify-center lg:justify-start gap-x-6 gap-y-2 text-sm text-gray-600">
+        <ul class="hero-anim mt-7 flex flex-wrap justify-center lg:justify-start gap-x-6 gap-y-2 text-sm text-gray-600">
           <li class="flex items-center gap-1.5">
             <i data-lucide="check-circle" class="w-4 h-4 text-sage flex-shrink-0"></i> Sem taxa por pedido
           </li>
@@ -145,6 +134,20 @@
             <i data-lucide="check-circle" class="w-4 h-4 text-sage flex-shrink-0"></i> Cancele quando quiser
           </li>
         </ul>
+
+        <!--
+          No lugar dos dois CTAs que ficavam aqui.
+
+          Botão de largura cheia empilhado no celular vira bloco, e dois deles
+          empurravam as provas e o mockup para fora da primeira dobra. O convite
+          para rolar ocupa 40px e diz a mesma coisa que o segundo botão dizia.
+
+          Quem quer assinar agora tem o CTA da navbar, que é sticky, e no celular
+          a barra fixa que sobe depois de 80px de rolagem.
+        -->
+        <a href="#beneficios" class="hero-anim hero-scroll mt-9" aria-label="Rolar para os benefícios">
+          <i data-lucide="chevron-down"></i>
+        </a>
       </div>
 
       <!--

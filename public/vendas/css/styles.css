@@ -97,6 +97,44 @@ body {
 }
 
 /* --------------------------------------------------
+   Hero — convite para rolar
+
+   Alinhado à esquerda junto do texto, e não centrado no
+   rodapé do hero como é de praxe: o hero tem duas colunas,
+   e no meio delas o convite ficaria sob o mockup, longe de
+   onde a leitura termina.
+   -------------------------------------------------- */
+.hero-scroll {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--gastrogreen);
+  border: 1px solid rgba(31, 63, 52, 0.16);
+  background: rgba(255, 255, 255, 0.55);
+  transition: color 0.3s ease, border-color 0.3s ease, background 0.3s ease;
+}
+.hero-scroll:hover {
+  color: var(--terracota);
+  border-color: rgba(198, 86, 42, 0.38);
+  background: #fff;
+}
+.hero-scroll svg {
+  width: 18px;
+  height: 18px;
+  animation: descer 2.2s ease-in-out infinite;
+}
+@keyframes descer {
+  0%, 100% { transform: translateY(-2px); opacity: 0.6; }
+  50%      { transform: translateY(3px);  opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-scroll svg { animation: none; opacity: 1; }
+}
+
+/* --------------------------------------------------
    Hero — mockup do produto
 
    Desenhado em HTML/CSS de propósito. O que estava aqui
