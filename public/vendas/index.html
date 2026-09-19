@@ -33,9 +33,27 @@
   <link rel="icon" type="image/png" href="/icon.png" />
   <link rel="apple-touch-icon" href="/apple-icon.png" />
 
-  <!-- Fontes -->
+  <!--
+    Fontes.
+
+    Os dois preconnect não são enfeite: a folha de estilo vem de
+    fonts.googleapis.com e os arquivos .woff2 vêm de fonts.gstatic.com, um
+    segundo domínio cujo DNS e TLS só começavam a ser resolvidos DEPOIS de a
+    folha chegar. Com display=swap, a janela inteira desse atraso é pintada na
+    fonte de sistema, e é por isso que o celular mostrava um tipo diferente do
+    desktop na primeira dobra. Em rede de celular o atraso é grande o bastante
+    para a pessoa ver a troca acontecer.
+
+    O peso 300 saiu da lista: nenhuma classe e nenhuma regra do projeto usa
+    font-weight 300, e ele era um arquivo a mais na fila na frente dos que a
+    página realmente pinta. Os pesos pedidos são exatamente os usados: 400 do
+    corpo, 500 do font-medium, 600 do font-semibold, 700 do font-bold, 800 de
+    duas regras do CSS e 900 do font-black.
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap"
     rel="stylesheet" />
 
   <!-- Tailwind CDN deve vir ANTES do config -->
@@ -80,9 +98,22 @@
   <!-- ======================================================
        ANNOUNCEMENT BAR
        ====================================================== -->
-  <div class="announcement-bar content-layer text-white text-xs md:text-sm py-2 px-4 text-center font-medium">
-    🔥 Gestão completa do seu restaurante por <strong>R$ 119,99/mês</strong> &nbsp;·&nbsp; Cancele
-    quando quiser
+  <!--
+    A faixa dizia "Gestão completa do seu restaurante por R$ 119,99/mês ·
+    Cancele quando quiser": duas promessas, um emoji e um separador, em duas
+    linhas no celular. Faixa de topo é lida de relance ou não é lida, e a que
+    pede duas linhas não é lida.
+
+    Ficou a única coisa que a primeira dobra não diz mais em lugar nenhum: o
+    preço. "Sem taxa" e "cancele quando quiser" seguem logo abaixo, nas provas
+    do hero.
+
+    Clicável porque desperta a pergunta que a seção de planos responde.
+  -->
+  <div class="announcement-bar content-layer text-center">
+    <a href="#planos" class="announcement-link">
+      Tudo por <strong>R$ 119,99/mês</strong>
+    </a>
   </div>
 
   <!-- ======================================================
@@ -142,10 +173,13 @@
           empurravam as provas e o mockup para fora da primeira dobra. O convite
           para rolar ocupa 40px e diz a mesma coisa que o segundo botão dizia.
 
+          Só no celular. No desktop o hero inteiro cabe na tela, com o mockup ao
+          lado dizendo que a página continua, e aí o convite vira enfeite.
+
           Quem quer assinar agora tem o CTA da navbar, que é sticky, e no celular
           a barra fixa que sobe depois de 80px de rolagem.
         -->
-        <a href="#beneficios" class="hero-anim hero-scroll mt-9" aria-label="Rolar para os benefícios">
+        <a href="#beneficios" class="hero-anim hero-scroll lg:hidden mt-9" aria-label="Rolar para os benefícios">
           <i data-lucide="chevron-down"></i>
         </a>
       </div>

@@ -53,11 +53,38 @@ body {
 .announcement-bar {
   background: linear-gradient(90deg, var(--gastrogreen) 0%, #2d5a47 50%, var(--gastrogreen) 100%);
   background-size: 200% 100%;
-  animation: shimmer 4s ease infinite;
+  animation: shimmer 6s ease infinite;
 }
 @keyframes shimmer {
   0%, 100% { background-position: 0% 50%; }
   50%       { background-position: 100% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .announcement-bar { animation: none; }
+}
+
+/* Maiúscula com entreletra larga em corpo pequeno: a faixa fica discreta e
+   continua legível, e o preço carrega o contraste sozinho, sem precisar de
+   emoji nem de negrito gritando ao lado. */
+.announcement-link {
+  display: inline-block;
+  padding: 9px 16px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.68);
+  transition: color 0.3s ease;
+}
+.announcement-link strong {
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #fff;
+}
+.announcement-link:hover { color: rgba(255, 255, 255, 0.9); }
+
+@media (min-width: 768px) {
+  .announcement-link { font-size: 11px; padding: 10px 16px; }
 }
 
 /* --------------------------------------------------
