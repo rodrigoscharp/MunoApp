@@ -94,15 +94,20 @@
     linhas no celular. Faixa de topo é lida de relance ou não é lida, e a que
     pede duas linhas não é lida.
 
-    Ficou a única coisa que a primeira dobra não diz mais em lugar nenhum: o
-    preço. "Sem taxa" e "cancele quando quiser" seguem logo abaixo, nas provas
-    do hero.
+    Ficou o preço, escondido atrás de "??". A faixa deixa de informar e passa
+    a perguntar, e a resposta está a um clique, na seção de planos. "Sem taxa"
+    e "cancele quando quiser" seguem logo abaixo, nas provas do hero.
 
-    Clicável porque desperta a pergunta que a seção de planos responde.
+    O valor de verdade não sai daqui por acaso: quem manda no preço é PRECOS em
+    src/lib/plans.ts, e src/lib/plans.test.ts confere que os quatro valores de
+    tabela aparecem na página. Eles continuam aparecendo, nos cards de plano e
+    no popup de saída. Não escreva 119,99 aqui de novo: seriam dois lugares
+    para trocar no dia do reajuste, que é exatamente a divergência que o teste
+    existe para pegar.
   -->
   <div class="announcement-bar content-layer text-center">
     <a href="#planos" class="announcement-link">
-      Tudo por <strong>R$ 119,99/mês</strong>
+      Tudo por <strong>R$ ??/mês</strong>
     </a>
   </div>
 
