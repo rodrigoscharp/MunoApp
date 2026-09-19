@@ -34,27 +34,17 @@
   <link rel="apple-touch-icon" href="/apple-icon.png" />
 
   <!--
-    Fontes.
+    Fontes: servidas por este projeto, em public/vendas/fonts/. O porquê, e por
+    que só o subconjunto latin, está no topo de css/styles.css.
 
-    Os dois preconnect não são enfeite: a folha de estilo vem de
-    fonts.googleapis.com e os arquivos .woff2 vêm de fonts.gstatic.com, um
-    segundo domínio cujo DNS e TLS só começavam a ser resolvidos DEPOIS de a
-    folha chegar. Com display=swap, a janela inteira desse atraso é pintada na
-    fonte de sistema, e é por isso que o celular mostrava um tipo diferente do
-    desktop na primeira dobra. Em rede de celular o atraso é grande o bastante
-    para a pessoa ver a troca acontecer.
-
-    O peso 300 saiu da lista: nenhuma classe e nenhuma regra do projeto usa
-    font-weight 300, e ele era um arquivo a mais na fila na frente dos que a
-    página realmente pinta. Os pesos pedidos são exatamente os usados: 400 do
-    corpo, 500 do font-medium, 600 do font-semibold, 700 do font-bold, 800 de
-    duas regras do CSS e 900 do font-black.
+    Os três pesos que a primeira dobra pinta vão de preload: 400 do corpo, 700
+    do <strong> e da navbar, 900 da manchete. crossorigin é obrigatório mesmo
+    na mesma origem, porque fonte é sempre buscada em modo CORS, e sem ele o
+    navegador baixa o arquivo duas vezes.
   -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap"
-    rel="stylesheet" />
+  <link rel="preload" href="/vendas/fonts/poppins-400.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/vendas/fonts/poppins-700.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/vendas/fonts/poppins-900.woff2" as="font" type="font/woff2" crossorigin />
 
   <!-- Tailwind CDN deve vir ANTES do config -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -141,10 +131,11 @@
        HERO
        ====================================================== -->
   <header class="content-layer px-4 pt-8 pb-16 md:pt-12 md:pb-20">
-    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-12 lg:gap-16 items-center">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-6 lg:gap-16 items-center">
 
       <!-- Coluna de texto -->
-      <div class="text-center lg:text-left">
+      <div class="hero-col text-center lg:text-left">
+        <div class="hero-col-texto">
         <h1 class="text-4xl md:text-5xl lg:text-[3.35rem] font-black leading-[1.1] text-gastrogreen">
           <span class="hl-mask"><span class="hl-line">Do Cardápio ao Caixa,</span></span>
           <span class="hl-mask"><span class="hl-line text-terracota">Tudo no Seu Controle</span></span>
@@ -165,6 +156,7 @@
             <i data-lucide="check-circle" class="w-4 h-4 text-sage flex-shrink-0"></i> Cancele quando quiser
           </li>
         </ul>
+        </div>
 
         <!--
           No lugar dos dois CTAs que ficavam aqui.
@@ -179,7 +171,7 @@
           Quem quer assinar agora tem o CTA da navbar, que é sticky, e no celular
           a barra fixa que sobe depois de 80px de rolagem.
         -->
-        <a href="#beneficios" class="hero-anim hero-scroll lg:hidden mt-9" aria-label="Rolar para os benefícios">
+        <a href="#beneficios" class="hero-anim hero-scroll lg:hidden mt-6" aria-label="Rolar para os benefícios">
           <i data-lucide="chevron-down"></i>
         </a>
       </div>

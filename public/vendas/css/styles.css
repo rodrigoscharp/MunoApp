@@ -2,6 +2,87 @@
    MUNOFOOD — Estilos Customizados
    ====================================================== */
 
+/* --------------------------------------------------
+   Fontes, servidas por este projeto
+
+   Vinham de fonts.googleapis.com, que só entrega a folha de estilo: os .woff2
+   moram em fonts.gstatic.com, um SEGUNDO domínio cujo DNS e TLS só começavam
+   depois de a folha chegar. Com font-display: swap, essa janela inteira é
+   pintada na fonte de sistema, e no celular ela durava o bastante para a
+   pessoa ver a página inteira no tipo errado.
+
+   Mesma origem resolve isso de vez: sem DNS, sem TLS, sem terceiro no caminho
+   crítico, e os três pesos da primeira dobra vão de preload no <head>.
+
+   Só o subconjunto latin. Os acentos do português (ã, ç, á, ê, õ) moram no
+   Latin-1 Supplement e cabem nele; latin-ext e devanagari eram peso morto.
+   São 78KB no total, menos que a folha de estilo mais uma ida ao gstatic.
+   -------------------------------------------------- */
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/vendas/fonts/poppins-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/vendas/fonts/poppins-500.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/vendas/fonts/poppins-600.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/vendas/fonts/poppins-700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/vendas/fonts/poppins-800.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Poppins';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('/vendas/fonts/poppins-900.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Space Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/vendas/fonts/space-mono-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Space Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/vendas/fonts/space-mono-700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
   --terracota:   #C6562A;
   --gastrogreen: #1F3F34;
@@ -124,6 +205,42 @@ body {
 }
 
 /* --------------------------------------------------
+   Hero — a primeira dobra do celular ocupa a tela
+
+   Sem isto o hero terminava no meio da tela e o cartão de faturamento do
+   mockup aparecia cortado na borda de baixo. Meia peça espiando pela dobra é
+   a forma mais rápida de uma página parecer inacabada, e o vazio entre ela e
+   o texto não tinha função nenhuma.
+
+   O desconto de 8.5rem é o que já ocupa a tela acima da coluna: a faixa do
+   topo, a navbar e o respiro do header.
+
+   svh, com vh antes como reserva para navegador que não conheça a unidade.
+   No celular, 100vh conta a barra do navegador como se ela não estivesse lá,
+   e a tela "cheia" nasce mais alta que a tela de verdade: o convite para
+   rolar cairia fora de vista, que é o oposto do que ele existe para fazer.
+
+   O my-auto do bloco de texto divide a sobra em duas, acima dele e entre ele
+   e o convite. O texto fica no meio e o convite no fim, sem posicionamento
+   absoluto e sem número mágico de margem.
+   -------------------------------------------------- */
+.hero-col {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 8.5rem);
+  min-height: calc(100svh - 8.5rem);
+}
+.hero-col-texto {
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+@media (min-width: 1024px) {
+  .hero-col { display: block; min-height: 0; }
+  .hero-col-texto { margin: 0; }
+}
+
+/* --------------------------------------------------
    Hero — convite para rolar
 
    Alinhado à esquerda junto do texto, e não centrado no
@@ -133,6 +250,7 @@ body {
    -------------------------------------------------- */
 .hero-scroll {
   display: inline-flex;
+  align-self: center;
   align-items: center;
   justify-content: center;
   width: 40px;
