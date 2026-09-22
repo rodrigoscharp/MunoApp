@@ -192,16 +192,29 @@ body {
   opacity: 0;
   transform: translateY(18px);
 }
-.hl-mask {
-  display: block;
-  overflow: hidden;
-}
+/* Headline — reveal palavra a palavra (porte do @beui/text-reveal para
+   GSAP; o componente original é React + motion e não cabe numa página
+   estática). Sem `overflow: hidden` de propósito: a máscara antiga cortava
+   exatamente o halo do blur, que é o efeito. */
 .hl-line {
   display: block;
   opacity: 0;
 }
+/* Assinatura da primeira dobra. Estado inicial no CSS, como o resto do
+   hero, para não piscar antes do GSAP carregar. */
+.hero-marca {
+  opacity: 0;
+}
+/* A palavra é inline-block para receber transform e filter, e
+   `white-space: pre` porque o espaço que segue cada palavra mora dentro
+   dela — sem isso a linha inteira cola numa palavra só. */
+.tr-unit {
+  display: inline-block;
+  white-space: pre;
+  will-change: transform, filter;
+}
 @media (prefers-reduced-motion: reduce) {
-  .hero-anim, .hl-line { opacity: 1; transform: none; }
+  .hero-anim, .hl-line, .tr-unit, .hero-marca { opacity: 1; transform: none; filter: none; }
 }
 
 /* --------------------------------------------------
@@ -818,7 +831,9 @@ nav.sticky-active {
 }
 
 @media (max-width: 480px) {
-  .receipt-stamp { width: 104px; height: 104px; font-size: 11px; right: 4%; bottom: 22%; }
+  /* Largura e corpo vivem no bloco "Nota de garantia" lá embaixo, junto do
+     resto do encolhimento. Aqui fica só a posição, que não mudou. */
+  .receipt-stamp { right: 4%; bottom: 22%; }
 }
 
 /* --------------------------------------------------
@@ -839,8 +854,47 @@ nav.sticky-active {
 .compare-no     { color: #B23B2E; }
 .compare-partial { color: #A9761B; }
 
+/* No celular a tabela media 375px dentro de um cartão de 343px, e o
+   overflow: hidden do cartão comia os 32px da direita. A coluna
+   "Marketplaces" ficava cortada e inalcançável: a página não rola na
+   horizontal, então não havia como chegar nela. O corte era mudo, sem
+   barra, sem pista.
+
+   A largura vinha do respiro das células: 16px de cada lado, três colunas,
+   96px só de padding. table-layout fixed impede uma palavra longa de
+   esticar a coluna, e o resto é respiro e corpo menores. */
+@media (max-width: 767px) {
+  .compare-table {
+    table-layout: fixed;
+    width: 100%;
+  }
+  .compare-table th,
+  .compare-table td {
+    padding: 12px 8px;
+    font-size: 0.8125rem;
+    overflow-wrap: anywhere;
+  }
+  .compare-table thead th { font-size: 0.75rem; }
+  /* A coluna do nome da funcionalidade carrega as frases mais longas e
+     fica com a maior fatia; as outras duas dividem o que sobra. */
+  .compare-table th:first-child,
+  .compare-table td:first-child { width: 40%; }
+}
+
 /* --------------------------------------------------
-   FAQ Accordion
+   FAQ Accordion — mola do @beui/bouncy-accordion (beui.dev)
+
+   O componente original é React + motion e reconstrói na mão teclado,
+   aria-expanded e aria-controls, porque em React não há outro caminho. Aqui
+   a marcação continua sendo <details>/<summary>, que já traz isso do
+   navegador: o js/faq.js intercepta o clique para animar, em vez de
+   substituir o elemento. Sem JS, o FAQ abre nativo.
+
+   Do original ficaram a altura em mola, o um-aberto-por-vez e o ícone
+   girando junto. A fusão dos cantos (linhas fechadas grudando num bloco
+   único, a aberta se destacando) ficou de fora: ela pede matar o space-y-3
+   e a sombra por card, e glass-card é a linguagem de todas as outras seções
+   da página.
    -------------------------------------------------- */
 .faq-item summary {
   cursor: pointer;
@@ -848,14 +902,39 @@ nav.sticky-active {
   user-select: none;
 }
 .faq-item summary::-webkit-details-marker { display: none; }
+
+/* O ícone continua sendo o "+" virando "×", que é o vocabulário da página.
+   Só a curva mudou, para ele girar na mesma mola da altura. A transição
+   fica no CSS e o JS não toca nela: assim o estado sem JS, que só liga o
+   atributo [open], continua animando o ícone. */
+.faq-icon { transition: transform 0.42s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .faq-item[open] summary .faq-icon { transform: rotate(45deg); }
-.faq-icon { transition: transform 0.3s ease; }
-.faq-item[open] .faq-answer {
-  animation: faqOpen 0.3s ease forwards;
+
+/* O clipe é quem tem a altura animada; a resposta dentro dele guarda o
+   padding e é medida pelo JS. Sem os dois elementos, animar a altura
+   animaria o padding junto e o texto pularia durante a abertura. */
+.faq-clip {
+  overflow: hidden;
 }
-@keyframes faqOpen {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
+
+/* Fechado por padrão, inclusive antes de o JS rodar. O seletor cobre o
+   estado inicial; a partir do primeiro clique quem manda é o estilo inline
+   que o GSAP escreve. */
+.faq-item:not([open]) .faq-clip {
+  height: 0;
+}
+
+.faq-answer {
+  opacity: 0;
+}
+.faq-item[open] .faq-answer {
+  opacity: 1;
+}
+
+/* Sem JS o <details> nativo assume: o clipe não pode ficar preso em zero,
+   e a resposta precisa aparecer. */
+@media (prefers-reduced-motion: reduce) {
+  .faq-icon { transition: none; }
 }
 
 /* --------------------------------------------------
@@ -951,4 +1030,536 @@ nav.sticky-active {
 }
 @media (prefers-reduced-motion: reduce) {
   .flame-anim { animation: none; }
+}
+
+/* --------------------------------------------------
+   Abertura da página — porte da MunoIntro (Remotion,
+   ~/Dev/MunoVideo/src/Intro.tsx) para CSS + GSAP.
+
+   Por que portar em vez de embutir o render: o mp4 pesa 184KB e trava
+   atrás de uma política de autoplay que pode recusar; o webm transparente
+   não serve para iOS Safari, que só faz alpha com HEVC. Aqui o único byte
+   novo é o muno-icon.png (4KB) — o logo.png a página já baixa para o hero.
+
+   Do original ficaram os frames 0–60 (hold, antecipação, punch com blur e
+   split cromático, flash, wordmark assentando com undershoot), comprimidos
+   de 2s para 1.5s. O shine sweep e o "breathe" vivem depois do frame 68 e
+   existem para segurar um vídeo de 3.5s que termina sozinho; numa abertura
+   de landing eles só adiam a headline.
+
+   O fundo é var(--cream), não o #FFFFFF do render: a landing é #F4F2EF, e
+   a diferença apareceria como um flash no instante da revelação.
+   -------------------------------------------------- */
+.intro {
+  /* Largura da wordmark. Todo o resto é proporção medida do original:
+     ícone 220/620, glow 780/620. */
+  --intro-w: clamp(190px, 42vw, 320px);
+  --intro-escala: 1;
+  --intro-blur: 0px;
+  --intro-blur-fantasma: 2px;
+  --intro-croma: 0px;
+
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: var(--cream);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* O painel só existe quando o script do <head> arma a abertura. Se o
+   intro.js não carregar, esta regra nunca liga e a landing abre direto. */
+/* A rede de segurança NÃO mora aqui. Uma animação CSS com atraso parece o
+   caminho natural, e foi a primeira tentativa, mas o navegador congela
+   animação em aba de segundo plano exatamente como congela o
+   requestAnimationFrame: o painel ficava de pé passados os 4 segundos. Quem
+   resgata é um setTimeout no <head>, que o navegador atrasa mas não suspende. */
+html[data-intro] .intro {
+  display: flex;
+}
+
+.intro__palco {
+  position: relative;
+  width: var(--intro-w);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.intro__glow {
+  position: absolute;
+  width: calc(var(--intro-w) * 1.258);
+  height: calc(var(--intro-w) * 1.258);
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(212, 97, 42, 0.15) 0%,
+    rgba(43, 82, 64, 0.08) 45%,
+    transparent 72%);
+  opacity: 0;
+}
+
+/* O ícone não fica no centro da wordmark: "muno" centra entre o u e o n, e
+   o garfo precisa pousar em cima do u de verdade para virar a letra em vez
+   de só cobri-la. O -5.06% sai das colunas do próprio logo.png (721px
+   nativos, o u entre x=252 e x=396). */
+.intro__icone {
+  position: absolute;
+  width: calc(var(--intro-w) * 0.3548);
+  height: calc(var(--intro-w) * 0.3548);
+  transform:
+    translateX(calc(var(--intro-w) * -0.0506))
+    scale(var(--intro-escala));
+  filter: blur(var(--intro-blur));
+  will-change: transform, filter, opacity;
+}
+
+/* Os dois fantasmas do split cromático: silhuetas da marca deslocadas em
+   sentidos opostos, visíveis só no pico da velocidade. */
+.intro__icone--fantasma {
+  opacity: 0;
+  /* Os fantasmas borram mais que o ícone, como no original (2 + v*10
+     contra v*6): é o rastro que vende a velocidade. */
+  filter: blur(var(--intro-blur-fantasma));
+  -webkit-mask-image: url("/vendas/img/muno-icon.png");
+  mask-image: url("/vendas/img/muno-icon.png");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+.intro__icone--terracota {
+  background-color: var(--terracota);
+  transform:
+    translateX(calc(var(--intro-w) * -0.0506 - var(--intro-croma)))
+    scale(var(--intro-escala));
+}
+.intro__icone--verde {
+  background-color: var(--gastrogreen);
+  transform:
+    translateX(calc(var(--intro-w) * -0.0506 + var(--intro-croma)))
+    scale(var(--intro-escala));
+}
+
+.intro__marca {
+  position: relative;
+  width: 100%;
+  display: block;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+/* O estouro branco do instante em que o ícone "atravessa a lente". */
+.intro__flash {
+  position: absolute;
+  inset: 0;
+  background: #FFFFFF;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro { display: none !important; }
+}
+
+/* --------------------------------------------------
+   Faixa do topo — @beui/text-shimmer (beui.dev)
+
+   O original é CSS puro embrulhado em React: gradiente de 200% de largura
+   preso ao texto por background-clip, e a posição do fundo correndo de
+   200% a -200%. Aqui é o mesmo efeito sem o embrulho.
+
+   Vale só no <strong>, que é o preço. A faixa inteira brilhando seria a
+   segunda animação de fundo no mesmo elemento: .announcement-bar já corre
+   um gradiente próprio, e as duas juntas viram ruído.
+
+   O nome do keyframe leva prefixo porque "shimmer" já existe acima, para
+   o fundo da faixa.
+   -------------------------------------------------- */
+.announcement-link strong {
+  background: linear-gradient(110deg,
+    rgba(255, 255, 255, 0.55) 30%,
+    #ffffff 50%,
+    rgba(255, 255, 255, 0.55) 70%);
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: munoTextShimmer 2.5s linear infinite;
+}
+@keyframes munoTextShimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .announcement-link strong {
+    animation: none;
+    background: none;
+    color: #fff;
+  }
+}
+
+/* --------------------------------------------------
+   CTA dos planos — @beui/expanding-arrow-button (beui.dev)
+
+   A mecânica do original: uma placa de acento ocupa a esquerda do botão
+   com uma seta pontilhada dentro; no hover ela cresce até a largura toda,
+   o rótulo sai, e cinco setas entram em fila com opacidades decrescentes.
+
+   Duas escolhas que valem registro:
+
+   Primeira, as cores são as da Muno, não as do componente (preto com
+   verde-limão). Um botão de outra paleta no meio da página não é o mesmo
+   botão, é um enxerto.
+
+   Segunda, isto NÃO substitui .btn-primary nas nove aparições. A anatomia
+   precisa de largura para a placa correr, e nos botões pequenos da nav e
+   da barra fixa ela não tem para onde ir. A regra é o cartão de plano: os
+   três botões da grade de planos usam a seta, inclusive o "Falar com
+   Consultor", que não vende nada. Ele entrou porque os três ficam lado a
+   lado, e um botão diferente no meio dos outros dois se lê como erro, não
+   como hierarquia. Fora daquela grade, tudo continua .btn-primary.
+
+   Sem JS: é tudo :hover e :focus-visible.
+   -------------------------------------------------- */
+.btn-seta {
+  position: relative;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  padding: 6px;
+  min-height: 60px;
+  border-radius: 16px;
+  background-color: var(--terracota);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 4px 16px rgba(198, 86, 42, 0.35);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+.btn-seta:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(198, 86, 42, 0.45); }
+.btn-seta:active { transform: scale(0.985); }
+
+/* A placa. 52px parada, largura toda no hover — a mesma conta do original
+   (100% menos os 12px de respiro dos dois lados). */
+.btn-seta__placa {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 6px;
+  width: 52px;
+  border-radius: 11px;
+  background-color: #ffffff;
+  color: var(--terracota);
+  overflow: hidden;
+  transition: width 0.42s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.btn-seta:hover .btn-seta__placa,
+.btn-seta:focus-visible .btn-seta__placa {
+  width: calc(100% - 12px);
+}
+
+.btn-seta__seta {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  transition: opacity 0.1s ease;
+}
+.btn-seta:hover .btn-seta__seta,
+.btn-seta:focus-visible .btn-seta__seta { opacity: 0; }
+
+.btn-seta__trilha {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 12px;
+}
+.btn-seta__trilha > span {
+  display: inline-grid;
+  place-items: center;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.btn-seta:hover .btn-seta__trilha > span,
+.btn-seta:focus-visible .btn-seta__trilha > span {
+  opacity: 1;
+  transform: translateX(0);
+}
+/* O atraso em cascata é o que faz a fila "correr" em vez de acender junta. */
+.btn-seta__trilha > span:nth-child(1) { transition-delay: 0.04s; }
+.btn-seta__trilha > span:nth-child(2) { transition-delay: 0.065s; }
+.btn-seta__trilha > span:nth-child(3) { transition-delay: 0.09s; }
+.btn-seta__trilha > span:nth-child(4) { transition-delay: 0.115s; }
+.btn-seta__trilha > span:nth-child(5) { transition-delay: 0.14s; }
+/* Opacidades do original: a fila desbota conforme avança. */
+.btn-seta__trilha > span:nth-child(1) { color: rgba(198, 86, 42, 1); }
+.btn-seta__trilha > span:nth-child(2) { color: rgba(198, 86, 42, 0.78); }
+.btn-seta__trilha > span:nth-child(3) { color: rgba(198, 86, 42, 0.54); }
+.btn-seta__trilha > span:nth-child(4) { color: rgba(198, 86, 42, 0.32); }
+.btn-seta__trilha > span:nth-child(5) { color: rgba(198, 86, 42, 0.16); }
+
+.btn-seta__rotulo {
+  position: relative;
+  z-index: 0;
+  margin-left: 70px;
+  margin-right: 18px;
+  white-space: nowrap;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.btn-seta:hover .btn-seta__rotulo,
+.btn-seta:focus-visible .btn-seta__rotulo {
+  opacity: 0;
+  transform: translateX(6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-seta,
+  .btn-seta__placa,
+  .btn-seta__seta,
+  .btn-seta__trilha > span,
+  .btn-seta__rotulo { transition: none; }
+}
+
+/* --------------------------------------------------
+   Cartões de plano — @beui/tilt-card (beui.dev)
+
+   O brilho é um irmão sobreposto, criado pelo js/tilt.js. Ele não pode ser
+   o background do cartão: glass-card já tem fundo branco e duas sombras, e
+   trocar o background apagaria os dois.
+   -------------------------------------------------- */
+/* A perspectiva mora no contêiner, e não no transform do cartão: o cartão
+   já tem o transform do .reveal, e disputar aquele slot foi exatamente o
+   bug que prendeu o cartão 28px abaixo do lugar. Ver js/tilt.js. */
+.planos-grade {
+  perspective: 1000px;
+}
+[data-tilt] {
+  transform-style: preserve-3d;
+}
+
+.tilt-brilho {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  background: radial-gradient(circle at var(--bx, 50%) var(--by, 50%),
+    var(--gastrogreen), transparent 50%);
+}
+
+/* Dígito de largura fixa. Sem isto o preço contando muda de largura a cada
+   quadro e o "/mês" ao lado dança junto. */
+.preco { font-variant-numeric: tabular-nums; }
+
+/* --------------------------------------------------
+   Benefícios — @beui/chromatic-text-reveal (beui.dev)
+
+   Uma borda de cor varre a palavra da esquerda para a direita: antes dela
+   o texto é transparente, depois é a cor final, e no ponto exato da
+   passagem fica a faixa cromática. Tudo com background-clip: text e uma
+   variável que o js/cromatico.js move.
+
+   A paleta é a da marca, não a do componente (azul, índigo, roxo, rosa,
+   âmbar). Um arco-íris no meio da página não é o mesmo efeito, é outro
+   produto aparecendo por dois segundos.
+
+   As palavras que entram no ciclo são todas verdadeiras e já ditas em
+   outro lugar da página: "cozinha" e "caixa" saem do passo 2 do "Como
+   funciona", e "delivery" do FAQ sobre marketplaces. O efeito não é lugar
+   para prometer módulo que não existe.
+   -------------------------------------------------- */
+.cromatico {
+  --cromatico-varredura: -14%;
+}
+.cromatico__palco {
+  position: relative;
+  display: inline-grid;
+  vertical-align: baseline;
+}
+/* Os fantasmas seguram a largura do maior termo, para a frase não
+   encolher e esticar a cada troca. Todos ocupam a mesma célula da grade.
+
+   Eles levam aria-hidden no HTML, e isso não é zelo: sem o atributo o nome
+   acessível do <h2> vira "Gestão completa, do cardápio ao cozinha delivery
+   caixa". Medido na árvore de acessibilidade — visibility: hidden não bastou
+   para tirá-los de lá. */
+.cromatico__medida,
+.cromatico__ativa {
+  grid-column-start: 1;
+  grid-row-start: 1;
+  white-space: nowrap;
+}
+.cromatico__medida {
+  visibility: hidden;
+}
+.cromatico__ativa {
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* Sem JS ou com movimento reduzido, a palavra é só texto na cor da marca.
+   O seletor cobre os dois: o js/cromatico.js liga a classe ao assumir. */
+.cromatico:not(.cromatico--ativo) .cromatico__ativa {
+  background: none;
+  color: var(--terracota);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cromatico__ativa {
+    background: none !important;
+    color: var(--terracota) !important;
+  }
+}
+
+/* --------------------------------------------------
+   Planos no celular — carrossel com espiada
+
+   Os cartões mediam 482, 506 e 458px de altura numa tela de 812. Com a
+   grade empilhada e o gap-8, saía um por tela: para comparar preço era
+   preciso rolar, guardar o número de cabeça e rolar de volta.
+
+   A espiada é o mecanismo, não o enfeite. Um carrossel sem o pedaço do
+   próximo cartão aparecendo parece um cartão só, e ninguém arrasta o que
+   não sabe que existe. Por isso 82% de largura e o respiro da borda: o
+   vizinho sempre aparece.
+
+   Só abaixo de 768px. No desktop a grade de três colunas continua
+   exatamente como estava, e é lá que o comparativo já funcionava.
+   -------------------------------------------------- */
+@media (max-width: 767px) {
+  /* div.planos-grade, e não .planos-grade: a classe .grid do Tailwind tem a
+     mesma especificidade, e o CDN injeta o estilo dele depois deste arquivo,
+     então no empate ele vence. O seletor de elemento desempata. Medido: com
+     uma classe só, o display continuava grid e o carrossel não existia. */
+  div.planos-grade {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    /* Sangra até a borda da tela e devolve o respiro por dentro: sem isto
+       o primeiro e o último cartão ficariam presos no px-4 da seção e não
+       haveria espaço para o vizinho espiar. */
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+    scroll-padding-inline: 1rem;
+    /* A barra de rolagem some; quem informa que há mais é a espiada. */
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  div.planos-grade::-webkit-scrollbar { display: none; }
+
+  div.planos-grade > .plano-cartao {
+    flex: 0 0 82%;
+    scroll-snap-align: center;
+    /* Item flex não encolhe abaixo do min-content do seu conteúdo, e o
+       flex-shrink: 0 acima não muda isso. Sem o min-width: 0 os três
+       cartões saíam com larguras diferentes (324, 336 e 288 medidos),
+       porque cada botão tem um rótulo de comprimento diferente. */
+    min-width: 0;
+  }
+
+  /* Dois nomes de classe para ganhar do p-8 do Tailwind sem !important. */
+  .planos-grade .plano-cartao {
+    padding: 22px;
+    border-radius: 20px;
+  }
+  .planos-grade .plano-cartao .preco {
+    font-size: 2.25rem;
+    line-height: 1.1;
+  }
+  .planos-grade .plano-cartao ul {
+    margin-bottom: 20px;
+  }
+  .planos-grade .plano-cartao ul > li {
+    margin-top: 8px;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+  }
+  .planos-grade .plano-cartao ul > li:first-child { margin-top: 0; }
+  .planos-grade .plano-cartao .btn-seta {
+    min-height: 52px;
+  }
+  /* O rótulo passa a quebrar. Ele é nowrap por padrão porque a placa do
+     botão corre por baixo dele, mas nowrap dentro de um carrossel vira
+     largura mínima do cartão: "Quero Membro + Mesas QR" numa linha só
+     empurrava aquele cartão para 336px enquanto o vizinho ficava em 288. */
+  .planos-grade .plano-cartao .btn-seta__rotulo {
+    margin-left: 60px;
+    margin-right: 12px;
+    font-size: 0.875rem;
+    white-space: normal;
+    line-height: 1.25;
+    text-align: left;
+  }
+
+  /* A região rolável precisa ser alcançável pelo teclado (WCAG 2.1.1), e o
+     anel de foco não pode aparecer no clique de quem usa mouse. */
+  .planos-grade:focus { outline: none; }
+  .planos-grade:focus-visible {
+    outline: 2px solid var(--terracota);
+    outline-offset: 4px;
+    border-radius: 20px;
+  }
+}
+
+/* --------------------------------------------------
+   Nota de garantia — tamanho no celular e entrada
+
+   Ela media 351x437 numa tela de 375x812: 93% da largura, e a seção inteira
+   passava dos 923px. Um recibo que ocupa a tela toda deixa de parecer um
+   papelzinho e vira mais um cartão como os outros. Aqui ele encolhe para
+   caber na mão.
+
+   O estado inicial só existe quando o js/recibo.js está de pé e liga a
+   classe. Sem o script, ou com ele quebrado, a nota aparece normalmente em
+   vez de ficar invisível esperando uma animação que não vem.
+   -------------------------------------------------- */
+.recibo-armado .receipt,
+.recibo-armado .receipt-stamp {
+  opacity: 0;
+}
+
+@media (max-width: 767px) {
+  /* div.recibo-caixa: o .max-w-sm do Tailwind tem a mesma especificidade e
+     é injetado depois deste arquivo, então no empate ele vence. Mesmo
+     desempate usado na grade dos planos. Medido: com uma classe só, a nota
+     continuava em 384px. */
+  div.recibo-caixa {
+    max-width: 290px;
+  }
+  .receipt {
+    padding: 22px 18px 32px;
+  }
+  .receipt-logo { font-size: 17px; }
+  .receipt-meta { font-size: 10px; }
+  .receipt-barcode {
+    height: 18px;
+    margin: 12px 0 14px;
+  }
+  .receipt-items li {
+    padding: 6px 0;
+    font-size: 12.5px;
+    gap: 6px;
+  }
+  .receipt-items b { font-size: 10px; }
+  .receipt-divider { margin: 12px 0 10px; }
+  .receipt-total { font-size: 11px; letter-spacing: 1.5px; }
+}
+
+@media (max-width: 480px) {
+  .receipt-stamp { width: 86px; height: 86px; font-size: 9.5px; border-width: 2px; }
+  .receipt-stamp::before { inset: 6px; }
+}
+
+/* Sem movimento: a nota e o carimbo já estão no lugar. */
+@media (prefers-reduced-motion: reduce) {
+  .recibo-armado .receipt,
+  .recibo-armado .receipt-stamp { opacity: 1; }
 }
