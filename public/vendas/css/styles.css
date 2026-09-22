@@ -1355,7 +1355,30 @@ html[data-intro] .intro {
 
 /* Dígito de largura fixa. Sem isto o preço contando muda de largura a cada
    quadro e o "/mês" ao lado dança junto. */
-.preco { font-variant-numeric: tabular-nums; }
+/* Preço mensal x anual: strings de comprimento bem diferente
+   ("R$ 119,99" contra "R$ 1.319,89"). Sem white-space: nowrap o número
+   quebrava NO MEIO — "R$" numa linha, "1.319,89" sozinho embaixo —
+   porque o flex encolhia .preco até caber ao lado do "/ano" na mesma
+   linha, e texto encolhido abaixo do necessário quebra em vez de
+   transbordar. Medido: faltavam uns 11px tanto no cartão do carrossel
+   (375px) quanto no grid do desktop (1280px), então o problema não é de
+   uma largura específica, é estrutural.
+
+   A correção não é abrir mais espaço (o próximo reajuste de preço muda
+   o número de dígitos de novo); é nunca deixar o preço quebrar, e jogar
+   o "/mês" ou "/ano" para uma segunda linha quando não couber ao lado
+   — ver .preco-linha. */
+.preco {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A linha que guarda .preco + .periodo. Vira duas linhas quando os dois
+   juntos não cabem, com o período abaixo do preço em vez de o número
+   ser espremido até quebrar. */
+.preco-linha {
+  flex-wrap: wrap;
+}
 
 /* --------------------------------------------------
    Benefícios — @beui/chromatic-text-reveal (beui.dev)
