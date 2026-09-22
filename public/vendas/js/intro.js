@@ -29,9 +29,26 @@
 
   const encerrar = (pularMarca) => {
     desarmarResgate();
-    raiz.removeAttribute('data-intro');
-    painel.remove();
     if (window.munoHero) window.munoHero.iniciar({ pularMarca });
+
+    /* A travadinha morava aqui. Isto rodava na mesma rAF em que o GSAP
+       também atualiza o hero — que a essa altura (ANTECIPA_HERO) já está
+       0.25s dentro da rajada de blur nas oito palavras. Tirar o
+       data-intro vira o .intro inteiro de display: flex para none, um
+       recálculo de estilo grande num elemento fixed cobrindo a tela,
+       empilhado sobre a interpolação de filter das palavras no mesmo
+       frame. O resultado era um frame mais longo que 16ms, sentido como
+       hiccup bem no instante em que o headline aparece — o timing que não
+       "casava".
+
+       Adiar para o PRÓXIMO frame separa os dois custos em vez de somá-los.
+       O painel já está fora da tela (yPercent: -100) e sem pointer-events,
+       então um frame de atraso na remoção real não aparece — só o custo
+       dela sai do caminho do hero. */
+    requestAnimationFrame(() => {
+      raiz.removeAttribute('data-intro');
+      painel.remove();
+    });
   };
 
   if (typeof gsap === 'undefined') { encerrar(false); return; }
