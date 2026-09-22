@@ -8,6 +8,7 @@ import { COOKIE_SESSAO, MAX_AGE_SESSAO } from "@/lib/funil/cookie";
 // para o manifest do PWA usar a MESMA implementação. Não recrie uma cópia
 // aqui: ver o docblock daquele módulo, e o caso do tenant-url.ts no AGENTS.md.
 import { PLATFORM_SUBDOMAIN, resolveSlugFromHost } from "@/lib/hosts";
+import { PAGINA_404 } from "@/lib/pagina-404";
 
 // A página de vendas, servida do filesystem. LANDING_BASE é o prefixo que o
 // namespace protege: public/ do app já tem um munowbg.png diferente do da
@@ -293,7 +294,18 @@ export default auth(async (req) => {
     if (nextUrl.pathname.replace(/\/$/, "") === "") {
       return comSessao(NextResponse.rewrite(urlNoHost(LANDING_DOC), semTenant), req);
     }
-    return new NextResponse(null, { status: 404 });
+    // O status continua 404; o que mudou é que agora existe uma página. Ela
+    // é o único 404 do arquivo com corpo, porque é o único que uma pessoa
+    // abre no navegador: os outros atendem API e asset.
+    //
+    // Corpo devolvido daqui, e não rewrite para um arquivo em public/:
+    // rewrite responde com o status do destino, e um estático responderia
+    // 200 com cara de erro, que é o soft 404 que buscador pune. Ver
+    // src/lib/pagina-404.ts.
+    return new NextResponse(PAGINA_404, {
+      status: 404,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
   }
 
   const slug = resolvedSlug;
