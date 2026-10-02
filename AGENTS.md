@@ -648,3 +648,24 @@ usam o mesmo banco. Por isso:
   se a migração obedecer as duas regras acima.
 
 O cron (`vercel.json`) usa horário **UTC**: `0 9 * * *` é 06:00 em Brasília.
+
+## Testes de integração
+
+`npm test` roda os testes de unidade, que mockam o Prisma. Constraint única,
+corrida e RLS só são exercitadas em `npm run test:integracao`
+(`src/**/*.integration.test.ts`), contra um Postgres de verdade:
+
+```
+docker compose up -d
+docker exec muno-db-dev psql -U muno -d muno -c "create database muno_teste"   (uma vez)
+npm run test:integracao
+```
+
+O banco é `muno_teste` (ou `DATABASE_URL_TESTE`), e `src/test-integracao/banco.ts`
+recusa qualquer host que não seja local e qualquer banco sem "test" no nome. As
+migrações são aplicadas sozinhas antes da suíte. No CI roda o job `integracao`
+com um serviço `postgres:17`.
+
+Ao escrever um teste de integração, aguarde a query **dentro** do callback de
+`runWithTenant` (use `comTenant`): a query do Prisma é preguiçosa e a extensão
+lê o contexto de tenant no momento em que ela executa.

@@ -94,6 +94,8 @@ const USO_DE_PRISMA_UNSCOPED: Record<string, string> = {
   "src/lib/auth-platform.ts": BUNDLE_DO_PROXY,
   "src/lib/assinatura/baixa.ts": "baixa manual de cobrança, feita pela plataforma",
   "src/app/api/health/route.ts": "monitor de disponibilidade, consulta trivial sem tenant",
+  "src/test-integracao/apoio.ts":
+    "cria e apaga restaurantes de teste no banco descartável dos testes de integração",
   "src/lib/retencao.ts":
     "cron diário aplicando retenção de dado pessoal entre todos os restaurantes, sem tenant",
   "src/lib/anonimizacao-cliente.ts":

@@ -17,6 +17,7 @@
     "db:enviar": "tsx scripts/enviar-backup.ts",
     "db:recuperar": "tsx scripts/recuperar-backup.ts",
     "db:espelhar": "tsx scripts/espelhar-producao.ts",
+    "test:integracao": "vitest run --config vitest.integration.config.mts",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "tenant:create": "tsx scripts/create-tenant.ts",
