@@ -17,6 +17,7 @@ import {
 } from "@/lib/assinatura/reconciliacao";
 import { reconciliarCobrancasDoAsaas } from "@/lib/assinatura/reconciliacao-cobrancas";
 import { registrarEvento } from "@/lib/funil/registrar";
+import { aplicarRetencao, limparTokensExpirados, mesesDeRetencao } from "@/lib/retencao";
 import { expurgarEventos } from "@/lib/funil/expurgo";
 
 /**
@@ -345,6 +346,21 @@ async function executar(req: NextRequest) {
     await reportarErro({ origem: "cron/assinaturas:funil", erro });
   }
 
+  // Faxina de dado pessoal e de lixo. Última e sem propagar, como o expurgo do
+  // funil: conveniência e conformidade não derrubam a cobrança do dia.
+  let retencao: Awaited<ReturnType<typeof aplicarRetencao>> | null = null;
+  let tokensApagados = 0;
+  let faxinaDeDadosFalhou = false;
+  try {
+    tokensApagados = await limparTokensExpirados(agora);
+    const meses = mesesDeRetencao();
+    if (meses) retencao = await aplicarRetencao(agora, meses);
+  } catch (erro) {
+    faxinaDeDadosFalhou = true;
+    console.error("[cron/assinaturas] falha na retenção de dados e limpeza de tokens", erro);
+    await reportarErro({ origem: "cron/assinaturas:retencao", erro });
+  }
+
   const resposta = {
     competencia,
     reconciliacao,
@@ -358,6 +374,9 @@ async function executar(req: NextRequest) {
     statusAtualizados,
     funil,
     ...(expurgoDoFunilFalhou ? { expurgoDoFunilFalhou: true } : {}),
+    tokensApagados,
+    ...(retencao ? { retencao } : {}),
+    ...(faxinaDeDadosFalhou ? { faxinaDeDadosFalhou: true } : {}),
   };
 
   // Contador honesto: se a limpeza falhou, inscricoesExpiradas fica 0 (nada

@@ -93,6 +93,23 @@ export function ConfirmacaoAssinatura({ inscricaoId }: { inscricaoId?: string })
           ? "O e-mail com o link para criar sua senha está a caminho. É por ele que você entra pela primeira vez."
           : "Em alguns minutos você recebe um e-mail com o endereço do seu cardápio e um link para criar sua senha. É por ele que você entra pela primeira vez."}
       </p>
+
+      {/* O e-mail é o único caminho de entrada. Se ele não chegar (spam,
+          domínio do remetente), a pessoa não depende de nós: o restaurante já
+          existe, e a tela de "esqueci a senha" dele manda um link novo para o
+          mesmo e-mail do cadastro. */}
+      {aceso && (
+        <p className="mt-3 text-sm leading-relaxed text-neutral-600">
+          O e-mail não chegou?{" "}
+          <a
+            href={`${casa.url}/esqueci-senha`}
+            className="font-semibold text-brand underline"
+          >
+            Crie sua senha agora
+          </a>{" "}
+          com o e-mail que você usou na compra.
+        </p>
+      )}
     </>
   );
 }

@@ -512,6 +512,13 @@ export default function CheckoutPage() {
           >
             {loading ? "Processando..." : paymentMethod === "CASH" ? "Confirmar Pedido" : "Ir para Pagamento"}
           </button>
+          <p className="text-center text-xs text-neutral-400">
+            Seu nome, telefone e endereço são usados só para este pedido, conforme a{" "}
+            <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline">
+              Política de Privacidade
+            </a>
+            .
+          </p>
         </form>
 
         {/* Resumo */}

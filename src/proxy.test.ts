@@ -833,3 +833,17 @@ describe("proxy: cache do restaurante", () => {
     }
   });
 });
+
+
+describe("proxy: aviso de privacidade no domínio do restaurante", () => {
+  it.each(["/privacidade", "/privacidade/"])("%s reescreve para o documento, sem consultar o tenant", async (caminho) => {
+    const res = await proxy(requisicao(caminho));
+    expect(res.headers.get("x-middleware-rewrite")).toContain("/vendas/privacidade.html");
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it("os Termos de Uso não são servidos no domínio do restaurante: são do contrato com a Muno", async () => {
+    const res = await proxy(requisicao("/termos"));
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+  });
+});

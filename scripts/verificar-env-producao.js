@@ -37,7 +37,17 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const OBRIGATORIAS = ["ASAAS_API_KEY", "ASAAS_WEBHOOK_TOKEN"];
+// RESEND_*: o acesso do cliente que acabou de pagar chega por e-mail. Sem a
+// chave, o envio falha; sem RESEND_FROM_EMAIL o remetente cai em
+// onboarding@resend.dev, que só entrega ao dono da conta Resend. Nos dois casos
+// o cliente paga, o restaurante nasce e ninguém consegue entrar.
+const OBRIGATORIAS = [
+  "ASAAS_API_KEY",
+  "ASAAS_WEBHOOK_TOKEN",
+  "RESEND_API_KEY",
+  "RESEND_FROM_EMAIL",
+  "PAYMENT_TOKEN_ENCRYPTION_KEY",
+];
 
 // Variáveis cuja falta não derruba o build (podem estar certas e eu não saber,
 // e um falso positivo aqui trancaria o deploy de qualquer correção), mas cuja
@@ -45,9 +55,7 @@ const OBRIGATORIAS = ["ASAAS_API_KEY", "ASAAS_WEBHOOK_TOKEN"];
 // onboarding@resend.dev, que só entrega ao dono da conta Resend, e o cliente
 // que acabou de pagar nunca recebe o link de senha.
 const RECOMENDADAS = [
-  "RESEND_API_KEY",
-  "RESEND_FROM_EMAIL",
-  "PAYMENT_TOKEN_ENCRYPTION_KEY",
+  "ERROR_WEBHOOK_URL",
   "CRON_SECRET",
   "ROOT_DOMAIN",
   "LANDING_ORIGIN",

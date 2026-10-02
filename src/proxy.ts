@@ -335,6 +335,14 @@ export default auth(async (req) => {
     return new NextResponse(null, { status: 404 });
   }
 
+  // O aviso de privacidade também vale no domínio do restaurante: é onde o
+  // consumidor final informa nome, telefone e endereço, e a política descreve
+  // o restaurante como controlador desses dados. Só a privacidade: os Termos
+  // de Uso são do contrato do restaurante com a Muno.
+  if (nextUrl.pathname.replace(/\/$/, "") === "/privacidade") {
+    return NextResponse.rewrite(urlNoHost(DOCUMENTOS_LEGAIS["/privacidade"]), semTenant);
+  }
+
   // Em cache por 30s (ver src/lib/tenant-cache.ts): sem ele cada requisição
   // de cada tela aberta custava uma consulta só para achar o restaurante.
   const tenant = await buscarTenantComCache(slug, () =>

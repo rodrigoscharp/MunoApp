@@ -623,3 +623,11 @@ restaurantes. Trocá-la de uma vez invalida todas. O caminho seguro:
 `REALTIME_TOPIC_SECRET`, se não definido, deriva desta chave: trocá-la muda os
 nomes dos canais de tempo real (abas abertas ficam sem aviso até recarregar).
 Defina `REALTIME_TOPIC_SECRET` à parte para desacoplar as duas.
+
+## Retenção de dados pessoais
+
+O cron diário apaga tokens de redefinição vencidos e, **se `RETENCAO_PEDIDOS_MESES`
+estiver definida**, anonimiza os pedidos mais antigos que esse prazo (nome,
+telefone, endereço, observações; conversa e posição do entregador são apagadas;
+o pedido fica, pelo valor fiscal). O prazo é decisão de negócio e jurídica, por
+isso a variável nasce vazia e nada é anonimizado até alguém defini-la.

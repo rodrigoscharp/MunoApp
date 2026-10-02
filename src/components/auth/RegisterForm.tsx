@@ -193,6 +193,13 @@ export function RegisterForm({ restaurantInfo }: { restaurantInfo: RestaurantInf
             >
               {loading ? "Criando conta..." : "Criar conta"}
             </button>
+            <p className="text-center text-xs text-neutral-400">
+              Seus dados são usados para o seu pedido, conforme a{" "}
+              <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline">
+                Política de Privacidade
+              </a>
+              .
+            </p>
           </form>
 
           <p className="text-center text-sm text-neutral-500 mt-6">
