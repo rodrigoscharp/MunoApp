@@ -37,6 +37,9 @@ export default async function PedidosPage() {
       items: { include: { menuItem: { select: { name: true } } } },
     },
     orderBy: { createdAt: "desc" },
+    // Os 50 mais recentes: o histórico inteiro de um cliente fiel, com itens,
+    // a cada visita à página, só cresce.
+    take: 50,
   });
 
   const active = orders.filter((o) =>

@@ -37,10 +37,14 @@ export async function GET(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
     }
 
-    const messages = await prisma.chatMessage.findMany({
+    // As 200 mais recentes (desc + take), devolvidas em ordem cronológica.
+    // asc + take cortaria justamente as mensagens novas.
+    const recentes = await prisma.chatMessage.findMany({
       where: { orderId: id },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
+      take: 200,
     });
+    const messages = recentes.reverse();
 
     return NextResponse.json(messages);
   });

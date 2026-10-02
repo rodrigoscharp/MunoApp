@@ -26,12 +26,15 @@ export async function GET(req: NextRequest) {
     const sinceParam = req.nextUrl.searchParams.get("since");
     const since = sinceParam ? new Date(sinceParam) : null;
     const desde = since && !Number.isNaN(since.getTime()) ? since : null;
+    // Sem `since` (primeira chamada do sino), só os últimos 7 dias: antes saía
+    // toda mensagem do admin que o cliente já recebeu na vida, a cada abertura.
+    const seteDiasAtras = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
     const messages = await prisma.chatMessage.findMany({
       where: {
         senderRole: "ADMIN",
         order: { userId: session.user.id },
-        ...(desde ? { createdAt: { gt: desde } } : {}),
+        createdAt: { gt: desde ?? seteDiasAtras },
       },
       orderBy: { createdAt: "asc" },
       select: {

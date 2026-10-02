@@ -17,6 +17,7 @@ export default async function AdminChatsPage() {
       user: { select: { name: true, email: true } },
     },
     orderBy: { updatedAt: "desc" },
+    take: 100,
     // status já vem pelo include implícito do select *
   });
 

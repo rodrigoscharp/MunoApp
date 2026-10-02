@@ -118,6 +118,9 @@ export async function GET(req: NextRequest) {
           table: { select: { number: true, name: true } },
         },
         orderBy: { createdAt: "asc" },
+        // Teto de segurança: a janela de 24h já limita, mas esta rota é
+        // consultada a cada 30s por cada tela de cozinha aberta.
+        take: 200,
       });
       return NextResponse.json(orders);
     }
