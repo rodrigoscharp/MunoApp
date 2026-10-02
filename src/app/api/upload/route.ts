@@ -2,9 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { authPlatform } from "@/lib/auth-platform";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import sharp from "sharp";
+
+// Largura máxima gravada. O cardápio mostra a imagem em poucas centenas de
+// pixels; guardar o original de 5 MB só multiplica armazenamento e tráfego.
+const LARGURA_MAXIMA = 1280;
+// Contra "bomba de descompressão": PNG pequeno em bytes e enorme em pixels.
+const PIXELS_MAXIMOS = 50_000_000;
 
 export async function POST(req: NextRequest) {
   const tenantSession = await auth();
+  // Pasta do dono no bucket. Upload de plataforma não tem tenant.
+  let pasta = "plataforma";
+  if (tenantSession?.user.role === "ADMIN" && tenantSession.user.tenantId) {
+    pasta = tenantSession.user.tenantId;
+  }
   if (tenantSession?.user.role !== "ADMIN") {
     const platformSession = await authPlatform();
     if (!platformSession?.user) {
@@ -31,19 +43,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 });
   }
 
-  // A extensão sai DAQUI, do tipo já validado — nunca do nome enviado. Antes
-  // era `file.name.split(".").pop()`: o cliente escolhia o sufixo do arquivo
-  // gravado no bucket (ou nenhum, e o nome terminava em ".undefined"), e o
-  // Content-Type declarado não tinha relação nenhuma com ele.
-  const EXTENSAO_POR_TIPO: Record<string, string> = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-    "image/gif": "gif",
-  };
-
-  const ext = EXTENSAO_POR_TIPO[file.type];
-  if (!ext) {
+  // O tipo declarado só decide se vale a pena tentar: o que vale é o conteúdo.
+  const TIPOS_ACEITOS = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+  if (!TIPOS_ACEITOS.has(file.type)) {
     return NextResponse.json({ error: "Tipo de arquivo não permitido" }, { status: 400 });
   }
 
@@ -51,14 +53,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Arquivo muito grande (máx. 5MB)" }, { status: 400 });
   }
 
-  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  // Decodifica e regrava como WebP. Quem não for imagem de verdade falha aqui
+  // (400), e o que sai é sempre um WebP gerado por nós, sem EXIF/GPS e sem
+  // nada que o cliente tenha embutido. Nome e extensão saem do resultado, não
+  // do que foi enviado.
+  let buffer: Buffer;
+  try {
+    buffer = await sharp(Buffer.from(await file.arrayBuffer()), {
+      limitInputPixels: PIXELS_MAXIMOS,
+      animated: file.type === "image/gif",
+    })
+      .rotate()
+      .resize({ width: LARGURA_MAXIMA, withoutEnlargement: true })
+      .webp({ quality: 80 })
+      .toBuffer();
+  } catch {
+    return NextResponse.json({ error: "O arquivo não é uma imagem válida" }, { status: 400 });
+  }
 
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
+  const filename = `${pasta}/${Date.now()}-${Math.random().toString(36).slice(2)}.webp`;
 
   const { error } = await supabaseAdmin.storage
     .from("product-images")
-    .upload(filename, buffer, { contentType: file.type, upsert: false });
+    .upload(filename, buffer, { contentType: "image/webp", upsert: false });
 
   if (error) {
     console.error("Storage error:", error);
