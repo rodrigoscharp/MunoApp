@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { MercadoPagoConfig, Payment, Preference } from "mercadopago";
 import type { PaymentConnection } from "@prisma/client";
 import { decryptCredentials } from "./credentials";
-import { InvalidWebhookSignatureError, safeParse } from "./types";
+import { GATEWAY_TIMEOUT_MS, InvalidWebhookSignatureError, safeParse } from "./types";
 import type {
   Charge,
   ChargeableOrder,
@@ -130,6 +130,7 @@ export class MercadoPagoAdapter implements PaymentProvider {
     try {
       const res = await fetch("https://api.mercadopago.com/users/me", {
         headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
       });
       if (!res.ok) return { ok: false, reason: "O Mercado Pago recusou esse access token." };
 

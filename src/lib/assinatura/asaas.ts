@@ -1,3 +1,4 @@
+import { GATEWAY_TIMEOUT_MS } from "@/lib/payments/types";
 import crypto from "node:crypto";
 import type { Ciclo } from "@/lib/plans";
 
@@ -41,6 +42,7 @@ async function chamar<T>(caminho: string, body?: unknown): Promise<T> {
       "Content-Type": "application/json",
       access_token: process.env.ASAAS_API_KEY ?? "",
     },
+    signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 

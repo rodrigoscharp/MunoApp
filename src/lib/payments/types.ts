@@ -29,6 +29,10 @@ export interface Charge {
   checkoutUrl?: string;
 }
 
+// Teto de espera por uma resposta de gateway. Sem ele um gateway lento prende a
+// função até o limite da plataforma, com o cliente olhando o botão "processando".
+export const GATEWAY_TIMEOUT_MS = 15_000;
+
 export interface WebhookResult {
   orderId: string;
   providerPaymentId: string;
