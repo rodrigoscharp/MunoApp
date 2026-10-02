@@ -41,9 +41,6 @@ const autenticado = (...aceita: Array<Papel | "PLATAFORMA">): Nivel => ({
 const QUALQUER_CONTA_DO_RESTAURANTE: Papel[] = ["ADMIN", "CUSTOMER", "KITCHEN", "MOTOBOY"];
 
 export const POLITICA: Record<string, Nivel> = {
-  "POST /api/ai/menu-recommendation": publico(
-    "sugestão do cardápio para quem está navegando, sem conta; limitada por IP"
-  ),
   "GET /api/analytics": autenticado("ADMIN"),
 
   "POST /api/assinar": publico("checkout de restaurante novo, que ainda não tem conta; limitado por IP"),

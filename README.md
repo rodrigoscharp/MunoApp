@@ -331,7 +331,7 @@ src/
 │   └── api/
 │       ├── orders/ menu/ categories/ coupons/ tables/ delivery-zones/
 │       ├── payments/           # cobrança, conexões, webhook por tenant
-│       ├── motoboy/ chat/ analytics/ settings/ upload/ ai/
+│       ├── motoboy/ chat/ analytics/ settings/ upload/
 │       ├── platform/           # leads, clientes, cobranças
 │       ├── leads/publico/      # captação vinda da landing
 │       ├── funil/evento/       # ingestão dos eventos do funil
@@ -443,7 +443,6 @@ desenvolvimento e produção divergirem exatamente no ramo onde o bug mora.
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Realtime e imagens no navegador |
 | `SUPABASE_SERVICE_ROLE_KEY` | Upload e publicação no Broadcast, no servidor |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | E-mail de recuperação de senha |
-| `GROQ_API_KEY` | Assistente de IA do cardápio |
 | `CRON_SECRET` | Autentica o job diário de cobrança |
 | `LANDING_ORIGIN` | Origens autorizadas a gravar lead e evento de funil. Sem ela, produção recusa todas |
 | `ASAAS_API_KEY`, `ASAAS_ENV`, `ASAAS_WEBHOOK_TOKEN` | A cobrança **da Muno**, no checkout self-service. Nada a ver com o gateway do restaurante |

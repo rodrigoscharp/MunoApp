@@ -15,7 +15,7 @@ const DIA_EM_MS = 24 * 60 * 60 * 1000;
 /**
  * O valor a gravar quando alguém dispensa o convite.
  *
- * Um carimbo de tempo, e não um "1": a flag booleana que MenuAIAssistant usa
+ * Um carimbo de tempo, e não um "1": a flag booleana que FiltroDeRestricoes usa
  * cala o aviso para sempre, e aqui queremos que ele volte.
  */
 export function marcarDispensa(agora: number): string {
