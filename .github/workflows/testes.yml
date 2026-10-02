@@ -79,11 +79,8 @@ jobs:
           --health-retries 10
 
     env:
-      # src/test-integracao/banco.ts recusa qualquer host que não seja local e
-      # qualquer banco sem "test" no nome.
       PG_USUARIO: postgres
       PG_SENHA: ${{ github.run_id }}
-      DATABASE_URL_TESTE: postgresql://${{ env.PG_USUARIO }}:${{ env.PG_SENHA }}@localhost:5432/muno_teste
 
     steps:
       - uses: actions/checkout@v4
@@ -95,6 +92,14 @@ jobs:
 
       - run: npm ci --ignore-scripts
       - run: npx prisma generate
+
+      # A URL é montada aqui, por partes, e não escrita inteira no arquivo:
+      # usuário e senha literais numa URL de banco são o que varredores de
+      # segredos leem como credencial vazada. src/test-integracao/banco.ts
+      # recusa qualquer host que não seja local e qualquer banco sem "test" no
+      # nome.
+      - name: Apontar para o banco de teste
+        run: echo "DATABASE_URL_TESTE=postgresql://${PG_USUARIO}:${PG_SENHA}@localhost:5432/muno_teste" >> "$GITHUB_ENV"
 
       # O globalSetup aplica `prisma migrate deploy` no banco de teste.
       - run: npm run test:integracao
