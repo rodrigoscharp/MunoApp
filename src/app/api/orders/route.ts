@@ -225,6 +225,10 @@ export async function POST(req: NextRequest) {
     // então o pedido nascia apontando para a mesa de outra casa. `prisma` já
     // restringe a consulta ao tenant da request.
     let mesaId: string | null = null;
+    // Sem login, a mesa é a única prova de que a pessoa está no restaurante.
+    if (deliveryType === "DINE_IN" && !tableId && !session?.user?.id) {
+      return NextResponse.json({ error: "Mesa não informada." }, { status: 422 });
+    }
     if (deliveryType === "DINE_IN" && tableId) {
       const mesa = await prisma.table.findFirst({
         where: { id: tableId, active: true },

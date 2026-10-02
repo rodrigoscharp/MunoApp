@@ -118,8 +118,15 @@ async function handlePost(req: NextRequest, tenantId: string) {
     // O pedido foi criado antes da cobrança. Se a cobrança falhou, ele não
     // pode ficar de pé: apareceria na cozinha como pedido a preparar, sem
     // ninguém ter pago. Cancelar deixa o rastro sem virar comida perdida.
+    //
+    // Só cancela o que ainda é PENDING e não pago: pedido anônimo (mesa) passa
+    // em canViewOrder para quem souber o id, e sem esta condição uma cobrança
+    // forçada a falhar cancelaria o pedido de outra mesa já em preparo.
     await prisma.order
-      .update({ where: { id: orderId }, data: { status: "CANCELLED" } })
+      .updateMany({
+        where: { id: orderId, status: "PENDING", paymentStatus: "UNPAID" },
+        data: { status: "CANCELLED" },
+      })
       .catch((cancelErr) =>
         console.error("Falha ao cancelar pedido sem cobrança:", extractErrorMessage(cancelErr))
       );

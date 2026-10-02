@@ -286,14 +286,16 @@ describe("clique duplo", () => {
     expect(orderCreate).not.toHaveBeenCalled();
   });
 
-  it("sem login e sem mesa não há com o que comparar, e a consulta nem acontece", async () => {
+  // O único cliente de DINE_IN anônimo é a página da mesa, que sempre manda o
+  // tableId. Sem exigir a mesa, qualquer um despachava pedido à cozinha de
+  // qualquer restaurante com mesa QR sem nem ter escaneado o QR.
+  it("pedido de mesa sem login e sem mesa é recusado", async () => {
     auth.mockResolvedValue(null);
-    // DINE_IN sem tableId é aceito hoje (balcão); não há chave para deduplicar.
     const res = await POST(
       req({ ...pedidoBase, deliveryType: "DINE_IN" }, { "x-tenant-plano": "MEMBRO_MESA_QR" })
     );
-    expect(res.status).toBe(201);
-    expect(orderFindMany).not.toHaveBeenCalled();
+    expect(res.status).toBe(422);
+    expect(orderCreate).not.toHaveBeenCalled();
   });
 });
 
