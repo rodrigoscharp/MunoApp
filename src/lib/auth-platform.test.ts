@@ -6,6 +6,7 @@
 
 import { describe, expect, it, vi, beforeEach, beforeAll, afterEach } from "vitest";
 import bcrypt from "bcryptjs";
+import crypto from "node:crypto";
 
 const adminFindUnique = vi.fn();
 vi.mock("@/lib/prisma", () => ({
@@ -32,8 +33,13 @@ let hashDaSenha: string;
 beforeAll(async () => {
   const mod = await import("@/lib/auth-platform");
   autorizar = mod.autorizarPlataforma as typeof autorizar;
-  hashDaSenha = await bcrypt.hash("y".repeat(14), 10);
+  hashDaSenha = await bcrypt.hash(SENHA_DO_ADMIN, 10);
 });
+
+// Geradas a cada execução: senha literal em teste é o que varredores de segredos
+// leem como credencial vazada, e aqui o valor não importa, só que seja igual.
+const SENHA_DO_ADMIN = crypto.randomBytes(9).toString("hex");
+const SENHA_ERRADA = crypto.randomBytes(9).toString("hex");
 
 const AGORA = new Date("2026-10-02T12:00:00Z").getTime();
 const jwt = () => capturado.config!.callbacks.jwt;
@@ -107,19 +113,19 @@ describe("login do console da plataforma", () => {
   });
 
   it("autentica com e-mail e senha corretos, sem devolver o hash", async () => {
-    const admin = await autorizar({ email: "adm@muno.com", password: "y".repeat(14) }, comIp());
+    const admin = await autorizar({ email: "adm@muno.com", password: SENHA_DO_ADMIN }, comIp());
     expect(admin).toEqual({ id: "adm-1", name: "Admin", email: "adm@muno.com" });
   });
 
   it("recusa senha errada", async () => {
-    expect(await autorizar({ email: "adm@muno.com", password: "x".repeat(12) }, comIp())).toBeNull();
+    expect(await autorizar({ email: "adm@muno.com", password: SENHA_ERRADA }, comIp())).toBeNull();
   });
 
   it("e-mail que não existe também gasta um bcrypt (o tempo não denuncia quem é admin)", async () => {
     adminFindUnique.mockResolvedValue(null);
     const compare = vi.spyOn(bcrypt, "compare");
 
-    await autorizar({ email: "ninguem@muno.com", password: "x".repeat(13) }, comIp());
+    await autorizar({ email: "ninguem@muno.com", password: SENHA_ERRADA }, comIp());
 
     expect(compare).toHaveBeenCalledTimes(1);
     compare.mockRestore();
@@ -128,15 +134,15 @@ describe("login do console da plataforma", () => {
   it("passa de 20 tentativas do mesmo IP em 10 minutos: recusa até a senha certa", async () => {
     const ip = "203.0.113.9";
     for (let i = 0; i < 20; i++) {
-      await autorizar({ email: `x${i}@muno.com`, password: "x".repeat(11) }, comIp(ip));
+      await autorizar({ email: `x${i}@muno.com`, password: SENHA_ERRADA }, comIp(ip));
     }
-    expect(await autorizar({ email: "adm@muno.com", password: "y".repeat(14) }, comIp(ip))).toBeNull();
+    expect(await autorizar({ email: "adm@muno.com", password: SENHA_DO_ADMIN }, comIp(ip))).toBeNull();
   });
 
   it("trava de e-mail: 10 tentativas erradas bloqueiam aquela conta", async () => {
     for (let i = 0; i < 10; i++) {
-      await autorizar({ email: "alvo@muno.com", password: "x".repeat(11) }, comIp());
+      await autorizar({ email: "alvo@muno.com", password: SENHA_ERRADA }, comIp());
     }
-    expect(await autorizar({ email: "alvo@muno.com", password: "y".repeat(14) }, comIp())).toBeNull();
+    expect(await autorizar({ email: "alvo@muno.com", password: SENHA_DO_ADMIN }, comIp())).toBeNull();
   });
 });

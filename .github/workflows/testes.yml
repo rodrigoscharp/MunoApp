@@ -68,7 +68,8 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: ${{ github.run_id }}
+          # Senha descartável por execução, sem valor literal no arquivo.
+          POSTGRES_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
           POSTGRES_DB: muno_teste
         ports:
           - 5432:5432
@@ -80,7 +81,7 @@ jobs:
 
     env:
       PG_USUARIO: postgres
-      PG_SENHA: ${{ github.run_id }}
+      PG_SENHA: ${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
       - uses: actions/checkout@v4
