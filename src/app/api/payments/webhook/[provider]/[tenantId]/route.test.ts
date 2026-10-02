@@ -188,6 +188,35 @@ describe("o que cada status grava no pedido", () => {
     erro.mockRestore();
   });
 
+  // Cliente clicou em pagar duas vezes e pagou as duas cobranças. O segundo
+  // approved não muda nada no pedido (já está PAID), então sem este alerta o
+  // dinheiro em dobro fica parado sem ninguém saber.
+  it("segundo pagamento aprovado, de OUTRA cobrança, num pedido já pago é reportado para estorno", async () => {
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    orderUpdateMany.mockResolvedValue({ count: 0 });
+    orderFindFirst.mockResolvedValue({
+      id: "pedido-1", status: "CONFIRMED", paymentStatus: "PAID", mpPaymentId: "pay_primeiro",
+    });
+
+    await POST(req(), params);
+
+    expect(erro.mock.calls.flat().join(" ")).toContain("webhook/pagamento:pagamento-duplicado");
+    erro.mockRestore();
+  });
+
+  it("o MESMO pagamento reentregue não é duplicado", async () => {
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    orderUpdateMany.mockResolvedValue({ count: 0 });
+    orderFindFirst.mockResolvedValue({
+      id: "pedido-1", status: "CONFIRMED", paymentStatus: "PAID", mpPaymentId: "pay_123",
+    });
+
+    await POST(req(), params);
+
+    expect(erro.mock.calls.flat().join(" ")).not.toContain("pagamento-duplicado");
+    erro.mockRestore();
+  });
+
   it("evento repetido que não muda nada não avisa ninguém de novo", async () => {
     orderUpdateMany.mockResolvedValue({ count: 0 });
     const res = await POST(req(), params);

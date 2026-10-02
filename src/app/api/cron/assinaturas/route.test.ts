@@ -55,9 +55,11 @@ vi.mock("@/lib/assinatura/reconciliacao-cobrancas", () => ({
   reconciliarCobrancasDoAsaas: (...args: unknown[]) => reconciliarCobrancas(...args),
 }));
 
+const cancelarNoAsaas = vi.fn();
 vi.mock("@/lib/assinatura/asaas", () => ({
   assinaturaTemPagamentoConfirmado: (...args: unknown[]) =>
     temPagamentoConfirmado(...args),
+  cancelarAssinaturaNoAsaas: (...args: unknown[]) => cancelarNoAsaas(...args),
 }));
 
 const { GET, POST } = await import("@/app/api/cron/assinaturas/route");
@@ -117,6 +119,7 @@ beforeEach(() => {
   inscricaoDeleteMany.mockResolvedValue({ count: 0 });
   inscricaoFindMany.mockResolvedValue([]);
   temPagamentoConfirmado.mockResolvedValue(false);
+  cancelarNoAsaas.mockResolvedValue(undefined);
   reconciliar.mockResolvedValue({ candidatas: 0, provisionadas: 0, falhas: 0 });
   reconciliarCobrancas.mockResolvedValue({ assinaturas: 0, cobrancas: 0, falhas: 0 });
   eventoCreate.mockResolvedValue({});
@@ -427,6 +430,44 @@ describe("POST /api/cron/assinaturas — limpeza de inscrição vencida", () => 
     expect(inscricaoDeleteMany).toHaveBeenCalledWith({
       where: { id: { in: ["insc-vencida"] } },
     });
+  });
+
+  // Apagar a Inscricao sem cancelar a assinatura deixava o Asaas emitindo
+  // cobrança (e e-mail de "fatura vencida") para quem desistiu, e um PIX pago
+  // depois do vencimento chegava sem dono.
+  it("cancela a assinatura no Asaas antes de apagar a Inscricao vencida", async () => {
+    inscricaoFindMany.mockResolvedValue([candidata()]);
+    inscricaoDeleteMany.mockResolvedValue({ count: 1 });
+
+    await POST(requisicao());
+
+    expect(cancelarNoAsaas).toHaveBeenCalledWith("sub_vencida");
+    expect(cancelarNoAsaas.mock.invocationCallOrder[0]).toBeLessThan(
+      inscricaoDeleteMany.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("se o cancelamento no Asaas falhar, a Inscricao fica para a próxima passada", async () => {
+    inscricaoFindMany.mockResolvedValue([candidata()]);
+    cancelarNoAsaas.mockRejectedValue(new Error("Asaas fora do ar"));
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await POST(requisicao());
+
+    expect(inscricaoDeleteMany).not.toHaveBeenCalled();
+    erro.mockRestore();
+  });
+
+  it("inscrição vencida COM pagamento confirmado é reportada, não só logada", async () => {
+    inscricaoFindMany.mockResolvedValue([candidata()]);
+    temPagamentoConfirmado.mockResolvedValue(true);
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await POST(requisicao());
+
+    expect(erro.mock.calls.flat().join(" ")).toContain("cron/assinaturas:pago-sem-provisionar");
+    expect(cancelarNoAsaas).not.toHaveBeenCalled();
+    erro.mockRestore();
   });
 
   // O CASO QUE ESTE BLOCO EXISTE PARA IMPEDIR. Cliente paga, o webhook

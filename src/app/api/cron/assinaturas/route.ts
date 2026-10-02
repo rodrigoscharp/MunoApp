@@ -7,7 +7,10 @@ import {
   vencimentoDaCompetencia,
 } from "@/lib/assinatura/competencia";
 import { statusPelaRegua } from "@/lib/assinatura/regua";
-import { assinaturaTemPagamentoConfirmado } from "@/lib/assinatura/asaas";
+import {
+  assinaturaTemPagamentoConfirmado,
+  cancelarAssinaturaNoAsaas,
+} from "@/lib/assinatura/asaas";
 import {
   reconciliarInscricoesPagas,
   type ResultadoReconciliacao,
@@ -241,8 +244,16 @@ async function executar(req: NextRequest) {
               `venceu mas TEM pagamento confirmado no Asaas — preservada. ` +
               `O provisionamento não completou: verificar o webhook.`
           );
+          await reportarErro({
+            origem: "cron/assinaturas:pago-sem-provisionar",
+            erro: "inscrição vencida com pagamento confirmado no Asaas, sem provisionar",
+            extra: { inscricaoId: candidata.id },
+          });
           continue;
         }
+        // Sem pagamento: a assinatura precisa morrer no Asaas junto com a
+        // Inscricao. Se o cancelamento falhar, cai no catch e a linha fica.
+        await cancelarAssinaturaNoAsaas(candidata.asaasSubscriptionId);
       } catch (erro) {
         // Uma linha problemática não trava a faxina inteira, e dúvida nunca
         // vira exclusão.
@@ -251,6 +262,11 @@ async function executar(req: NextRequest) {
             `${candidata.id} no Asaas — preservada por precaução`,
           erro
         );
+        await reportarErro({
+          origem: "cron/assinaturas:faxina-asaas",
+          erro,
+          extra: { inscricaoId: candidata.id },
+        });
         continue;
       }
       paraApagar.push(candidata.id);
