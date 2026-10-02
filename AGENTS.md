@@ -317,7 +317,7 @@ landing e checkout →  POST /api/funil/evento
 /api/assinar       →  Inscricao.sessaoId e Lead.sessaoId
 webhook do Asaas   →  PAGOU
 provisionamento    →  PROVISIONADO
-cron das 9h        →  ABANDONOU, e o resumo dos 90 dias
+cron das 09:00 UTC (06:00 em Brasília)        →  ABANDONOU, e o resumo dos 90 dias
 ```
 
 A spec é
@@ -386,7 +386,7 @@ declara que pagou.
 
 ## O expurgo dos 90 dias
 
-O cron das 9h resume os eventos crus em `ResumoDiario` e então os apaga, na
+O cron das 09:00 UTC (06:00 em Brasília) resume os eventos crus em `ResumoDiario` e então os apaga, na
 mesma transação. Resumir antes de apagar, e as duas coisas juntas ou nenhuma: a
 ordem inversa perde o histórico para sempre, e fora de uma transação existe a
 janela em que o dia foi apagado e não foi contado. O `upsert` usa `increment`,
@@ -631,3 +631,20 @@ estiver definida**, anonimiza os pedidos mais antigos que esse prazo (nome,
 telefone, endereço, observações; conversa e posição do entregador são apagadas;
 o pedido fica, pelo valor fiscal). O prazo é decisão de negócio e jurídica, por
 isso a variável nasce vazia e nada é anonimizado até alguém defini-la.
+
+## Regra para migrações
+
+Rollback de deploy na Vercel volta o código, não o banco, e preview e produção
+usam o mesmo banco. Por isso:
+
+* **Primeiro adicione, depois remova.** Coluna, tabela ou índice novos entram
+  num deploy; o código passa a usá-los; só num deploy posterior se apaga o que
+  ficou sem uso. `DROP COLUMN`, `DROP TABLE` e `RENAME` no mesmo deploy que
+  troca o código derrubam a versão anterior se for preciso voltar.
+* **Coluna nova obrigatória precisa de default ou começar nula.** O código
+  antigo continua gravando linhas durante o deploy.
+* O build roda `migrate deploy` ANTES do `next build`: um build que falha
+  depois da migração deixa o banco novo com o código velho. Isso é seguro só
+  se a migração obedecer as duas regras acima.
+
+O cron (`vercel.json`) usa horário **UTC**: `0 9 * * *` é 06:00 em Brasília.
