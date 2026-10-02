@@ -14,6 +14,9 @@ const COMPLETO = {
   ASAAS_API_KEY: "$aact_prod_abc",
   ASAAS_ENV: "production",
   ASAAS_WEBHOOK_TOKEN: "token",
+  RESEND_API_KEY: "re_xxx",
+  RESEND_FROM_EMAIL: "Muno <contato@munoapp.com.br>",
+  PAYMENT_TOKEN_ENCRYPTION_KEY: "a".repeat(64),
 };
 
 describe("variáveis do Asaas exigidas no deploy de produção", () => {
@@ -43,7 +46,13 @@ describe("variáveis do Asaas exigidas no deploy de produção", () => {
         VERCEL_ENV: "production",
         ASAAS_ENV: "production",
       })
-    ).toEqual(["ASAAS_API_KEY", "ASAAS_WEBHOOK_TOKEN"]);
+    ).toEqual([
+      "ASAAS_API_KEY",
+      "ASAAS_WEBHOOK_TOKEN",
+      "RESEND_API_KEY",
+      "RESEND_FROM_EMAIL",
+      "PAYMENT_TOKEN_ENCRYPTION_KEY",
+    ]);
   });
 
   it("não exige nada enquanto o Asaas não estiver declarado em produção", () => {
@@ -94,17 +103,24 @@ describe("documentos legais antes do deploy de produção", () => {
   });
 });
 
+describe("e-mail do acesso: sem Resend o cliente que pagou não entra", () => {
+  it.each(["RESEND_API_KEY", "RESEND_FROM_EMAIL"])("acusa %s ausente", (nome) => {
+    const { [nome]: _, ...sem } = COMPLETO as Record<string, string>;
+    expect(faltantesEmProducao(sem)).toEqual([nome]);
+  });
+});
+
 describe("variáveis recomendadas em produção", () => {
   it("lista as ausentes, só em produção", () => {
-    expect(recomendadasAusentes({ VERCEL_ENV: "production" })).toContain("RESEND_FROM_EMAIL");
+    expect(recomendadasAusentes({ VERCEL_ENV: "production" })).toContain("ERROR_WEBHOOK_URL");
     expect(recomendadasAusentes({ VERCEL_ENV: "preview" })).toEqual([]);
   });
 
   it("não lista as presentes", () => {
     const ausentes = recomendadasAusentes({
       VERCEL_ENV: "production",
-      RESEND_FROM_EMAIL: "Muno <contato@munoapp.com.br>",
+      ERROR_WEBHOOK_URL: "https://hooks.example/abc",
     });
-    expect(ausentes).not.toContain("RESEND_FROM_EMAIL");
+    expect(ausentes).not.toContain("ERROR_WEBHOOK_URL");
   });
 });

@@ -209,6 +209,71 @@ describe("o id do pagamento identifica a cobrança, não o mês", () => {
   });
 });
 
+describe("competência ocupada por cobrança cancelada", () => {
+  // O Asaas apaga e recria o pagamento do mês (PAYMENT_DELETED seguido de
+  // PAYMENT_CREATED com outro id). A cobrança antiga fica CANCELADA, e a nova
+  // não pode ser descartada: sem ela a régua não enxerga o atraso.
+  it("o pagamento novo toma o lugar da cobrança CANCELADA do mesmo mês", async () => {
+    cobrancaFindUnique.mockImplementation(async ({ where }) =>
+      where.assinaturaId_competencia
+        ? { id: "c1", status: "CANCELADA", asaasPaymentId: "pay_antigo" }
+        : null
+    );
+
+    await espelharEventoDeAssinatura(pagamento("PAYMENT_OVERDUE"), AGORA);
+
+    expect(cobrancaUpdate).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: expect.objectContaining({ asaasPaymentId: "pay_2", status: "VENCIDA", pagoEm: null }),
+    });
+  });
+
+  it("e o recriado já pago nasce PAGA", async () => {
+    cobrancaFindUnique.mockImplementation(async ({ where }) =>
+      where.assinaturaId_competencia
+        ? { id: "c1", status: "CANCELADA", asaasPaymentId: "pay_antigo" }
+        : null
+    );
+
+    await espelharEventoDeAssinatura(pagamento("PAYMENT_RECEIVED"), AGORA);
+
+    expect(cobrancaUpdate.mock.calls[0][0].data).toMatchObject({ status: "PAGA", pagoEm: AGORA });
+  });
+});
+
+describe("estorno e chargeback da renovação", () => {
+  it.each(["PAYMENT_REFUNDED", "PAYMENT_CHARGEBACK_REQUESTED"])(
+    "%s reabre a cobrança paga, para a régua voltar a contar",
+    async (event) => {
+      const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+      cobrancaFindUnique.mockResolvedValue({ id: "c1", status: "PAGA" });
+
+      const tratado = await espelharEventoDeAssinatura(pagamento(event), AGORA);
+
+      expect(tratado).toBe(true);
+      expect(cobrancaUpdate).toHaveBeenCalledWith({
+        where: { id: "c1" },
+        data: { status: "VENCIDA", pagoEm: null },
+      });
+      expect(erro.mock.calls.flat().join(" ")).toContain("espelho/asaas:estorno");
+      erro.mockRestore();
+    }
+  );
+
+  it("estorno de cobrança que não estava paga não escreve nada", async () => {
+    cobrancaFindUnique.mockResolvedValue({ id: "c1", status: "VENCIDA" });
+    await espelharEventoDeAssinatura(pagamento("PAYMENT_REFUNDED"), AGORA);
+    expect(cobrancaUpdate).not.toHaveBeenCalled();
+  });
+
+  it("evento repetido de estorno é idempotente", async () => {
+    cobrancaFindUnique.mockResolvedValue({ id: "c1", status: "VENCIDA" });
+    await espelharEventoDeAssinatura(pagamento("PAYMENT_CHARGEBACK_REQUESTED"), AGORA);
+    await espelharEventoDeAssinatura(pagamento("PAYMENT_CHARGEBACK_REQUESTED"), AGORA);
+    expect(cobrancaUpdate).not.toHaveBeenCalled();
+  });
+});
+
 describe("pagamento da renovação", () => {
   it.each(["PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"])(
     "%s baixa a Cobranca existente e carimba pagoEm",
@@ -433,7 +498,7 @@ describe("o que o espelho não trata", () => {
   });
 
   it("evento que o espelho não conhece devolve false", async () => {
-    const tratado = await espelharEventoDeAssinatura(pagamento("PAYMENT_REFUNDED"), AGORA);
+    const tratado = await espelharEventoDeAssinatura(pagamento("PAYMENT_RESTORED"), AGORA);
 
     expect(tratado).toBe(false);
     expect(cobrancaCreate).not.toHaveBeenCalled();

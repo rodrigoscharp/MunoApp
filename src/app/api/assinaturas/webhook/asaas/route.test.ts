@@ -653,6 +653,32 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
     });
   });
 
+  // A Inscricao não gravou o id da assinatura (o update depois de criá-la no
+  // Asaas falhou), mas o pagamento traz `subscription`.
+  it("Inscricao sem asaasSubscriptionId: a Assinatura nasce com o id que o pagamento trouxe", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando({ asaasSubscriptionId: null }));
+
+    await POST(requisicao(eventoPago({ subscription: "sub_do_pagamento" })));
+
+    expect(assinaturaCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ asaasSubscriptionId: "sub_do_pagamento" }),
+    });
+    expect(inscricaoUpdateStatus).toHaveBeenCalledWith({
+      where: { id: "insc-1" },
+      data: { status: "PROVISIONADA", asaasSubscriptionId: "sub_do_pagamento" },
+    });
+  });
+
+  it("pagamento sem Inscricao correspondente é reportado como alerta", async () => {
+    inscricaoFindFirst.mockResolvedValue(null);
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await POST(requisicao(eventoPago()));
+
+    expect(erro.mock.calls.flat().join(" ")).toContain("webhook/asaas:pagamento-sem-inscricao");
+    erro.mockRestore();
+  });
+
   it("Inscricao aponta para um tenant que não existe mais: a falha propaga, não vira 200 silencioso", async () => {
     inscricaoFindFirst.mockResolvedValue(
       inscricaoAguardando({ tenantId: "tenant-fantasma" })

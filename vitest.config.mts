@@ -11,6 +11,9 @@ export default defineConfig({
     // `// @vitest-environment jsdom` — assim as centenas de suítes de lógica
     // pura continuam sem pagar o custo de montar um DOM a cada arquivo.
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    // Os de integração falam com Postgres de verdade: rodam à parte, em
+    // `npm run test:integracao` (vitest.integration.config.mts).
+    exclude: ["**/node_modules/**", "src/**/*.integration.test.ts"],
     // Chave fixa de 32 bytes só pra teste — src/lib/crypto.ts exige uma.
     env: {
       PAYMENT_TOKEN_ENCRYPTION_KEY: "0".repeat(64),

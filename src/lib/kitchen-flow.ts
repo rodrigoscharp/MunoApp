@@ -52,3 +52,22 @@ export function proximoStatus(
 export function statusAnterior(status: OrderStatus): OrderStatus | null {
   return ANTERIOR[status] ?? null;
 }
+
+const ENCERRADOS: OrderStatus[] = ["DELIVERED", "CANCELLED"];
+
+/**
+ * O servidor aceita esta mudança de status? A mesma regra do quadro da
+ * cozinha, agora também no PATCH: avançar um passo, voltar um passo, ou
+ * cancelar o que ainda não terminou. Não pula etapa e não reabre pedido
+ * entregue ou cancelado. Repetir o status atual vale (clique duplo).
+ */
+export function transicaoPermitida(
+  de: OrderStatus,
+  para: OrderStatus,
+  deliveryType: DeliveryType
+): boolean {
+  if (de === para) return true;
+  if (ENCERRADOS.includes(de)) return false;
+  if (para === "CANCELLED") return true;
+  return para === proximoStatus(de, deliveryType) || para === statusAnterior(de);
+}

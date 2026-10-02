@@ -11,6 +11,7 @@
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
 
 const TENANT = "restaurante-a";
 
@@ -23,6 +24,7 @@ const couponFindUnique = vi.fn();
 const orderCount = vi.fn();
 const orderCreate = vi.fn();
 const orderFindMany = vi.fn();
+const orderFindFirst = vi.fn();
 const orderUpdate = vi.fn();
 const settingFindUnique = vi.fn();
 const tableFindFirst = vi.fn();
@@ -36,11 +38,18 @@ vi.mock("@/lib/prisma", () => ({
       count: (...a: unknown[]) => orderCount(...a),
       create: (...a: unknown[]) => orderCreate(...a),
       findMany: (...a: unknown[]) => orderFindMany(...a),
+      findFirst: (...a: unknown[]) => orderFindFirst(...a),
       update: (...a: unknown[]) => orderUpdate(...a),
     },
     setting: { findUnique: (...a: unknown[]) => settingFindUnique(...a) },
     table: { findFirst: (...a: unknown[]) => tableFindFirst(...a) },
   },
+}));
+
+const checkIsOpen = vi.fn();
+vi.mock("@/lib/business-hours", () => ({
+  getBusinessHours: vi.fn().mockResolvedValue({}),
+  checkIsOpen: () => checkIsOpen(),
 }));
 
 const broadcastTenantEvent = vi.fn();
@@ -91,6 +100,8 @@ beforeEach(() => {
   couponFindUnique.mockResolvedValue(null);
   orderCount.mockResolvedValue(0);
   orderFindMany.mockResolvedValue([]);
+  orderFindFirst.mockResolvedValue(null);
+  checkIsOpen.mockReturnValue(true);
   orderUpdate.mockResolvedValue({});
   settingFindUnique.mockResolvedValue(null);
   tableFindFirst.mockResolvedValue(null);
@@ -296,6 +307,100 @@ describe("clique duplo", () => {
     );
     expect(res.status).toBe(422);
     expect(orderCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("chave de idempotência do cliente", () => {
+  const CHAVE = "5b0e6e0a-93f0-4c53-8f0a-3a0f1f7a2a11";
+  const comChave = { ...pedidoBase, idempotencyKey: CHAVE };
+
+  it("grava a chave no pedido", async () => {
+    await POST(req(comChave));
+    expect(dadosCriados().idempotencyKey).toBe(CHAVE);
+  });
+
+  it("segunda requisição com a mesma chave devolve o pedido já criado, sem criar outro", async () => {
+    orderFindFirst.mockResolvedValue({ id: "pedido-0", items: [] });
+
+    const res = await POST(req(comChave));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ id: "pedido-0" });
+    expect(orderCreate).not.toHaveBeenCalled();
+    expect(orderFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { idempotencyKey: CHAVE } })
+    );
+  });
+
+  // Dois cliques separados por milissegundos leem "não existe" os dois; quem
+  // desempata é o unique do banco, e o perdedor devolve o pedido do vencedor.
+  it("corrida: o unique do banco barra o segundo e ele devolve o pedido do primeiro", async () => {
+    orderFindFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "pedido-do-vencedor", items: [] });
+    orderCreate.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("unique", { code: "P2002", clientVersion: "x" })
+    );
+
+    const res = await POST(req(comChave));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ id: "pedido-do-vencedor" });
+    expect(broadcastTenantEvent).not.toHaveBeenCalled();
+  });
+
+  it("chave que não é uuid é recusada", async () => {
+    expect((await POST(req({ ...pedidoBase, idempotencyKey: "abc" }))).status).toBe(400);
+  });
+
+  it("sem chave, o pedido nasce sem ela (clientes antigos continuam funcionando)", async () => {
+    await POST(req(pedidoBase));
+    expect(dadosCriados().idempotencyKey).toBeNull();
+  });
+});
+
+describe("restaurante fechado", () => {
+  // A tela já esconde o botão, mas o endpoint é público: sem esta checagem
+  // basta chamar a API direto para pedir fora do horário.
+  it.each(["PICKUP", "DELIVERY"])("recusa %s fora do horário", async (tipo) => {
+    checkIsOpen.mockReturnValue(false);
+    const res = await POST(
+      req({ ...pedidoBase, deliveryType: tipo, customerPhone: "11999998888", deliveryZoneId: "z1" })
+    );
+    expect(res.status).toBe(422);
+    expect(orderCreate).not.toHaveBeenCalled();
+  });
+
+  it("pedido na mesa não depende do horário: o cliente já está no restaurante", async () => {
+    checkIsOpen.mockReturnValue(false);
+    auth.mockResolvedValue(null);
+    tableFindFirst.mockResolvedValue({ id: "mesa-1" });
+    const res = await POST(
+      req({ ...pedidoBase, deliveryType: "DINE_IN", tableId: "mesa-1" }, { "x-tenant-plano": "MEMBRO_MESA_QR" })
+    );
+    expect(res.status).toBe(201);
+  });
+});
+
+describe("limite de pedidos por origem", () => {
+  it("passa de 60 pedidos em 10 minutos do mesmo IP e restaurante: 429", async () => {
+    let ultimo = 0;
+    for (let i = 0; i < 61; i++) {
+      ultimo = (await POST(req(pedidoBase, { "x-forwarded-for": "203.0.113.7" }))).status;
+    }
+    expect(ultimo).toBe(429);
+  });
+
+  it("outro IP não é afetado", async () => {
+    expect((await POST(req(pedidoBase, { "x-forwarded-for": "198.51.100.9" }))).status).toBe(201);
+  });
+});
+
+describe("dinheiro em centavos inteiros", () => {
+  it("0,10 três vezes dá 0,30, e não 0,30000000000000004", async () => {
+    menuItemFindMany.mockResolvedValue([{ id: "item-1", price: 0.1, available: true }]);
+    await POST(req({ ...pedidoBase, items: [{ menuItemId: "item-1", quantity: 3 }] }));
+    expect(dadosCriados().total).toBe(0.3);
   });
 });
 

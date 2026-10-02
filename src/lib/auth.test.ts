@@ -54,9 +54,12 @@ beforeAll(async () => {
   authorize = mod.autorizarCredenciais as unknown as Autorizar;
 });
 
-function requisicao(tenantId: string | null = TENANT) {
+function requisicao(tenantId: string | null = TENANT, ip?: string) {
   return new Request("http://localhost/api/auth/callback/credentials", {
-    headers: tenantId ? { "x-tenant-id": tenantId } : {},
+    headers: {
+      ...(tenantId ? { "x-tenant-id": tenantId } : {}),
+      ...(ip ? { "x-forwarded-for": ip } : {}),
+    },
   });
 }
 
@@ -97,6 +100,19 @@ describe("login com credenciais", () => {
       requisicao()
     );
     expect(user).toBeNull();
+  });
+
+  // Quem adivinha e-mails não pode distinguir "não existe" de "senha errada"
+  // pelo tempo de resposta: bcrypt a 12 rodadas leva ~200 ms, e a ausência dele
+  // aparece num cronômetro.
+  it("e-mail que não existe também gasta um bcrypt, para o tempo não denunciar a conta", async () => {
+    userFindUnique.mockResolvedValue(null);
+    const compare = vi.spyOn(bcrypt, "compare");
+
+    await authorize({ email: "ninguem@exemplo.com", password: SENHA }, requisicao());
+
+    expect(compare).toHaveBeenCalledTimes(1);
+    compare.mockRestore();
   });
 
   it("recusa e-mail que não existe", async () => {
@@ -313,5 +329,31 @@ describe("sessão: o JWT é reconferido contra o banco", () => {
     const token = await jwt()({ token: antigo });
 
     expect(token).toMatchObject({ role: "ADMIN", verificadoEm: antigo.verificadoEm });
+  });
+});
+
+
+// O limite por e-mail sozinho deixa quem sabe o e-mail do dono trancá-lo para
+// fora com 10 tentativas erradas, e não impede quem testa muitos e-mails.
+describe("limite de tentativas por origem (IP)", () => {
+  it("passa de 30 tentativas em 10 minutos do mesmo IP e restaurante: recusa até a senha certa", async () => {
+    const ip = "203.0.113.50";
+    for (let i = 0; i < 30; i++) {
+      await authorize({ email: `pessoa${i}@exemplo.com`, password: "senha-errada" }, requisicao(TENANT, ip));
+    }
+
+    const user = await authorize({ email: "cliente@exemplo.com", password: SENHA }, requisicao(TENANT, ip));
+
+    expect(user).toBeNull();
+  });
+
+  it("outro IP não é afetado", async () => {
+    const user = await authorize({ email: "cliente@exemplo.com", password: SENHA }, requisicao(TENANT, "198.51.100.77"));
+    expect(user).not.toBeNull();
+  });
+
+  it("sem IP (fora da Vercel) o limite por IP não se aplica", async () => {
+    const user = await authorize({ email: "cliente@exemplo.com", password: SENHA }, requisicao());
+    expect(user).not.toBeNull();
   });
 });

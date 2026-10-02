@@ -51,6 +51,8 @@ describe("reconciliarCobrancasDoAsaas", () => {
     ["RECEIVED", "PAYMENT_RECEIVED"],
     ["CONFIRMED", "PAYMENT_RECEIVED"],
     ["RECEIVED_IN_CASH", "PAYMENT_RECEIVED"],
+    ["REFUNDED", "PAYMENT_REFUNDED"],
+    ["CHARGEBACK_REQUESTED", "PAYMENT_CHARGEBACK_REQUESTED"],
   ])("pagamento %s vira o evento %s do espelho", async (status, evento) => {
     listarPagamentos.mockResolvedValue([
       { id: "pay_9", status, value: 119.99, dueDate: "2026-11-10" },
@@ -67,9 +69,8 @@ describe("reconciliarCobrancasDoAsaas", () => {
     );
   });
 
-  it("ignora status que o espelho não representa (estornado, em análise)", async () => {
+  it("ignora status que o espelho não representa (em análise de risco)", async () => {
     listarPagamentos.mockResolvedValue([
-      { id: "p1", status: "REFUNDED", value: 1, dueDate: "2026-11-10" },
       { id: "p2", status: "AWAITING_RISK_ANALYSIS", value: 1, dueDate: "2026-11-10" },
     ]);
 

@@ -1,4 +1,5 @@
 import { TERMOS_VERSAO } from "@/lib/termos";
+import { reportarErro } from "@/lib/observabilidade";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -320,11 +321,17 @@ export async function POST(req: NextRequest) {
       externalReference: inscricao.id,
     });
   } catch (erro) {
+    // Timeout (ou conexão abortada) não diz se o Asaas leu o pedido: a
+    // assinatura pode existir lá sem a gente saber. Nesse estado incerto a
+    // Inscricao fica, porque se o cliente pagar é por ela que o webhook acha o
+    // pedido (externalReference). Se nunca for paga, o cron a expira.
+    const incerto =
+      erro instanceof Error && (erro.name === "TimeoutError" || erro.name === "AbortError");
     // Nada cobrável existe ainda (falhou em criarCliente, ou o próprio
     // criarAssinatura): soltar o slug é o desfecho certo, em vez de deixá-lo
     // preso até o cron de inscrições vencidas passar.
-    await desfazerInscricao(inscricao.id, erro);
-    logFalhaAsaas("criar cliente/assinatura no Asaas", erro, {
+    if (!incerto) await desfazerInscricao(inscricao.id, erro);
+    await logFalhaAsaas("criar cliente/assinatura no Asaas", erro, {
       inscricaoId: inscricao.id,
       clienteId: cliente?.id,
     });
@@ -360,7 +367,7 @@ export async function POST(req: NextRequest) {
     // expirar (expiraEm cuida disso, e é barato), mas se o cliente pagar o
     // webhook consegue achar esta linha pelo asaasSubscriptionId. Apagar
     // aqui reproduziria exatamente o defeito que este código corrige.
-    logFalhaAsaas(
+    await logFalhaAsaas(
       "processar a assinatura já criada no Asaas (Inscricao NÃO apagada de propósito)",
       erro,
       { inscricaoId: inscricao.id, clienteId: cliente.id, assinaturaId: assinatura.id }
@@ -396,7 +403,7 @@ async function desfazerInscricao(inscricaoId: string, causa: unknown) {
  * (cliente, assinatura, inscrição) porque quem ler isto às 2 da manhã não
  * tem mais nenhum contexto — só o texto do console.
  */
-function logFalhaAsaas(
+async function logFalhaAsaas(
   contexto: string,
   erro: unknown,
   info: { inscricaoId: string; clienteId?: string; assinaturaId?: string }
@@ -405,6 +412,16 @@ function logFalhaAsaas(
     `Falha ao ${contexto} — inscricao=${info.inscricaoId} cliente=${info.clienteId ?? "(nenhum)"} assinatura=${info.assinaturaId ?? "(nenhuma)"}:`,
     erro
   );
+  // Venda que não aconteceu: o dono precisa saber na hora. Só ids.
+  await reportarErro({
+    origem: contexto.startsWith("criar") ? "assinar:criar-assinatura" : "assinar:assinatura-ja-criada",
+    erro,
+    extra: {
+      inscricaoId: info.inscricaoId,
+      clienteId: info.clienteId,
+      assinaturaId: info.assinaturaId,
+    },
+  });
 }
 
 /** A URL onde o cliente paga a primeira cobrança da assinatura. */

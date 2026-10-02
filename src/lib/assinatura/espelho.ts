@@ -33,6 +33,8 @@ export type EventoAsaas = {
 
 const PAGOS = new Set(["PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"]);
 const EM_ABERTO = new Set(["PAYMENT_CREATED", "PAYMENT_UPDATED", "PAYMENT_OVERDUE"]);
+// Dinheiro que voltou: a cobrança deixa de contar como paga.
+const REEMBOLSADOS = new Set(["PAYMENT_REFUNDED", "PAYMENT_CHARGEBACK_REQUESTED"]);
 const ASSINATURA_ENCERRADA = new Set([
   "SUBSCRIPTION_DELETED",
   "SUBSCRIPTION_INACTIVATED",
@@ -98,7 +100,12 @@ export async function espelharEventoDeAssinatura(
   const pagamento = corpo.payment;
   const idDaAssinatura = pagamento?.subscription;
   if (!pagamento || !idDaAssinatura) return false;
-  if (!PAGOS.has(evento) && !EM_ABERTO.has(evento) && evento !== "PAYMENT_DELETED") {
+  if (
+    !PAGOS.has(evento) &&
+    !EM_ABERTO.has(evento) &&
+    !REEMBOLSADOS.has(evento) &&
+    evento !== "PAYMENT_DELETED"
+  ) {
     return false;
   }
 
@@ -136,13 +143,44 @@ export async function espelharEventoDeAssinatura(
     const daCompetencia = await prismaUnscoped.cobranca.findUnique({
       where: { assinaturaId_competencia: { assinaturaId: assinatura.id, competencia } },
     });
-    if (daCompetencia?.asaasPaymentId && daCompetencia.asaasPaymentId !== pagamento.id) {
+    // Cobrança CANCELADA não segura a competência: o Asaas apaga e recria o
+    // pagamento do mês com outro id, e descartar o novo deixaria a régua cega.
+    if (
+      daCompetencia?.asaasPaymentId &&
+      daCompetencia.asaasPaymentId !== pagamento.id &&
+      daCompetencia.status !== "CANCELADA"
+    ) {
       // Outro pagamento do Asaas já ocupa este mês. Escrever por cima
       // misturaria duas cobranças; sem como representar as duas, só o log.
       console.error(
         `[espelho/asaas] ${evento}: competência ${competencia} já é do pagamento ` +
           `${daCompetencia.asaasPaymentId}, ignorando payment=${pagamento.id}`
       );
+      return true;
+    }
+    // Pagamento NOVO do mesmo mês, com a cobrança antiga CANCELADA: o Asaas
+    // apagou e recriou. A linha é reaproveitada para o pagamento novo.
+    if (
+      daCompetencia &&
+      daCompetencia.status === "CANCELADA" &&
+      daCompetencia.asaasPaymentId &&
+      daCompetencia.asaasPaymentId !== pagamento.id &&
+      pagamento.id &&
+      !REEMBOLSADOS.has(evento) &&
+      evento !== "PAYMENT_DELETED"
+    ) {
+      const pago = PAGOS.has(evento);
+      await prismaUnscoped.cobranca.update({
+        where: { id: daCompetencia.id },
+        data: {
+          asaasPaymentId: pagamento.id,
+          valor,
+          vencimento,
+          status: pago ? "PAGA" : evento === "PAYMENT_OVERDUE" ? "VENCIDA" : "PENDENTE",
+          pagoEm: pago ? agora : null,
+        },
+      });
+      await recalcularStatusDaAssinatura(assinatura.id, assinatura.status, agora);
       return true;
     }
     existente = daCompetencia;
@@ -170,6 +208,17 @@ export async function espelharEventoDeAssinatura(
         where: { id: existente.id },
         data: { status: "PAGA", pagoEm: agora, ...comId },
       });
+    }
+  } else if (REEMBOLSADOS.has(evento)) {
+    if (existente && existente.status === "PAGA") {
+      await prismaUnscoped.cobranca.update({
+        where: { id: existente.id },
+        data: { status: "VENCIDA", pagoEm: null },
+      });
+      // Restaurante que recebeu o dinheiro de volta é caso de olho humano.
+      console.error(
+        `[espelho/asaas:estorno] ${evento} em cobrança paga — assinatura=${assinatura.id} payment=${pagamento.id}`
+      );
     }
   } else if (evento === "PAYMENT_DELETED") {
     if (existente && existente.status !== "PAGA" && existente.status !== "CANCELADA") {

@@ -99,25 +99,25 @@ model Category {
 }
 
 model MenuItem {
-  id          String      @id @default(cuid())
-  tenantId    String
-  tenant      Tenant      @relation(fields: [tenantId], references: [id])
-  name        String
-  description String?
-  price       Decimal     @db.Decimal(10, 2)
-  imageUrl    String?
-  available   Boolean     @default(true)
+  id              String      @id @default(cuid())
+  tenantId        String
+  tenant          Tenant      @relation(fields: [tenantId], references: [id])
+  name            String
+  description     String?
+  price           Decimal     @db.Decimal(10, 2)
+  imageUrl        String?
+  available       Boolean     @default(true)
   // O que o restaurante declara sobre a receita. null = "não informou", e por
   // isso as colunas NÃO têm default: um `false` faria todo item antigo aparecer
   // como "sem lactose" sem que ninguém tivesse verificado. Ver src/lib/restricoes.ts.
   containsGluten  Boolean?
   containsLactose Boolean?
   isVegan         Boolean?
-  categoryId  String
-  category    Category    @relation(fields: [categoryId], references: [id])
-  orderItems  OrderItem[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  categoryId      String
+  category        Category    @relation(fields: [categoryId], references: [id])
+  orderItems      OrderItem[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
   @@index([tenantId])
   @@index([categoryId])
@@ -131,6 +131,11 @@ model Order {
   paymentMethod       PaymentMethod
   paymentStatus       PaymentStatus     @default(UNPAID)
   mpPaymentId         String?
+  // Gerada pelo navegador a cada tentativa de finalizar (uuid). Duas
+  // requisições com a mesma chave, por mais simultâneas que sejam, viram um
+  // pedido só: o unique abaixo desempata. Nulo em pedidos antigos e em
+  // clientes que não a enviam (o Postgres aceita vários nulos num unique).
+  idempotencyKey      String?
   total               Decimal           @db.Decimal(10, 2)
   notes               String?
   customerName        String?
@@ -163,6 +168,8 @@ model Order {
   // As três consultas quentes. Cada uma começa por tenantId, então elas também
   // atendem o filtro automático da extensão do Prisma — por isso o @@index
   // solto em [tenantId] foi removido: virou prefixo redundante.
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, createdAt]) // faturamento e gráficos do painel
   @@index([tenantId, status, createdAt]) // fila da cozinha
   @@index([tenantId, userId, createdAt]) // histórico do cliente
   @@index([tenantId, status, deliveryType]) // fila do motoboy
@@ -354,13 +361,13 @@ model ChatMessage {
 
 // Login da área administrativa da plataforma, separado dos usuários de restaurante (User)
 model PlatformAdmin {
-  id        String   @id @default(cuid())
-  nome      String
-  email     String   @unique
-  password  String
+  id                String    @id @default(cuid())
+  nome              String
+  email             String    @unique
+  password          String
   // Mesma função de User.passwordChangedAt, para o console da plataforma.
   passwordChangedAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt         DateTime  @default(now())
 }
 
 enum LeadStatus {
@@ -531,21 +538,21 @@ model Assinatura {
 }
 
 model Cobranca {
-  id           String         @id @default(cuid())
-  assinaturaId String
-  assinatura   Assinatura     @relation(fields: [assinaturaId], references: [id])
-  competencia  String
-  valor        Decimal        @db.Decimal(10, 2)
-  vencimento   DateTime
-  status       CobrancaStatus @default(PENDENTE)
-  pagoEm       DateTime?
+  id             String         @id @default(cuid())
+  assinaturaId   String
+  assinatura     Assinatura     @relation(fields: [assinaturaId], references: [id])
+  competencia    String
+  valor          Decimal        @db.Decimal(10, 2)
+  vencimento     DateTime
+  status         CobrancaStatus @default(PENDENTE)
+  pagoEm         DateTime?
   // Id do pagamento no Asaas, quando a cobrança nasceu dele. É a chave que
   // sobrevive a um vencimento remarcado (a competência derivada do dueDate
   // muda, o id não). Nulo nas cobranças geradas pelo cron e nas anteriores a
   // esta coluna.
-  asaasPaymentId String?     @unique
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  asaasPaymentId String?        @unique
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   // A idempotência do job diário mora aqui, no banco, e não no código que
   // chama: rodar duas vezes no mesmo mês não gera duas cobranças.

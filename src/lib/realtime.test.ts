@@ -5,11 +5,15 @@ type Envio = { event: string; payload: Record<string, unknown> };
 const send = vi.fn<(envio: Envio) => Promise<void>>();
 const channel = vi.fn<(nome: string) => { send: typeof send }>();
 
+const removeChannel = vi.fn();
 vi.mock("@/lib/supabase-admin", () => ({
-  supabaseAdmin: { channel: (nome: string) => channel(nome) },
+  supabaseAdmin: {
+    channel: (nome: string) => channel(nome),
+    removeChannel: (...a: unknown[]) => removeChannel(...a),
+  },
 }));
 
-import { broadcastOrderUpdate } from "./realtime";
+import { broadcastOrderUpdate, broadcastTenantEvent } from "./realtime";
 import { topicoSeguro } from "./realtime-topic";
 
 const TENANT = "tenant-1";
@@ -35,6 +39,48 @@ beforeEach(() => {
   vi.clearAllMocks();
   send.mockResolvedValue(undefined);
   channel.mockReturnValue({ send });
+});
+
+describe("broadcastTenantEvent: o aviso ao vivo não pode atrapalhar o pedido", () => {
+  it("solta o canal depois de enviar, para o cliente não acumular tópicos", async () => {
+    const canal = { send };
+    channel.mockReturnValue(canal);
+
+    await broadcastTenantEvent(TENANT, "kitchen-orders", "order-created", { orderId: "o1" });
+
+    expect(removeChannel).toHaveBeenCalledWith(canal);
+  });
+
+  it("solta o canal mesmo quando o envio falha", async () => {
+    send.mockRejectedValue(new Error("realtime fora"));
+
+    await broadcastTenantEvent(TENANT, "kitchen-orders", "order-created", {});
+
+    expect(removeChannel).toHaveBeenCalled();
+  });
+
+  it("nunca lança: pedido já gravado não vira 500 por causa do Realtime", async () => {
+    send.mockRejectedValue(new Error("realtime fora"));
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      broadcastTenantEvent(TENANT, "kitchen-orders", "order-created", {})
+    ).resolves.toBeUndefined();
+    erro.mockRestore();
+  });
+
+  it("desiste depois de 2 segundos, em vez de segurar a resposta do pedido", async () => {
+    vi.useFakeTimers();
+    send.mockImplementation(() => new Promise(() => {})); // nunca responde
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const envio = broadcastTenantEvent(TENANT, "kitchen-orders", "order-created", {});
+    await vi.advanceTimersByTimeAsync(2100);
+
+    await expect(envio).resolves.toBeUndefined();
+    erro.mockRestore();
+    vi.useRealTimers();
+  });
 });
 
 describe("broadcastOrderUpdate", () => {

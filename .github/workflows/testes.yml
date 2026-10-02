@@ -55,3 +55,52 @@ jobs:
       # calada. Moderate e low continuam aparecendo no log sem reprovar.
       - name: npm audit (reprova em high)
         run: npm audit --omit=dev --audit-level=high
+
+  # Os testes de unidade mockam o Prisma, então nenhuma constraint única,
+  # corrida ou policy de RLS passa por eles. Estes falam com um Postgres de
+  # verdade (o mesmo major de produção), criado do zero com as migrações.
+  integracao:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          # Senha descartável por execução, sem valor literal no arquivo.
+          POSTGRES_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
+          POSTGRES_DB: muno_teste
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d muno_teste"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PG_USUARIO: postgres
+      PG_SENHA: ${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+      - run: npx prisma generate
+
+      # A URL é montada aqui, por partes, e não escrita inteira no arquivo:
+      # usuário e senha literais numa URL de banco são o que varredores de
+      # segredos leem como credencial vazada. src/test-integracao/banco.ts
+      # recusa qualquer host que não seja local e qualquer banco sem "test" no
+      # nome.
+      - name: Apontar para o banco de teste
+        run: echo "DATABASE_URL_TESTE=postgresql://${PG_USUARIO}:${PG_SENHA}@localhost:5432/muno_teste" >> "$GITHUB_ENV"
+
+      # O globalSetup aplica `prisma migrate deploy` no banco de teste.
+      - run: npm run test:integracao

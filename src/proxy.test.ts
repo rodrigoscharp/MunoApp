@@ -1,4 +1,5 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { limparCacheDeTenants } from "@/lib/tenant-cache";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { authPlatform } from "@/lib/auth-platform";
 
@@ -104,6 +105,7 @@ const planoInjetado = (res: Response) =>
   res.headers.get("x-middleware-request-x-tenant-plano");
 
 beforeEach(() => {
+  limparCacheDeTenants();
   vi.clearAllMocks();
   comAssinatura("ATIVA");
   vi.mocked(authPlatform).mockResolvedValue(null as never);
@@ -800,5 +802,85 @@ describe("proxy: header de tenant forjado não atravessa rota sem tenant", () =>
 
     expect(tenantInjetado(res)).toBe(TENANT_ID);
     expect(planoInjetado(res)).toBe("MEMBRO");
+  });
+});
+
+
+describe("proxy: cache do restaurante", () => {
+  it("duas requisições seguidas ao mesmo restaurante fazem uma consulta só", async () => {
+    comAssinatura("ATIVA");
+
+    await proxy(requisicao("/adm/menu", DONO));
+    await proxy(requisicao("/adm/menu", DONO));
+
+    expect(findUnique).toHaveBeenCalledTimes(1);
+  });
+
+  it("o bloqueio por inadimplência passa a valer depois que o cache expira", async () => {
+    vi.useFakeTimers();
+    try {
+      comAssinatura("ATIVA");
+      expect(destino(await proxy(requisicao("/adm/menu", DONO)))).toBeNull();
+
+      comAssinatura("BLOQUEADA");
+      // ainda dentro da janela: o que estava em cache vale
+      expect(destino(await proxy(requisicao("/adm/menu", DONO)))).toBeNull();
+
+      vi.advanceTimersByTime(31_000);
+      expect(destino(await proxy(requisicao("/adm/menu", DONO)))).toBe(`http://${HOST}/adm/assinatura`);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+
+describe("proxy: aviso de privacidade no domínio do restaurante", () => {
+  it.each(["/privacidade", "/privacidade/"])("%s reescreve para o documento, sem consultar o tenant", async (caminho) => {
+    const res = await proxy(requisicao(caminho));
+    expect(res.headers.get("x-middleware-rewrite")).toContain("/vendas/privacidade.html");
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it("os Termos de Uso não são servidos no domínio do restaurante: são do contrato com a Muno", async () => {
+    const res = await proxy(requisicao("/termos"));
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+  });
+});
+
+
+describe("proxy: restrição do console por IP (PLATFORM_ALLOWED_IPS)", () => {
+  function pedidoDeConsole(ip?: string) {
+    const req = new NextRequest(`http://${ADMIN_HOST}/platform/login`, {
+      headers: { host: ADMIN_HOST, ...(ip ? { "x-forwarded-for": ip } : {}) },
+    });
+    (req as unknown as { auth: Sessao }).auth = null;
+    return req;
+  }
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("com a lista definida, IP de fora recebe 404", async () => {
+    vi.stubEnv("PLATFORM_ALLOWED_IPS", "203.0.113.9");
+    const res = await proxy(pedidoDeConsole("192.0.2.5"));
+    expect(res.status).toBe(404);
+  });
+
+  it("com a lista definida, IP listado chega ao login", async () => {
+    vi.stubEnv("PLATFORM_ALLOWED_IPS", "203.0.113.9");
+    const res = await proxy(pedidoDeConsole("203.0.113.9"));
+    expect(res.status).not.toBe(404);
+  });
+
+  it("sem a variável o console abre para qualquer origem, como antes", async () => {
+    const res = await proxy(pedidoDeConsole("192.0.2.5"));
+    expect(res.status).not.toBe(404);
+  });
+
+  it("a restrição vale só para o console: o domínio de restaurante não é afetado", async () => {
+    vi.stubEnv("PLATFORM_ALLOWED_IPS", "203.0.113.9");
+    comAssinatura("ATIVA");
+    const res = await proxy(requisicao("/adm/menu", DONO));
+    expect(res.status).not.toBe(404);
   });
 });

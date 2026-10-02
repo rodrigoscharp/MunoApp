@@ -1,3 +1,4 @@
+import { MENSAGEM_SENHA_MINIMA, SENHA_MINIMA } from "@/lib/senha";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
@@ -8,7 +9,7 @@ import { criarLimitador } from "@/lib/rate-limit";
 const registerSchema = z.object({
   name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
   email: z.string().email("Email inválido"),
-  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+  password: z.string().min(SENHA_MINIMA, MENSAGEM_SENHA_MINIMA),
 });
 
 // Dois limitadores, não um, os dois por tenant e IP.

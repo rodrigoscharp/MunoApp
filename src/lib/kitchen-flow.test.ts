@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { proximoStatus, statusAnterior } from "@/lib/kitchen-flow";
+import { proximoStatus, statusAnterior, transicaoPermitida } from "@/lib/kitchen-flow";
 
 describe("proximoStatus", () => {
   it("avança do pendente ao pronto igual para todo tipo de entrega", () => {
@@ -57,5 +57,33 @@ describe("statusAnterior", () => {
   it("não volta do primeiro status nem do que já terminou", () => {
     expect(statusAnterior("PENDING")).toBeNull();
     expect(statusAnterior("DELIVERED")).toBeNull();
+  });
+});
+
+describe("transicaoPermitida", () => {
+  it("é o mesmo caminho do quadro da cozinha: um passo à frente, um atrás, ou cancelar", () => {
+    expect(transicaoPermitida("PENDING", "CONFIRMED", "PICKUP")).toBe(true);
+    expect(transicaoPermitida("CONFIRMED", "PENDING", "PICKUP")).toBe(true);
+    expect(transicaoPermitida("IN_PREPARATION", "CANCELLED", "DELIVERY")).toBe(true);
+  });
+
+  it("o último passo depende do tipo de entrega", () => {
+    expect(transicaoPermitida("READY", "OUT_FOR_DELIVERY", "DELIVERY")).toBe(true);
+    expect(transicaoPermitida("READY", "OUT_FOR_DELIVERY", "PICKUP")).toBe(false);
+    expect(transicaoPermitida("READY", "DELIVERED", "DELIVERY")).toBe(false);
+    expect(transicaoPermitida("READY", "DELIVERED", "DINE_IN")).toBe(true);
+  });
+
+  it("não pula etapa", () => {
+    expect(transicaoPermitida("PENDING", "READY", "PICKUP")).toBe(false);
+    expect(transicaoPermitida("PENDING", "DELIVERED", "PICKUP")).toBe(false);
+  });
+
+  it("não reabre pedido encerrado, mas repetir o mesmo status vale", () => {
+    expect(transicaoPermitida("DELIVERED", "PENDING", "PICKUP")).toBe(false);
+    expect(transicaoPermitida("CANCELLED", "CONFIRMED", "PICKUP")).toBe(false);
+    expect(transicaoPermitida("DELIVERED", "CANCELLED", "PICKUP")).toBe(false);
+    expect(transicaoPermitida("CANCELLED", "CANCELLED", "PICKUP")).toBe(true);
+    expect(transicaoPermitida("DELIVERED", "DELIVERED", "PICKUP")).toBe(true);
   });
 });

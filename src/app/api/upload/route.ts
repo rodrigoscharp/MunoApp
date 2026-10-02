@@ -7,6 +7,10 @@ import sharp from "sharp";
 // Largura máxima gravada. O cardápio mostra a imagem em poucas centenas de
 // pixels; guardar o original de 5 MB só multiplica armazenamento e tráfego.
 const LARGURA_MAXIMA = 1280;
+// Quantas imagens cada restaurante pode ter no bucket. O cardápio de um
+// restaurante grande tem algumas centenas de itens; mais que isso é lixo
+// acumulado ou abuso, e o armazenamento é custo da Muno.
+const MAX_IMAGENS_POR_RESTAURANTE = 500;
 // Contra "bomba de descompressão": PNG pequeno em bytes e enorme em pixels.
 const PIXELS_MAXIMOS = 50_000_000;
 
@@ -41,6 +45,20 @@ export async function POST(req: NextRequest) {
 
   if (!file) {
     return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 });
+  }
+
+  try {
+    const { data: existentes } = await supabaseAdmin.storage
+      .from("product-images")
+      .list(pasta, { limit: 1000 });
+    if ((existentes?.length ?? 0) >= MAX_IMAGENS_POR_RESTAURANTE) {
+      return NextResponse.json(
+        { error: "Limite de imagens do restaurante atingido. Apague imagens que não usa mais." },
+        { status: 429 }
+      );
+    }
+  } catch {
+    // Contar é proteção, não pré-requisito: storage lento não trava o upload.
   }
 
   // O tipo declarado só decide se vale a pena tentar: o que vale é o conteúdo.

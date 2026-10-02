@@ -16,7 +16,13 @@ const TOKEN = "token-do-email";
 
 const tokenFindUnique = vi.fn();
 const tokenDelete = vi.fn();
+const tokenDeleteMany = vi.fn();
 const userUpdate = vi.fn();
+
+const tx = {
+  passwordResetToken: { deleteMany: (...a: unknown[]) => tokenDeleteMany(...a) },
+  user: { update: (...a: unknown[]) => userUpdate(...a) },
+};
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -25,6 +31,7 @@ vi.mock("@/lib/prisma", () => ({
       delete: (...a: unknown[]) => tokenDelete(...a),
     },
     user: { update: (...a: unknown[]) => userUpdate(...a) },
+    $transaction: (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),
   },
 }));
 
@@ -55,6 +62,7 @@ beforeEach(() => {
     expiresAt: daquiA1h(),
   });
   tokenDelete.mockResolvedValue({});
+  tokenDeleteMany.mockResolvedValue({ count: 1 });
   userUpdate.mockResolvedValue({});
 });
 
@@ -69,7 +77,7 @@ describe("porta de entrada", () => {
     const res = await POST(req({ token: TOKEN, password: "123" }));
 
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "Senha deve ter pelo menos 6 caracteres" });
+    expect(await res.json()).toEqual({ error: "Senha deve ter pelo menos 8 caracteres" });
     expect(userUpdate).not.toHaveBeenCalled();
   });
 
@@ -151,13 +159,22 @@ describe("troca bem-sucedida", () => {
     expect(userUpdate.mock.calls[0][0].where.tenantId_email.email).toBe("cliente@exemplo.com");
   });
 
-  it("queima o token depois de usar, para o link valer uma vez só", async () => {
+  it("queima o token na mesma transação da troca, para o link valer uma vez só", async () => {
     await POST(req(corpoValido));
 
-    expect(tokenDelete).toHaveBeenCalledWith({ where: { token: TOKEN } });
-    expect(userUpdate.mock.invocationCallOrder[0]).toBeLessThan(
-      tokenDelete.mock.invocationCallOrder[0]
-    );
+    expect(tokenDeleteMany).toHaveBeenCalledWith({ where: { token: TOKEN } });
+    expect(userUpdate).toHaveBeenCalled();
+  });
+
+  // Dois pedidos simultâneos com o mesmo link: só o que queima o token (count 1)
+  // troca a senha.
+  it("se outro pedido já queimou o token, não troca a senha e responde 400", async () => {
+    tokenDeleteMany.mockResolvedValue({ count: 0 });
+
+    const res = await POST(req(corpoValido));
+
+    expect(res.status).toBe(400);
+    expect(userUpdate).not.toHaveBeenCalled();
   });
 
   it("responde ok", async () => {
@@ -166,11 +183,13 @@ describe("troca bem-sucedida", () => {
     expect(await res.json()).toEqual({ ok: true });
   });
 
-  it("devolve 500 genérico se a gravação falhar, sem queimar o token", async () => {
+  // Que o token NÃO seja queimado quando a troca falha é garantido pela
+  // transação (rollback), e é verificado contra o banco real em
+  // src/test-integracao/reset-de-senha.integration.test.ts.
+  it("devolve 500 genérico se a gravação falhar", async () => {
     userUpdate.mockRejectedValue(new Error("connection terminated"));
     const res = await POST(req(corpoValido));
 
     expect(res.status).toBe(500);
-    expect(tokenDelete).not.toHaveBeenCalled();
   });
 });

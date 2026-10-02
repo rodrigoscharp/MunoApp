@@ -317,7 +317,7 @@ landing e checkout →  POST /api/funil/evento
 /api/assinar       →  Inscricao.sessaoId e Lead.sessaoId
 webhook do Asaas   →  PAGOU
 provisionamento    →  PROVISIONADO
-cron das 9h        →  ABANDONOU, e o resumo dos 90 dias
+cron das 09:00 UTC (06:00 em Brasília)        →  ABANDONOU, e o resumo dos 90 dias
 ```
 
 A spec é
@@ -386,7 +386,7 @@ declara que pagou.
 
 ## O expurgo dos 90 dias
 
-O cron das 9h resume os eventos crus em `ResumoDiario` e então os apaga, na
+O cron das 09:00 UTC (06:00 em Brasília) resume os eventos crus em `ResumoDiario` e então os apaga, na
 mesma transação. Resumir antes de apagar, e as duas coisas juntas ou nenhuma: a
 ordem inversa perde o histórico para sempre, e fora de uma transação existe a
 janela em que o dia foi apagado e não foi contado. O `upsert` usa `increment`,
@@ -607,3 +607,65 @@ Três caminhos, e não se misturam:
   Asaas antes de gravar; se o gateway falhar, a rota responde 502 e nada muda.
   Mudar o valor mensal também vai ao Asaas; dia de vencimento e valor do plano
   anual só se alteram no painel do Asaas (a rota responde 409).
+
+## Trocar a chave de criptografia das credenciais
+
+`PAYMENT_TOKEN_ENCRYPTION_KEY` cifra as credenciais de gateway de todos os
+restaurantes. Trocá-la de uma vez invalida todas. O caminho seguro:
+
+1. Mover o valor atual para `PAYMENT_TOKEN_ENCRYPTION_KEY_ANTERIOR` e pôr uma
+   chave nova (`openssl rand -hex 32`) em `PAYMENT_TOKEN_ENCRYPTION_KEY`. A
+   leitura (`decryptSecret`) abre as duas.
+2. `npm run credenciais:rotacionar:prod -- --confirmar` (faz backup antes e
+   regrava o que ainda está na chave anterior).
+3. Remover `PAYMENT_TOKEN_ENCRYPTION_KEY_ANTERIOR`.
+
+`REALTIME_TOPIC_SECRET`, se não definido, deriva desta chave: trocá-la muda os
+nomes dos canais de tempo real (abas abertas ficam sem aviso até recarregar).
+Defina `REALTIME_TOPIC_SECRET` à parte para desacoplar as duas.
+
+## Retenção de dados pessoais
+
+O cron diário apaga tokens de redefinição vencidos e, **se `RETENCAO_PEDIDOS_MESES`
+estiver definida**, anonimiza os pedidos mais antigos que esse prazo (nome,
+telefone, endereço, observações; conversa e posição do entregador são apagadas;
+o pedido fica, pelo valor fiscal). O prazo é decisão de negócio e jurídica, por
+isso a variável nasce vazia e nada é anonimizado até alguém defini-la.
+
+## Regra para migrações
+
+Rollback de deploy na Vercel volta o código, não o banco, e preview e produção
+usam o mesmo banco. Por isso:
+
+* **Primeiro adicione, depois remova.** Coluna, tabela ou índice novos entram
+  num deploy; o código passa a usá-los; só num deploy posterior se apaga o que
+  ficou sem uso. `DROP COLUMN`, `DROP TABLE` e `RENAME` no mesmo deploy que
+  troca o código derrubam a versão anterior se for preciso voltar.
+* **Coluna nova obrigatória precisa de default ou começar nula.** O código
+  antigo continua gravando linhas durante o deploy.
+* O build roda `migrate deploy` ANTES do `next build`: um build que falha
+  depois da migração deixa o banco novo com o código velho. Isso é seguro só
+  se a migração obedecer as duas regras acima.
+
+O cron (`vercel.json`) usa horário **UTC**: `0 9 * * *` é 06:00 em Brasília.
+
+## Testes de integração
+
+`npm test` roda os testes de unidade, que mockam o Prisma. Constraint única,
+corrida e RLS só são exercitadas em `npm run test:integracao`
+(`src/**/*.integration.test.ts`), contra um Postgres de verdade:
+
+```
+docker compose up -d
+docker exec muno-db-dev psql -U muno -d muno -c "create database muno_teste"   (uma vez)
+npm run test:integracao
+```
+
+O banco é `muno_teste` (ou `DATABASE_URL_TESTE`), e `src/test-integracao/banco.ts`
+recusa qualquer host que não seja local e qualquer banco sem "test" no nome. As
+migrações são aplicadas sozinhas antes da suíte. No CI roda o job `integracao`
+com um serviço `postgres:17`.
+
+Ao escrever um teste de integração, aguarde a query **dentro** do callback de
+`runWithTenant` (use `comTenant`): a query do Prisma é preguiçosa e a extensão
+lê o contexto de tenant no momento em que ela executa.

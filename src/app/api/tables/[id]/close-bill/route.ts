@@ -16,6 +16,8 @@ const closeBillSchema = z.object({
     .min(1),
 });
 
+class ContaMudouError extends Error {}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -40,36 +42,62 @@ export async function POST(
     }
     const { payments } = parsed.data;
 
-    const openOrders = await prisma.order.findMany({
-      where: { tableId: id, paymentStatus: "UNPAID", status: { not: "CANCELLED" } },
-      select: { total: true },
+    // Tudo numa transação interativa: ler o que está em aberto, conferir a
+    // soma e quitar são um passo só. Lido fora dela, um pedido novo da mesa que
+    // entrasse entre a leitura e a gravação era marcado como pago sem estar na
+    // conta, e duas chamadas simultâneas criavam os Payment em dobro.
+    //
+    // Quita exatamente os pedidos que foram somados (por id): o que chegar
+    // depois fica em aberto para a próxima conta.
+    const resultado = await prisma.$transaction(async (tx) => {
+      const openOrders = await tx.order.findMany({
+        where: { tableId: id, paymentStatus: "UNPAID", status: { not: "CANCELLED" } },
+        select: { id: true, total: true },
+      });
+
+      if (openOrders.length === 0) {
+        return { erro: "Nenhum pedido em aberto nesta mesa" } as const;
+      }
+
+      const openTotal = openOrders.reduce((sum, o) => sum + Number(o.total), 0);
+      const paidTotal = payments.reduce((sum, p) => sum + p.amount, 0);
+
+      // O total pago pode incluir os 10% de serviço (calculado só na tela, não persistido
+      // em nenhum pedido), então aqui só garantimos que não ficou menor que os pedidos em aberto.
+      if (paidTotal < openTotal - 0.01) {
+        return {
+          erro: `Soma das formas de pagamento (${paidTotal.toFixed(2)}) é menor que o total em aberto (${openTotal.toFixed(2)})`,
+        } as const;
+      }
+
+      const { count } = await tx.order.updateMany({
+        where: { id: { in: openOrders.map((o) => o.id) }, paymentStatus: "UNPAID" },
+        data: { paymentStatus: "PAID" },
+      });
+      // Alguém quitou algum deles no meio: aborta tudo, sem gravar Payment.
+      if (count !== openOrders.length) {
+        throw new ContaMudouError();
+      }
+
+      await tx.payment.createMany({
+        data: payments.map((p) => ({ tenantId, tableId: id, method: p.method, amount: p.amount })),
+      });
+      return { count } as const;
+    }).catch((erro) => {
+      if (erro instanceof ContaMudouError) return { conflito: true } as const;
+      throw erro;
     });
 
-    if (openOrders.length === 0) {
-      return NextResponse.json({ error: "Nenhum pedido em aberto nesta mesa" }, { status: 400 });
-    }
-
-    const openTotal = openOrders.reduce((sum, o) => sum + Number(o.total), 0);
-    const paidTotal = payments.reduce((sum, p) => sum + p.amount, 0);
-
-    // O total pago pode incluir os 10% de serviço (calculado só na tela, não persistido
-    // em nenhum pedido), então aqui só garantimos que não ficou menor que os pedidos em aberto.
-    if (paidTotal < openTotal - 0.01) {
+    if ("conflito" in resultado) {
       return NextResponse.json(
-        { error: `Soma das formas de pagamento (${paidTotal.toFixed(2)}) é menor que o total em aberto (${openTotal.toFixed(2)})` },
-        { status: 400 }
+        { error: "A conta da mesa mudou enquanto era fechada. Atualize e tente de novo." },
+        { status: 409 }
       );
     }
-
-    const [{ count }] = await prisma.$transaction([
-      prisma.order.updateMany({
-        where: { tableId: id, paymentStatus: "UNPAID", status: { not: "CANCELLED" } },
-        data: { paymentStatus: "PAID" },
-      }),
-      prisma.payment.createMany({
-        data: payments.map((p) => ({ tenantId, tableId: id, method: p.method, amount: p.amount })),
-      }),
-    ]);
+    if ("erro" in resultado) {
+      return NextResponse.json({ error: resultado.erro }, { status: 400 });
+    }
+    const { count } = resultado;
 
     return NextResponse.json({ ok: true, count });
   });

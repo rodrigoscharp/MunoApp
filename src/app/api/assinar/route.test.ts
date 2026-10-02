@@ -52,6 +52,11 @@ const listarCobrancasDaAssinatura = vi.fn();
 // Nenhum teste deste arquivo toca a API real do Asaas: o módulo inteiro é
 // substituído por estas funções, e o comportamento de rede fica coberto pelos
 // testes de src/lib/assinatura/asaas.test.ts (Task 6).
+const reportarErro = vi.fn();
+vi.mock("@/lib/observabilidade", () => ({
+  reportarErro: (...args: unknown[]) => reportarErro(...args),
+}));
+
 vi.mock("@/lib/assinatura/asaas", () => ({
   criarCliente: (...args: unknown[]) => criarCliente(...args),
   criarAssinatura: (...args: unknown[]) => criarAssinatura(...args),
@@ -339,6 +344,37 @@ describe("POST /api/assinar", () => {
     expect(inscricaoDelete).toHaveBeenCalledWith({ where: { id: "insc-1" } });
     expect(inscricaoUpdate).not.toHaveBeenCalled();
   });
+
+  // Cada venda perdida precisa chegar até o dono: console.error sozinho não
+  // avisa ninguém às 21h de sábado.
+  it("falha ao criar a assinatura é reportada, com os ids e sem dado pessoal", async () => {
+    criarAssinatura.mockRejectedValue(new Error("Chave do Asaas inválida"));
+
+    await POST(requisicao(corpoValido()));
+
+    expect(reportarErro).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origem: "assinar:criar-assinatura",
+        extra: expect.objectContaining({ inscricaoId: "insc-1" }),
+      })
+    );
+    expect(JSON.stringify(reportarErro.mock.calls)).not.toContain("a@b.com");
+  });
+
+  // Timeout não diz se o Asaas chegou a criar a assinatura. Apagar a Inscricao
+  // nesse estado esconderia do webhook um pagamento que talvez venha.
+  it.each(["TimeoutError", "AbortError"])(
+    "%s ao criar a assinatura: estado incerto, a Inscricao NÃO é apagada",
+    async (nome) => {
+      criarAssinatura.mockRejectedValue(Object.assign(new Error("timeout"), { name: nome }));
+
+      const res = await POST(requisicao(corpoValido()));
+
+      expect(res.status).toBe(502);
+      expect(inscricaoDelete).not.toHaveBeenCalled();
+      expect(reportarErro).toHaveBeenCalled();
+    }
+  );
 
   it("criarAssinatura falha: ainda nada cobrável existe, a Inscricao é apagada", async () => {
     // Mesmo raciocínio do teste acima: o cliente no Asaas já existe, mas sem

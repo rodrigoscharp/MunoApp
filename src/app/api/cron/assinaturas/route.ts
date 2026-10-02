@@ -7,13 +7,17 @@ import {
   vencimentoDaCompetencia,
 } from "@/lib/assinatura/competencia";
 import { statusPelaRegua } from "@/lib/assinatura/regua";
-import { assinaturaTemPagamentoConfirmado } from "@/lib/assinatura/asaas";
+import {
+  assinaturaTemPagamentoConfirmado,
+  cancelarAssinaturaNoAsaas,
+} from "@/lib/assinatura/asaas";
 import {
   reconciliarInscricoesPagas,
   type ResultadoReconciliacao,
 } from "@/lib/assinatura/reconciliacao";
 import { reconciliarCobrancasDoAsaas } from "@/lib/assinatura/reconciliacao-cobrancas";
 import { registrarEvento } from "@/lib/funil/registrar";
+import { aplicarRetencao, limparTokensExpirados, mesesDeRetencao } from "@/lib/retencao";
 import { expurgarEventos } from "@/lib/funil/expurgo";
 
 /**
@@ -241,8 +245,16 @@ async function executar(req: NextRequest) {
               `venceu mas TEM pagamento confirmado no Asaas — preservada. ` +
               `O provisionamento não completou: verificar o webhook.`
           );
+          await reportarErro({
+            origem: "cron/assinaturas:pago-sem-provisionar",
+            erro: "inscrição vencida com pagamento confirmado no Asaas, sem provisionar",
+            extra: { inscricaoId: candidata.id },
+          });
           continue;
         }
+        // Sem pagamento: a assinatura precisa morrer no Asaas junto com a
+        // Inscricao. Se o cancelamento falhar, cai no catch e a linha fica.
+        await cancelarAssinaturaNoAsaas(candidata.asaasSubscriptionId);
       } catch (erro) {
         // Uma linha problemática não trava a faxina inteira, e dúvida nunca
         // vira exclusão.
@@ -251,6 +263,11 @@ async function executar(req: NextRequest) {
             `${candidata.id} no Asaas — preservada por precaução`,
           erro
         );
+        await reportarErro({
+          origem: "cron/assinaturas:faxina-asaas",
+          erro,
+          extra: { inscricaoId: candidata.id },
+        });
         continue;
       }
       paraApagar.push(candidata.id);
@@ -329,6 +346,21 @@ async function executar(req: NextRequest) {
     await reportarErro({ origem: "cron/assinaturas:funil", erro });
   }
 
+  // Faxina de dado pessoal e de lixo. Última e sem propagar, como o expurgo do
+  // funil: conveniência e conformidade não derrubam a cobrança do dia.
+  let retencao: Awaited<ReturnType<typeof aplicarRetencao>> | null = null;
+  let tokensApagados = 0;
+  let faxinaDeDadosFalhou = false;
+  try {
+    tokensApagados = await limparTokensExpirados(agora);
+    const meses = mesesDeRetencao();
+    if (meses) retencao = await aplicarRetencao(agora, meses);
+  } catch (erro) {
+    faxinaDeDadosFalhou = true;
+    console.error("[cron/assinaturas] falha na retenção de dados e limpeza de tokens", erro);
+    await reportarErro({ origem: "cron/assinaturas:retencao", erro });
+  }
+
   const resposta = {
     competencia,
     reconciliacao,
@@ -342,6 +374,9 @@ async function executar(req: NextRequest) {
     statusAtualizados,
     funil,
     ...(expurgoDoFunilFalhou ? { expurgoDoFunilFalhou: true } : {}),
+    tokensApagados,
+    ...(retencao ? { retencao } : {}),
+    ...(faxinaDeDadosFalhou ? { faxinaDeDadosFalhou: true } : {}),
   };
 
   // Contador honesto: se a limpeza falhou, inscricoesExpiradas fica 0 (nada

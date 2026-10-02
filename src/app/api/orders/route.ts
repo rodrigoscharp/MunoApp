@@ -8,6 +8,9 @@ import { getEnabledPaymentMethods } from "@/lib/payments/factory";
 import { assertMethodAllowed, PaymentMethodNotAllowedError } from "@/lib/payments/method-guard";
 import { DeliveryFeeError, resolveDeliveryFee } from "@/lib/delivery-fee";
 import { CouponError, normalizeCouponCode } from "@/lib/coupon";
+import { checkIsOpen, getBusinessHours } from "@/lib/business-hours";
+import { criarLimitador } from "@/lib/rate-limit";
+import { Prisma } from "@prisma/client";
 import { aplicarCupom } from "@/lib/coupon-lookup";
 import { z } from "zod";
 
@@ -34,7 +37,14 @@ const MAX_ITENS_POR_PEDIDO = 50;
 // alguém que de fato quer um segundo pedido igual.
 const JANELA_DUPLICIDADE_MS = 15_000;
 
+// Por restaurante e IP. Folgado de propósito: a clientela de uma mesa inteira
+// pode estar atrás do mesmo wifi, e 60 pedidos em 10 minutos já é mais do que
+// qualquer salão faz. O que ele barra é o laço que enche a cozinha de lixo.
+// Em memória, por instância (ver rate-limit.ts): é um piso, não a defesa toda.
+const limitadorDePedidos = criarLimitador({ max: 60, janelaMs: 10 * 60 * 1000 });
+
 const orderSchema = z.object({
+  idempotencyKey: z.string().uuid().optional(),
   items: z.array(
     z.object({
       menuItemId: z.string().max(64),
@@ -161,6 +171,12 @@ export async function POST(req: NextRequest) {
   const tenantId = getTenantIdFromRequest(req);
   if (!tenantId) return apiError("Tenant não identificado", 400);
 
+  // Sem IP (fora da Vercel) não há com o que contar: segue sem limite.
+  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim();
+  if (ip && !limitadorDePedidos.permitir(`${tenantId}:${ip}`, Date.now())) {
+    return NextResponse.json({ error: "Muitos pedidos em pouco tempo. Aguarde um instante." }, { status: 429 });
+  }
+
   return withTenant(tenantId, async () => {
     const session = await auth();
 
@@ -171,7 +187,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
     }
 
-    const { items, paymentMethod, notes, customerName, customerPhone, deliveryType, deliveryAddress, deliveryZoneId, couponCode, tableId } = parsed.data;
+    const { items, paymentMethod, notes, customerName, customerPhone, deliveryType, deliveryAddress, deliveryZoneId, couponCode, tableId, idempotencyKey } = parsed.data;
+
+    // Mesma chave, mesmo pedido: devolve o que já foi criado em vez de criar de
+    // novo (reenvio por rede ruim, ou o segundo clique). Só vale para o dono: a
+    // chave de outra pessoa nunca devolve pedido alheio.
+    if (idempotencyKey) {
+      const jaCriado = await prisma.order.findFirst({
+        where: { idempotencyKey },
+        include: { items: { include: { menuItem: true } } },
+      });
+      if (jaCriado) {
+        if (jaCriado.userId && jaCriado.userId !== session?.user?.id) {
+          return NextResponse.json({ error: "Chave de pedido já utilizada." }, { status: 409 });
+        }
+        return NextResponse.json(jaCriado, { status: 200 });
+      }
+    }
 
     // Defesa em profundidade: a tela de /mesa/[token] já não renderiza pra
     // quem não tem o plano, mas um checkout aberto no navegador antes de um
@@ -187,6 +219,12 @@ export async function POST(req: NextRequest) {
         { error: "Faça login para finalizar o pedido" },
         { status: 401 }
       );
+    }
+
+    // A tela já esconde o botão fora do horário, mas o endpoint é público.
+    // Na mesa não vale: o cliente já está no restaurante.
+    if (deliveryType !== "DINE_IN" && !checkIsOpen(await getBusinessHours(tenantId))) {
+      return NextResponse.json({ error: "O restaurante está fechado no momento." }, { status: 422 });
     }
 
     // Endpoint público: a UI esconder o botão não impede ninguém de pedir
@@ -296,10 +334,14 @@ export async function POST(req: NextRequest) {
       if (repetido) return NextResponse.json(repetido, { status: 200 });
     }
 
-    const itemsTotal = items.reduce(
-      (sum, orderItem) => sum + Number(porId.get(orderItem.menuItemId)!.price) * orderItem.quantity,
+    // Dinheiro em centavos inteiros, arredondado uma vez só: somar 0,10 três
+    // vezes em ponto flutuante dá 0,30000000000000004.
+    const itemsCentavos = items.reduce(
+      (sum, orderItem) =>
+        sum + Math.round(Number(porId.get(orderItem.menuItemId)!.price) * 100) * orderItem.quantity,
       0
     );
+    const itemsTotal = itemsCentavos / 100;
 
     // O frete sai da zona cadastrada, não de um número enviado na requisição.
     // `prisma` já restringe a busca ao tenant da request, então não dá para
@@ -340,7 +382,11 @@ export async function POST(req: NextRequest) {
     }
     deliveryFee = cupom.deliveryFee;
 
-    const total = itemsTotal + deliveryFee - cupom.discount;
+    const total =
+      Math.max(
+        0,
+        itemsCentavos + Math.round(deliveryFee * 100) - Math.round(cupom.discount * 100)
+      ) / 100;
 
     // Lê o tempo estimado de entrega configurado pelo admin
     const timeSetting = await prisma.setting.findUnique({
@@ -349,9 +395,12 @@ export async function POST(req: NextRequest) {
     const estimatedMinutes = timeSetting ? parseInt(timeSetting.value, 10) : 45;
     const estimatedDeliveryAt = new Date(Date.now() + estimatedMinutes * 60_000);
 
-    const order = await prisma.order.create({
+    let order;
+    try {
+      order = await prisma.order.create({
       data: {
         tenantId,
+        idempotencyKey: idempotencyKey ?? null,
         paymentMethod,
         notes,
         customerName,
@@ -379,7 +428,23 @@ export async function POST(req: NextRequest) {
         },
       },
       include: { items: { include: { menuItem: true } } },
-    });
+      });
+    } catch (erro) {
+      // Dois pedidos com a mesma chave chegaram juntos e o unique barrou o
+      // segundo: devolve o do vencedor, como se tivesse sido o dele.
+      if (
+        idempotencyKey &&
+        erro instanceof Prisma.PrismaClientKnownRequestError &&
+        erro.code === "P2002"
+      ) {
+        const vencedor = await prisma.order.findFirst({
+          where: { idempotencyKey },
+          include: { items: { include: { menuItem: true } } },
+        });
+        if (vencedor) return NextResponse.json(vencedor, { status: 200 });
+      }
+      throw erro;
+    }
 
     // Cupom de uso único e pedidos simultâneos: a checagem "já usou?" em
     // aplicarCupom roda antes de gravar, então duas requisições do mesmo cliente

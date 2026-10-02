@@ -46,8 +46,10 @@
   <link rel="preload" href="/vendas/fonts/poppins-700.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="/vendas/fonts/poppins-900.woff2" as="font" type="font/woff2" crossorigin />
 
-  <!-- Tailwind CDN deve vir ANTES do config -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tailwind (Play CDN) servido daqui, e não do CDN: um terceiro comprometido
+       executaria script no mesmo domínio do /assinar, onde se digita CPF/CNPJ.
+       Deve vir ANTES do config. -->
+  <script src="/vendas/js/vendor/tailwind-play-cdn.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -66,10 +68,10 @@
   </script>
 
   <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="/vendas/js/vendor/lucide-1.50.0.min.js"></script>
 
   <!-- GSAP (entrada do hero) -->
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js"></script>
+  <script src="/vendas/js/vendor/gsap-3.13.0.min.js"></script>
 
   <!-- Estilos customizados -->
   <link rel="stylesheet" href="/vendas/css/styles.css" />

@@ -4,6 +4,7 @@ import { webhookAutorizado } from "@/lib/assinatura/asaas";
 import { provisionarInscricao } from "@/lib/assinatura/provisionamento";
 import { registrarEvento } from "@/lib/funil/registrar";
 import { espelharEventoDeAssinatura } from "@/lib/assinatura/espelho";
+import { reportarErro } from "@/lib/observabilidade";
 
 /**
  * Webhook chamado pelo Asaas quando um pagamento da PLATAFORMA (a Muno
@@ -126,6 +127,18 @@ export async function POST(req: NextRequest) {
         `payment=${pagamento.id} subscription=${pagamento.subscription} ` +
         `externalReference=${pagamento.externalReference} valor=${pagamento.value}`
     );
+    // Dinheiro que entrou e não achou dono: é o alerta mais importante deste
+    // arquivo, e o log sozinho não acorda ninguém.
+    await reportarErro({
+      origem: "webhook/asaas:pagamento-sem-inscricao",
+      erro: `${evento} sem Inscricao correspondente`,
+      extra: {
+        paymentId: pagamento.id,
+        subscriptionId: pagamento.subscription,
+        externalReference: pagamento.externalReference,
+        valor: pagamento.value,
+      },
+    });
     return ok();
   }
 
@@ -153,6 +166,7 @@ export async function POST(req: NextRequest) {
     valorPago: pagamento.value,
     origem: "webhook/asaas",
     pagamentoId: pagamento.id,
+    assinaturaGatewayId: pagamento.subscription,
   });
 
   return ok();

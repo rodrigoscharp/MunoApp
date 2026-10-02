@@ -35,7 +35,14 @@ export async function provisionarInscricao(
     valorPago,
     origem,
     pagamentoId,
-  }: { valorPago?: number | null; origem: string; pagamentoId?: string | null }
+    assinaturaGatewayId,
+  }: {
+    valorPago?: number | null;
+    origem: string;
+    pagamentoId?: string | null;
+    /** O id da assinatura que o próprio pagamento carrega (`payment.subscription`). */
+    assinaturaGatewayId?: string | null;
+  }
 ): Promise<{ tenantId: string }> {
   const agora = new Date();
 
@@ -132,6 +139,9 @@ export async function provisionarInscricao(
   // provisionTenant tem a própria transação e não entra nesta: são dois
   // passos distintos de propósito — o primeiro cria o restaurante, o
   // segundo registra a relação comercial dele com a plataforma.
+  const idDaAssinaturaNoGateway =
+    inscricao.asaasSubscriptionId ?? assinaturaGatewayId ?? null;
+
   await prismaUnscoped.$transaction(async (tx) => {
     // Idempotente: se uma entrega concorrente ou uma tentativa anterior já
     // criou a Assinatura deste tenant, reaproveita em vez de tentar criar
@@ -157,7 +167,11 @@ export async function provisionarInscricao(
           // cobrança para este cliente — sem ele, o cron cria uma segunda
           // dívida que o Asaas nunca baixa, e a régua bloqueia em 15 dias
           // um cliente adimplente.
-          asaasSubscriptionId: inscricao.asaasSubscriptionId,
+          // Se a Inscricao não chegou a gravar o id (o update logo depois de
+          // criar a assinatura no Asaas falhou), o próprio pagamento o traz.
+          // Sem isso a Assinatura nascia sem id, o cron gerava uma cobrança
+          // local que o Asaas nunca baixa, e a régua bloqueava quem pagou.
+          asaasSubscriptionId: idDaAssinaturaNoGateway,
         },
       }));
 
@@ -181,7 +195,14 @@ export async function provisionarInscricao(
 
     await tx.inscricao.update({
       where: { id: inscricao.id },
-      data: { status: "PROVISIONADA" },
+      data: {
+        status: "PROVISIONADA",
+        // Completa o vínculo que faltava, para a faxina e a reconciliação o
+        // enxergarem depois.
+        ...(!inscricao.asaasSubscriptionId && idDaAssinaturaNoGateway
+          ? { asaasSubscriptionId: idDaAssinaturaNoGateway }
+          : {}),
+      },
     });
 
     // Fecha o Lead que a rota de checkout registrou, ligando-o ao tenant que

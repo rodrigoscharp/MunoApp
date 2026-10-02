@@ -1,5 +1,6 @@
 "use client";
 
+import { MENSAGEM_SENHA_MINIMA, SENHA_MINIMA } from "@/lib/senha";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -17,7 +18,7 @@ const schema = z
   .object({
     name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
     email: z.string().email("Email inválido"),
-    password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+    password: z.string().min(SENHA_MINIMA, MENSAGEM_SENHA_MINIMA),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -149,7 +150,7 @@ export function RegisterForm({ restaurantInfo }: { restaurantInfo: RestaurantInf
                 <input
                   {...register("password")}
                   type="password"
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder={`Mínimo ${SENHA_MINIMA} caracteres`}
                   className="w-full pl-10 pr-4 py-3 rounded-xl border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition placeholder:text-neutral-400"
                 />
               </div>
@@ -192,6 +193,13 @@ export function RegisterForm({ restaurantInfo }: { restaurantInfo: RestaurantInf
             >
               {loading ? "Criando conta..." : "Criar conta"}
             </button>
+            <p className="text-center text-xs text-neutral-400">
+              Seus dados são usados para o seu pedido, conforme a{" "}
+              <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline">
+                Política de Privacidade
+              </a>
+              .
+            </p>
           </form>
 
           <p className="text-center text-sm text-neutral-500 mt-6">

@@ -44,6 +44,9 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const { items, total, clearCart } = useCart();
+  // Uma chave por tentativa de finalizar: reenvio ou segundo clique devolvem o
+  // mesmo pedido em vez de criar outro. Nova visita à página, nova chave.
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[] | null>(null);
   const [requiresPayerDocument, setRequiresPayerDocument] = useState(false);
@@ -212,6 +215,7 @@ export default function CheckoutPage() {
             quantity: item.quantity,
             notes: item.notes,
           })),
+          idempotencyKey,
           paymentMethod,
           notes: data.notes,
           customerName: data.customerName,
@@ -508,6 +512,13 @@ export default function CheckoutPage() {
           >
             {loading ? "Processando..." : paymentMethod === "CASH" ? "Confirmar Pedido" : "Ir para Pagamento"}
           </button>
+          <p className="text-center text-xs text-neutral-400">
+            Seu nome, telefone e endereço são usados só para este pedido, conforme a{" "}
+            <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline">
+              Política de Privacidade
+            </a>
+            .
+          </p>
         </form>
 
         {/* Resumo */}

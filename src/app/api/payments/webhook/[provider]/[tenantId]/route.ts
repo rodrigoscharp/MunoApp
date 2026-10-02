@@ -111,6 +111,30 @@ export async function POST(
       // diz, e uma recusa que chega depois da aprovação (tentativa anterior do
       // mesmo pedido) despagaria um pedido que o cliente de fato pagou.
 
+      // Segunda cobrança paga do mesmo pedido: nada muda no pedido (já está
+      // PAID), mas o cliente pagou em dobro e alguém precisa estornar.
+      if (result.status === "approved" && !mudou) {
+        const atual = await prisma.order.findFirst({
+          where: { id: result.orderId },
+          select: { paymentStatus: true, mpPaymentId: true },
+        });
+        if (
+          atual?.paymentStatus === "PAID" &&
+          atual.mpPaymentId &&
+          atual.mpPaymentId !== result.providerPaymentId
+        ) {
+          console.error(
+            `[webhook/pagamento] segundo pagamento aprovado no mesmo pedido, estornar: ` +
+              `tenant=${tenantId} order=${result.orderId} payment=${result.providerPaymentId}`
+          );
+          await reportarErro({
+            origem: "webhook/pagamento:pagamento-duplicado",
+            erro: "pagamento aprovado em pedido que já estava pago, estornar",
+            extra: { tenantId, orderId: result.orderId, paymentId: result.providerPaymentId },
+          });
+        }
+      }
+
       if (mudou) {
         const order = await prisma.order.findFirst({
           where: { id: result.orderId },
