@@ -39,6 +39,11 @@ export interface MenuItemWithCategory {
   imageUrl: string | null;
   available: boolean;
   categoryId: string;
+  // Opcionais: o cardápio chega por cache e por um cast em page.tsx, e item
+  // anterior à migração não traz os campos. Ausente significa "não informado".
+  containsGluten?: boolean | null;
+  containsLactose?: boolean | null;
+  isVegan?: boolean | null;
   category: {
     id: string;
     name: string;

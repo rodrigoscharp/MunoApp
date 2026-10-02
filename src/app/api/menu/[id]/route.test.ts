@@ -212,3 +212,29 @@ describe("DELETE", () => {
     expect(res.status).toBe(500);
   });
 });
+
+describe("PUT: informações alimentares", () => {
+  it.each([[true], [false], [null]])("aceita %s, e null volta a 'não informado'", async (valor) => {
+    const res = await PUT(req("PUT", { containsLactose: valor }), params);
+
+    expect(res.status).toBe(200);
+    expect(menuItemUpdate.mock.calls[0][0].data).toEqual({ containsLactose: valor });
+  });
+
+  it("editar outro campo não toca nas declarações", async () => {
+    await PUT(req("PUT", { name: "X-Bacon" }), params);
+
+    const { data } = menuItemUpdate.mock.calls[0][0];
+    expect(data).toEqual({ name: "X-Bacon" });
+    expect(data).not.toHaveProperty("containsGluten");
+    expect(data).not.toHaveProperty("containsLactose");
+    expect(data).not.toHaveProperty("isVegan");
+  });
+
+  it.each([["false"], ["sim"], [0]])("recusa %j", async (valor) => {
+    const res = await PUT(req("PUT", { isVegan: valor }), params);
+
+    expect(res.status).toBe(400);
+    expect(menuItemUpdate).not.toHaveBeenCalled();
+  });
+});

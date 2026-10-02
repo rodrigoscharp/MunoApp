@@ -104,6 +104,12 @@ model MenuItem {
   price       Decimal     @db.Decimal(10, 2)
   imageUrl    String?
   available   Boolean     @default(true)
+  // O que o restaurante declara sobre a receita. null = "não informou", e por
+  // isso as colunas NÃO têm default: um `false` faria todo item antigo aparecer
+  // como "sem lactose" sem que ninguém tivesse verificado. Ver src/lib/restricoes.ts.
+  containsGluten  Boolean?
+  containsLactose Boolean?
+  isVegan         Boolean?
   categoryId  String
   category    Category    @relation(fields: [categoryId], references: [id])
   orderItems  OrderItem[]

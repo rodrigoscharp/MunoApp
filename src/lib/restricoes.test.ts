@@ -15,9 +15,10 @@ import {
   filtrarPorRestricoes,
   restricoesDisponiveis,
   triParaBoolean,
+  type DeclaracaoAlimentar,
 } from "./restricoes";
 
-const prato = (id: string, declaracao: Record<string, boolean | null> = {}) => ({
+const prato = (id: string, declaracao: DeclaracaoAlimentar = {}) => ({
   id,
   ...declaracao,
 });
