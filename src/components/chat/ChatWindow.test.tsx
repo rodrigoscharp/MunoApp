@@ -62,7 +62,6 @@ async function montar(props: Record<string, unknown> = {}) {
   const r = render(
     <ChatWindow
       orderId={ORDER_ID}
-      tenantId="restaurante-a"
       currentRole="CUSTOMER"
       currentName="Ana"
       {...props}
@@ -116,7 +115,7 @@ describe("a conversa", () => {
 
   it("busca o histórico do pedido certo", async () => {
     await montar();
-    expect(fetchMock.mock.calls[0][0]).toBe(`/api/orders/${ORDER_ID}/chat`);
+    expect(fetchMock.mock.calls.map(([u]) => u)).toContain(`/api/orders/${ORDER_ID}/chat`);
   });
 });
 

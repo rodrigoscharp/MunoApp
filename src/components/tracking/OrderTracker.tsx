@@ -39,7 +39,6 @@ interface Props {
   orderId: string;
   initialStatus: OrderStatus;
   order: OrderSummary;
-  tenantId: string;
   canChat: boolean;
 }
 
@@ -172,9 +171,9 @@ function EtaDisplay({
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 
-export function OrderTracker({ orderId, initialStatus, order, tenantId, canChat }: Props) {
+export function OrderTracker({ orderId, initialStatus, order, canChat }: Props) {
   const { status: realtimeStatus, estimatedDeliveryAt: realtimeEta } =
-    useOrderRealtime(orderId, tenantId);
+    useOrderRealtime(orderId);
   const currentStatus = realtimeStatus ?? initialStatus;
 
   const estimatedDeliveryAt =
@@ -373,7 +372,6 @@ export function OrderTracker({ orderId, initialStatus, order, tenantId, canChat 
           order.deliveryAddress && (
             <LiveDeliveryTracker
               orderId={orderId}
-              tenantId={tenantId}
               deliveryAddress={order.deliveryAddress}
               initialLat={order.initialLat}
               initialLng={order.initialLng}

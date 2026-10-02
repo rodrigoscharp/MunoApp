@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { tenantChannelName, userChannel } from "@/lib/realtime-channel";
+import { useTopicoRealtime } from "@/hooks/useTopicoRealtime";
 import { DeliveryType, OrderStatus } from "@/types";
 
 export interface OrderNotification {
@@ -135,9 +135,9 @@ export function useOrderNotifications() {
   const { data: session } = useSession();
   const [notifications, setNotifications] = useState<OrderNotification[]>(loadFromStorage);
   const userId = session?.user?.id;
-  // tenantId é opcional no tipo Session (a de plataforma não tem um), mas todo
-  // cliente logado num restaurante tem — é o que nomeia o canal do Broadcast.
-  const tenantId = session?.user?.tenantId;
+  // Nome secreto do canal do próprio usuário, entregue pelo servidor.
+  // Enquanto não vem (ou se falhar), só o polling alimenta o sino.
+  const topic = useTopicoRealtime("user", userId, !!userId);
 
   // Mapa orderId → { status, deliveryType } dos pedidos do usuário
   const knownOrders = useRef<Map<string, OrderMeta>>(new Map());
@@ -209,7 +209,7 @@ export function useOrderNotifications() {
   );
 
   useEffect(() => {
-    if (!userId || !tenantId) return;
+    if (!userId) return;
 
     // Timestamp da última mensagem de chat vista — inicia com "agora" para não
     // notificar mensagens históricas ao abrir o app
@@ -285,8 +285,10 @@ export function useOrderNotifications() {
     // nunca chegou a disparar: Order tem RLS e a policy bloqueia a role anon
     // por inteiro (app.current_tenant não é definido). Na prática o sino vivia
     // só do polling. Agora o servidor publica direto em user:<id>.
-    const channel = supabase
-      .channel(tenantChannelName(tenantId, userChannel(userId)))
+    const channel = !topic
+      ? null
+      : supabase
+      .channel(topic)
       .on("broadcast", { event: "order-updated" }, ({ payload }) => {
         const orderId = payload.orderId as string;
         const status = payload.status as OrderStatus;
@@ -318,11 +320,11 @@ export function useOrderNotifications() {
     const chatPoll = setInterval(agendarBuscaDeChat, POLL_INTERVAL);
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
       clearInterval(poll);
       clearInterval(chatPoll);
     };
-  }, [userId, tenantId, addNotification, addChatNotification]);
+  }, [userId, topic, addNotification, addChatNotification]);
 
   const markAllAsRead = useCallback(() => {
     setNotifications((prev) => {

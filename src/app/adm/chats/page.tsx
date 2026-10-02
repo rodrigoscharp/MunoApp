@@ -25,7 +25,6 @@ export default async function AdminChatsPage() {
     <AdminChatsClient
       orders={ordersWithChats}
       adminName={session?.user?.name ?? "Admin"}
-      tenantId={session!.user.tenantId!}
     />
   );
 }

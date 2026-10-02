@@ -59,7 +59,6 @@ function montar(over: Record<string, unknown> = {}, props: Record<string, unknow
       orderId={ORDER_ID}
       initialStatus={order.status}
       order={order as never}
-      tenantId={TENANT}
       canChat={false}
       {...props}
     />

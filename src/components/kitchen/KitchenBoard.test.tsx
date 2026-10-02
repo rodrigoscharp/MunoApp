@@ -65,7 +65,7 @@ function servidorCom(pedidos: Record<string, unknown>[]) {
 
 async function montar(pedidos = [pedido()]) {
   servidorCom(pedidos);
-  const r = render(<KitchenBoard tenantId="restaurante-a" />);
+  const r = render(<KitchenBoard />);
   await waitFor(() => expect(screen.queryByText(/carregando pedidos/i)).toBeNull());
   return r;
 }
@@ -112,7 +112,7 @@ describe("o quadro", () => {
         : Promise.resolve({ ok: false, json: async () => ({}) })
     );
 
-    render(<KitchenBoard tenantId="restaurante-a" />);
+    render(<KitchenBoard />);
 
     expect(await screen.findByText(/erro ao carregar pedidos/i)).toBeDefined();
     expect(screen.getByRole("button", { name: /tentar novamente/i })).toBeDefined();

@@ -15,7 +15,6 @@ const CustomerTrackingMap = dynamic(() => import("./CustomerTrackingMap"), {
 
 interface Props {
   orderId: string;
-  tenantId: string;
   deliveryAddress: string;
   initialLat?: number | null;
   initialLng?: number | null;
@@ -23,12 +22,11 @@ interface Props {
 
 export function LiveDeliveryTracker({
   orderId,
-  tenantId,
   deliveryAddress,
   initialLat,
   initialLng,
 }: Props) {
-  const tracking = useDeliveryTracking(orderId, tenantId);
+  const tracking = useDeliveryTracking(orderId);
 
   const lat = tracking?.lat ?? initialLat ?? null;
   const lng = tracking?.lng ?? initialLng ?? null;

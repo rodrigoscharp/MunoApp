@@ -527,3 +527,52 @@ traz a versão corrigida, só o `8.1.0-dev`. O uso é o `deepmerge` simples, que
 8 não mudou. **Remova o override quando um Prisma estável depender de
 `deepmerge-ts` 8**, conferindo com `npm view @prisma/config@<versão>
 dependencies`.
+
+
+# Tempo real, alarme e documentos legais
+
+## O nome do canal é um segredo
+
+Os canais de Broadcast do Supabase são abertos a quem tem a chave anon, que vai
+no bundle de todo cardápio. Por isso o nome de um canal não é mais
+`tenant:<id>:<canal>`, montável por quem soubesse o tenantId: `topicoSeguro()`
+(`src/lib/realtime-topic.ts`) acrescenta um HMAC, e o navegador só o descobre em
+`GET /api/realtime/topic`, que confere a permissão antes (equipe para a cozinha,
+`canViewOrder` para o pedido, o próprio usuário para o sino). Todo publisher
+passa por `broadcastTenantEvent`, e todo assinante por `useTopicoRealtime`.
+**Não monte nome de canal no cliente.** O tópico é uma credencial ao portador;
+canal privado com RLS em `realtime.messages` seria mais forte e fica como
+evolução. `REALTIME_TOPIC_SECRET` é opcional: sem ela o segredo deriva de
+`PAYMENT_TOKEN_ENCRYPTION_KEY`.
+
+Todo canal tem polling de reserva. Se o tópico não vier, a tela segue funcionando
+sem o aviso instantâneo.
+
+## Erro que importa passa por reportarErro
+
+`src/lib/observabilidade.ts` escreve uma linha JSON no log e, com
+`ERROR_WEBHOOK_URL`, manda uma mensagem a um canal (Slack, Discord). Use-o onde
+o código engole uma falha de propósito (cron, reconciliação, e-mail de
+boas-vindas): nesses lugares o `console.error` sozinho não avisa ninguém. Erro
+não tratado de rota chega a `onRequestError` em `src/instrumentation.ts`. Só
+ids vão em `extra`: nunca e-mail, telefone, corpo ou cabeçalho. `/api/health`
+responde 200 ou 503 conforme o banco, para o monitor externo.
+
+## Termos e privacidade
+
+`public/vendas/termos.html` e `privacidade.html` guardam campos `<mark>[...]</mark>`
+por preencher (razão social, CNPJ, encarregado, prazos, foro). O build de
+produção **falha** enquanto houver `<mark>` neles (`scripts/verificar-env-producao.js`),
+porque o checkout exige o aceite. A versão aceita é gravada em
+`Inscricao.termosVersao`; mude `TERMOS_VERSAO` (`src/lib/termos.ts`) quando o
+texto mudar.
+
+## A cobrança do Asaas tem dois caminhos
+
+O cron não gera `Cobranca` para assinatura cobrada pelo Asaas (geraria uma
+segunda dívida que o gateway nunca baixa). Quem escreve é o espelho
+(`src/lib/assinatura/espelho.ts`): o webhook o alimenta na hora, e o cron o
+alimenta de novo todo dia com os pagamentos recentes
+(`reconciliacao-cobrancas.ts`), cobrindo webhook perdido. A cobrança é
+reconhecida por `Cobranca.asaasPaymentId`, não pela competência, porque o
+vencimento pode ser remarcado no gateway.

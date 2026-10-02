@@ -43,6 +43,9 @@ const QUALQUER_CONTA_DO_RESTAURANTE: Papel[] = ["ADMIN", "CUSTOMER", "KITCHEN", 
 export const POLITICA: Record<string, Nivel> = {
   "GET /api/analytics": autenticado("ADMIN"),
 
+  "GET /api/realtime/topic": donoDoRecurso(
+    "o canal depende de quem é o dono do pedido (order) ou do papel (kitchen); src/app/api/realtime/topic/route.test.ts cobre cada caso"
+  ),
   "GET /api/health": publico("monitor de disponibilidade; só diz se o app e o banco respondem, sem detalhe"),
 
   "POST /api/assinar": publico("checkout de restaurante novo, que ainda não tem conta; limitado por IP"),

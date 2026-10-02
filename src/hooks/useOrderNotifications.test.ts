@@ -60,6 +60,10 @@ function servidor({
 } = {}) {
   fetchMock.mockImplementation((url: string) => {
     const u = String(url);
+    // Nome secreto do canal do usuário: sem ele o hook não assina o Broadcast.
+    if (u.startsWith("/api/realtime/topic")) {
+      return Promise.resolve({ ok: true, json: async () => ({ topic: "topico-secreto" }) });
+    }
     if (!u.startsWith("/api/chat/unread")) {
       return Promise.resolve({ ok: true, json: async () => pedidos });
     }
@@ -77,6 +81,9 @@ function servidor({
 async function montar() {
   const r = renderHook(() => useOrderNotifications());
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/orders"));
+  // A assinatura do Broadcast só acontece depois que o servidor entrega o nome
+  // secreto do canal.
+  await waitFor(() => expect(handlers["order-updated"]).toBeDefined());
   return r;
 }
 
@@ -114,13 +121,6 @@ describe("sem cliente logado", () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(handlers["order-updated"]).toBeUndefined();
-  });
-
-  it("também não faz nada sem tenant na sessão", () => {
-    sessao.mockReturnValue({ data: { user: { id: USUARIO } } });
-    renderHook(() => useOrderNotifications());
-
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

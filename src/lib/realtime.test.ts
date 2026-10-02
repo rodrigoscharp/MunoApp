@@ -10,6 +10,7 @@ vi.mock("@/lib/supabase-admin", () => ({
 }));
 
 import { broadcastOrderUpdate } from "./realtime";
+import { topicoSeguro } from "./realtime-topic";
 
 const TENANT = "tenant-1";
 
@@ -41,9 +42,9 @@ describe("broadcastOrderUpdate", () => {
     await broadcastOrderUpdate(TENANT, pedido());
 
     expect(canaisUsados()).toEqual([
-      `tenant:${TENANT}:order:order-1`,
-      `tenant:${TENANT}:kitchen-orders`,
-      `tenant:${TENANT}:user:cliente-1`,
+      topicoSeguro(TENANT, "order:order-1"),
+      topicoSeguro(TENANT, "kitchen-orders"),
+      topicoSeguro(TENANT, "user:cliente-1"),
     ]);
   });
 
@@ -67,7 +68,7 @@ describe("broadcastOrderUpdate", () => {
   it("manda status e deliveryType para a cozinha, que a lista do motoboy usa para filtrar", async () => {
     await broadcastOrderUpdate(TENANT, pedido());
 
-    const idx = canaisUsados().indexOf(`tenant:${TENANT}:kitchen-orders`);
+    const idx = canaisUsados().indexOf(topicoSeguro(TENANT, "kitchen-orders"));
     expect(send.mock.calls[idx][0]).toMatchObject({
       event: "order-updated",
       payload: { orderId: "order-1", status: "READY", deliveryType: "DELIVERY" },

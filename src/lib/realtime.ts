@@ -1,10 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import {
-  KITCHEN_CHANNEL,
-  orderChannel,
-  tenantChannelName,
-  userChannel,
-} from "@/lib/realtime-channel";
+import { KITCHEN_CHANNEL, orderChannel, userChannel } from "@/lib/realtime-channel";
+import { topicoSeguro } from "@/lib/realtime-topic";
 
 // Substitui as assinaturas antigas de postgres_changes, que dependiam de
 // RLS numa role (anon) sem noção de tenant (ver Fase 1 do plano de
@@ -16,7 +12,7 @@ export async function broadcastTenantEvent(
   event: string,
   payload: Record<string, unknown>
 ): Promise<void> {
-  await supabaseAdmin.channel(tenantChannelName(tenantId, channel)).send({
+  await supabaseAdmin.channel(topicoSeguro(tenantId, channel)).send({
     type: "broadcast",
     event,
     payload,

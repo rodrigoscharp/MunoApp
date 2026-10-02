@@ -16,8 +16,8 @@ import { OrderCard } from "./OrderCard";
 // pedido em rua continua visível até alguém fechá-lo.
 const STATUS_NO_QUADRO = new Set(KITCHEN_COLUMNS.map((c) => c.status));
 
-export function KitchenBoard({ tenantId }: { tenantId: string }) {
-  const { orders, loading, error, refetch, updateOrderStatus, removeOrder } = useKitchenOrders(tenantId);
+export function KitchenBoard() {
+  const { orders, loading, error, refetch, updateOrderStatus, removeOrder } = useKitchenOrders();
   const [printer, setPrinter] = useState<PrinterConfig>({ enabled: false, paperWidth: "80mm" });
 
   useEffect(() => {

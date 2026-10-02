@@ -19,11 +19,10 @@ const ACTIVE: OrderStatus[] = ["PENDING", "CONFIRMED", "IN_PREPARATION", "READY"
 interface Props {
   orderId: string;
   initialStatus: OrderStatus;
-  tenantId: string;
 }
 
-export function OrderStatusBadge({ orderId, initialStatus, tenantId }: Props) {
-  const { status: realtimeStatus } = useOrderRealtime(orderId, tenantId);
+export function OrderStatusBadge({ orderId, initialStatus }: Props) {
+  const { status: realtimeStatus } = useOrderRealtime(orderId);
   const status = realtimeStatus ?? initialStatus;
   const s = STATUS_STYLE[status];
   const isActive = ACTIVE.includes(status);
