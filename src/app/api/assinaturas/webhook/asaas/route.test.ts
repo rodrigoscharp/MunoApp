@@ -82,6 +82,14 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+// O espelho tem suíte própria (src/lib/assinatura/espelho.test.ts). Aqui só
+// interessa a fronteira: quando ele diz "é de uma assinatura existente", o
+// handler para; quando diz que não, segue para o provisionamento.
+const espelharEventoDeAssinatura = vi.fn();
+vi.mock("@/lib/assinatura/espelho", () => ({
+  espelharEventoDeAssinatura: (...args: unknown[]) => espelharEventoDeAssinatura(...args),
+}));
+
 const enviarBoasVindas = vi.fn();
 vi.mock("@/lib/assinatura/email-boas-vindas", () => ({
   enviarBoasVindas: (...args: unknown[]) => enviarBoasVindas(...args),
@@ -152,6 +160,7 @@ function inscricaoAguardando(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   webhookAutorizado.mockReturnValue(true);
+  espelharEventoDeAssinatura.mockResolvedValue(false);
   inscricaoFindFirst.mockResolvedValue(null);
   inscricaoUpdateTenantId.mockResolvedValue({});
   inscricaoUpdateStatus.mockResolvedValue({});
@@ -196,12 +205,11 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
     expect(inscricaoFindFirst).not.toHaveBeenCalled();
   });
 
-  // PAYMENT_CREATED e PAYMENT_OVERDUE espelham cobrança de assinatura já
-  // existente e são tratados na renovação, não aqui. Sair com 200 sem nem
-  // consultar a Inscricao evita reentrega infinita de um evento que este
-  // handler não sabe (e não precisa) tratar.
+  // Evento que não é pagamento confirmado e que o espelho também não reconhece
+  // (SUBSCRIPTION_CREATED, ou renovação de assinatura que não é nossa): 200 sem
+  // consultar a Inscricao, para não virar reentrega infinita.
   it.each(["PAYMENT_CREATED", "PAYMENT_OVERDUE", "SUBSCRIPTION_CREATED"])(
-    "evento %s responde 200 sem consultar a Inscricao",
+    "evento %s que o espelho não reconhece responde 200 sem consultar a Inscricao",
     async (event) => {
       const res = await POST(requisicao({ ...eventoPago(), event }));
 
@@ -210,6 +218,50 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
       expect(provisionTenant).not.toHaveBeenCalled();
     }
   );
+
+  // A renovação: cobrança de uma Assinatura que já existe. Sem este ramo o
+  // cliente que para de pagar no mês 2 nunca vira INADIMPLENTE (o cron pula a
+  // geração de Cobranca para assinatura do gateway).
+  it("evento de assinatura existente vai para o espelho e não toca em Inscricao", async () => {
+    espelharEventoDeAssinatura.mockResolvedValue(true);
+    const corpo = { ...eventoPago(), event: "PAYMENT_OVERDUE" };
+
+    const res = await POST(requisicao(corpo));
+
+    expect(res.status).toBe(200);
+    expect(espelharEventoDeAssinatura).toHaveBeenCalledWith(corpo, expect.any(Date));
+    expect(inscricaoFindFirst).not.toHaveBeenCalled();
+    expect(provisionTenant).not.toHaveBeenCalled();
+  });
+
+  it("pagamento de renovação confirmado não passa pelo provisionamento", async () => {
+    espelharEventoDeAssinatura.mockResolvedValue(true);
+
+    const res = await POST(requisicao(eventoPago()));
+
+    expect(res.status).toBe(200);
+    expect(provisionTenant).not.toHaveBeenCalled();
+    expect(eventoFunilCreate).not.toHaveBeenCalled();
+  });
+
+  it("SUBSCRIPTION_DELETED, que não traz payment, também chega ao espelho", async () => {
+    espelharEventoDeAssinatura.mockResolvedValue(true);
+
+    const res = await POST(
+      requisicao({ event: "SUBSCRIPTION_DELETED", subscription: { id: "sub_1" } })
+    );
+
+    expect(res.status).toBe(200);
+    expect(espelharEventoDeAssinatura).toHaveBeenCalled();
+  });
+
+  it("falha do espelho propaga como erro para o Asaas reentregar", async () => {
+    espelharEventoDeAssinatura.mockRejectedValue(new Error("banco caiu"));
+
+    await expect(
+      POST(requisicao({ ...eventoPago(), event: "PAYMENT_OVERDUE" }))
+    ).rejects.toThrow("banco caiu");
+  });
 
   // Pagamento que não casa com nenhuma Inscricao nossa: 200, e não 404 — um
   // 404 faria o Asaas reentregar para sempre um evento que nunca vai casar.

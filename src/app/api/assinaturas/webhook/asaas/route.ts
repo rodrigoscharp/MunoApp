@@ -3,6 +3,7 @@ import { prismaUnscoped } from "@/lib/prisma";
 import { webhookAutorizado } from "@/lib/assinatura/asaas";
 import { provisionarInscricao } from "@/lib/assinatura/provisionamento";
 import { registrarEvento } from "@/lib/funil/registrar";
+import { espelharEventoDeAssinatura } from "@/lib/assinatura/espelho";
 
 /**
  * Webhook chamado pelo Asaas quando um pagamento da PLATAFORMA (a Muno
@@ -38,10 +39,10 @@ import { registrarEvento } from "@/lib/funil/registrar";
  * fim do handler.
  */
 
-// PAYMENT_CREATED e PAYMENT_OVERDUE espelham cobrança de assinatura já
-// existente e pertencem à renovação (job de cron), não ao provisionamento.
-// Este handler só sabe fazer uma coisa: nascer um restaurante a partir de um
-// pagamento confirmado.
+// Cobrança e cancelamento de assinatura que JÁ existe (renovação, atraso,
+// SUBSCRIPTION_DELETED) são espelhados por espelharEventoDeAssinatura, antes
+// de qualquer coisa. O que sobra aqui sabe fazer uma coisa só: nascer um
+// restaurante a partir do primeiro pagamento confirmado.
 const PAGOS = new Set(["PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"]);
 
 /** Valor que nenhum id real assume — placeholder do OR abaixo. */
@@ -62,12 +63,22 @@ export async function POST(req: NextRequest) {
       value?: number;
       subscription?: string;
       externalReference?: string;
+      dueDate?: string;
     };
+    subscription?: { id?: string };
   } | null;
 
   const evento = corpo?.event;
-  const pagamento = corpo?.payment;
-  if (!evento || !pagamento) return ok();
+  if (!corpo || !evento) return ok();
+
+  // Renovação, atraso e cancelamento de assinatura existente. Antes do resto
+  // porque o cron não gera Cobranca para assinatura do gateway: sem este
+  // espelho, quem para de pagar no mês 2 nunca vira INADIMPLENTE. Falha aqui
+  // propaga (500) e o Asaas reentrega, que é o desejado.
+  if (await espelharEventoDeAssinatura(corpo, new Date())) return ok();
+
+  const pagamento = corpo.payment;
+  if (!pagamento) return ok();
 
   // Evento que este handler não sabe tratar: 200 e sai, para não virar
   // reentrega infinita de algo que nunca vai mudar de resultado.
