@@ -61,7 +61,7 @@ describe("sessão da plataforma", () => {
     const token = await jwt()({ token: tokenVelho() });
     expect(adminFindUnique).toHaveBeenCalledWith({
       where: { id: "adm-1" },
-      select: { id: true },
+      select: { id: true, passwordChangedAt: true },
     });
     expect(token).toMatchObject({ verificadoEm: AGORA });
   });
@@ -69,6 +69,12 @@ describe("sessão da plataforma", () => {
   it("admin removido perde a sessão", async () => {
     adminFindUnique.mockResolvedValue(null);
     expect(await jwt()({ token: tokenVelho() })).toBeNull();
+  });
+
+  it("sessão aberta antes da troca de senha do admin é encerrada", async () => {
+    adminFindUnique.mockResolvedValue({ id: "adm-1", passwordChangedAt: new Date(AGORA - 60_000) });
+    const token = { ...tokenVelho(), iat: Math.floor((AGORA - 3_600_000) / 1000) };
+    expect(await jwt()({ token })).toBeNull();
   });
 
   it("falha do banco mantém a sessão e tenta de novo na próxima", async () => {

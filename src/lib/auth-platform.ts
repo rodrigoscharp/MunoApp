@@ -85,9 +85,18 @@ export const {
       try {
         const admin = await prismaUnscoped.platformAdmin.findUnique({
           where: { id: token.id as string },
-          select: { id: true },
+          select: { id: true, passwordChangedAt: true },
         });
         if (!admin) return null;
+        // Token emitido antes da última troca de senha: encerra. Truncado ao
+        // segundo porque `iat` é em segundos.
+        if (
+          admin.passwordChangedAt &&
+          typeof token.iat === "number" &&
+          token.iat < Math.floor(admin.passwordChangedAt.getTime() / 1000)
+        ) {
+          return null;
+        }
         token.verificadoEm = Date.now();
       } catch {
         // mantém

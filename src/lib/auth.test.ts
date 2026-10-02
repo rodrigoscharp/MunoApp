@@ -257,7 +257,7 @@ describe("sessão: o JWT é reconferido contra o banco", () => {
 
     expect(userFindUnique).toHaveBeenCalledWith({
       where: { id: "u1" },
-      select: { role: true, tenantId: true },
+      select: { role: true, tenantId: true, passwordChangedAt: true },
     });
     expect(token).toMatchObject({ role: "CUSTOMER", verificadoEm: AGORA });
   });
@@ -270,6 +270,38 @@ describe("sessão: o JWT é reconferido contra o banco", () => {
   it("usuário que mudou de tenant perde a sessão", async () => {
     userFindUnique.mockResolvedValue({ role: "ADMIN", tenantId: "outro-restaurante" });
     expect(await jwt()({ token: tokenVelho() })).toBeNull();
+  });
+
+  // Trocar a senha (reset por e-mail, troca do motoboy) precisa derrubar a
+  // sessão de quem tinha a senha antiga, inclusive o ladrão do cookie.
+  it("sessão aberta antes da troca de senha é encerrada", async () => {
+    const trocouEm = new Date(AGORA - 60_000); // há 1 minuto
+    userFindUnique.mockResolvedValue({ role: "ADMIN", tenantId: TENANT, passwordChangedAt: trocouEm });
+    // token emitido há 1 hora (iat em segundos)
+    const token = { ...tokenVelho(), iat: Math.floor((AGORA - 3_600_000) / 1000) };
+
+    expect(await jwt()({ token })).toBeNull();
+  });
+
+  it("sessão aberta depois da troca de senha continua valendo", async () => {
+    const trocouEm = new Date(AGORA - 3_600_000);
+    userFindUnique.mockResolvedValue({ role: "ADMIN", tenantId: TENANT, passwordChangedAt: trocouEm });
+    const token = { ...tokenVelho(), iat: Math.floor((AGORA - 60_000) / 1000) };
+
+    expect(await jwt()({ token })).not.toBeNull();
+  });
+
+  it("login no mesmo segundo da troca não derruba a própria sessão", async () => {
+    const trocouEm = new Date(AGORA - 120_000 + 500); // meio segundo depois do início do segundo
+    userFindUnique.mockResolvedValue({ role: "ADMIN", tenantId: TENANT, passwordChangedAt: trocouEm });
+    const token = { ...tokenVelho(), iat: Math.floor((AGORA - 120_000) / 1000) };
+
+    expect(await jwt()({ token })).not.toBeNull();
+  });
+
+  it("conta que nunca trocou a senha não é afetada", async () => {
+    userFindUnique.mockResolvedValue({ role: "ADMIN", tenantId: TENANT, passwordChangedAt: null });
+    expect(await jwt()({ token: { ...tokenVelho(), iat: 1 } })).not.toBeNull();
   });
 
   // Um solavanco no banco não pode deslogar todo mundo de uma vez no sábado à

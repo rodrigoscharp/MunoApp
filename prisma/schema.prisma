@@ -63,6 +63,9 @@ model User {
   name              String
   email             String
   password          String?
+  // Quando a senha foi trocada por último. Sessões (JWT) emitidas antes disso
+  // são encerradas na próxima reconferência (ver o callback jwt em auth.ts).
+  passwordChangedAt DateTime?
   role              Role               @default(CUSTOMER)
   orders            Order[]
   motoboyOrders     Order[]            @relation("MotoboyOrders")
@@ -355,6 +358,8 @@ model PlatformAdmin {
   nome      String
   email     String   @unique
   password  String
+  // Mesma função de User.passwordChangedAt, para o console da plataforma.
+  passwordChangedAt DateTime?
   createdAt DateTime @default(now())
 }
 

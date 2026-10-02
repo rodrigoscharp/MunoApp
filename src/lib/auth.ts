@@ -15,6 +15,16 @@ const loginSchema = z.object({
 // de escritório digitando errado ao mesmo tempo.
 const REVERIFICAR_A_CADA_MS = 5 * 60_000;
 
+/**
+ * O token foi emitido antes da última troca de senha? `iat` é em segundos, e a
+ * comparação é com o segundo da troca, truncado: quem entra no mesmo segundo em
+ * que a senha mudou acabou de usar a senha nova e não pode ser deslogado.
+ */
+function sessaoAnteriorATrocaDeSenha(iat: unknown, trocouEm: Date | null | undefined): boolean {
+  if (!trocouEm || typeof iat !== "number") return false;
+  return iat < Math.floor(trocouEm.getTime() / 1000);
+}
+
 const limitador = criarLimitador({ max: 10, janelaMs: 10 * 60 * 1000 });
 
 /**
@@ -97,10 +107,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       try {
         const atual = await prismaUnscoped.user.findUnique({
           where: { id: token.id as string },
-          select: { role: true, tenantId: true },
+          select: { role: true, tenantId: true, passwordChangedAt: true },
         });
         // null encerra a sessão.
         if (!atual || atual.tenantId !== token.tenantId) return null;
+        if (sessaoAnteriorATrocaDeSenha(token.iat, atual.passwordChangedAt)) return null;
         token.role = atual.role;
         token.verificadoEm = Date.now();
       } catch {

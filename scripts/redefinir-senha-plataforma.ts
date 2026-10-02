@@ -90,7 +90,7 @@ async function main() {
   const senha = senhaArg ?? gerarSenhaForte();
   await prismaUnscoped.platformAdmin.update({
     where: { id: alvo.id },
-    data: { password: await bcrypt.hash(senha, 12) },
+    data: { password: await bcrypt.hash(senha, 12), passwordChangedAt: new Date() },
   });
 
   console.log("Senha redefinida.\n");

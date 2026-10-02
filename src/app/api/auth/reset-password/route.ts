@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 
     await prisma.user.update({
       where: { tenantId_email: { tenantId: resetToken.tenantId, email: resetToken.email } },
-      data: { password: hashedPassword },
+      data: { password: hashedPassword, passwordChangedAt: new Date() },
     });
 
     await prisma.passwordResetToken.delete({ where: { token } });
