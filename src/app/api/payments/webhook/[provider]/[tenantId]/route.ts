@@ -65,6 +65,30 @@ export async function POST(
       let mudou = false;
 
       if (result.status === "approved") {
+        // O gateway diz quanto recebeu: se não cobre o total do pedido, não
+        // é este pagamento que quita. Autenticado pelo segredo do lojista,
+        // então o caso real é cobrança paga a menor na conta do próprio
+        // lojista ou um erro de integração, mas quitar R$ 80 com R$ 1 é o
+        // tipo de coisa que ninguém quer descobrir no fechamento.
+        if (result.amountCents !== undefined) {
+          const pedido = await prisma.order.findFirst({
+            where: { id: result.orderId },
+            select: { total: true },
+          });
+          if (pedido && result.amountCents < Math.round(Number(pedido.total) * 100)) {
+            console.error(
+              `[webhook/pagamento] valor pago menor que o total, pedido NÃO quitado: ` +
+                `tenant=${tenantId} order=${result.orderId} pago=${result.amountCents} ` +
+                `total=${Math.round(Number(pedido.total) * 100)}`
+            );
+            await reportarErro({
+              origem: "webhook/pagamento:valor-menor",
+              erro: "valor pago menor que o total do pedido",
+              extra: { tenantId, orderId: result.orderId, pagoCentavos: result.amountCents },
+            });
+            return;
+          }
+        }
         const pago = await prisma.order.updateMany({
           where: { id: result.orderId, paymentStatus: "UNPAID" },
           data: { paymentStatus: "PAID", mpPaymentId: result.providerPaymentId },

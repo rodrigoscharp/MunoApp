@@ -94,6 +94,21 @@ describe("handleWebhook — assinatura", () => {
   });
 });
 
+describe("handleWebhook — valor pago", () => {
+  it("repassa amount_total da sessão, em centavos", async () => {
+    const corpo = JSON.stringify({
+      type: "checkout.session.completed",
+      data: { object: { id: "cs_1", client_reference_id: "order-1", amount_total: 8000 } },
+    });
+    const result = await adapter.handleWebhook(
+      corpo,
+      signedHeaders(WHSEC, corpo),
+      connectionWith(fullCreds)
+    );
+    expect(result?.amountCents).toBe(8000);
+  });
+});
+
 describe("handleWebhook — caminho feliz", () => {
   it("com assinatura válida, devolve o pedido e o pagamento", async () => {
     const result = await adapter.handleWebhook(

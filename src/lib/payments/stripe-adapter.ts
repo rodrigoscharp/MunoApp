@@ -190,7 +190,9 @@ export class StripeAdapter implements PaymentProvider {
 
     const event = safeParse(rawBody) as {
       type?: string;
-      data?: { object?: { id?: string; client_reference_id?: string } };
+      data?: {
+        object?: { id?: string; client_reference_id?: string; amount_total?: number };
+      };
     } | null;
 
     const object = event?.data?.object;
@@ -203,6 +205,10 @@ export class StripeAdapter implements PaymentProvider {
       orderId: object.client_reference_id,
       providerPaymentId: String(object.id),
       status,
+      // Checkout Session traz amount_total em centavos.
+      ...(typeof object.amount_total === "number"
+        ? { amountCents: object.amount_total }
+        : {}),
     };
   }
 }

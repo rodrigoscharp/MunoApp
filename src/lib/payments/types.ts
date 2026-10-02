@@ -57,6 +57,14 @@ export interface WebhookResult {
   orderId: string;
   providerPaymentId: string;
   status: "approved" | "rejected" | "cancelled" | "refunded" | "pending" | "unknown";
+  /**
+   * Quanto o gateway diz que foi pago, em centavos, quando o payload ou a
+   * consulta ao gateway traz o valor. A rota só marca o pedido como pago se
+   * isto cobrir o total do pedido: sem isso, uma cobrança de R$ 1 criada com o
+   * `externalReference` de um pedido de R$ 80 quitaria o pedido inteiro.
+   * Ausente = o adapter não sabe, e a rota não confere (comportamento anterior).
+   */
+  amountCents?: number;
 }
 
 // Lançada quando a assinatura do webhook não bate — distinta de "payload

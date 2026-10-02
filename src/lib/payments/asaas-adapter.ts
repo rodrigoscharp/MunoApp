@@ -227,7 +227,7 @@ export class AsaasAdapter implements PaymentProvider {
     // corpo — o parse aqui é só pra ler o evento.
     const body = safeParse(rawBody) as {
       event?: string;
-      payment?: { id?: string; externalReference?: string };
+      payment?: { id?: string; externalReference?: string; value?: number };
     } | null;
     if (!body?.event?.startsWith("PAYMENT_") || !body.payment?.id) return null;
 
@@ -258,6 +258,9 @@ export class AsaasAdapter implements PaymentProvider {
       orderId,
       providerPaymentId: String(body.payment.id),
       status: mapEvent(body.event),
+      ...(typeof body.payment.value === "number"
+        ? { amountCents: Math.round(body.payment.value * 100) }
+        : {}),
     };
   }
 }

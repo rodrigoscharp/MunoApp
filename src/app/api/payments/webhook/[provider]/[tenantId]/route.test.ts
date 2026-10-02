@@ -206,6 +206,58 @@ describe("o que cada status grava no pedido", () => {
   });
 });
 
+describe("conferência do valor pago", () => {
+  const aprovado = (amountCents?: number) => ({
+    orderId: "pedido-1",
+    status: "approved",
+    providerPaymentId: "pay_123",
+    ...(amountCents !== undefined ? { amountCents } : {}),
+  });
+
+  beforeEach(() => {
+    orderFindFirst.mockResolvedValue({ id: "pedido-1", status: "PENDING", total: 80 });
+  });
+
+  it("valor menor que o total não quita o pedido", async () => {
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    handleWebhook.mockResolvedValue(aprovado(100)); // R$ 1,00 num pedido de R$ 80,00
+
+    const res = await POST(req(), params);
+
+    expect(res.status).toBe(200);
+    expect(orderUpdateMany).not.toHaveBeenCalled();
+    expect(erro).toHaveBeenCalledWith(expect.stringContaining("NÃO quitado"));
+    erro.mockRestore();
+  });
+
+  it("valor igual ao total quita", async () => {
+    handleWebhook.mockResolvedValue(aprovado(8000));
+    await POST(req(), params);
+    expect(orderUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ paymentStatus: "PAID" }) })
+    );
+  });
+
+  it("valor maior que o total quita (gorjeta, arredondamento do gateway)", async () => {
+    handleWebhook.mockResolvedValue(aprovado(8100));
+    await POST(req(), params);
+    expect(orderUpdateMany).toHaveBeenCalled();
+  });
+
+  it("adapter que não informa o valor mantém o comportamento anterior", async () => {
+    handleWebhook.mockResolvedValue(aprovado());
+    await POST(req(), params);
+    expect(orderUpdateMany).toHaveBeenCalled();
+  });
+
+  it("compara em centavos inteiros, sem erro de ponto flutuante (R$ 19,99)", async () => {
+    orderFindFirst.mockResolvedValue({ id: "pedido-1", status: "PENDING", total: 19.99 });
+    handleWebhook.mockResolvedValue(aprovado(1999));
+    await POST(req(), params);
+    expect(orderUpdateMany).toHaveBeenCalled();
+  });
+});
+
 describe("escopo de tenant", () => {
   it("escreve o pedido dentro do contexto do tenant da URL", async () => {
     // Sem isto, a notificação de um restaurante poderia alcançar o pedido de

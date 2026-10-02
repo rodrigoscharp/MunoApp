@@ -218,7 +218,7 @@ export class PagBankAdapter implements PaymentProvider {
     const event = safeParse(rawBody) as {
       id?: string;
       reference_id?: string;
-      charges?: { id?: string; status?: string }[];
+      charges?: { id?: string; status?: string; amount?: { value?: number } }[];
     } | null;
 
     const orderId = event?.reference_id;
@@ -232,6 +232,10 @@ export class PagBankAdapter implements PaymentProvider {
       orderId,
       providerPaymentId: String(charge?.id ?? event?.id ?? ""),
       status,
+      // O PagBank já informa o valor em centavos.
+      ...(typeof charge?.amount?.value === "number"
+        ? { amountCents: charge.amount.value }
+        : {}),
     };
   }
 }

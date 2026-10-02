@@ -250,6 +250,9 @@ export class MercadoPagoAdapter implements PaymentProvider {
       orderId,
       providerPaymentId: String(payment.id),
       status: mapPaymentStatus(payment.status),
+      ...(typeof payment.transaction_amount === "number"
+        ? { amountCents: Math.round(payment.transaction_amount * 100) }
+        : {}),
     };
   }
 }
