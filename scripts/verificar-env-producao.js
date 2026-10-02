@@ -129,7 +129,7 @@ if (require.main === module) {
   if (ausentes.length > 0) {
     console.warn(
       `[env] AVISO: produção sem ${ausentes.join(", ")}. Não derruba o build, mas ` +
-        "e-mails, cobrança diária ou criptografia de credenciais podem falhar em silêncio."
+        "alertas de erro, cobrança diária ou o cadastro de leads podem falhar em silêncio."
     );
   }
 
