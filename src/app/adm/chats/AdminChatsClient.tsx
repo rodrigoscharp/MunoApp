@@ -25,10 +25,9 @@ interface OrderWithLastMessage {
 interface Props {
   orders: OrderWithLastMessage[];
   adminName: string;
-  tenantId: string;
 }
 
-export function AdminChatsClient({ orders, adminName, tenantId }: Props) {
+export function AdminChatsClient({ orders, adminName }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(
     orders[0]?.id ?? null
   );
@@ -131,7 +130,6 @@ export function AdminChatsClient({ orders, adminName, tenantId }: Props) {
               <OrderStatusBadge
                 orderId={selectedOrder.id}
                 initialStatus={selectedOrder.status as OrderStatus}
-                tenantId={tenantId}
               />
             </div>
 
@@ -140,7 +138,6 @@ export function AdminChatsClient({ orders, adminName, tenantId }: Props) {
               <ChatWindow
                 key={selectedOrder.id}
                 orderId={selectedOrder.id}
-                tenantId={tenantId}
                 currentRole="ADMIN"
                 currentName={adminName}
               />

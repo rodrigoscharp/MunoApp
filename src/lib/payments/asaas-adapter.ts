@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { PaymentConnection } from "@prisma/client";
 import { decryptCredentials } from "./credentials";
-import { InvalidWebhookSignatureError, safeParse } from "./types";
+import { GATEWAY_TIMEOUT_MS, InvalidWebhookSignatureError, safeParse } from "./types";
 import type {
   Charge,
   ChargeableOrder,
@@ -35,6 +35,7 @@ async function call<T>(
   const res = await fetch(`${baseUrl}${path}`, {
     method: init?.method ?? "GET",
     headers: headersFor(apiKey),
+    signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
     ...(init?.body ? { body: JSON.stringify(init.body) } : {}),
   });
 
@@ -226,7 +227,7 @@ export class AsaasAdapter implements PaymentProvider {
     // corpo — o parse aqui é só pra ler o evento.
     const body = safeParse(rawBody) as {
       event?: string;
-      payment?: { id?: string; externalReference?: string };
+      payment?: { id?: string; externalReference?: string; value?: number };
     } | null;
     if (!body?.event?.startsWith("PAYMENT_") || !body.payment?.id) return null;
 
@@ -257,6 +258,9 @@ export class AsaasAdapter implements PaymentProvider {
       orderId,
       providerPaymentId: String(body.payment.id),
       status: mapEvent(body.event),
+      ...(typeof body.payment.value === "number"
+        ? { amountCents: Math.round(body.payment.value * 100) }
+        : {}),
     };
   }
 }

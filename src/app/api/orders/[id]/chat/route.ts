@@ -37,10 +37,14 @@ export async function GET(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
     }
 
-    const messages = await prisma.chatMessage.findMany({
+    // As 200 mais recentes (desc + take), devolvidas em ordem cronológica.
+    // asc + take cortaria justamente as mensagens novas.
+    const recentes = await prisma.chatMessage.findMany({
       where: { orderId: id },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
+      take: 200,
     });
+    const messages = recentes.reverse();
 
     return NextResponse.json(messages);
   });
@@ -73,7 +77,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     // `(body.content ?? "").trim()` cobria só o campo ausente: `content: 123`
     // chamava .trim() num número e derrubava a rota em 500. E o texto entrava no
     // banco sem teto de tamanho — a única entrada livre do app sem limite.
-    const parsed = mensagemSchema.safeParse(await req.json());
+    const parsed = mensagemSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json({ error: "Mensagem inválida" }, { status: 400 });
     }

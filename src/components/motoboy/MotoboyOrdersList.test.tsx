@@ -66,7 +66,6 @@ const montar = (
     <MotoboyOrdersList
       availableOrders={disponiveis as never}
       activeDelivery={ativa as never}
-      tenantId="restaurante-a"
     />
   );
 
@@ -78,7 +77,9 @@ beforeEach(() => {
   toastSuccess.mockClear();
   toastInfo.mockClear();
   fetchMock.mockReset();
-  fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
+  // Toda chamada devolve algo com `topic`: é o nome secreto do canal, que o
+  // componente busca antes de assinar. As demais rotas ignoram o campo.
+  fetchMock.mockResolvedValue({ ok: true, json: async () => ({ topic: "topico-secreto" }) });
   vi.stubGlobal("fetch", fetchMock);
 });
 
@@ -222,9 +223,10 @@ describe("uma corrida por vez", () => {
   });
 });
 
-describe("o aviso de pedido novo", () => {
+describe("o aviso de pedido novo", async () => {
   it("recarrega e avisa quando um delivery fica pronto", async () => {
     montar([]);
+    await waitFor(() => expect(aoReceber).not.toBeNull());
     aoReceber?.({ payload: { status: "READY", deliveryType: "DELIVERY" } });
 
     await waitFor(() => expect(refresh).toHaveBeenCalled());
@@ -236,6 +238,7 @@ describe("o aviso de pedido novo", () => {
 
   it("ignora pedido pronto que é de retirada", async () => {
     montar([]);
+    await waitFor(() => expect(aoReceber).not.toBeNull());
     aoReceber?.({ payload: { status: "READY", deliveryType: "PICKUP" } });
 
     expect(toastInfo).not.toHaveBeenCalled();
@@ -243,14 +246,16 @@ describe("o aviso de pedido novo", () => {
 
   it("recarrega em silêncio quando outro motoboy aceita", async () => {
     montar([corrida()]);
+    await waitFor(() => expect(aoReceber).not.toBeNull());
     aoReceber?.({ payload: { status: "OUT_FOR_DELIVERY" } });
 
     await waitFor(() => expect(refresh).toHaveBeenCalled());
     expect(toastInfo).not.toHaveBeenCalled();
   });
 
-  it("ignora mudança que não interessa à fila", () => {
+  it("ignora mudança que não interessa à fila", async () => {
     montar([corrida()]);
+    await waitFor(() => expect(aoReceber).not.toBeNull());
     aoReceber?.({ payload: { status: "IN_PREPARATION", deliveryType: "DELIVERY" } });
 
     expect(refresh).not.toHaveBeenCalled();

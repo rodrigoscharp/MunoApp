@@ -34,7 +34,52 @@
  * interruptor, de quando se quer começar a cobrar a mensalidade.
  */
 
+const fs = require("node:fs");
+const path = require("node:path");
+
 const OBRIGATORIAS = ["ASAAS_API_KEY", "ASAAS_WEBHOOK_TOKEN"];
+
+// Variáveis cuja falta não derruba o build (podem estar certas e eu não saber,
+// e um falso positivo aqui trancaria o deploy de qualquer correção), mas cuja
+// ausência quebra algo em silêncio: sem RESEND_FROM_EMAIL o remetente cai em
+// onboarding@resend.dev, que só entrega ao dono da conta Resend, e o cliente
+// que acabou de pagar nunca recebe o link de senha.
+const RECOMENDADAS = [
+  "RESEND_API_KEY",
+  "RESEND_FROM_EMAIL",
+  "PAYMENT_TOKEN_ENCRYPTION_KEY",
+  "CRON_SECRET",
+  "ROOT_DOMAIN",
+  "LANDING_ORIGIN",
+];
+
+// Documentos que a pessoa aceita no checkout. Campos [entre marcadores <mark>]
+// são os que ainda precisam ser preenchidos (razão social, CNPJ, encarregado...).
+const DOCUMENTOS_LEGAIS = [
+  "public/vendas/termos.html",
+  "public/vendas/privacidade.html",
+];
+
+/**
+ * Documento legal com campo ainda por preencher. O checkout já exige o aceite
+ * deles; publicar com "[RAZÃO SOCIAL]" na tela faz a pessoa aceitar um contrato
+ * sem parte. Só no deploy de produção, como o resto deste arquivo.
+ */
+function documentosLegaisPendentes(env, ler = (arquivo) => fs.readFileSync(path.join(__dirname, "..", arquivo), "utf8")) {
+  if (env.VERCEL_ENV !== "production") return [];
+  return DOCUMENTOS_LEGAIS.filter((arquivo) => {
+    try {
+      return /<mark>/i.test(ler(arquivo));
+    } catch {
+      return true; // documento sumiu: o checkout aponta para 404
+    }
+  });
+}
+
+function recomendadasAusentes(env) {
+  if (env.VERCEL_ENV !== "production") return [];
+  return RECOMENDADAS.filter((nome) => (env[nome] ?? "").trim() === "");
+}
 
 /**
  * Recebe o ambiente por parâmetro em vez de ler process.env aqui dentro:
@@ -54,9 +99,32 @@ function faltantesEmProducao(env) {
   return OBRIGATORIAS.filter((nome) => (env[nome] ?? "").trim() === "");
 }
 
-module.exports = { faltantesEmProducao, OBRIGATORIAS };
+module.exports = {
+  faltantesEmProducao,
+  documentosLegaisPendentes,
+  recomendadasAusentes,
+  OBRIGATORIAS,
+};
 
 if (require.main === module) {
+  const pendentes = documentosLegaisPendentes(process.env);
+  if (pendentes.length > 0) {
+    console.error(
+      `\n[legal] Deploy de produção com campos por preencher em: ${pendentes.join(", ")}.\n` +
+        "        Procure por <mark> nos arquivos (razão social, CNPJ, encarregado, prazos,\n" +
+        "        foro) e preencha antes de publicar: o checkout exige o aceite deles.\n"
+    );
+    process.exit(1);
+  }
+
+  const ausentes = recomendadasAusentes(process.env);
+  if (ausentes.length > 0) {
+    console.warn(
+      `[env] AVISO: produção sem ${ausentes.join(", ")}. Não derruba o build, mas ` +
+        "e-mails, cobrança diária ou criptografia de credenciais podem falhar em silêncio."
+    );
+  }
+
   const faltando = faltantesEmProducao(process.env);
 
   if (faltando.length > 0) {

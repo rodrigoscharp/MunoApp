@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { orderChannel, tenantChannelName } from "@/lib/realtime-channel";
+import { useTopicoRealtime } from "@/hooks/useTopicoRealtime";
 import { DeliveryTracking } from "@/types";
 
 /**
@@ -14,13 +14,14 @@ import { DeliveryTracking } from "@/types";
  * um com a chave pública. Agora escuta o canal Broadcast do tenant, alimentado
  * pelo POST de /api/motoboy/orders/[orderId]/location.
  */
-export function useDeliveryTracking(orderId: string, tenantId: string) {
+export function useDeliveryTracking(orderId: string) {
   const [tracking, setTracking] = useState<DeliveryTracking | null>(null);
+  const topic = useTopicoRealtime("order", orderId);
 
+  // Posição inicial: o GET já é protegido por canViewOrder.
   useEffect(() => {
     let ativo = true;
 
-    // Posição inicial: o GET já é protegido por canViewOrder.
     fetch(`/api/motoboy/orders/${orderId}/location`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -28,8 +29,15 @@ export function useDeliveryTracking(orderId: string, tenantId: string) {
       })
       .catch(() => {});
 
+    return () => {
+      ativo = false;
+    };
+  }, [orderId]);
+
+  useEffect(() => {
+    if (!topic) return;
     const channel = supabase
-      .channel(tenantChannelName(tenantId, orderChannel(orderId)))
+      .channel(topic)
       .on("broadcast", { event: "tracking-updated" }, ({ payload }) => {
         const lat = payload.lat as number;
         const lng = payload.lng as number;
@@ -44,10 +52,9 @@ export function useDeliveryTracking(orderId: string, tenantId: string) {
       .subscribe();
 
     return () => {
-      ativo = false;
       supabase.removeChannel(channel);
     };
-  }, [orderId, tenantId]);
+  }, [topic, orderId]);
 
   return tracking;
 }

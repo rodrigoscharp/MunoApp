@@ -63,6 +63,9 @@ model User {
   name              String
   email             String
   password          String?
+  // Quando a senha foi trocada por último. Sessões (JWT) emitidas antes disso
+  // são encerradas na próxima reconferência (ver o callback jwt em auth.ts).
+  passwordChangedAt DateTime?
   role              Role               @default(CUSTOMER)
   orders            Order[]
   motoboyOrders     Order[]            @relation("MotoboyOrders")
@@ -355,6 +358,8 @@ model PlatformAdmin {
   nome      String
   email     String   @unique
   password  String
+  // Mesma função de User.passwordChangedAt, para o console da plataforma.
+  passwordChangedAt DateTime?
   createdAt DateTime @default(now())
 }
 
@@ -529,6 +534,11 @@ model Cobranca {
   vencimento   DateTime
   status       CobrancaStatus @default(PENDENTE)
   pagoEm       DateTime?
+  // Id do pagamento no Asaas, quando a cobrança nasceu dele. É a chave que
+  // sobrevive a um vencimento remarcado (a competência derivada do dueDate
+  // muda, o id não). Nulo nas cobranças geradas pelo cron e nas anteriores a
+  // esta coluna.
+  asaasPaymentId String?     @unique
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
@@ -578,6 +588,11 @@ model Inscricao {
   sessao              SessaoFunil?    @relation(fields: [sessaoId], references: [id])
   tenantId            String?         @unique
   tenant              Tenant?         @relation(fields: [tenantId], references: [id])
+  // Prova do aceite dos Termos e da Política de Privacidade: quando, e qual
+  // versão do texto (TERMOS_VERSAO em src/lib/termos.ts). Nulo nas inscrições
+  // anteriores a esta coluna.
+  termosAceitosEm     DateTime?
+  termosVersao        String?
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
 

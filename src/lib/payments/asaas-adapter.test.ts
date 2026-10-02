@@ -83,6 +83,21 @@ describe("handleWebhook — autenticação", () => {
   });
 });
 
+describe("handleWebhook — valor pago", () => {
+  it("informa o valor em centavos, para a rota conferir contra o total do pedido", async () => {
+    const corpo = JSON.stringify({
+      event: "PAYMENT_RECEIVED",
+      payment: { id: "pay_1", externalReference: "order-1", value: 19.99 },
+    });
+    const result = await adapter.handleWebhook(
+      corpo,
+      new Headers({ "asaas-access-token": WEBHOOK_TOKEN }),
+      connectionWith(fullCreds)
+    );
+    expect(result?.amountCents).toBe(1999);
+  });
+});
+
 describe("handleWebhook — caminho feliz", () => {
   it("com token certo, mapeia PAYMENT_RECEIVED para approved", async () => {
     const headers = new Headers({ "asaas-access-token": WEBHOOK_TOKEN });

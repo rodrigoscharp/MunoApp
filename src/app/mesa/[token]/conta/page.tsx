@@ -1,5 +1,6 @@
 "use client";
 
+import { iniciarPollingVisivel } from "@/lib/polling-visivel";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
@@ -47,8 +48,7 @@ export default function MesaContaPage() {
     }
     load();
 
-    const interval = setInterval(load, 10000);
-    return () => clearInterval(interval);
+    return iniciarPollingVisivel(load, 10000);
   }, [params.token]);
 
   const byPerson = new Map<string, Order[]>();

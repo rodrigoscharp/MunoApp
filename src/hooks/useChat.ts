@@ -1,8 +1,9 @@
 "use client";
 
+import { iniciarPollingVisivel } from "@/lib/polling-visivel";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { orderChannel, tenantChannelName } from "@/lib/realtime-channel";
+import { useTopicoRealtime } from "@/hooks/useTopicoRealtime";
 
 export interface ChatMessageData {
   id: string;
@@ -37,7 +38,8 @@ export async function prefetchChat(orderId: string): Promise<void> {
   }
 }
 
-export function useChat(orderId: string, tenantId: string) {
+export function useChat(orderId: string) {
+  const topic = useTopicoRealtime("order", orderId);
   const cached = messageCache.get(orderId);
   const [messages, setMessages] = useState<ChatMessageData[]>(cached ?? []);
   const [loading, setLoading] = useState(!cached);
@@ -73,15 +75,15 @@ export function useChat(orderId: string, tenantId: string) {
 
   // Polling — fonte principal de novas mensagens
   useEffect(() => {
-    const timer = setInterval(() => fetchMessages(true), POLL_INTERVAL);
-    return () => clearInterval(timer);
+    return iniciarPollingVisivel(() => fetchMessages(true), POLL_INTERVAL);
   }, [orderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Broadcast no canal do tenant — esta é a fonte principal de novas mensagens.
   // O evento é só um aviso (id, sem conteúdo); o texto vem do GET protegido.
   useEffect(() => {
+    if (!topic) return;
     const channel = supabase
-      .channel(tenantChannelName(tenantId, orderChannel(orderId)))
+      .channel(topic)
       .on("broadcast", { event: "chat-message" }, ({ payload }) => {
         const messageId = payload.messageId as string;
         // A própria mensagem enviada volta pela resposta do POST; ignorar aqui
@@ -92,7 +94,7 @@ export function useChat(orderId: string, tenantId: string) {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [orderId, tenantId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [topic]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * `substituirId` é a mensagem que esta substitui — o caso do reenvio depois de

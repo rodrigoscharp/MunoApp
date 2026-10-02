@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
     }
 
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
     const parsed = createSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
@@ -69,6 +70,10 @@ export async function POST(req: NextRequest) {
           tenantId,
           number: parsed.data.number,
           name: parsed.data.name,
+          // O token é o que o QR da mesa carrega e autoriza pedir naquela mesa.
+          // O padrão do schema (cuid) é previsível em parte (carimbo de tempo e
+          // contador); aqui são 128 bits aleatórios.
+          token: crypto.randomBytes(16).toString("hex"),
         },
       });
 

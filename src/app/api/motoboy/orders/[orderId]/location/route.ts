@@ -70,8 +70,8 @@ export async function POST(req: Request, { params }: Params) {
     }
 
     const { orderId } = await params;
-    const body = await req.json();
-    const { lat, lng } = body as { lat: number; lng: number };
+    const body = await req.json().catch(() => null);
+    const { lat, lng } = (body ?? {}) as { lat: number; lng: number };
 
     if (
       typeof lat !== "number" ||

@@ -1,3 +1,4 @@
+import { TERMOS_VERSAO } from "@/lib/termos";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
@@ -102,8 +103,36 @@ function corpoValido() {
     plano: "MEMBRO",
     ciclo: "ANUAL",
     metodo: "PIX",
+    aceiteTermos: true,
   };
 }
+
+describe("aceite dos termos", () => {
+  it("grava quando e qual versão dos termos foi aceita", async () => {
+    await POST(requisicao(corpoValido()));
+
+    expect(inscricaoCreate.mock.calls[0][0].data).toMatchObject({
+      termosAceitosEm: expect.any(Date),
+      termosVersao: TERMOS_VERSAO,
+    });
+  });
+
+  // Coletar nome, e-mail e documento sem o aceite registrado é o que a tela
+  // promete que não acontece. O checkbox da tela é conveniência; esta recusa é
+  // o que garante.
+  it.each([
+    ["ausente", undefined],
+    ["falso", false],
+    ["texto", "true"],
+  ])("recusa com 400 quando aceiteTermos está %s", async (_nome, valor) => {
+    const corpo: Record<string, unknown> = { ...corpoValido(), aceiteTermos: valor };
+    if (valor === undefined) delete corpo.aceiteTermos;
+
+    const res = await POST(requisicao(corpo));
+
+    expect(res.status).toBe(400);
+  });
+});
 
 // O erro que o Postgres devolve quando o slug @unique barra a segunda
 // inscrição para o mesmo endereço. Classe de verdade, e não objeto solto com

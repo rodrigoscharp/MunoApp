@@ -177,6 +177,20 @@ describe("handleWebhook — caminho feliz", () => {
     });
   });
 
+  it("informa transaction_amount em centavos, para a rota conferir contra o total", async () => {
+    const connection = connectionWith({ accessToken: "APP_USR-do-tenant", webhookSecret: WEBHOOK_SECRET });
+    mockPaymentGet.mockResolvedValue({
+      id: 999,
+      status: "approved",
+      external_reference: "order-abc",
+      transaction_amount: 19.99,
+    });
+
+    const result = await adapter.handleWebhook(payload, signedHeaders(WEBHOOK_SECRET), connection);
+
+    expect(result?.amountCents).toBe(1999);
+  });
+
   it("consulta o pagamento com o access token do LOJISTA, não um token de plataforma", async () => {
     const connection = connectionWith({ accessToken: "APP_USR-do-tenant", webhookSecret: WEBHOOK_SECRET });
     mockPaymentGet.mockResolvedValue({
@@ -187,7 +201,10 @@ describe("handleWebhook — caminho feliz", () => {
 
     await adapter.handleWebhook(payload, signedHeaders(WEBHOOK_SECRET), connection);
 
-    expect(mockConfigCtor).toHaveBeenCalledWith({ accessToken: "APP_USR-do-tenant" });
+    expect(mockConfigCtor).toHaveBeenCalledWith({
+      accessToken: "APP_USR-do-tenant",
+      options: { timeout: 15_000 },
+    });
     expect(mockPaymentGet).toHaveBeenCalledWith({ id: DATA_ID });
   });
 });

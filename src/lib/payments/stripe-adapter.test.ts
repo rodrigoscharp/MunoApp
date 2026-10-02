@@ -28,7 +28,7 @@ const body = JSON.stringify({
   data: { object: { id: "cs_1", client_reference_id: "order-1" } },
 });
 
-function signedHeaders(secret: string, rawBody: string, ts = "1700000000"): Headers {
+function signedHeaders(secret: string, rawBody: string, ts = String(Math.floor(Date.now() / 1000))): Headers {
   const v1 = crypto.createHmac("sha256", secret).update(`${ts}.${rawBody}`).digest("hex");
   return new Headers({ "stripe-signature": `t=${ts},v1=${v1}` });
 }
@@ -48,6 +48,23 @@ describe("handleWebhook — assinatura", () => {
     await expect(
       adapter.handleWebhook(body, signedHeaders("whsec_errado", body), connectionWith(fullCreds))
     ).rejects.toThrow(InvalidWebhookSignatureError);
+  });
+
+  // Replay: uma notificação capturada e reenviada depois ainda tem HMAC
+  // válido, porque o timestamp faz parte do que foi assinado. Só o relógio
+  // distingue a entrega de agora da repetição de ontem.
+  it("recusa notificação válida mas antiga (replay)", async () => {
+    const dezMinutosAtras = String(Math.floor(Date.now() / 1000) - 600);
+    await expect(
+      adapter.handleWebhook(body, signedHeaders(WHSEC, body, dezMinutosAtras), connectionWith(fullCreds))
+    ).rejects.toThrow(InvalidWebhookSignatureError);
+  });
+
+  it("aceita notificação dentro da tolerância de relógio", async () => {
+    const doisMinutosAtras = String(Math.floor(Date.now() / 1000) - 120);
+    await expect(
+      adapter.handleWebhook(body, signedHeaders(WHSEC, body, doisMinutosAtras), connectionWith(fullCreds))
+    ).resolves.not.toThrow();
   });
 
   it("recusa header ausente", async () => {
@@ -74,6 +91,21 @@ describe("handleWebhook — assinatura", () => {
     await expect(
       adapter.handleWebhook(body, headers, connectionWith(fullCreds))
     ).rejects.toThrow(InvalidWebhookSignatureError);
+  });
+});
+
+describe("handleWebhook — valor pago", () => {
+  it("repassa amount_total da sessão, em centavos", async () => {
+    const corpo = JSON.stringify({
+      type: "checkout.session.completed",
+      data: { object: { id: "cs_1", client_reference_id: "order-1", amount_total: 8000 } },
+    });
+    const result = await adapter.handleWebhook(
+      corpo,
+      signedHeaders(WHSEC, corpo),
+      connectionWith(fullCreds)
+    );
+    expect(result?.amountCents).toBe(8000);
   });
 });
 

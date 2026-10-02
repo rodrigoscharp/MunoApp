@@ -128,8 +128,14 @@ describe("troca bem-sucedida", () => {
 
     expect(userUpdate).toHaveBeenCalledWith({
       where: { tenantId_email: { tenantId: TENANT, email: "cliente@exemplo.com" } },
-      data: { password: expect.any(String) },
+      data: { password: expect.any(String), passwordChangedAt: expect.any(Date) },
     });
+  });
+
+  // É o que derruba a sessão de quem tinha a senha antiga (auth.ts, callback jwt).
+  it("carimba passwordChangedAt para encerrar as sessões abertas", async () => {
+    await POST(req(corpoValido));
+    expect(Date.now() - userUpdate.mock.calls[0][0].data.passwordChangedAt.getTime()).toBeLessThan(5000);
   });
 
   it("grava um hash, nunca a senha em texto", async () => {

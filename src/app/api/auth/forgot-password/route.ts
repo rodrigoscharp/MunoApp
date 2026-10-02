@@ -1,3 +1,4 @@
+import { reportarErro } from "@/lib/observabilidade";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
@@ -224,7 +225,7 @@ export async function POST(req: NextRequest) {
   }
 
   return withTenant(tenantId, async () => {
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
     const parsed = schema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: "Email inválido" }, { status: 400 });
@@ -290,9 +291,14 @@ export async function POST(req: NextRequest) {
     // informação, pelo tempo e pelo status.
     if (erroDeEnvio) {
       console.error(
-        `[forgot-password] Resend recusou o envio para ${email} (tenant ${tenantId})`,
+        `[forgot-password] Resend recusou o envio (tenant ${tenantId})`,
         erroDeEnvio
       );
+      await reportarErro({
+        origem: "forgot-password:envio",
+        erro: erroDeEnvio,
+        extra: { tenantId },
+      });
     }
 
     return NextResponse.json({ ok: true });

@@ -39,7 +39,7 @@ export async function PUT(req: NextRequest) {
     // não existe em runtime. Corpo `null` estourava ao desestruturar e virava
     // 500; fracionado passava e voltava truncado pelo parseInt do fim. Mesmo
     // conserto já aplicado em src/lib/business-hours.ts pelo mesmo motivo.
-    const parsed = minutosSchema.safeParse(await req.json());
+    const parsed = minutosSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json({ error: "Tempo inválido (5–180 min)" }, { status: 400 });
     }

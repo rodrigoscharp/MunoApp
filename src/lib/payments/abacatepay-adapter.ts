@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { PaymentConnection } from "@prisma/client";
 import { decryptCredentials } from "./credentials";
-import { InvalidWebhookSignatureError, safeParse } from "./types";
+import { GATEWAY_TIMEOUT_MS, InvalidWebhookSignatureError, safeParse } from "./types";
 import type {
   Charge,
   ChargeableOrder,
@@ -15,6 +15,7 @@ const API = "https://api.abacatepay.com/v2";
 
 async function call<T>(apiKey: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API}${path}`, {
+    signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
     method: body ? "POST" : "GET",
     headers: {
       Authorization: `Bearer ${apiKey}`,

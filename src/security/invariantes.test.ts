@@ -93,6 +93,13 @@ const USO_DE_PRISMA_UNSCOPED: Record<string, string> = {
   "src/lib/auth.ts": BUNDLE_DO_PROXY,
   "src/lib/auth-platform.ts": BUNDLE_DO_PROXY,
   "src/lib/assinatura/baixa.ts": "baixa manual de cobrança, feita pela plataforma",
+  "src/app/api/health/route.ts": "monitor de disponibilidade, consulta trivial sem tenant",
+  "src/lib/anonimizacao-cliente.ts":
+    "atende pedido de titular (LGPD) por script de operação, com tenantId explícito em toda consulta",
+  "src/lib/assinatura/reconciliacao-cobrancas.ts":
+    "cron lendo as assinaturas do Asaas da plataforma para reconciliar cobranças, sem tenant",
+  "src/lib/assinatura/espelho.ts":
+    "webhook do Asaas espelhando cobrança da assinatura da plataforma, sem tenant",
   "src/lib/assinatura/email-boas-vindas.ts":
     "e-mail de boas-vindas do provisionamento, quando o tenant acabou de nascer",
   "src/lib/assinatura/provisionamento.ts": "cria o tenant, que ainda não existe no contexto",

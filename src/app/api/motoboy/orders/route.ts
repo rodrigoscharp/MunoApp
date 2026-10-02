@@ -24,6 +24,9 @@ export async function GET(req: NextRequest) {
         items: { include: { menuItem: { select: { name: true } } } },
       },
       orderBy: { createdAt: "asc" },
+      // Pedidos prontos esperando motoboy: nunca são muitos ao mesmo tempo, e
+      // o teto impede que um acúmulo vire resposta gigante a cada polling.
+      take: 50,
     });
 
     return NextResponse.json(orders);

@@ -2,19 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { orderChannel, tenantChannelName } from "@/lib/realtime-channel";
+import { useTopicoRealtime } from "@/hooks/useTopicoRealtime";
 import { OrderStatus } from "@/types";
 import { ORDER_STATUS_LABELS } from "@/lib/utils";
 import { toast } from "sonner";
 
-export function useOrderRealtime(orderId: string, tenantId: string) {
+export function useOrderRealtime(orderId: string) {
+  const topic = useTopicoRealtime("order", orderId);
   const [status, setStatus] = useState<OrderStatus | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [estimatedDeliveryAt, setEstimatedDeliveryAt] = useState<Date | null>(null);
 
   useEffect(() => {
+    if (!topic) return;
     const channel = supabase
-      .channel(tenantChannelName(tenantId, orderChannel(orderId)))
+      .channel(topic)
       .on("broadcast", { event: "order-updated" }, ({ payload }) => {
         const newStatus = payload.status as OrderStatus;
         setStatus(newStatus);
@@ -31,7 +33,7 @@ export function useOrderRealtime(orderId: string, tenantId: string) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [orderId, tenantId]);
+  }, [topic]);
 
   return { status, updatedAt, estimatedDeliveryAt };
 }

@@ -1,3 +1,4 @@
+import { GATEWAY_TIMEOUT_MS } from "@/lib/payments/types";
 import crypto from "node:crypto";
 import type { Ciclo } from "@/lib/plans";
 
@@ -41,6 +42,7 @@ async function chamar<T>(caminho: string, body?: unknown): Promise<T> {
       "Content-Type": "application/json",
       access_token: process.env.ASAAS_API_KEY ?? "",
     },
+    signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
@@ -207,6 +209,19 @@ export async function listarCobrancasDaAssinatura(
   subscriptionId: string
 ): Promise<{ data: { id: string; invoiceUrl: string }[] }> {
   return chamar(`/subscriptions/${subscriptionId}/payments`);
+}
+
+/**
+ * Pagamentos recentes de uma assinatura, com o que o espelho precisa. O Asaas
+ * pagina de 10 em 10 por padrão; 24 cobre dois anos de cobrança mensal.
+ */
+export async function listarPagamentosDaAssinatura(
+  subscriptionId: string
+): Promise<{ id: string; status: string; value: number; dueDate: string }[]> {
+  const { data } = await chamar<{
+    data: { id: string; status: string; value: number; dueDate: string }[];
+  }>(`/subscriptions/${subscriptionId}/payments?limit=24`);
+  return data ?? [];
 }
 
 /**

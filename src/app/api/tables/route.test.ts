@@ -151,7 +151,7 @@ describe("POST — corpo", () => {
   it("cria a mesa presa ao tenant da request", async () => {
     await POST(req("POST", { number: 5, name: "Varanda", tenantId: "restaurante-b" }));
     expect(tableCreate).toHaveBeenCalledWith({
-      data: { tenantId: TENANT, number: 5, name: "Varanda" },
+      data: { tenantId: TENANT, number: 5, name: "Varanda", token: expect.any(String) },
     });
   });
 
@@ -161,9 +161,19 @@ describe("POST — corpo", () => {
   });
 
   it("não deixa o corpo escolher o token do QR", async () => {
-    // O token é a credencial do QR: gerado pelo banco, nunca informado.
+    // O token é a credencial do QR: gerado aqui, nunca informado.
     await POST(req("POST", { number: 5, token: "token-escolhido" }));
-    expect(tableCreate.mock.calls[0][0].data).not.toHaveProperty("token");
+    expect(tableCreate.mock.calls[0][0].data.token).not.toBe("token-escolhido");
+  });
+
+  it("gera o token do QR com 128 bits aleatórios, diferente a cada mesa", async () => {
+    await POST(req("POST", { number: 5 }));
+    await POST(req("POST", { number: 6 }));
+
+    const [a, b] = tableCreate.mock.calls.map(([c]) => c.data.token as string);
+    expect(a).toMatch(/^[0-9a-f]{32}$/);
+    expect(b).toMatch(/^[0-9a-f]{32}$/);
+    expect(a).not.toBe(b);
   });
 });
 

@@ -73,9 +73,20 @@ describe("o que o sino busca", () => {
     expect(where().createdAt).toEqual({ gt: new Date("2026-08-29T12:00:00.000Z") });
   });
 
-  it("devolve tudo quando não há since — a primeira chamada do sino", async () => {
+  // Sem since (primeira chamada do sino) o limite é a janela de 7 dias, e não a
+  // vida inteira do cliente: antes saía toda mensagem que ele já recebeu.
+  it("sem since, busca só os últimos 7 dias — a primeira chamada do sino", async () => {
     await GET(req());
-    expect(where()).not.toHaveProperty("createdAt");
+    const desde = (where().createdAt as { gt: Date }).gt;
+    const idade = Date.now() - desde.getTime();
+    expect(idade).toBeGreaterThan(6.9 * 24 * 60 * 60 * 1000);
+    expect(idade).toBeLessThan(7.1 * 24 * 60 * 60 * 1000);
+  });
+
+  it("com since válido, usa o since e não a janela de 7 dias", async () => {
+    const res = await GET(req("2026-10-01T00:00:00Z"));
+    expect(res.status).toBe(200);
+    expect((where().createdAt as { gt: Date }).gt).toEqual(new Date("2026-10-01T00:00:00Z"));
   });
 
   it.each(["ontem", "não-é-data", "", "12345678901234567890"])(
@@ -84,7 +95,10 @@ describe("o que o sino busca", () => {
       const res = await GET(req(since));
 
       expect(res.status).toBe(200);
-      expect(where()).not.toHaveProperty("createdAt");
+      // Tratado como ausente: cai na janela de 7 dias, não em "desde sempre".
+      expect((where().createdAt as { gt: Date }).gt.getTime()).toBeGreaterThan(
+        Date.now() - 8 * 24 * 60 * 60 * 1000
+      );
     }
   );
 

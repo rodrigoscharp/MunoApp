@@ -100,7 +100,6 @@ export default async function OrderChatPage({ params }: Props) {
         <OrderStatusBadge
           orderId={orderId}
           initialStatus={order.status as OrderStatus}
-          tenantId={session.user.tenantId!}
         />
       </header>
 
@@ -108,7 +107,6 @@ export default async function OrderChatPage({ params }: Props) {
       <div className="flex-1 min-h-0">
         <ChatWindow
           orderId={orderId}
-          tenantId={session.user.tenantId!}
           currentRole="CUSTOMER"
           currentName={session.user.name ?? "Cliente"}
           quickReplies={quickReplies}

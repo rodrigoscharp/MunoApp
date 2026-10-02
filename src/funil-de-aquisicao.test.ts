@@ -260,6 +260,7 @@ describe("costura 3 — o Lead que o checkout cria é o Lead que o provisionamen
           plano: "MEMBRO",
           ciclo: "MENSAL",
           metodo: "CREDIT_CARD",
+          aceiteTermos: true,
         }),
       })
     );
@@ -286,6 +287,7 @@ describe("costura 3 — o Lead que o checkout cria é o Lead que o provisionamen
           plano: "MEMBRO",
           ciclo: "MENSAL",
           metodo: "CREDIT_CARD",
+          aceiteTermos: true,
         }),
       })
     );

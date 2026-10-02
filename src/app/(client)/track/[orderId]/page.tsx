@@ -51,7 +51,6 @@ export default async function TrackPage({ params, searchParams }: Props) {
       <OrderTracker
         orderId={orderId}
         initialStatus={order.status}
-        tenantId={order.tenantId}
         canChat={!!order.userId && order.userId === session?.user?.id}
         order={{
           id: order.id,

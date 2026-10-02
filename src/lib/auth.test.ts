@@ -8,7 +8,7 @@
  * direto, sem subir servidor nem banco.
  */
 
-import { describe, expect, it, vi, beforeEach, beforeAll } from "vitest";
+import { describe, expect, it, vi, beforeEach, beforeAll, afterEach } from "vitest";
 import bcrypt from "bcryptjs";
 
 const TENANT = "restaurante-a";
@@ -26,10 +26,21 @@ type Autorizar = (
   request: Request
 ) => Promise<Record<string, unknown> | null>;
 
-const capturado: { config?: { providers: { authorize: Autorizar }[] } } = {};
+type Jwt = (args: {
+  token: Record<string, unknown>;
+  user?: Record<string, unknown>;
+}) => Promise<Record<string, unknown> | null>;
+
+const capturado: {
+  config?: {
+    providers: { authorize: Autorizar }[];
+    session: { maxAge?: number };
+    callbacks: { jwt: Jwt };
+  };
+} = {};
 
 vi.mock("next-auth", () => ({
-  default: (config: { providers: { authorize: Autorizar }[] }) => {
+  default: (config: NonNullable<typeof capturado.config>) => {
     capturado.config = config;
     return { handlers: {}, signIn: vi.fn(), signOut: vi.fn(), auth: vi.fn() };
   },
@@ -188,8 +199,119 @@ describe("o token carrega o tenant para dentro da sessão", () => {
     const { callbacks } = capturado.config as unknown as {
       callbacks: { jwt: (p: Record<string, unknown>) => Promise<Record<string, unknown>> };
     };
-    const anterior = { id: "user-1", role: "ADMIN", tenantId: TENANT };
+    // Verificado agora há pouco: a reconferência de 5 minutos não dispara.
+    const anterior = { id: "user-1", role: "ADMIN", tenantId: TENANT, verificadoEm: Date.now() };
     const token = await callbacks.jwt({ token: { ...anterior }, user: undefined });
     expect(token).toMatchObject(anterior);
+  });
+});
+
+
+// O papel mora no JWT, e o JWT vive dias. Sem reconferir, o motoboy demitido e o
+// ADMIN rebaixado continuam com o acesso antigo até o token expirar, e apagar o
+// usuário não derruba a sessão que ele já tem aberta.
+describe("sessão: o JWT é reconferido contra o banco", () => {
+  const AGORA = new Date("2026-10-02T12:00:00Z").getTime();
+  const CINCO_MIN = 5 * 60_000;
+
+  function jwt() {
+    return capturado.config!.callbacks.jwt;
+  }
+  const tokenRecente = () => ({
+    id: "u1",
+    role: "ADMIN",
+    tenantId: TENANT,
+    verificadoEm: AGORA - 60_000,
+  });
+  const tokenVelho = () => ({ ...tokenRecente(), verificadoEm: AGORA - CINCO_MIN - 1 });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(AGORA);
+    userFindUnique.mockReset();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("a sessão dura 7 dias, não os 30 do padrão", () => {
+    expect(capturado.config!.session.maxAge).toBe(7 * 24 * 60 * 60);
+  });
+
+  it("no login carimba o momento da verificação", async () => {
+    const token = await jwt()({
+      token: {},
+      user: { id: "u1", role: "ADMIN", tenantId: TENANT },
+    });
+    expect(token).toMatchObject({ id: "u1", role: "ADMIN", tenantId: TENANT, verificadoEm: AGORA });
+    expect(userFindUnique).not.toHaveBeenCalled();
+  });
+
+  it("não vai ao banco enquanto a verificação é recente", async () => {
+    await jwt()({ token: tokenRecente() });
+    expect(userFindUnique).not.toHaveBeenCalled();
+  });
+
+  it("depois de 5 minutos reconfere e atualiza o papel", async () => {
+    userFindUnique.mockResolvedValue({ role: "CUSTOMER", tenantId: TENANT });
+
+    const token = await jwt()({ token: tokenVelho() });
+
+    expect(userFindUnique).toHaveBeenCalledWith({
+      where: { id: "u1" },
+      select: { role: true, tenantId: true, passwordChangedAt: true },
+    });
+    expect(token).toMatchObject({ role: "CUSTOMER", verificadoEm: AGORA });
+  });
+
+  it("usuário apagado perde a sessão", async () => {
+    userFindUnique.mockResolvedValue(null);
+    expect(await jwt()({ token: tokenVelho() })).toBeNull();
+  });
+
+  it("usuário que mudou de tenant perde a sessão", async () => {
+    userFindUnique.mockResolvedValue({ role: "ADMIN", tenantId: "outro-restaurante" });
+    expect(await jwt()({ token: tokenVelho() })).toBeNull();
+  });
+
+  // Trocar a senha (reset por e-mail, troca do motoboy) precisa derrubar a
+  // sessão de quem tinha a senha antiga, inclusive o ladrão do cookie.
+  it("sessão aberta antes da troca de senha é encerrada", async () => {
+    const trocouEm = new Date(AGORA - 60_000); // há 1 minuto
+    userFindUnique.mockResolvedValue({ role: "ADMIN", tenantId: TENANT, passwordChangedAt: trocouEm });
+    // token emitido há 1 hora (iat em segundos)
+    const token = { ...tokenVelho(), iat: Math.floor((AGORA - 3_600_000) / 1000) };
+
+    expect(await jwt()({ token })).toBeNull();
+  });
+
+  it("sessão aberta depois da troca de senha continua valendo", async () => {
+    const trocouEm = new Date(AGORA - 3_600_000);
+    userFindUnique.mockResolvedValue({ role: "ADMIN", tenantId: TENANT, passwordChangedAt: trocouEm });
+    const token = { ...tokenVelho(), iat: Math.floor((AGORA - 60_000) / 1000) };
+
+    expect(await jwt()({ token })).not.toBeNull();
+  });
+
+  it("login no mesmo segundo da troca não derruba a própria sessão", async () => {
+    const trocouEm = new Date(AGORA - 120_000 + 500); // meio segundo depois do início do segundo
+    userFindUnique.mockResolvedValue({ role: "ADMIN", tenantId: TENANT, passwordChangedAt: trocouEm });
+    const token = { ...tokenVelho(), iat: Math.floor((AGORA - 120_000) / 1000) };
+
+    expect(await jwt()({ token })).not.toBeNull();
+  });
+
+  it("conta que nunca trocou a senha não é afetada", async () => {
+    userFindUnique.mockResolvedValue({ role: "ADMIN", tenantId: TENANT, passwordChangedAt: null });
+    expect(await jwt()({ token: { ...tokenVelho(), iat: 1 } })).not.toBeNull();
+  });
+
+  // Um solavanco no banco não pode deslogar todo mundo de uma vez no sábado à
+  // noite. A próxima requisição tenta de novo, porque verificadoEm não avançou.
+  it("falha do banco mantém a sessão e tenta de novo na próxima", async () => {
+    userFindUnique.mockRejectedValue(new Error("timeout"));
+    const antigo = tokenVelho();
+
+    const token = await jwt()({ token: antigo });
+
+    expect(token).toMatchObject({ role: "ADMIN", verificadoEm: antigo.verificadoEm });
   });
 });

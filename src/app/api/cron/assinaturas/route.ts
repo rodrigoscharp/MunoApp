@@ -1,3 +1,4 @@
+import { reportarErro } from "@/lib/observabilidade";
 import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prismaUnscoped } from "@/lib/prisma";
@@ -11,6 +12,7 @@ import {
   reconciliarInscricoesPagas,
   type ResultadoReconciliacao,
 } from "@/lib/assinatura/reconciliacao";
+import { reconciliarCobrancasDoAsaas } from "@/lib/assinatura/reconciliacao-cobrancas";
 import { registrarEvento } from "@/lib/funil/registrar";
 import { expurgarEventos } from "@/lib/funil/expurgo";
 
@@ -24,6 +26,11 @@ import { expurgarEventos } from "@/lib/funil/expurgo";
  *
  * É trabalho de plataforma, sem tenant no contexto: tudo por prismaUnscoped.
  */
+// O job faz chamadas ao Asaas (reconciliação de cobranças e inscrições), cada
+// uma com timeout de 15s. Sem isto vale o limite padrão da função e o job pode
+// morrer no meio da faxina.
+export const maxDuration = 300;
+
 async function executar(req: NextRequest) {
   // `segredo &&` não é redundante: sem ele, um ambiente onde a variável não
   // foi configurada compararia o header com a string "Bearer undefined" e
@@ -104,6 +111,19 @@ async function executar(req: NextRequest) {
     }
   }
 
+  // Antes de medir o atraso: as cobranças de renovação do Asaas chegam por
+  // webhook, e esta passada cobre as que o webhook perdeu. Sem a Cobranca do
+  // mês a régua não enxerga o atraso e quem parou de pagar segue ATIVA. Não
+  // propaga, como o resto das etapas de conveniência.
+  let cobrancasDoAsaas = { assinaturas: 0, cobrancas: 0, falhas: 0 };
+  let cobrancasDoAsaasFalhou = false;
+  try {
+    cobrancasDoAsaas = await reconciliarCobrancasDoAsaas(agora);
+  } catch (erro) {
+    cobrancasDoAsaasFalhou = true;
+    await reportarErro({ origem: "cron/assinaturas:cobrancas-do-asaas", erro });
+  }
+
   // Uma consulta só para todas as assinaturas, e não uma por assinatura: o job
   // roda com o banco de produção inteiro à frente e não há motivo para N+1.
   // Ordenado por vencimento, o primeiro de cada assinatura é o mais antigo.
@@ -167,6 +187,7 @@ async function executar(req: NextRequest) {
       "[cron/assinaturas] Reconciliação falhou inteira — quem pagou e não foi provisionado continua esperando a próxima passada",
       erro
     );
+    await reportarErro({ origem: "cron/assinaturas:reconciliacao", erro });
   }
 
   // A REGRA: soltar slug abandonado é conveniência; emitir cobrança e mover a
@@ -289,6 +310,7 @@ async function executar(req: NextRequest) {
       "[cron/assinaturas] Falha ao apagar inscrição vencida — slug fica preso até a próxima passada",
       erro
     );
+    await reportarErro({ origem: "cron/assinaturas:faxina", erro });
   }
 
   // Por último, como a limpeza de slug e pelo mesmo motivo: conveniência não
@@ -304,12 +326,15 @@ async function executar(req: NextRequest) {
       "[cron/assinaturas] falha ao resumir e expurgar eventos do funil",
       erro
     );
+    await reportarErro({ origem: "cron/assinaturas:funil", erro });
   }
 
   const resposta = {
     competencia,
     reconciliacao,
     ...(reconciliacaoFalhou ? { reconciliacaoFalhou } : {}),
+    cobrancasDoAsaas,
+    ...(cobrancasDoAsaasFalhou ? { cobrancasDoAsaasFalhou: true } : {}),
     inscricoesExpiradas,
     assinaturas: assinaturas.length,
     cobrancasCriadas,

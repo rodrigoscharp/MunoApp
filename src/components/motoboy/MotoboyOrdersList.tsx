@@ -6,7 +6,7 @@ import { formatCurrency } from "@/lib/utils";
 import { MapPin, Clock, Package, ChevronRight, Bike, RefreshCw, Banknote, CreditCard, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { KITCHEN_CHANNEL, tenantChannelName } from "@/lib/realtime-channel";
+import { useTopicoRealtime } from "@/hooks/useTopicoRealtime";
 
 interface OrderItem {
   name: string;
@@ -34,10 +34,10 @@ interface ActiveDelivery {
 interface Props {
   availableOrders: AvailableOrder[];
   activeDelivery: ActiveDelivery | null;
-  tenantId: string;
 }
 
-export function MotoboyOrdersList({ availableOrders, activeDelivery, tenantId }: Props) {
+export function MotoboyOrdersList({ availableOrders, activeDelivery }: Props) {
+  const topic = useTopicoRealtime("kitchen");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
@@ -47,8 +47,9 @@ export function MotoboyOrdersList({ availableOrders, activeDelivery, tenantId }:
   // que nunca disparou (RLS em Order bloqueia a role anon) — na prática o
   // motoboy só via pedido novo ao recarregar a página na mão.
   useEffect(() => {
+    if (!topic) return;
     const channel = supabase
-      .channel(tenantChannelName(tenantId, KITCHEN_CHANNEL))
+      .channel(topic)
       .on("broadcast", { event: "order-updated" }, ({ payload }) => {
         const status = payload.status as string | undefined;
         const deliveryType = payload.deliveryType as string | undefined;
@@ -69,7 +70,7 @@ export function MotoboyOrdersList({ availableOrders, activeDelivery, tenantId }:
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [router, tenantId]);
+  }, [router, topic]);
 
   async function acceptOrder(orderId: string) {
     setAcceptingId(orderId);

@@ -62,6 +62,11 @@ describe("PATCH /api/users/motoboys/[id]", () => {
     expect(userUpdate).not.toHaveBeenCalled();
   });
 
+  it("troca de senha encerra as sessões abertas do motoboy (passwordChangedAt)", async () => {
+    await PATCH(req("PATCH", { password: "novasenha" }), params);
+    expect(userUpdate.mock.calls[0][0].data.passwordChangedAt).toBeInstanceOf(Date);
+  });
+
   it("escopa a busca do alvo por papel", async () => {
     await PATCH(req("PATCH", { password: "novasenha" }), params);
 

@@ -31,6 +31,18 @@ export async function GET(
       return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
     }
 
+    // Pedido sem dono (mesa, anônimo) é legível por quem tiver o link, e o id
+    // não é segredo: aparece em canal de tempo real e na conta da mesa. Quem
+    // não é dono nem equipe do restaurante recebe o pedido sem telefone, sem
+    // id do pagamento no gateway e sem os dados do usuário.
+    const role = session?.user?.role;
+    const eEquipe = role === "ADMIN" || role === "KITCHEN";
+    const eDono = !!order.userId && order.userId === session?.user?.id;
+    if (!eEquipe && !eDono) {
+      const { customerPhone: _t, mpPaymentId: _p, user: _u, ...publico } = order;
+      return NextResponse.json(publico);
+    }
+
     return NextResponse.json(order);
   });
 }
@@ -69,10 +81,19 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
+    }
+
+    // Quem prepara o pedido não mexe em dinheiro: marcar PAID ou REFUNDED, ou
+    // trocar o id do pagamento no gateway, é do dono do restaurante.
+    if (
+      session.user.role !== "ADMIN" &&
+      (parsed.data.paymentStatus !== undefined || parsed.data.mpPaymentId !== undefined)
+    ) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
     }
 
     const order = await prisma.order.update({

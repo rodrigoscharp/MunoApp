@@ -29,10 +29,42 @@ export interface Charge {
   checkoutUrl?: string;
 }
 
+// Teto de espera por uma resposta de gateway. Sem ele um gateway lento prende a
+// função até o limite da plataforma, com o cliente olhando o botão "processando".
+export const GATEWAY_TIMEOUT_MS = 15_000;
+
+// Janela em que o timestamp assinado de um webhook ainda vale. O HMAC prova que
+// a notificação veio do gateway, mas não que é de agora: sem checar o relógio,
+// quem capturar uma entrega válida pode repeti-la para sempre. 5 minutos é o
+// padrão da Stripe e cobre o desvio de relógio entre os dois lados.
+export const WEBHOOK_TOLERANCIA_MS = 5 * 60_000;
+
+/**
+ * Só a Stripe usa: ela assina de novo a cada tentativa de entrega, então
+ * timestamp velho é replay. O Mercado Pago fica de fora de propósito, porque o
+ * adapter dele reconsulta o pagamento na API do lojista (replay não altera
+ * nada) e recusar entrega atrasada perderia a confirmação de pagamento.
+ * Aceita segundos ou milissegundos.
+ */
+export function timestampRecente(ts: string, agora: number = Date.now()): boolean {
+  const n = Number(ts);
+  if (!Number.isFinite(n) || n <= 0) return false;
+  const ms = n < 1e11 ? n * 1000 : n;
+  return Math.abs(agora - ms) <= WEBHOOK_TOLERANCIA_MS;
+}
+
 export interface WebhookResult {
   orderId: string;
   providerPaymentId: string;
   status: "approved" | "rejected" | "cancelled" | "refunded" | "pending" | "unknown";
+  /**
+   * Quanto o gateway diz que foi pago, em centavos, quando o payload ou a
+   * consulta ao gateway traz o valor. A rota só marca o pedido como pago se
+   * isto cobrir o total do pedido: sem isso, uma cobrança de R$ 1 criada com o
+   * `externalReference` de um pedido de R$ 80 quitaria o pedido inteiro.
+   * Ausente = o adapter não sabe, e a rota não confere (comportamento anterior).
+   */
+  amountCents?: number;
 }
 
 // Lançada quando a assinatura do webhook não bate — distinta de "payload

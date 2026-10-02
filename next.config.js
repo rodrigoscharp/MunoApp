@@ -39,6 +39,32 @@ const nextConfig = {
           // O navegador não tem por que pedir estes três em nenhuma tela do
           // app. O mapa do motoboy usa geolocalização e roda no próprio
           // dispositivo, então `geolocation=(self)` continua permitindo.
+          // Só observa (Report-Only): lista no console do navegador o que uma CSP
+          // bloquearia, sem bloquear nada. Passar a aplicar (Content-Security-Policy)
+          // exige abrir o app inteiro com o console aberto e ajustar o que
+          // aparecer: Supabase (REST e wss), tiles do OpenStreetMap e ícones do
+          // Leaflet (unpkg), Google Fonts, imagens https (logo e QR do gateway)
+          // e os scripts inline do Next, que mudam a cada resposta. A landing
+          // (public/vendas) usa Tailwind CDN, jsdelivr e unpkg e vai relatar
+          // bastante enquanto não ganhar a própria política.
+          {
+            key: "Content-Security-Policy-Report-Only",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline'",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+              "font-src 'self' data: https://fonts.gstatic.com",
+              "img-src 'self' data: blob: https:",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+              "worker-src 'self'",
+              "manifest-src 'self'",
+              "object-src 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+              "frame-ancestors 'none'",
+              "frame-src 'none'",
+            ].join("; "),
+          },
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), payment=(), geolocation=(self)",

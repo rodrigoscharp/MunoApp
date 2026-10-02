@@ -5,7 +5,13 @@ import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { CouponError } from "@/lib/coupon";
 import { aplicarCupom } from "@/lib/coupon-lookup";
 import { DeliveryFeeError, resolveDeliveryFee } from "@/lib/delivery-fee";
+import { criarLimitador } from "@/lib/rate-limit";
 import { z } from "zod";
+
+// A validação diz "existe" ou "não existe" e quanto vale: sem limite, um
+// cliente logado adivinhava códigos de cupom em volume. Por cliente e
+// restaurante, folgado para quem digita e erra algumas vezes.
+const limitador = criarLimitador({ max: 30, janelaMs: 10 * 60 * 1000 });
 
 /**
  * Prévia do desconto para o checkout mostrar antes de o cliente confirmar.
@@ -44,7 +50,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const parsed = validateSchema.safeParse(await req.json());
+    if (!limitador.permitir(`${tenantId}:${session.user.id}`, Date.now())) {
+      return NextResponse.json({ error: "Muitas tentativas. Tente de novo em alguns minutos." }, { status: 429 });
+    }
+
+    const parsed = validateSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json({ error: "Cupom inválido." }, { status: 400 });
     }

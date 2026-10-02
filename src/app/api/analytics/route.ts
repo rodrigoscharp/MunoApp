@@ -53,7 +53,10 @@ export async function GET(req: NextRequest) {
       // grande cancelado empurrava o prato para o topo do ranking.
       prisma.orderItem.groupBy({
         by: ["menuItemId"],
-        where: { order: { status: { not: "CANCELLED" } } },
+        // Mesma janela de 30 dias do gráfico ao lado. Sem o filtro de data,
+        // cada abertura do painel varria todos os itens já vendidos pelo
+        // restaurante, e a consulta só cresce.
+        where: { order: { status: { not: "CANCELLED" }, createdAt: { gte: startOfWindow } } },
         _sum: { quantity: true },
         orderBy: { _sum: { quantity: "desc" } },
         take: 10,

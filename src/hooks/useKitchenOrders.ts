@@ -2,12 +2,13 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
-import { KITCHEN_CHANNEL, tenantChannelName } from "@/lib/realtime-channel";
+import { useTopicoRealtime } from "@/hooks/useTopicoRealtime";
 import { OrderWithItems } from "@/types";
 
 const POLL_INTERVAL = 30_000; // fallback polling a cada 30s
 
-export function useKitchenOrders(tenantId: string) {
+export function useKitchenOrders() {
+  const topic = useTopicoRealtime("kitchen");
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,15 +30,22 @@ export function useKitchenOrders(tenantId: string) {
     }
   }, []);
 
+  // Tenta Realtime — se falhar (ou o tópico não vier), o polling assume.
   useEffect(() => {
-    fetchOrders();
-
-    // Tenta Realtime — se falhar, polling assume
+    if (!topic) return;
     const channel = supabase
-      .channel(tenantChannelName(tenantId, KITCHEN_CHANNEL))
+      .channel(topic)
       .on("broadcast", { event: "order-created" }, () => fetchOrders())
       .on("broadcast", { event: "order-updated" }, () => fetchOrders())
       .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [topic, fetchOrders]);
+
+  useEffect(() => {
+    fetchOrders();
 
     // Polling de segurança: atualiza a cada 30s independente do Realtime.
     // Um `realtimeActive` guardado em ref chegou a ser escrito aqui e nunca foi
@@ -48,10 +56,9 @@ export function useKitchenOrders(tenantId: string) {
     }, POLL_INTERVAL);
 
     return () => {
-      supabase.removeChannel(channel);
       clearInterval(poll);
     };
-  }, [fetchOrders, tenantId]);
+  }, [fetchOrders]);
 
   // Atualiza o status localmente de imediato (optimistic update)
   const updateOrderStatus = useCallback((orderId: string, newStatus: string) => {

@@ -20,10 +20,16 @@ const PROVIDER = "stripe";
 
 const connectionFindUnique = vi.fn();
 const connectionUpdate = vi.fn();
-const orderUpdate = vi.fn();
+const orderUpdateMany = vi.fn();
+const orderFindFirst = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { order: { update: (...a: unknown[]) => orderUpdate(...a) } },
+  prisma: {
+    order: {
+      updateMany: (...a: unknown[]) => orderUpdateMany(...a),
+      findFirst: (...a: unknown[]) => orderFindFirst(...a),
+    },
+  },
   prismaUnscoped: {
     paymentConnection: {
       findUnique: (...a: unknown[]) => connectionFindUnique(...a),
@@ -63,7 +69,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   connectionFindUnique.mockResolvedValue(conexao);
   connectionUpdate.mockResolvedValue(conexao);
-  orderUpdate.mockResolvedValue({ id: "pedido-1", status: "CONFIRMED" });
+  orderUpdateMany.mockResolvedValue({ count: 1 });
+  orderFindFirst.mockResolvedValue({ id: "pedido-1", status: "CONFIRMED" });
   handleWebhook.mockResolvedValue({
     orderId: "pedido-1",
     status: "approved",
@@ -93,7 +100,7 @@ describe("antes de confiar no evento", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ received: true });
-    expect(orderUpdate).not.toHaveBeenCalled();
+    expect(orderUpdateMany).not.toHaveBeenCalled();
   });
 
   it("entrega ao adapter o corpo cru, byte a byte", async () => {
@@ -109,7 +116,7 @@ describe("antes de confiar no evento", () => {
     const res = await POST(req(), params);
 
     expect(res.status).toBe(401);
-    expect(orderUpdate).not.toHaveBeenCalled();
+    expect(orderUpdateMany).not.toHaveBeenCalled();
     expect(connectionUpdate).not.toHaveBeenCalled();
     expect(broadcastOrderUpdate).not.toHaveBeenCalled();
   });
@@ -119,46 +126,74 @@ describe("antes de confiar no evento", () => {
     const res = await POST(req(), params);
 
     expect(res.status).toBe(200);
-    expect(orderUpdate).not.toHaveBeenCalled();
+    expect(orderUpdateMany).not.toHaveBeenCalled();
   });
 });
 
 describe("o que cada status grava no pedido", () => {
-  it("approved marca pago, confirma e guarda o id do gateway", async () => {
+  it("approved marca pago só se ainda não estava pago, e guarda o id do gateway", async () => {
     await POST(req(), params);
 
-    expect(orderUpdate).toHaveBeenCalledWith({
-      where: { id: "pedido-1" },
-      data: { paymentStatus: "PAID", status: "CONFIRMED", mpPaymentId: "pay_123" },
+    expect(orderUpdateMany).toHaveBeenCalledWith({
+      where: { id: "pedido-1", paymentStatus: "UNPAID" },
+      data: { paymentStatus: "PAID", mpPaymentId: "pay_123" },
     });
   });
 
-  it.each(["rejected", "cancelled"])("%s volta o pagamento para UNPAID", async (status) => {
-    handleWebhook.mockResolvedValue({ orderId: "pedido-1", status });
+  it("approved confirma só pedido que ainda está PENDING", async () => {
+    // Webhook duplicado ou atrasado não pode puxar para trás um pedido que a
+    // cozinha já levou adiante (IN_PREPARATION, READY, DELIVERED, CANCELLED).
     await POST(req(), params);
 
-    expect(orderUpdate).toHaveBeenCalledWith({
-      where: { id: "pedido-1" },
-      data: { paymentStatus: "UNPAID" },
+    expect(orderUpdateMany).toHaveBeenCalledWith({
+      where: { id: "pedido-1", status: "PENDING" },
+      data: { status: "CONFIRMED" },
     });
   });
 
-  it("rejected não cancela nem despromove o status do pedido", async () => {
-    // A cozinha pode já ter começado. Quem decide cancelar é o lojista.
-    handleWebhook.mockResolvedValue({ orderId: "pedido-1", status: "rejected" });
-    await POST(req(), params);
+  it.each(["rejected", "cancelled"])(
+    "%s não escreve nada: recusa tardia nunca despaga um pedido já pago",
+    async (status) => {
+      handleWebhook.mockResolvedValue({ orderId: "pedido-1", status });
+      const res = await POST(req(), params);
 
-    expect(orderUpdate.mock.calls[0][0].data).not.toHaveProperty("status");
-  });
+      expect(res.status).toBe(200);
+      expect(orderUpdateMany).not.toHaveBeenCalled();
+      expect(broadcastOrderUpdate).not.toHaveBeenCalled();
+    }
+  );
 
-  it("refunded marca REFUNDED", async () => {
+  it("refunded marca REFUNDED só em pedido que estava PAID", async () => {
     handleWebhook.mockResolvedValue({ orderId: "pedido-1", status: "refunded" });
     await POST(req(), params);
 
-    expect(orderUpdate).toHaveBeenCalledWith({
-      where: { id: "pedido-1" },
+    expect(orderUpdateMany).toHaveBeenCalledWith({
+      where: { id: "pedido-1", paymentStatus: "PAID" },
       data: { paymentStatus: "REFUNDED" },
     });
+  });
+
+  it("pagamento aprovado em pedido já CANCELADO deixa rastro para estorno e não o reabre", async () => {
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    orderUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    orderFindFirst.mockResolvedValue({ id: "pedido-1", status: "CANCELLED" });
+
+    await POST(req(), params);
+
+    expect(orderUpdateMany).toHaveBeenCalledTimes(2);
+    expect(orderUpdateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "CONFIRMED" }, where: { id: "pedido-1" } })
+    );
+    expect(erro).toHaveBeenCalledWith(expect.stringContaining("estornar"));
+    erro.mockRestore();
+  });
+
+  it("evento repetido que não muda nada não avisa ninguém de novo", async () => {
+    orderUpdateMany.mockResolvedValue({ count: 0 });
+    const res = await POST(req(), params);
+
+    expect(res.status).toBe(200);
+    expect(broadcastOrderUpdate).not.toHaveBeenCalled();
   });
 
   it("status desconhecido não grava nada e não avisa ninguém", async () => {
@@ -166,8 +201,60 @@ describe("o que cada status grava no pedido", () => {
     const res = await POST(req(), params);
 
     expect(res.status).toBe(200);
-    expect(orderUpdate).not.toHaveBeenCalled();
+    expect(orderUpdateMany).not.toHaveBeenCalled();
     expect(broadcastOrderUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("conferência do valor pago", () => {
+  const aprovado = (amountCents?: number) => ({
+    orderId: "pedido-1",
+    status: "approved",
+    providerPaymentId: "pay_123",
+    ...(amountCents !== undefined ? { amountCents } : {}),
+  });
+
+  beforeEach(() => {
+    orderFindFirst.mockResolvedValue({ id: "pedido-1", status: "PENDING", total: 80 });
+  });
+
+  it("valor menor que o total não quita o pedido", async () => {
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    handleWebhook.mockResolvedValue(aprovado(100)); // R$ 1,00 num pedido de R$ 80,00
+
+    const res = await POST(req(), params);
+
+    expect(res.status).toBe(200);
+    expect(orderUpdateMany).not.toHaveBeenCalled();
+    expect(erro).toHaveBeenCalledWith(expect.stringContaining("NÃO quitado"));
+    erro.mockRestore();
+  });
+
+  it("valor igual ao total quita", async () => {
+    handleWebhook.mockResolvedValue(aprovado(8000));
+    await POST(req(), params);
+    expect(orderUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ paymentStatus: "PAID" }) })
+    );
+  });
+
+  it("valor maior que o total quita (gorjeta, arredondamento do gateway)", async () => {
+    handleWebhook.mockResolvedValue(aprovado(8100));
+    await POST(req(), params);
+    expect(orderUpdateMany).toHaveBeenCalled();
+  });
+
+  it("adapter que não informa o valor mantém o comportamento anterior", async () => {
+    handleWebhook.mockResolvedValue(aprovado());
+    await POST(req(), params);
+    expect(orderUpdateMany).toHaveBeenCalled();
+  });
+
+  it("compara em centavos inteiros, sem erro de ponto flutuante (R$ 19,99)", async () => {
+    orderFindFirst.mockResolvedValue({ id: "pedido-1", status: "PENDING", total: 19.99 });
+    handleWebhook.mockResolvedValue(aprovado(1999));
+    await POST(req(), params);
+    expect(orderUpdateMany).toHaveBeenCalled();
   });
 });
 
@@ -177,9 +264,9 @@ describe("escopo de tenant", () => {
     // outro — o id do pedido é global e a extensão do Prisma só escopa dentro
     // de runWithTenant.
     let tenantVisto: string | undefined;
-    orderUpdate.mockImplementation(async () => {
+    orderUpdateMany.mockImplementation(async () => {
       tenantVisto = getCurrentTenantId();
-      return { id: "pedido-1" };
+      return { count: 1 };
     });
 
     await POST(req(), params);
@@ -197,7 +284,7 @@ describe("escopo de tenant", () => {
 
   it("avisa o acompanhamento do pedido atualizado", async () => {
     const pedido = { id: "pedido-1", status: "CONFIRMED" };
-    orderUpdate.mockResolvedValue(pedido);
+    orderFindFirst.mockResolvedValue(pedido);
 
     await POST(req(), params);
 
@@ -207,7 +294,7 @@ describe("escopo de tenant", () => {
 
 describe("falha genérica não pode virar 200", () => {
   it("responde 500 quando a escrita do pedido falha", async () => {
-    orderUpdate.mockRejectedValue(new Error("connection terminated"));
+    orderUpdateMany.mockRejectedValue(new Error("connection terminated"));
     const res = await POST(req(), params);
 
     expect(res.status).toBe(500);

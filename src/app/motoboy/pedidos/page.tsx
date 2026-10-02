@@ -37,7 +37,6 @@ export default async function MotoboyPedidosPage() {
 
   return (
     <MotoboyOrdersList
-      tenantId={tenantId}
       availableOrders={availableOrders.map((o) => ({
         id: o.id,
         customerName: o.customerName,

@@ -84,6 +84,22 @@ describe("handleWebhook — autenticidade", () => {
   });
 });
 
+describe("handleWebhook — valor pago", () => {
+  it("repassa amount.value da cobrança, que o PagBank já manda em centavos", async () => {
+    const corpo = JSON.stringify({
+      id: "ORDE_1",
+      reference_id: "order-1",
+      charges: [{ id: "CHAR_1", status: "PAID", amount: { value: 8000 } }],
+    });
+    const result = await adapter.handleWebhook(
+      corpo,
+      signedHeaders(TOKEN, corpo),
+      connectionWith(fullCreds)
+    );
+    expect(result?.amountCents).toBe(8000);
+  });
+});
+
 describe("handleWebhook — caminho feliz", () => {
   it("com hash certo, devolve o pedido e a cobrança", async () => {
     const result = await adapter.handleWebhook(

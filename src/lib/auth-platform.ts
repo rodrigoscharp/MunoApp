@@ -14,6 +14,8 @@ const loginSchema = z.object({
 // cadastrados (às vezes um só — ver platform:senha em AGENTS.md), e o que
 // importa conter é tentativa repetida de senha contra UMA conta, não volume
 // por origem de rede.
+const REVERIFICAR_A_CADA_MS = 5 * 60_000;
+
 const limitador = criarLimitador({ max: 10, janelaMs: 10 * 60 * 1000 });
 
 // Instância separada da autenticação de restaurante (src/lib/auth.ts) de
@@ -26,7 +28,8 @@ export const {
   signOut: signOutPlatform,
   auth: authPlatform,
 } = NextAuth({
-  session: { strategy: "jwt" },
+  // 7 dias, e não os 30 do padrão: esta sessão enxerga todos os restaurantes.
+  session: { strategy: "jwt", maxAge: 7 * 24 * 60 * 60 },
   pages: { signIn: "/platform/login" },
   cookies: {
     sessionToken: {
@@ -67,7 +70,37 @@ export const {
   ],
   callbacks: {
     async jwt({ token, user }) {
-      if (user) token.id = user.id;
+      if (user) {
+        token.id = user.id;
+        token.verificadoEm = Date.now();
+        return token;
+      }
+
+      // Admin removido, ou sessão roubada de quem saiu, não pode valer até o
+      // token expirar. A cada 5 minutos, no máximo, confere se ele ainda
+      // existe; null encerra a sessão. Banco com soluço mantém o token e tenta
+      // de novo na próxima requisição (verificadoEm não avança).
+      const verificadoEm = (token.verificadoEm as number | undefined) ?? 0;
+      if (Date.now() - verificadoEm < REVERIFICAR_A_CADA_MS) return token;
+      try {
+        const admin = await prismaUnscoped.platformAdmin.findUnique({
+          where: { id: token.id as string },
+          select: { id: true, passwordChangedAt: true },
+        });
+        if (!admin) return null;
+        // Token emitido antes da última troca de senha: encerra. Truncado ao
+        // segundo porque `iat` é em segundos.
+        if (
+          admin.passwordChangedAt &&
+          typeof token.iat === "number" &&
+          token.iat < Math.floor(admin.passwordChangedAt.getTime() / 1000)
+        ) {
+          return null;
+        }
+        token.verificadoEm = Date.now();
+      } catch {
+        // mantém
+      }
       return token;
     },
     async session({ session, token }) {

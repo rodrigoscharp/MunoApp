@@ -17,6 +17,7 @@ export default async function AdminChatsPage() {
       user: { select: { name: true, email: true } },
     },
     orderBy: { updatedAt: "desc" },
+    take: 100,
     // status já vem pelo include implícito do select *
   });
 
@@ -24,7 +25,6 @@ export default async function AdminChatsPage() {
     <AdminChatsClient
       orders={ordersWithChats}
       adminName={session?.user?.name ?? "Admin"}
-      tenantId={session!.user.tenantId!}
     />
   );
 }

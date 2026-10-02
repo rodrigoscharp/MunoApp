@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 // Vercel, sem tsx no caminho) e o teste alcança de fora de src/ — mesma
 // prática de plans.test.ts, que lê public/vendas/index.html, e de
 // tenant-removal.test.ts, que lê o schema.prisma.
-import { faltantesEmProducao } from "../../../scripts/verificar-env-producao.js";
+import {
+  faltantesEmProducao,
+  documentosLegaisPendentes,
+  recomendadasAusentes,
+} from "../../../scripts/verificar-env-producao.js";
 
 const COMPLETO = {
   VERCEL_ENV: "production",
@@ -60,5 +64,47 @@ describe("variáveis do Asaas exigidas no deploy de produção", () => {
     // que migrate-on-deploy.js usa para não migrar em preview.
     expect(faltantesEmProducao({ VERCEL_ENV: "preview" })).toEqual([]);
     expect(faltantesEmProducao({})).toEqual([]);
+  });
+});
+
+describe("documentos legais antes do deploy de produção", () => {
+  const PRODUCAO = { VERCEL_ENV: "production" };
+
+  it("barra quando o documento ainda tem campo por preencher", () => {
+    const pendentes = documentosLegaisPendentes(PRODUCAO, (arquivo) =>
+      arquivo.endsWith("termos.html") ? "<p>CNPJ <mark>[CNPJ]</mark></p>" : "<p>pronto</p>"
+    );
+    expect(pendentes).toEqual(["public/vendas/termos.html"]);
+  });
+
+  it("passa quando os dois estão preenchidos", () => {
+    expect(documentosLegaisPendentes(PRODUCAO, () => "<p>pronto</p>")).toEqual([]);
+  });
+
+  it("barra se o documento sumiu, porque o checkout aponta para ele", () => {
+    const pendentes = documentosLegaisPendentes(PRODUCAO, () => {
+      throw new Error("ENOENT");
+    });
+    expect(pendentes).toHaveLength(2);
+  });
+
+  it("não barra preview nem build local", () => {
+    expect(documentosLegaisPendentes({ VERCEL_ENV: "preview" }, () => "<mark>x</mark>")).toEqual([]);
+    expect(documentosLegaisPendentes({}, () => "<mark>x</mark>")).toEqual([]);
+  });
+});
+
+describe("variáveis recomendadas em produção", () => {
+  it("lista as ausentes, só em produção", () => {
+    expect(recomendadasAusentes({ VERCEL_ENV: "production" })).toContain("RESEND_FROM_EMAIL");
+    expect(recomendadasAusentes({ VERCEL_ENV: "preview" })).toEqual([]);
+  });
+
+  it("não lista as presentes", () => {
+    const ausentes = recomendadasAusentes({
+      VERCEL_ENV: "production",
+      RESEND_FROM_EMAIL: "Muno <contato@munoapp.com.br>",
+    });
+    expect(ausentes).not.toContain("RESEND_FROM_EMAIL");
   });
 });

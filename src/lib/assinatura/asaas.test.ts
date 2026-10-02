@@ -35,6 +35,20 @@ describe("cliente Asaas da plataforma", () => {
     );
   });
 
+  // Sem timeout, um Asaas lento prende a função até o limite da plataforma com
+  // o cliente olhando "Processando...", e a Inscricao fica pela metade.
+  it("não espera o Asaas para sempre: toda chamada leva um sinal de timeout", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "cus_1" }), { status: 200 })
+    );
+
+    const { criarCliente } = await import("./asaas");
+    await criarCliente({ nome: "X", email: "x@y.com", cpfCnpj: "11222333000181" });
+
+    const init = fetchSpy.mock.calls[0][1]!;
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
   it("manda o valor em reais, não em centavos", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ id: "sub_1" }), { status: 200 })

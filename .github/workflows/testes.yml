@@ -43,6 +43,9 @@ jobs:
       - run: npx prisma generate
 
       - run: npm run lint
+
+      # vitest não checa tipos: só o build da Vercel o fazia, tarde demais.
+      - run: npx tsc --noEmit
       - run: npm test
 
       # Reprova em high ou critical. Até 15/09/2026 este passo só avisava,

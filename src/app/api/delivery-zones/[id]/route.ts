@@ -23,7 +23,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
     }
 
-    const parsed = deliveryZoneUpdateSchema.safeParse(await req.json());
+    const parsed = deliveryZoneUpdateSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
     }

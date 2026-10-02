@@ -102,12 +102,23 @@ describe("GET — quem pode ler a conversa", () => {
     expect(chatFindMany).not.toHaveBeenCalled();
   });
 
-  it("devolve as mensagens em ordem de chegada", async () => {
-    await GET(req("GET"), params);
+  // O banco entrega as 200 mais recentes (desc + take: asc cortaria justamente
+  // as novas), e a rota devolve em ordem cronológica.
+  it("devolve as mensagens em ordem de chegada, mesmo lendo as mais recentes primeiro", async () => {
+    chatFindMany.mockResolvedValue([
+      { id: "m3", createdAt: "3" },
+      { id: "m2", createdAt: "2" },
+      { id: "m1", createdAt: "1" },
+    ]);
+
+    const res = await GET(req("GET"), params);
+
     expect(chatFindMany).toHaveBeenCalledWith({
       where: { orderId: ORDER_ID },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
+      take: 200,
     });
+    expect((await res.json()).map((m: { id: string }) => m.id)).toEqual(["m1", "m2", "m3"]);
   });
 });
 

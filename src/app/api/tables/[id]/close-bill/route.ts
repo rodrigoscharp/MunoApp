@@ -33,7 +33,7 @@ export async function POST(
     }
 
     const { id } = await params;
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
     const parsed = closeBillSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues }, { status: 400 });

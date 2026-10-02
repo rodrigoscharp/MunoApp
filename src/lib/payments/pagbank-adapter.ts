@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { PaymentConnection } from "@prisma/client";
 import { decryptCredentials } from "./credentials";
-import { InvalidWebhookSignatureError, safeParse } from "./types";
+import { GATEWAY_TIMEOUT_MS, InvalidWebhookSignatureError, safeParse } from "./types";
 import type {
   Charge,
   ChargeableOrder,
@@ -34,6 +34,7 @@ async function call<T>(
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
+    signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
@@ -121,6 +122,7 @@ export class PagBankAdapter implements PaymentProvider {
     try {
       const res = await fetch(`${baseUrlFor(credentials.environment)}/orders`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
       });
 
       if (res.status === 401 || res.status === 403) {
@@ -216,7 +218,7 @@ export class PagBankAdapter implements PaymentProvider {
     const event = safeParse(rawBody) as {
       id?: string;
       reference_id?: string;
-      charges?: { id?: string; status?: string }[];
+      charges?: { id?: string; status?: string; amount?: { value?: number } }[];
     } | null;
 
     const orderId = event?.reference_id;
@@ -230,6 +232,10 @@ export class PagBankAdapter implements PaymentProvider {
       orderId,
       providerPaymentId: String(charge?.id ?? event?.id ?? ""),
       status,
+      // O PagBank já informa o valor em centavos.
+      ...(typeof charge?.amount?.value === "number"
+        ? { amountCents: charge.amount.value }
+        : {}),
     };
   }
 }

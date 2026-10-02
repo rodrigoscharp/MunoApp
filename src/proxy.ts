@@ -16,6 +16,13 @@ import { PAGINA_404 } from "@/lib/pagina-404";
 const LANDING_BASE = "/vendas";
 const LANDING_DOC = `${LANDING_BASE}/index.html`;
 
+// Documentos legais, também estáticos em public/vendas/. Lista fechada: o raiz
+// continua sem servir nenhum outro caminho (ver a guarda de 404 abaixo).
+const DOCUMENTOS_LEGAIS: Record<string, string> = {
+  "/termos": `${LANDING_BASE}/termos.html`,
+  "/privacidade": `${LANDING_BASE}/privacidade.html`,
+};
+
 // Rotas de /adm que a inadimplência NÃO fecha. O critério para entrar nesta
 // lista é uma pergunta só: **algum cliente do restaurante sofre se isto for
 // bloqueado?** Se sim, escapa.
@@ -225,6 +232,11 @@ export default auth(async (req) => {
     return NextResponse.next(semTenant);
   }
 
+  // Monitor de disponibilidade: bate no host raiz, que não tem tenant.
+  if (nextUrl.pathname === "/api/health") {
+    return NextResponse.next(semTenant);
+  }
+
   // Webhook do Asaas, pelo mesmo motivo e com a mesma consequência do cron: o
   // gateway chama o host do deploy, que não é subdomínio de restaurante
   // nenhum. Pelo caminho normal a rota resolveria o slug "default" e tomaria
@@ -293,6 +305,10 @@ export default auth(async (req) => {
     }
     if (nextUrl.pathname.replace(/\/$/, "") === "") {
       return comSessao(NextResponse.rewrite(urlNoHost(LANDING_DOC), semTenant), req);
+    }
+    const documentoLegal = DOCUMENTOS_LEGAIS[nextUrl.pathname.replace(/\/$/, "")];
+    if (documentoLegal) {
+      return NextResponse.rewrite(urlNoHost(documentoLegal), semTenant);
     }
     // O status continua 404; o que mudou é que agora existe uma página. Ela
     // é o único 404 do arquivo com corpo, porque é o único que uma pessoa

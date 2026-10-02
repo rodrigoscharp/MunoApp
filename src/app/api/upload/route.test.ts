@@ -1,5 +1,6 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, beforeAll } from "vitest";
 import { NextRequest } from "next/server";
+import sharp from "sharp";
 
 const auth = vi.fn();
 vi.mock("@/lib/auth", () => ({ auth: () => auth() }));
@@ -22,8 +23,18 @@ vi.mock("@/lib/supabase-admin", () => ({
 
 const { POST } = await import("@/app/api/upload/route");
 
-function arquivo(nome = "logo.png", tipo = "image/png"): File {
-  return new File([new Uint8Array([1, 2, 3])], nome, { type: tipo });
+let pngReal: Buffer;
+let pngGrande: Buffer;
+
+beforeAll(async () => {
+  const cor = { r: 200, g: 60, b: 30 };
+  pngReal = await sharp({ create: { width: 40, height: 20, channels: 3, background: cor } }).png().toBuffer();
+  pngGrande = await sharp({ create: { width: 3000, height: 2000, channels: 3, background: cor } }).png().toBuffer();
+});
+
+/** PNG de verdade por padrão: o upload agora decodifica o conteúdo. */
+function arquivo(nome = "logo.png", tipo = "image/png", bytes?: Uint8Array): File {
+  return new File([(bytes ?? pngReal) as BlobPart], nome, { type: tipo });
 }
 
 function requisicao(file: File | null): NextRequest {
@@ -78,6 +89,61 @@ describe("POST /api/upload", () => {
 
     expect(res.status).toBe(403);
     expect(upload).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /api/upload: o conteúdo é verificado e reprocessado", () => {
+  beforeEach(() => auth.mockResolvedValue({ user: { role: "ADMIN", tenantId: "rest-a" } }));
+
+  // file.type é o que o cliente declara. Sem decodificar, um HTML ou um
+  // executável com Content-Type image/png ficava hospedado no bucket público.
+  it("recusa arquivo que se diz imagem mas não decodifica", async () => {
+    const res = await POST(requisicao(arquivo("x.png", "image/png", new Uint8Array([1, 2, 3]))));
+
+    expect(res.status).toBe(400);
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  it("recusa HTML disfarçado de imagem", async () => {
+    const html = new TextEncoder().encode("<script>alert(1)</script>");
+    const res = await POST(requisicao(arquivo("x.png", "image/png", html)));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("grava sempre WebP, com o tipo e a extensão do que foi gerado", async () => {
+    await POST(requisicao(arquivo()));
+
+    const [nome, conteudo, opcoes] = upload.mock.calls[0];
+    expect(nome).toMatch(/\.webp$/);
+    expect(opcoes.contentType).toBe("image/webp");
+    expect((await sharp(conteudo).metadata()).format).toBe("webp");
+  });
+
+  it("reduz imagem grande para no máximo 1280 px de largura", async () => {
+    await POST(requisicao(arquivo("foto.png", "image/png", pngGrande)));
+
+    const meta = await sharp(upload.mock.calls[0][1]).metadata();
+    expect(meta.width).toBe(1280);
+  });
+
+  it("não amplia imagem pequena", async () => {
+    await POST(requisicao(arquivo()));
+
+    const meta = await sharp(upload.mock.calls[0][1]).metadata();
+    expect(meta.width).toBe(40);
+  });
+
+  it("separa por restaurante: o nome leva o tenantId como prefixo", async () => {
+    await POST(requisicao(arquivo()));
+    expect(upload.mock.calls[0][0]).toMatch(/^rest-a\//);
+  });
+
+  it("upload feito pela plataforma vai para a pasta da plataforma", async () => {
+    auth.mockResolvedValue(null);
+    authPlatform.mockResolvedValue({ user: { id: "adm-1" } });
+    await POST(requisicao(arquivo()));
+    expect(upload.mock.calls[0][0]).toMatch(/^plataforma\//);
   });
 });
 

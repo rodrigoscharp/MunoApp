@@ -29,7 +29,7 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const { password } = await req.json() as { password?: string };
+    const { password } = ((await req.json().catch(() => ({}))) ?? {}) as { password?: string };
 
     if (!password || password.length < 6) {
       return NextResponse.json({ error: "Senha inválida" }, { status: 400 });
@@ -48,7 +48,7 @@ export async function PATCH(
     const hashed = await bcrypt.hash(password, 10);
     const user = await prisma.user.update({
       where: { id },
-      data: { password: hashed },
+      data: { password: hashed, passwordChangedAt: new Date() },
       select: { id: true, name: true, email: true },
     });
 

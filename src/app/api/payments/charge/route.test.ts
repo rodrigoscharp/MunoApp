@@ -20,11 +20,13 @@ vi.mock("@/lib/auth", () => ({ auth: () => auth() }));
 
 const orderFindUnique = vi.fn();
 const orderUpdate = vi.fn();
+const orderUpdateMany = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     order: {
       findUnique: (...a: unknown[]) => orderFindUnique(...a),
       update: (...a: unknown[]) => orderUpdate(...a),
+      updateMany: (...a: unknown[]) => orderUpdateMany(...a),
     },
   },
 }));
@@ -83,6 +85,7 @@ beforeEach(() => {
   auth.mockResolvedValue({ user: { id: DONO, role: "CUSTOMER" } });
   orderFindUnique.mockResolvedValue(pedido());
   orderUpdate.mockResolvedValue({});
+  orderUpdateMany.mockResolvedValue({ count: 1 });
   getActiveConnection.mockResolvedValue({ id: "conn-1", provider: "stripe" });
   createCharge.mockResolvedValue({
     paymentId: "pay_123",
@@ -247,14 +250,26 @@ describe("quando o gateway falha", () => {
     const res = await POST(req());
 
     expect(res.status).toBe(500);
-    expect(orderUpdate).toHaveBeenCalledWith({
-      where: { id: ORDER_ID },
+    expect(orderUpdateMany).toHaveBeenCalledWith({
+      where: { id: ORDER_ID, status: "PENDING", paymentStatus: "UNPAID" },
       data: { status: "CANCELLED" },
     });
   });
 
+  // Pedido anônimo (mesa) passa em canViewOrder para qualquer um que saiba o
+  // id. Se bastasse mandar um documento inválido para o gateway recusar e o
+  // catch cancelar, daria para cancelar o pedido de outra mesa em preparo, ou
+  // já pago. O cancelamento só vale para o que ainda não andou.
+  it("só cancela pedido ainda PENDING e não pago, nunca um que a cozinha já pegou", async () => {
+    await POST(req());
+
+    const { where } = orderUpdateMany.mock.calls[0][0];
+    expect(where.status).toBe("PENDING");
+    expect(where.paymentStatus).toBe("UNPAID");
+  });
+
   it("responde 500 mesmo se o cancelamento também falhar", async () => {
-    orderUpdate.mockRejectedValue(new Error("banco fora"));
+    orderUpdateMany.mockRejectedValue(new Error("banco fora"));
     const res = await POST(req());
 
     expect(res.status).toBe(500);

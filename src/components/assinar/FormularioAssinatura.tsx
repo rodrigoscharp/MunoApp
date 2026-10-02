@@ -86,6 +86,7 @@ export function FormularioAssinatura({
   const [metodo, setMetodo] = useState<Metodo>("CREDIT_CARD");
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(false);
+  const [aceitouTermos, setAceitouTermos] = useState(false);
 
   // Uma vez por marco, por montagem. useRef e não useState: registrar um passo
   // não deve provocar render, e um Set em estado re-renderizaria o formulário
@@ -205,7 +206,8 @@ export function FormularioAssinatura({
     estadoSlug === "livre" &&
     nome.trim().length >= 2 &&
     email.trim().length > 0 &&
-    isValidCpfCnpj(cpfCnpj);
+    isValidCpfCnpj(cpfCnpj) &&
+    aceitouTermos;
 
   async function onSubmit(e: React.FormEvent) {
     // Antes de qualquer await, de propósito: o evento precisa sair mesmo que
@@ -232,6 +234,7 @@ export function FormularioAssinatura({
           // No mensal a escolha nem aparece na tela, mas o estado inicial já
           // é CREDIT_CARD — não há caminho para mandar PIX+MENSAL por aqui.
           metodo: ciclo === "MENSAL" ? "CREDIT_CARD" : metodo,
+          aceiteTermos: true,
         }),
       });
       const body = await res.json().catch(() => ({}));
@@ -403,6 +406,37 @@ export function FormularioAssinatura({
           </div>
         </div>
       )}
+
+      <div className="flex items-start gap-2.5">
+        <input
+          id="assinar-aceite"
+          type="checkbox"
+          checked={aceitouTermos}
+          onChange={(e) => setAceitouTermos(e.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0 rounded border-neutral-300 accent-brand"
+        />
+        <label htmlFor="assinar-aceite" className="text-sm text-neutral-600">
+          Li e aceito os{" "}
+          <a
+            href="/termos"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline text-brand-dark"
+          >
+            Termos de Uso
+          </a>{" "}
+          e a{" "}
+          <a
+            href="/privacidade"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline text-brand-dark"
+          >
+            Política de Privacidade
+          </a>
+          .
+        </label>
+      </div>
 
       {erro && <p className="text-sm text-red-600">{erro}</p>}
 

@@ -80,7 +80,7 @@ export async function darBaixa(
  * mais antiga que sobrou — a mesma fonte que o job diário usa, para as duas
  * não divergirem.
  */
-async function recalcularStatusDaAssinatura(
+export async function recalcularStatusDaAssinatura(
   assinaturaId: string,
   statusAtual: StatusAssinatura,
   agora: Date

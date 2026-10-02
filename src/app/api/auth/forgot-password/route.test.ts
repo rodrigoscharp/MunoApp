@@ -115,9 +115,13 @@ describe("POST /api/auth/forgot-password — host do link de redefinição", () 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("dono@pizzaria.com"),
+      expect.stringContaining("Resend recusou o envio"),
       expect.objectContaining({ message: "domain is not verified" })
     );
+    // O e-mail do usuário não vai para o log: é dado pessoal e o painel de
+    // logs é lido por mais gente do que o banco.
+    const tudoQueFoiLogado = JSON.stringify(consoleErrorSpy.mock.calls);
+    expect(tudoQueFoiLogado).not.toContain("dono@pizzaria.com");
 
     consoleErrorSpy.mockRestore();
   });
