@@ -109,11 +109,20 @@ alternam entre ativo e inativo.
   reaproveitando o `ItemCard`. A lista de categorias do cardápio não é tocada.
   A lista do box tem altura máxima com rolagem, para um filtro que casa 40
   itens não empurrar a página.
-* **Botão sem dado não aparece.** Um botão só existe se pelo menos um item do
-  cardápio passa naquele filtro sozinho. Se nenhum dos três existe, o card
-  inteiro some. No dia do deploy, nenhum restaurante mostra um filtro vazio.
-* **Combinação sem resultado.** "Nenhum item atende a todos os filtros
-  marcados." com a opção de limpar.
+* **Os três botões aparecem sempre** que o cardápio tem itens, mesmo que o
+  restaurante ainda não tenha declarado nada. Revisto em 02/10/2026, depois de
+  o card sumir por inteiro nos restaurantes sem declaração (a regra original
+  era "botão sem dado não aparece"): os botões são o atalho de quem tem
+  restrição, e escondê-los até alguém preencher o formulário faz o filtro
+  parecer inexistente. Só o cardápio vazio não renderiza o card.
+* **Filtro que ninguém declarou.** Clicar num botão sem nenhum item declarado
+  mostra "Este restaurante ainda não informou quais itens atendem a esse
+  filtro.", e não "nenhum prato serve": dizer o contrário afirmaria algo que
+  ninguém verificou. Vale também numa combinação em que algum dos filtros ligados
+  não tem declaração.
+* **Combinação sem resultado.** Quando todos os filtros ligados têm item
+  declarado mas nenhum item atende a todos: "Nenhum item atende a todos os
+  filtros marcados." com a opção de limpar.
 * **Aviso fixo** sempre que houver filtro ativo: "Informado pelo restaurante. Em
   caso de alergia, confirme com a equipe antes de pedir."
 * **Dispensar.** O card continua podendo ser fechado. A chave do `localStorage`
@@ -170,9 +179,10 @@ landing não podem sair separados por muito tempo.
   `null`; recusam string; PUT sem os campos não os altera.
 * `MenuItemModal.test.tsx`: abre com "Não informado" em item antigo; salvar sem
   mexer manda `null`; marcar "Não" manda `false`.
-* `FiltroDeRestricoes.test.tsx`: não renderiza sem nenhum item declarado; só
-  mostra botão com dado; alternar filtra; combinação sem resultado mostra a
-  mensagem; o aviso aparece com filtro ativo.
+* `FiltroDeRestricoes.test.tsx`: mostra os três botões mesmo sem nenhum item
+  declarado e não renderiza só com o cardápio vazio; alternar filtra; filtro sem
+  declaração e combinação sem resultado têm mensagens distintas; o aviso aparece
+  com filtro ativo.
 * A suíte de segurança (`src/security/`) passa sem a rota de IA.
 
 ## Fora de escopo

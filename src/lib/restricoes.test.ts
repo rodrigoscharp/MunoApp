@@ -83,12 +83,12 @@ describe("filtrarPorRestricoes", () => {
   });
 });
 
-describe("restricoesDisponiveis: o botão só existe se há o que mostrar", () => {
-  it("cardápio sem nenhuma declaração não habilita botão nenhum", () => {
+describe("restricoesDisponiveis: em quais filtros o restaurante já declarou algo", () => {
+  it("cardápio sem nenhuma declaração não tem filtro com item declarado", () => {
     expect(restricoesDisponiveis([prato("a"), prato("b")])).toEqual([]);
   });
 
-  it("declarar que CONTÉM não habilita o botão 'sem'", () => {
+  it("declarar que CONTÉM não conta como item declarado para o filtro 'sem'", () => {
     expect(
       restricoesDisponiveis([prato("a", { containsGluten: true, containsLactose: true, isVegan: false })])
     ).toEqual([]);

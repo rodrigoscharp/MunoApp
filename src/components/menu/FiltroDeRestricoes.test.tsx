@@ -4,9 +4,9 @@
  *
  * O que este arquivo protege é o contrário do que a IA fazia: o cardápio só
  * afirma "sem lactose" sobre o que o restaurante DECLAROU. Item sem declaração
- * não aparece em filtro nenhum, e o card inteiro some quando não há nada
- * declarado, para o restaurante que ainda não preencheu não mostrar um filtro
- * que devolve sempre zero.
+ * não aparece em filtro nenhum. Os botões, porém, aparecem sempre: no
+ * restaurante que ainda não preencheu nada, o filtro responde "ainda não
+ * informou" em vez de sumir.
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
@@ -67,19 +67,29 @@ afterEach(() => {
 });
 
 describe("quando o card aparece", () => {
-  it("não renderiza nada se nenhum item declarou algo filtrável", () => {
-    // BURGER só declara que CONTÉM, e isso não habilita botão nenhum.
-    const { container } = montar([BURGER, SEM_INFO]);
+  // Os botões são o atalho de quem tem restrição, então não dependem de o dono
+  // já ter preenchido alguma coisa: restaurante sem nenhuma declaração mostra os
+  // três botões, e quem clica ouve "ainda não informou" em vez de achar que o
+  // filtro não existe.
+  it("mostra os três botões mesmo que nenhum item tenha sido declarado", () => {
+    montar([SEM_INFO]);
 
-    expect(container.firstChild).toBeNull();
+    expect(botao("Vegano")).toBeDefined();
+    expect(botao("Sem glúten")).toBeDefined();
+    expect(botao("Sem lactose")).toBeDefined();
   });
 
-  it("só mostra o botão que algum item atende", () => {
-    montar([PAO_DE_QUEIJO, SEM_INFO]);
+  it("mostra os três botões também quando só há declaração de 'contém'", () => {
+    // BURGER só declara que CONTÉM, e isso não atende filtro nenhum.
+    montar([BURGER, SEM_INFO]);
 
-    expect(botao("Sem glúten")).toBeDefined();
-    expect(screen.queryByRole("button", { name: "Vegano" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Sem lactose" })).toBeNull();
+    expect(screen.getAllByRole("button", { pressed: false })).toHaveLength(3);
+  });
+
+  it("não renderiza nada se o cardápio não tem item", () => {
+    const { container } = montar([]);
+
+    expect(container.firstChild).toBeNull();
   });
 
   it("não tem campo de texto nem chama a rede: é só filtro", async () => {
@@ -172,6 +182,47 @@ describe("filtrar", () => {
   });
 });
 
+describe("filtro que ninguém declarou", () => {
+  const AINDA_NAO_INFORMOU =
+    "Este restaurante ainda não informou quais itens atendem a esse filtro.";
+
+  it("clicar num botão sem nenhum item declarado diz que o restaurante ainda não informou", async () => {
+    montar([SEM_INFO, BURGER]);
+    await clicar("Sem lactose");
+
+    expect(screen.getByText(AINDA_NAO_INFORMOU)).toBeDefined();
+    expect(screen.queryByText("Prato novo")).toBeNull();
+    expect(screen.queryByText("X-Burguer")).toBeNull();
+    expect(botao("Sem lactose").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("não confunde com a combinação sem resultado, que tem mensagem própria", async () => {
+    // Os dois filtros têm item declarado, só que nenhum item atende aos dois.
+    montar([PAO_DE_QUEIJO, BURGER_VEGETAL]);
+    await clicar("Vegano");
+    await clicar("Sem glúten");
+
+    expect(screen.getByText("Nenhum item atende a todos os filtros marcados.")).toBeDefined();
+    expect(screen.queryByText(AINDA_NAO_INFORMOU)).toBeNull();
+  });
+
+  it("numa combinação, um filtro sem declaração também diz que ainda não informou", async () => {
+    montar([SEM_INFO, PAO_DE_QUEIJO]);
+    await clicar("Sem glúten"); // há item declarado
+    await clicar("Vegano"); // ninguém declarou
+
+    expect(screen.getByText(AINDA_NAO_INFORMOU)).toBeDefined();
+    expect(screen.queryByText("Pão de queijo")).toBeNull();
+  });
+
+  it("o aviso de que a informação vem do restaurante continua aparecendo", async () => {
+    montar([SEM_INFO]);
+    await clicar("Vegano");
+
+    expect(screen.getByText(AVISO)).toBeDefined();
+  });
+});
+
 describe("pedir pelo card", () => {
   it("'+ Adicionar' põe o item no carrinho", async () => {
     montar();
@@ -208,7 +259,10 @@ describe("o cardápio muda por baixo (cache de 60s)", () => {
     expect(botao("Sem lactose").getAttribute("aria-pressed")).toBe("true");
     expect(screen.queryByText("Salada vegana")).toBeNull();
     expect(screen.queryByText("Salada")).toBeNull();
-    expect(screen.getByText("Nenhum item atende a todos os filtros marcados.")).toBeDefined();
+    // Ninguém mais declara "sem lactose": a mensagem é a de filtro sem declaração.
+    expect(
+      screen.getByText("Este restaurante ainda não informou quais itens atendem a esse filtro.")
+    ).toBeDefined();
     expect(screen.getByText(AVISO)).toBeDefined();
   });
 

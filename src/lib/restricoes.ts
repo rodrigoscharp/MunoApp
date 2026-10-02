@@ -56,8 +56,9 @@ export function filtrarPorRestricoes<T extends DeclaracaoAlimentar>(
 }
 
 /**
- * Quais botões fazem sentido neste cardápio: os que pelo menos um item atende
- * sozinho. Um botão que sempre devolve zero itens é pior do que botão nenhum.
+ * Quais restrições têm pelo menos um item declarado neste cardápio, ou seja, em
+ * quais o restaurante já informou alguma coisa. Os botões aparecem sempre; é
+ * isto que separa "nenhum prato serve" de "o restaurante ainda não informou".
  */
 export function restricoesDisponiveis<T extends DeclaracaoAlimentar>(
   itens: readonly T[]
