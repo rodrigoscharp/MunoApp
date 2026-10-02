@@ -21,14 +21,18 @@ const orderUpdateMany = vi.fn();
 const paymentCreateMany = vi.fn();
 const transacao = vi.fn();
 
+const tx = {
+  order: {
+    findMany: (...a: unknown[]) => orderFindMany(...a),
+    updateMany: (...a: unknown[]) => orderUpdateMany(...a),
+  },
+  payment: { createMany: (...a: unknown[]) => paymentCreateMany(...a) },
+};
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    order: {
-      findMany: (...a: unknown[]) => orderFindMany(...a),
-      updateMany: (...a: unknown[]) => orderUpdateMany(...a),
-    },
-    payment: { createMany: (...a: unknown[]) => paymentCreateMany(...a) },
-    $transaction: (...a: unknown[]) => transacao(...a),
+    // Transação interativa: a rota lê, confere e grava lá dentro.
+    $transaction: (fn: (t: typeof tx) => Promise<unknown>) => transacao(fn),
   },
 }));
 
@@ -56,10 +60,13 @@ const contaDe100 = { payments: [{ method: "CASH", amount: 100 }] };
 beforeEach(() => {
   vi.clearAllMocks();
   auth.mockResolvedValue({ user: { id: "admin-1", role: "ADMIN" } });
-  orderFindMany.mockResolvedValue([{ total: 60 }, { total: 40 }]);
-  orderUpdateMany.mockReturnValue("op-update");
-  paymentCreateMany.mockReturnValue("op-create");
-  transacao.mockResolvedValue([{ count: 2 }, { count: 1 }]);
+  orderFindMany.mockResolvedValue([
+    { id: "o1", total: 60 },
+    { id: "o2", total: 40 },
+  ]);
+  orderUpdateMany.mockResolvedValue({ count: 2 });
+  paymentCreateMany.mockResolvedValue({ count: 1 });
+  transacao.mockImplementation((fn: (t: typeof tx) => Promise<unknown>) => fn(tx));
 });
 
 describe("quem pode fechar a conta", () => {
@@ -129,7 +136,8 @@ describe("a soma precisa cobrir o que está em aberto", () => {
 
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "Nenhum pedido em aberto nesta mesa" });
-    expect(transacao).not.toHaveBeenCalled();
+    expect(orderUpdateMany).not.toHaveBeenCalled();
+    expect(paymentCreateMany).not.toHaveBeenCalled();
   });
 
   it("recusa pagamento menor que o total em aberto", async () => {
@@ -137,7 +145,8 @@ describe("a soma precisa cobrir o que está em aberto", () => {
 
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("100.00");
-    expect(transacao).not.toHaveBeenCalled();
+    expect(orderUpdateMany).not.toHaveBeenCalled();
+    expect(paymentCreateMany).not.toHaveBeenCalled();
   });
 
   it("aceita pagamento exato", async () => {
@@ -159,25 +168,50 @@ describe("a soma precisa cobrir o que está em aberto", () => {
     await POST(req(contaDe100), params);
     expect(orderFindMany).toHaveBeenCalledWith({
       where: { tableId: MESA_ID, paymentStatus: "UNPAID", status: { not: "CANCELLED" } },
-      select: { total: true },
+      select: { id: true, total: true },
     });
   });
 });
 
 describe("a gravação", () => {
-  it("marca os pedidos e registra os pagamentos na mesma transação", async () => {
+  it("lê, confere e grava dentro da mesma transação", async () => {
     await POST(req(contaDe100), params);
 
-    expect(transacao).toHaveBeenCalledWith(["op-update", "op-create"]);
+    expect(transacao).toHaveBeenCalledTimes(1);
+    expect(orderFindMany).toHaveBeenCalled();
+    expect(orderUpdateMany).toHaveBeenCalled();
+    expect(paymentCreateMany).toHaveBeenCalled();
   });
 
-  it("fecha exatamente os mesmos pedidos que somou", async () => {
+  // Um pedido que entra na mesa depois da leitura não estava na conta: não
+  // pode ser marcado como pago junto.
+  it("fecha exatamente os pedidos que somou, por id", async () => {
     await POST(req(contaDe100), params);
 
     expect(orderUpdateMany).toHaveBeenCalledWith({
-      where: { tableId: MESA_ID, paymentStatus: "UNPAID", status: { not: "CANCELLED" } },
+      where: { id: { in: ["o1", "o2"] }, paymentStatus: "UNPAID" },
       data: { paymentStatus: "PAID" },
     });
+  });
+
+  it("se algum pedido foi quitado no meio, desfaz tudo: 409 e nenhum Payment gravado", async () => {
+    orderUpdateMany.mockResolvedValue({ count: 1 }); // só 1 de 2 ainda estava em aberto
+
+    const res = await POST(req(contaDe100), params);
+
+    expect(res.status).toBe(409);
+    expect(paymentCreateMany).not.toHaveBeenCalled();
+  });
+
+  it("segunda chamada igual, depois da primeira, não encontra nada em aberto e não duplica Payment", async () => {
+    await POST(req(contaDe100), params);
+    paymentCreateMany.mockClear();
+    orderFindMany.mockResolvedValue([]);
+
+    const res = await POST(req(contaDe100), params);
+
+    expect(res.status).toBe(400);
+    expect(paymentCreateMany).not.toHaveBeenCalled();
   });
 
   it("carimba tenant e mesa em cada pagamento registrado", async () => {

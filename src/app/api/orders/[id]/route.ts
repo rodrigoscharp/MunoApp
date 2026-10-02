@@ -4,6 +4,9 @@ import { auth } from "@/lib/auth";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { broadcastOrderUpdate } from "@/lib/realtime";
 import { canViewOrder } from "@/lib/order-access";
+import { transicaoPermitida } from "@/lib/kitchen-flow";
+import { reportarErro } from "@/lib/observabilidade";
+import type { DeliveryType, OrderStatus } from "@/types";
 import { z } from "zod";
 
 export async function GET(
@@ -96,11 +99,66 @@ export async function PATCH(
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
     }
 
-    const order = await prisma.order.update({
+    const atual = await prisma.order.findUnique({
       where: { id },
+      select: { status: true, deliveryType: true, paymentStatus: true, paymentMethod: true },
+    });
+    if (!atual) {
+      return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
+    }
+
+    const novoStatus = parsed.data.status;
+    if (
+      novoStatus &&
+      !transicaoPermitida(
+        atual.status as OrderStatus,
+        novoStatus as OrderStatus,
+        atual.deliveryType as DeliveryType
+      )
+    ) {
+      return NextResponse.json(
+        { error: `Não é possível mudar o pedido de ${atual.status} para ${novoStatus}.` },
+        { status: 409 }
+      );
+    }
+
+    // Grava só se o pedido ainda está no status que foi lido: duas telas da
+    // cozinha (ou a cozinha e o motoboy) agindo ao mesmo tempo não se
+    // sobrescrevem, a que chega depois recebe 409 e recarrega.
+    const gravou = await prisma.order.updateMany({
+      where: { id, ...(novoStatus ? { status: atual.status } : {}) },
       data: parsed.data,
+    });
+    if (gravou.count === 0) {
+      return NextResponse.json(
+        { error: "O pedido mudou enquanto você olhava. Atualize a tela." },
+        { status: 409 }
+      );
+    }
+
+    // Cancelar o que o cliente já pagou online não devolve o dinheiro: o
+    // estorno é manual no gateway, e este alerta é o que lembra alguém.
+    if (
+      novoStatus === "CANCELLED" &&
+      atual.status !== "CANCELLED" &&
+      atual.paymentStatus === "PAID" &&
+      atual.paymentMethod !== "CASH"
+    ) {
+      console.error(`[orders] pedido pago online cancelado, estornar: tenant=${tenantId} order=${id}`);
+      await reportarErro({
+        origem: "orders:cancelado-pago",
+        erro: "pedido pago online foi cancelado, estornar no gateway",
+        extra: { tenantId, orderId: id },
+      });
+    }
+
+    const order = await prisma.order.findFirst({
+      where: { id },
       include: { items: { include: { menuItem: true } } },
     });
+    if (!order) {
+      return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
+    }
 
     await broadcastOrderUpdate(tenantId, order);
 

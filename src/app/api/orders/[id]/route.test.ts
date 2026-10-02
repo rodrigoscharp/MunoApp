@@ -7,13 +7,15 @@ const ORDER_ID = "order-1";
 const auth = vi.fn();
 vi.mock("@/lib/auth", () => ({ auth: () => auth() }));
 
-const orderUpdate = vi.fn();
+const orderUpdateMany = vi.fn();
 const orderFindUnique = vi.fn();
+const orderFindFirst = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     order: {
-      update: (...a: unknown[]) => orderUpdate(...a),
+      updateMany: (...a: unknown[]) => orderUpdateMany(...a),
       findUnique: (...a: unknown[]) => orderFindUnique(...a),
+      findFirst: (...a: unknown[]) => orderFindFirst(...a),
     },
   },
 }));
@@ -35,10 +37,23 @@ function req(body: unknown) {
 
 const params = { params: Promise.resolve({ id: ORDER_ID }) };
 
+/** O pedido como está no banco antes do PATCH. */
+function pedidoAtual(over: Record<string, unknown> = {}) {
+  orderFindUnique.mockResolvedValue({
+    status: "PENDING",
+    deliveryType: "PICKUP",
+    paymentStatus: "UNPAID",
+    paymentMethod: "CASH",
+    ...over,
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   auth.mockResolvedValue({ user: { role: "KITCHEN" } });
-  orderUpdate.mockResolvedValue({ id: ORDER_ID, items: [] });
+  pedidoAtual();
+  orderUpdateMany.mockResolvedValue({ count: 1 });
+  orderFindFirst.mockResolvedValue({ id: ORDER_ID, items: [] });
 });
 
 describe("PATCH /api/orders/[id]", () => {
@@ -48,28 +63,146 @@ describe("PATCH /api/orders/[id]", () => {
    * entrega" tomava 400 e o pedido não saía do PRONTO. Faltar aqui era a outra
    * metade do mesmo bug que fazia o botão gravar DELIVERED.
    */
-  it("aceita OUT_FOR_DELIVERY", async () => {
+  it("aceita OUT_FOR_DELIVERY (delivery pronto saindo para a rua)", async () => {
+    pedidoAtual({ status: "READY", deliveryType: "DELIVERY" });
+
     const res = await PATCH(req({ status: "OUT_FOR_DELIVERY" }), params);
 
     expect(res.status).toBe(200);
-    expect(orderUpdate).toHaveBeenCalledWith(
+    expect(orderUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: { status: "OUT_FOR_DELIVERY" } })
     );
-  });
-
-  it("aceita os demais status do quadro", async () => {
-    for (const status of ["PENDING", "CONFIRMED", "IN_PREPARATION", "READY", "DELIVERED", "CANCELLED"]) {
-      orderUpdate.mockClear();
-      const res = await PATCH(req({ status }), params);
-      expect(res.status, `status ${status}`).toBe(200);
-    }
   });
 
   it("recusa status que não existe", async () => {
     const res = await PATCH(req({ status: "ENTREGANDO" }), params);
 
     expect(res.status).toBe(400);
-    expect(orderUpdate).not.toHaveBeenCalled();
+    expect(orderUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("pedido que não existe neste restaurante é 404, e não 500", async () => {
+    orderFindUnique.mockResolvedValue(null);
+    expect((await PATCH(req({ status: "READY" }), params)).status).toBe(404);
+  });
+});
+
+/**
+ * A ordem dos passos morava só na tela da cozinha: o servidor aceitava qualquer
+ * status, então dava para reabrir um pedido entregue, pular a cozinha, ou
+ * cancelar sem querer um pedido já pago online.
+ */
+describe("PATCH /api/orders/[id]: máquina de estados", () => {
+  it.each([
+    ["PENDING", "PICKUP", "CONFIRMED"],
+    ["CONFIRMED", "PICKUP", "IN_PREPARATION"],
+    ["IN_PREPARATION", "PICKUP", "READY"],
+    ["READY", "PICKUP", "DELIVERED"],
+    ["READY", "DINE_IN", "DELIVERED"],
+    ["READY", "DELIVERY", "OUT_FOR_DELIVERY"],
+    ["OUT_FOR_DELIVERY", "DELIVERY", "DELIVERED"],
+  ])("avança %s (%s) para %s", async (de, entrega, para) => {
+    pedidoAtual({ status: de, deliveryType: entrega });
+    expect((await PATCH(req({ status: para }), params)).status).toBe(200);
+  });
+
+  it.each([
+    ["CONFIRMED", "PENDING"],
+    ["IN_PREPARATION", "CONFIRMED"],
+    ["READY", "IN_PREPARATION"],
+    ["OUT_FOR_DELIVERY", "READY"],
+  ])("volta um passo: %s para %s", async (de, para) => {
+    pedidoAtual({ status: de, deliveryType: "DELIVERY" });
+    expect((await PATCH(req({ status: para }), params)).status).toBe(200);
+  });
+
+  it.each(["PENDING", "CONFIRMED", "IN_PREPARATION", "READY", "OUT_FOR_DELIVERY"])(
+    "cancela a partir de %s",
+    async (de) => {
+      pedidoAtual({ status: de, deliveryType: "DELIVERY" });
+      expect((await PATCH(req({ status: "CANCELLED" }), params)).status).toBe(200);
+    }
+  );
+
+  it.each([
+    ["DELIVERED", "PENDING"],
+    ["DELIVERED", "READY"],
+    ["CANCELLED", "PENDING"],
+    ["CANCELLED", "CONFIRMED"],
+  ])("não reabre pedido encerrado: %s para %s", async (de, para) => {
+    pedidoAtual({ status: de });
+    const res = await PATCH(req({ status: para }), params);
+    expect(res.status).toBe(409);
+    expect(orderUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it.each(["DELIVERED", "CANCELLED"])("não cancela nem entrega o que já terminou (%s)", async (de) => {
+    pedidoAtual({ status: de });
+    expect((await PATCH(req({ status: "CANCELLED" }), params)).status).toBe(
+      de === "CANCELLED" ? 200 : 409
+    );
+  });
+
+  it("não pula a cozinha: PENDING direto para READY é 409", async () => {
+    pedidoAtual({ status: "PENDING" });
+    expect((await PATCH(req({ status: "READY" }), params)).status).toBe(409);
+  });
+
+  it("retirada não vai para OUT_FOR_DELIVERY", async () => {
+    pedidoAtual({ status: "READY", deliveryType: "PICKUP" });
+    expect((await PATCH(req({ status: "OUT_FOR_DELIVERY" }), params)).status).toBe(409);
+  });
+
+  it("repetir o status atual é idempotente (clique duplo na cozinha)", async () => {
+    pedidoAtual({ status: "READY" });
+    expect((await PATCH(req({ status: "READY" }), params)).status).toBe(200);
+  });
+
+  it("grava só se o pedido ainda está no status que foi lido (duas telas da cozinha)", async () => {
+    pedidoAtual({ status: "PENDING" });
+
+    await PATCH(req({ status: "CONFIRMED" }), params);
+
+    expect(orderUpdateMany).toHaveBeenCalledWith({
+      where: { id: ORDER_ID, status: "PENDING" },
+      data: { status: "CONFIRMED" },
+    });
+  });
+
+  it("se outra tela mudou o pedido no meio, responde 409 em vez de sobrescrever", async () => {
+    pedidoAtual({ status: "PENDING" });
+    orderUpdateMany.mockResolvedValue({ count: 0 });
+
+    expect((await PATCH(req({ status: "CONFIRMED" }), params)).status).toBe(409);
+  });
+
+  // Cancelar um pedido que o cliente já pagou online não devolve o dinheiro: o
+  // estorno é manual no gateway, e este alerta é o que lembra alguém.
+  it("cancelar pedido pago online é reportado para estorno", async () => {
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    pedidoAtual({ status: "IN_PREPARATION", paymentStatus: "PAID", paymentMethod: "PIX" });
+
+    expect((await PATCH(req({ status: "CANCELLED" }), params)).status).toBe(200);
+
+    expect(erro.mock.calls.flat().join(" ")).toContain("orders:cancelado-pago");
+    erro.mockRestore();
+  });
+
+  it("cancelar pedido de dinheiro na entrega não gera alerta de estorno", async () => {
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    pedidoAtual({ status: "PENDING", paymentStatus: "UNPAID", paymentMethod: "CASH" });
+
+    await PATCH(req({ status: "CANCELLED" }), params);
+
+    expect(erro.mock.calls.flat().join(" ")).not.toContain("orders:cancelado-pago");
+    erro.mockRestore();
+  });
+
+  it("mudança de pagamento sem status não passa pela máquina de estados", async () => {
+    auth.mockResolvedValue({ user: { role: "ADMIN" } });
+    pedidoAtual({ status: "DELIVERED" });
+
+    expect((await PATCH(req({ paymentStatus: "PAID" }), params)).status).toBe(200);
   });
 });
 
@@ -83,12 +216,13 @@ describe("PATCH /api/orders/[id]: dinheiro é do ADMIN", () => {
       const res = await PATCH(req(campo), params);
 
       expect(res.status).toBe(403);
-      expect(orderUpdate).not.toHaveBeenCalled();
+      expect(orderUpdateMany).not.toHaveBeenCalled();
     }
   );
 
   it("KITCHEN continua mudando o status do pedido", async () => {
     auth.mockResolvedValue({ user: { role: "KITCHEN" } });
+    pedidoAtual({ status: "IN_PREPARATION" });
     expect((await PATCH(req({ status: "READY" }), params)).status).toBe(200);
   });
 
