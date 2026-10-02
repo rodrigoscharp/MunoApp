@@ -18,6 +18,42 @@ const REVERIFICAR_A_CADA_MS = 5 * 60_000;
 
 const limitador = criarLimitador({ max: 10, janelaMs: 10 * 60 * 1000 });
 
+// Por IP também: com um único admin cadastrado, travar o e-mail dele com 10
+// tentativas erradas tranca o console inteiro, e o limite por e-mail sozinho
+// não impede quem testa muitos e-mails.
+const limitadorPorIp = criarLimitador({ max: 20, janelaMs: 10 * 60 * 1000 });
+
+// Mesmo propósito de HASH_FALSO em auth.ts: gastar o tempo de um bcrypt quando
+// o e-mail não existe, para o cronômetro não revelar quem é admin.
+const HASH_FALSO = "hash-descartavel";
+
+/** Exportada para ser testável (ver src/lib/auth-platform.test.ts). */
+export async function autorizarPlataforma(
+  credentials: Partial<Record<string, unknown>> | undefined,
+  request?: Request
+) {
+  const parsed = loginSchema.safeParse(credentials);
+  if (!parsed.success) return null;
+
+  if (!limitador.permitir(parsed.data.email, Date.now())) return null;
+
+  const ip = (request?.headers.get("x-forwarded-for") ?? "").split(",")[0].trim();
+  if (ip && !limitadorPorIp.permitir(ip, Date.now())) return null;
+
+  const admin = await prismaUnscoped.platformAdmin.findUnique({
+    where: { email: parsed.data.email },
+  });
+  if (!admin) {
+    await bcrypt.compare(parsed.data.password, HASH_FALSO);
+    return null;
+  }
+
+  const ok = await bcrypt.compare(parsed.data.password, admin.password);
+  if (!ok) return null;
+
+  return { id: admin.id, name: admin.nome, email: admin.email };
+}
+
 // Instância separada da autenticação de restaurante (src/lib/auth.ts) de
 // propósito. O nome de cookie próprio é o que garante o isolamento: uma sessão
 // de restaurante nunca é aceita aqui, e vice-versa, sem depender de nenhuma
@@ -50,22 +86,7 @@ export const {
         email: { label: "Email", type: "email" },
         password: { label: "Senha", type: "password" },
       },
-      async authorize(credentials) {
-        const parsed = loginSchema.safeParse(credentials);
-        if (!parsed.success) return null;
-
-        if (!limitador.permitir(parsed.data.email, Date.now())) return null;
-
-        const admin = await prismaUnscoped.platformAdmin.findUnique({
-          where: { email: parsed.data.email },
-        });
-        if (!admin) return null;
-
-        const ok = await bcrypt.compare(parsed.data.password, admin.password);
-        if (!ok) return null;
-
-        return { id: admin.id, name: admin.nome, email: admin.email };
-      },
+      authorize: autorizarPlataforma,
     }),
   ],
   callbacks: {

@@ -71,7 +71,8 @@ describe("porta de entrada", () => {
   it.each([
     ["nome curto", { ...corpoValido, name: "A" }, "Nome deve ter pelo menos 2 caracteres"],
     ["e-mail inválido", { ...corpoValido, email: "sem-arroba" }, "Email inválido"],
-    ["senha curta", { ...corpoValido, password: "123" }, "Senha deve ter pelo menos 6 caracteres"],
+    ["senha curta", { ...corpoValido, password: "123" }, "Senha deve ter pelo menos 8 caracteres"],
+    ["senha de 7 caracteres (o mínimo agora é 8)", { ...corpoValido, password: "1234567" }, "Senha deve ter pelo menos 8 caracteres"],
   ])("recusa %s com a mensagem do schema", async (_nome, corpo, mensagem) => {
     const res = await POST(req(corpo));
 

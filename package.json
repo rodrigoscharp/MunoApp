@@ -22,6 +22,8 @@
     "tenant:create": "tsx scripts/create-tenant.ts",
     "tenant:remove": "tsx scripts/remove-tenant.ts",
     "tenant:remove:prod": "./scripts/remover-tenant-producao.sh",
+    "credenciais:rotacionar": "tsx scripts/rotacionar-credenciais.ts",
+    "credenciais:rotacionar:prod": "./scripts/rotacionar-credenciais-producao.sh",
     "cliente:anonimizar": "tsx scripts/anonimizar-cliente.ts",
     "cliente:anonimizar:prod": "./scripts/anonimizar-cliente-producao.sh",
     "platform:create-admin": "tsx scripts/create-platform-admin.ts",

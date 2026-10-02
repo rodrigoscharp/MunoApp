@@ -34,7 +34,7 @@ async function cadastrar() {
   const user = userEvent.setup();
   await user.type(screen.getByPlaceholderText("Seu nome completo"), "Cliente Novo");
   await user.type(screen.getByPlaceholderText("seu@email.com"), "novo@exemplo.com");
-  await user.type(screen.getByPlaceholderText("Mínimo 6 caracteres"), "senha-123");
+  await user.type(screen.getByPlaceholderText("Mínimo 8 caracteres"), "senha-123");
   await user.type(screen.getByPlaceholderText("Repita a senha"), "senha-123");
   await user.click(container.querySelector('button[type="submit"]')!);
   await waitFor(() => expect(nav.push).toHaveBeenCalled());

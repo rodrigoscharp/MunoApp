@@ -69,7 +69,7 @@ describe("porta de entrada", () => {
     const res = await POST(req({ token: TOKEN, password: "123" }));
 
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "Senha deve ter pelo menos 6 caracteres" });
+    expect(await res.json()).toEqual({ error: "Senha deve ter pelo menos 8 caracteres" });
     expect(userUpdate).not.toHaveBeenCalled();
   });
 

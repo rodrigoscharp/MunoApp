@@ -1,5 +1,6 @@
 "use client";
 
+import { MENSAGEM_SENHA_MINIMA, SENHA_MINIMA } from "@/lib/senha";
 import { useState } from "react";
 import { Bike, Plus, Trash2, KeyRound, Check, X, Mail, User } from "lucide-react";
 import { toast } from "sonner";
@@ -69,8 +70,8 @@ export function MotoboyAccessControl({ initialMotoboys }: Props) {
   }
 
   async function saveResetPassword(id: string) {
-    if (!resetPassword || resetPassword.length < 6) {
-      toast.error("Senha deve ter pelo menos 6 caracteres");
+    if (!resetPassword || resetPassword.length < SENHA_MINIMA) {
+      toast.error(MENSAGEM_SENHA_MINIMA);
       return;
     }
     const res = await fetch(`/api/users/motoboys/${id}`, {
@@ -113,7 +114,7 @@ export function MotoboyAccessControl({ initialMotoboys }: Props) {
                   type="password"
                   value={resetPassword}
                   onChange={(e) => setResetPassword(e.target.value)}
-                  placeholder="Nova senha (mín. 6 caracteres)"
+                  placeholder={`Nova senha (mín. ${SENHA_MINIMA} caracteres)`}
                   className="flex-1 min-w-0 border border-neutral-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
                 />
                 <button onClick={() => saveResetPassword(m.id)} className="text-green-500 hover:text-green-600 p-1">
@@ -183,7 +184,7 @@ export function MotoboyAccessControl({ initialMotoboys }: Props) {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addMotoboy()}
-                placeholder="Senha (mín. 6 caracteres)"
+                placeholder={`Senha (mín. ${SENHA_MINIMA} caracteres)`}
                 className="flex-1 text-sm bg-transparent focus:outline-none"
               />
             </div>

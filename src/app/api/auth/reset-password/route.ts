@@ -1,3 +1,4 @@
+import { MENSAGEM_SENHA_MINIMA, SENHA_MINIMA } from "@/lib/senha";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
@@ -7,7 +8,7 @@ import { z } from "zod";
 
 const schema = z.object({
   token: z.string(),
-  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+  password: z.string().min(SENHA_MINIMA, MENSAGEM_SENHA_MINIMA),
 });
 
 // O token em si (256 bits aleatórios, 1h de validade, uso único) já é a

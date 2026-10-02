@@ -1,3 +1,4 @@
+import { MENSAGEM_SENHA_MINIMA, SENHA_MINIMA } from "@/lib/senha";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -8,7 +9,7 @@ import { z } from "zod";
 const createSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(SENHA_MINIMA),
 });
 
 export async function GET(req: NextRequest) {

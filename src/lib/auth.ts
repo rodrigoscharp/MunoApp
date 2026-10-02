@@ -27,6 +27,18 @@ function sessaoAnteriorATrocaDeSenha(iat: unknown, trocouEm: Date | null | undef
 
 const limitador = criarLimitador({ max: 10, janelaMs: 10 * 60 * 1000 });
 
+// Por restaurante e IP, além do limite por conta acima: sem ele, quem sabe o
+// e-mail do dono o tranca com 10 tentativas erradas, e quem testa muitos
+// e-mails nunca esbarra no limite de nenhum deles. Folgado para a equipe de um
+// salão inteiro atrás do mesmo wifi.
+const limitadorPorIp = criarLimitador({ max: 30, janelaMs: 10 * 60 * 1000 });
+
+// Hash bcrypt (12 rodadas) de uma string descartável. Existe só para gastar o
+// mesmo tempo quando o e-mail não existe: sem isso, "usuário inexistente"
+// responde ~200 ms mais rápido que "senha errada" e entrega quais contas
+// existem.
+const HASH_FALSO = "hash-descartavel";
+
 /**
  * Exportada para ser testável: dentro do objeto do CredentialsProvider a função
  * fica embrulhada pelo next-auth, e o teste só a alcançaria por
@@ -46,6 +58,9 @@ export async function autorizarCredenciais(
 
   if (!limitador.permitir(`${tenantId}:${parsed.data.email}`, Date.now())) return null;
 
+  const ip = (request.headers.get("x-forwarded-for") ?? "").split(",")[0].trim();
+  if (ip && !limitadorPorIp.permitir(`${tenantId}:${ip}`, Date.now())) return null;
+
   // NextAuth roda esse callback dentro do bundle do proxy/middleware,
   // que tem seu próprio escopo global — por isso usa prismaUnscoped
   // (sem a extensão de tenant baseada em AsyncLocalStorage) com
@@ -54,7 +69,10 @@ export async function autorizarCredenciais(
     where: { tenantId_email: { tenantId, email: parsed.data.email } },
   });
 
-  if (!user || !user.password) return null;
+  if (!user || !user.password) {
+    await bcrypt.compare(parsed.data.password, HASH_FALSO);
+    return null;
+  }
 
   const passwordMatch = await bcrypt.compare(parsed.data.password, user.password);
   if (!passwordMatch) return null;

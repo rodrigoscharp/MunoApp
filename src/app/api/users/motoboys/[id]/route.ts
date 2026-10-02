@@ -1,3 +1,4 @@
+import { MENSAGEM_SENHA_MINIMA, SENHA_MINIMA } from "@/lib/senha";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -31,7 +32,7 @@ export async function PATCH(
     const { id } = await params;
     const { password } = ((await req.json().catch(() => ({}))) ?? {}) as { password?: string };
 
-    if (!password || password.length < 6) {
+    if (!password || password.length < SENHA_MINIMA) {
       return NextResponse.json({ error: "Senha inválida" }, { status: 400 });
     }
 

@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, it, vi, beforeEach, beforeAll, afterEach } from "vitest";
+import bcrypt from "bcryptjs";
 
 const adminFindUnique = vi.fn();
 vi.mock("@/lib/prisma", () => ({
@@ -25,8 +26,13 @@ vi.mock("next-auth", () => ({
   },
 }));
 
+let autorizar: (c: Record<string, unknown>, r?: Request) => Promise<Record<string, unknown> | null>;
+let hashDaSenha: string;
+
 beforeAll(async () => {
-  await import("@/lib/auth-platform");
+  const mod = await import("@/lib/auth-platform");
+  autorizar = mod.autorizarPlataforma as typeof autorizar;
+  hashDaSenha = await bcrypt.hash("y".repeat(14), 10);
 });
 
 const AGORA = new Date("2026-10-02T12:00:00Z").getTime();
@@ -82,5 +88,55 @@ describe("sessão da plataforma", () => {
     const antigo = tokenVelho();
     const token = await jwt()({ token: antigo });
     expect(token).toMatchObject({ id: "adm-1", verificadoEm: antigo.verificadoEm });
+  });
+});
+
+
+describe("login do console da plataforma", () => {
+  const comIp = (ip?: string) =>
+    new Request("http://admin.localhost/api/platform/auth", {
+      headers: ip ? { "x-forwarded-for": ip } : {},
+    });
+
+  beforeEach(() => {
+    vi.useRealTimers();
+    adminFindUnique.mockReset();
+    adminFindUnique.mockResolvedValue({
+      id: "adm-1", nome: "Admin", email: "adm@muno.com", password: hashDaSenha,
+    });
+  });
+
+  it("autentica com e-mail e senha corretos, sem devolver o hash", async () => {
+    const admin = await autorizar({ email: "adm@muno.com", password: "y".repeat(14) }, comIp());
+    expect(admin).toEqual({ id: "adm-1", name: "Admin", email: "adm@muno.com" });
+  });
+
+  it("recusa senha errada", async () => {
+    expect(await autorizar({ email: "adm@muno.com", password: "x".repeat(12) }, comIp())).toBeNull();
+  });
+
+  it("e-mail que não existe também gasta um bcrypt (o tempo não denuncia quem é admin)", async () => {
+    adminFindUnique.mockResolvedValue(null);
+    const compare = vi.spyOn(bcrypt, "compare");
+
+    await autorizar({ email: "ninguem@muno.com", password: "x".repeat(13) }, comIp());
+
+    expect(compare).toHaveBeenCalledTimes(1);
+    compare.mockRestore();
+  });
+
+  it("passa de 20 tentativas do mesmo IP em 10 minutos: recusa até a senha certa", async () => {
+    const ip = "203.0.113.9";
+    for (let i = 0; i < 20; i++) {
+      await autorizar({ email: `x${i}@muno.com`, password: "x".repeat(11) }, comIp(ip));
+    }
+    expect(await autorizar({ email: "adm@muno.com", password: "y".repeat(14) }, comIp(ip))).toBeNull();
+  });
+
+  it("trava de e-mail: 10 tentativas erradas bloqueiam aquela conta", async () => {
+    for (let i = 0; i < 10; i++) {
+      await autorizar({ email: "alvo@muno.com", password: "x".repeat(11) }, comIp());
+    }
+    expect(await autorizar({ email: "alvo@muno.com", password: "y".repeat(14) }, comIp())).toBeNull();
   });
 });

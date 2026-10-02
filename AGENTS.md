@@ -607,3 +607,19 @@ Três caminhos, e não se misturam:
   Asaas antes de gravar; se o gateway falhar, a rota responde 502 e nada muda.
   Mudar o valor mensal também vai ao Asaas; dia de vencimento e valor do plano
   anual só se alteram no painel do Asaas (a rota responde 409).
+
+## Trocar a chave de criptografia das credenciais
+
+`PAYMENT_TOKEN_ENCRYPTION_KEY` cifra as credenciais de gateway de todos os
+restaurantes. Trocá-la de uma vez invalida todas. O caminho seguro:
+
+1. Mover o valor atual para `PAYMENT_TOKEN_ENCRYPTION_KEY_ANTERIOR` e pôr uma
+   chave nova (`openssl rand -hex 32`) em `PAYMENT_TOKEN_ENCRYPTION_KEY`. A
+   leitura (`decryptSecret`) abre as duas.
+2. `npm run credenciais:rotacionar:prod -- --confirmar` (faz backup antes e
+   regrava o que ainda está na chave anterior).
+3. Remover `PAYMENT_TOKEN_ENCRYPTION_KEY_ANTERIOR`.
+
+`REALTIME_TOPIC_SECRET`, se não definido, deriva desta chave: trocá-la muda os
+nomes dos canais de tempo real (abas abertas ficam sem aviso até recarregar).
+Defina `REALTIME_TOPIC_SECRET` à parte para desacoplar as duas.
