@@ -55,32 +55,42 @@ export async function POST(
     // preciso descobri-lo pelo orderId. Toda leitura/escrita do pedido
     // acontece dentro do contexto do tenant, pra notificação de um tenant
     // nunca alcançar o pedido de outro.
+    //
+    // Gateway reentrega, repete e entrega fora de ordem. Por isso cada escrita
+    // carrega no `where` o estado de que parte (updateMany é atômico, ao
+    // contrário de ler e depois gravar): o evento só vale se o pedido ainda
+    // está onde o evento supõe, e repeti-lo não muda nada.
     await runWithTenant(tenantId, async () => {
-      let order;
+      let mudou = false;
 
       if (result.status === "approved") {
-        order = await prisma.order.update({
-          where: { id: result.orderId },
-          data: {
-            paymentStatus: "PAID",
-            status: "CONFIRMED",
-            mpPaymentId: result.providerPaymentId,
-          },
+        const pago = await prisma.order.updateMany({
+          where: { id: result.orderId, paymentStatus: "UNPAID" },
+          data: { paymentStatus: "PAID", mpPaymentId: result.providerPaymentId },
         });
-      } else if (result.status === "rejected" || result.status === "cancelled") {
-        order = await prisma.order.update({
-          where: { id: result.orderId },
-          data: { paymentStatus: "UNPAID" },
+        // Só PENDING vira CONFIRMED. Um approved atrasado não pode puxar para
+        // trás pedido que a cozinha já levou adiante, nem reabrir um cancelado.
+        const confirmado = await prisma.order.updateMany({
+          where: { id: result.orderId, status: "PENDING" },
+          data: { status: "CONFIRMED" },
         });
+        mudou = pago.count > 0 || confirmado.count > 0;
       } else if (result.status === "refunded") {
-        order = await prisma.order.update({
-          where: { id: result.orderId },
+        const estornado = await prisma.order.updateMany({
+          where: { id: result.orderId, paymentStatus: "PAID" },
           data: { paymentStatus: "REFUNDED" },
         });
+        mudou = estornado.count > 0;
       }
+      // rejected e cancelled não escrevem: pedido UNPAID já está como o evento
+      // diz, e uma recusa que chega depois da aprovação (tentativa anterior do
+      // mesmo pedido) despagaria um pedido que o cliente de fato pagou.
 
-      if (order) {
-        await broadcastOrderUpdate(tenantId, order);
+      if (mudou) {
+        const order = await prisma.order.findFirst({
+          where: { id: result.orderId },
+        });
+        if (order) await broadcastOrderUpdate(tenantId, order);
       }
     });
 
