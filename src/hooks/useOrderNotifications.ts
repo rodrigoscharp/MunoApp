@@ -1,5 +1,6 @@
 "use client";
 
+import { iniciarPollingVisivel } from "@/lib/polling-visivel";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
@@ -316,13 +317,13 @@ export function useOrderNotifications() {
       })
       .subscribe();
 
-    const poll = setInterval(fetchAndCompare, POLL_INTERVAL);
-    const chatPoll = setInterval(agendarBuscaDeChat, POLL_INTERVAL);
+    const pararPoll = iniciarPollingVisivel(fetchAndCompare, POLL_INTERVAL);
+    const pararChatPoll = iniciarPollingVisivel(agendarBuscaDeChat, POLL_INTERVAL);
 
     return () => {
       if (channel) supabase.removeChannel(channel);
-      clearInterval(poll);
-      clearInterval(chatPoll);
+      pararPoll();
+      pararChatPoll();
     };
   }, [userId, topic, addNotification, addChatNotification]);
 

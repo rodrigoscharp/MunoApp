@@ -1,5 +1,6 @@
 "use client";
 
+import { iniciarPollingVisivel } from "@/lib/polling-visivel";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useTopicoRealtime } from "@/hooks/useTopicoRealtime";
@@ -74,8 +75,7 @@ export function useChat(orderId: string) {
 
   // Polling — fonte principal de novas mensagens
   useEffect(() => {
-    const timer = setInterval(() => fetchMessages(true), POLL_INTERVAL);
-    return () => clearInterval(timer);
+    return iniciarPollingVisivel(() => fetchMessages(true), POLL_INTERVAL);
   }, [orderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Broadcast no canal do tenant — esta é a fonte principal de novas mensagens.
