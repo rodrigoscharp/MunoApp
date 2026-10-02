@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const parsed = validateSchema.safeParse(await req.json());
+    const parsed = validateSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json({ error: "Cupom inválido." }, { status: 400 });
     }

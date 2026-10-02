@@ -29,7 +29,7 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const { password } = await req.json() as { password?: string };
+    const { password } = ((await req.json().catch(() => ({}))) ?? {}) as { password?: string };
 
     if (!password || password.length < 6) {
       return NextResponse.json({ error: "Senha inválida" }, { status: 400 });

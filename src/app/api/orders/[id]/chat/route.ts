@@ -77,7 +77,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     // `(body.content ?? "").trim()` cobria só o campo ausente: `content: 123`
     // chamava .trim() num número e derrubava a rota em 500. E o texto entrava no
     // banco sem teto de tamanho — a única entrada livre do app sem limite.
-    const parsed = mensagemSchema.safeParse(await req.json());
+    const parsed = mensagemSchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json({ error: "Mensagem inválida" }, { status: 400 });
     }

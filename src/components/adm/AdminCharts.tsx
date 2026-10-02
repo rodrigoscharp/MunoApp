@@ -94,7 +94,7 @@ export function AdminCharts() {
       {/* Top items chart */}
       <div className="bg-white rounded-xl border border-neutral-200 p-5">
         <h2 className="text-sm font-semibold text-neutral-700 mb-4">
-          Itens Mais Pedidos
+          Itens Mais Pedidos (30 dias)
         </h2>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={data.topItems} layout="vertical">

@@ -81,10 +81,19 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
     const parsed = updateSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
+    }
+
+    // Quem prepara o pedido não mexe em dinheiro: marcar PAID ou REFUNDED, ou
+    // trocar o id do pagamento no gateway, é do dono do restaurante.
+    if (
+      session.user.role !== "ADMIN" &&
+      (parsed.data.paymentStatus !== undefined || parsed.data.mpPaymentId !== undefined)
+    ) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
     }
 
     const order = await prisma.order.update({

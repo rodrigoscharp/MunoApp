@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   }
 
   return withTenant(tenantId, async () => {
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
     const parsed = registerSchema.safeParse(body);
 
     if (!parsed.success) {

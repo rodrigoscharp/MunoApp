@@ -96,9 +96,15 @@ describe("a definição de receita é a mesma dos cards", () => {
   it("tira pedido cancelado do ranking de itens", async () => {
     // Sem o filtro, um pedido grande cancelado empurrava o prato para o topo.
     await GET(req());
-    expect(orderItemGroupBy.mock.calls[0][0].where).toEqual({
-      order: { status: { not: "CANCELLED" } },
-    });
+    expect(orderItemGroupBy.mock.calls[0][0].where.order.status).toEqual({ not: "CANCELLED" });
+  });
+
+  it("limita o ranking aos últimos 30 dias, como o gráfico ao lado", async () => {
+    await GET(req());
+    const { gte } = orderItemGroupBy.mock.calls[0][0].where.order.createdAt;
+    const dias = (Date.now() - gte.getTime()) / 86_400_000;
+    expect(dias).toBeGreaterThan(28);
+    expect(dias).toBeLessThan(30);
   });
 });
 

@@ -74,6 +74,42 @@ describe("PATCH /api/orders/[id]", () => {
 });
 
 
+describe("PATCH /api/orders/[id]: dinheiro é do ADMIN", () => {
+  it.each([{ paymentStatus: "PAID" }, { paymentStatus: "REFUNDED" }, { mpPaymentId: "pay_x" }])(
+    "KITCHEN não pode enviar %o",
+    async (campo) => {
+      auth.mockResolvedValue({ user: { role: "KITCHEN" } });
+
+      const res = await PATCH(req(campo), params);
+
+      expect(res.status).toBe(403);
+      expect(orderUpdate).not.toHaveBeenCalled();
+    }
+  );
+
+  it("KITCHEN continua mudando o status do pedido", async () => {
+    auth.mockResolvedValue({ user: { role: "KITCHEN" } });
+    expect((await PATCH(req({ status: "READY" }), params)).status).toBe(200);
+  });
+
+  it("ADMIN marca como pago", async () => {
+    auth.mockResolvedValue({ user: { role: "ADMIN" } });
+    expect((await PATCH(req({ paymentStatus: "PAID" }), params)).status).toBe(200);
+  });
+
+  it("corpo que não é JSON responde 400, e não 500", async () => {
+    const res = await PATCH(
+      new NextRequest(`http://localhost/api/orders/${ORDER_ID}`, {
+        method: "PATCH",
+        headers: { "x-tenant-id": TENANT, "Content-Type": "application/json" },
+        body: "{quebrado",
+      }),
+      params
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("GET /api/orders/[id]", () => {
   const completo = {
     id: ORDER_ID,
