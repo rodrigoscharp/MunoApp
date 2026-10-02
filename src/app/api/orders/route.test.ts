@@ -226,6 +226,46 @@ describe("clique duplo", () => {
     expect(res.status).toBe(201);
   });
 
+  it("cria normalmente quando é outra pessoa da mesma mesa (nome diferente)", async () => {
+    auth.mockResolvedValue(null);
+    tableFindFirst.mockResolvedValue({ id: "mesa-1" });
+    orderFindMany.mockResolvedValue([
+      { ...jaGravado, deliveryType: "DINE_IN", customerName: "Ana" },
+    ]);
+
+    const res = await POST(
+      req(
+        { ...pedidoBase, deliveryType: "DINE_IN", tableId: "mesa-1", customerName: "Bruno" },
+        { "x-tenant-plano": "MEMBRO_MESA_QR" }
+      )
+    );
+
+    expect(res.status).toBe(201);
+    expect(orderCreate).toHaveBeenCalled();
+  });
+
+  it("cria normalmente quando a observação do item muda (com e sem cebola)", async () => {
+    orderFindMany.mockResolvedValue([
+      { ...jaGravado, items: [{ menuItemId: "item-1", quantity: 2, notes: "sem cebola" }] },
+    ]);
+    const res = await POST(req(pedidoBase));
+    expect(res.status).toBe(201);
+  });
+
+  it("clique duplo com cupom devolve o pedido já criado, e não o erro de cupom já usado", async () => {
+    couponFindUnique.mockResolvedValue({
+      id: "cupom-1", code: "PROMO10", active: true, type: "FIXED", value: 5,
+      minOrder: 0, validFrom: null, validUntil: null,
+    });
+    orderCount.mockResolvedValue(1); // o primeiro clique já queimou o cupom
+    orderFindMany.mockResolvedValue([{ ...jaGravado, couponCode: "PROMO10" }]);
+
+    const res = await POST(req({ ...pedidoBase, couponCode: "promo10" }));
+
+    expect(res.status).toBe(200);
+    expect(orderCreate).not.toHaveBeenCalled();
+  });
+
   it("cria normalmente quando o método de pagamento é outro", async () => {
     orderFindMany.mockResolvedValue([{ ...jaGravado, paymentMethod: "CASH" }]);
     const res = await POST(req(pedidoBase));

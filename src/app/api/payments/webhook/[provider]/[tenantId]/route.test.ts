@@ -173,6 +173,21 @@ describe("o que cada status grava no pedido", () => {
     });
   });
 
+  it("pagamento aprovado em pedido já CANCELADO deixa rastro para estorno e não o reabre", async () => {
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    orderUpdateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    orderFindFirst.mockResolvedValue({ id: "pedido-1", status: "CANCELLED" });
+
+    await POST(req(), params);
+
+    expect(orderUpdateMany).toHaveBeenCalledTimes(2);
+    expect(orderUpdateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "CONFIRMED" }, where: { id: "pedido-1" } })
+    );
+    expect(erro).toHaveBeenCalledWith(expect.stringContaining("estornar"));
+    erro.mockRestore();
+  });
+
   it("evento repetido que não muda nada não avisa ninguém de novo", async () => {
     orderUpdateMany.mockResolvedValue({ count: 0 });
     const res = await POST(req(), params);

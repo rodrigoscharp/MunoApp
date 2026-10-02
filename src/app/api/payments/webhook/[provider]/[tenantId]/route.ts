@@ -90,7 +90,19 @@ export async function POST(
         const order = await prisma.order.findFirst({
           where: { id: result.orderId },
         });
-        if (order) await broadcastOrderUpdate(tenantId, order);
+        if (order) {
+          // Dinheiro entrou num pedido que já tinha sido cancelado (cobrança
+          // que estourou o timeout e foi criada no gateway mesmo assim). Não
+          // reabrimos o pedido, mas alguém precisa estornar: este log é o
+          // rastro, e o alvo de qualquer alerta futuro.
+          if (result.status === "approved" && order.status === "CANCELLED") {
+            console.error(
+              `[webhook/pagamento] pagamento aprovado em pedido CANCELADO, estornar: ` +
+                `tenant=${tenantId} order=${order.id} payment=${result.providerPaymentId}`
+            );
+          }
+          await broadcastOrderUpdate(tenantId, order);
+        }
       }
     });
 

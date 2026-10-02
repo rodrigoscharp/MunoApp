@@ -7,7 +7,7 @@ import { broadcastTenantEvent } from "@/lib/realtime";
 import { getEnabledPaymentMethods } from "@/lib/payments/factory";
 import { assertMethodAllowed, PaymentMethodNotAllowedError } from "@/lib/payments/method-guard";
 import { DeliveryFeeError, resolveDeliveryFee } from "@/lib/delivery-fee";
-import { CouponError } from "@/lib/coupon";
+import { CouponError, normalizeCouponCode } from "@/lib/coupon";
 import { aplicarCupom } from "@/lib/coupon-lookup";
 import { z } from "zod";
 
@@ -61,12 +61,37 @@ const orderSchema = z.object({
   { path: ["customerPhone"], message: "Telefone é obrigatório para entrega" }
 );
 
-/** Carrinho como texto comparável: mesmos itens e quantidades, em qualquer ordem. */
-function assinaturaDosItens(items: { menuItemId: string; quantity: number }[]) {
-  return items
-    .map((i) => `${i.menuItemId}:${i.quantity}`)
+type ItemComparavel = { menuItemId: string; quantity: number; notes?: string | null };
+
+/**
+ * O pedido como texto comparável: itens (com observação) em qualquer ordem, e
+ * tudo o mais que o cliente preenche. Vazio, null e ausente valem o mesmo.
+ */
+function assinaturaDoPedido(p: {
+  items: ItemComparavel[];
+  paymentMethod: string;
+  deliveryType: string;
+  notes?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  deliveryAddress?: string | null;
+  couponCode?: string | null;
+}) {
+  const limpa = (v?: string | null) => (v ?? "").trim();
+  const itens = p.items
+    .map((i) => `${i.menuItemId}:${i.quantity}:${limpa(i.notes)}`)
     .sort()
     .join("|");
+  return JSON.stringify([
+    itens,
+    p.paymentMethod,
+    p.deliveryType,
+    limpa(p.notes),
+    limpa(p.customerName),
+    limpa(p.customerPhone),
+    limpa(p.deliveryAddress),
+    limpa(p.couponCode),
+  ]);
 }
 
 export async function GET(req: NextRequest) {
@@ -194,6 +219,76 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // A mesa é resolvida contra o banco, não aceita como veio. Sem isto o
+    // tableId era gravado direto: id de mesa inativa passava, e id de mesa de
+    // OUTRO restaurante também — a foreign key é global e não sabe de tenant,
+    // então o pedido nascia apontando para a mesa de outra casa. `prisma` já
+    // restringe a consulta ao tenant da request.
+    let mesaId: string | null = null;
+    if (deliveryType === "DINE_IN" && tableId) {
+      const mesa = await prisma.table.findFirst({
+        where: { id: tableId, active: true },
+        select: { id: true },
+      });
+      if (!mesa) {
+        return NextResponse.json({ error: "Mesa não encontrada." }, { status: 422 });
+      }
+      mesaId = mesa.id;
+    }
+
+    // Duplo clique: o mesmo cliente (ou a mesma mesa, quando não há login)
+    // mandando o mesmo pedido nos últimos segundos recebe o que acabou de ser
+    // gravado em vez de gerar um segundo na cozinha. Roda ANTES do cupom: com
+    // cupom de uso único, o segundo clique cairia em "você já usou" e o cliente
+    // veria erro mesmo com o pedido criado.
+    //
+    // "O mesmo pedido" é tudo que o cliente digita, e não só o carrinho: duas
+    // pessoas da mesma mesa pedindo "1 Coca" com nomes diferentes, ou o mesmo
+    // prato com e sem cebola, são pedidos distintos e não podem se fundir.
+    // Sem chave de idempotência do cliente, é a heurística mais estreita que
+    // ainda pega o clique duplo.
+    const chaveDoSolicitante = session?.user?.id
+      ? { userId: session.user.id }
+      : mesaId
+        ? { tableId: mesaId }
+        : null;
+    if (chaveDoSolicitante) {
+      const recentes = await prisma.order.findMany({
+        where: {
+          ...chaveDoSolicitante,
+          createdAt: { gte: new Date(Date.now() - JANELA_DUPLICIDADE_MS) },
+          status: { not: "CANCELLED" },
+        },
+        include: { items: { include: { menuItem: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      });
+      const assinatura = assinaturaDoPedido({
+        items,
+        paymentMethod,
+        deliveryType,
+        notes,
+        customerName,
+        customerPhone,
+        deliveryAddress: deliveryType === "DELIVERY" ? deliveryAddress : undefined,
+        couponCode: couponCode ? normalizeCouponCode(couponCode) : undefined,
+      });
+      const repetido = recentes.find(
+        (r) =>
+          assinaturaDoPedido({
+            items: r.items,
+            paymentMethod: r.paymentMethod,
+            deliveryType: r.deliveryType,
+            notes: r.notes,
+            customerName: r.customerName,
+            customerPhone: r.customerPhone,
+            deliveryAddress: r.deliveryAddress,
+            couponCode: r.couponCode,
+          }) === assinatura
+      );
+      if (repetido) return NextResponse.json(repetido, { status: 200 });
+    }
+
     const itemsTotal = items.reduce(
       (sum, orderItem) => sum + Number(porId.get(orderItem.menuItemId)!.price) * orderItem.quantity,
       0
@@ -240,61 +335,12 @@ export async function POST(req: NextRequest) {
 
     const total = itemsTotal + deliveryFee - cupom.discount;
 
-    // A mesa é resolvida contra o banco, não aceita como veio. Sem isto o
-    // tableId era gravado direto: id de mesa inativa passava, e id de mesa de
-    // OUTRO restaurante também — a foreign key é global e não sabe de tenant,
-    // então o pedido nascia apontando para a mesa de outra casa. `prisma` já
-    // restringe a consulta ao tenant da request.
-    let mesaId: string | null = null;
-    if (deliveryType === "DINE_IN" && tableId) {
-      const mesa = await prisma.table.findFirst({
-        where: { id: tableId, active: true },
-        select: { id: true },
-      });
-      if (!mesa) {
-        return NextResponse.json({ error: "Mesa não encontrada." }, { status: 422 });
-      }
-      mesaId = mesa.id;
-    }
-
     // Lê o tempo estimado de entrega configurado pelo admin
     const timeSetting = await prisma.setting.findUnique({
       where: { tenantId_key: { tenantId, key: "delivery_time_minutes" } },
     });
     const estimatedMinutes = timeSetting ? parseInt(timeSetting.value, 10) : 45;
     const estimatedDeliveryAt = new Date(Date.now() + estimatedMinutes * 60_000);
-
-    // Duplo clique: o mesmo cliente (ou a mesma mesa, quando não há login)
-    // mandando o mesmo carrinho, com o mesmo pagamento e total, nos últimos
-    // segundos, recebe o pedido que acabou de ser gravado em vez de gerar um
-    // segundo na cozinha. Não há chave de idempotência do cliente: isto cobre
-    // o caso real (botão clicado duas vezes) sem mudar a tela nem o schema.
-    const chaveDoSolicitante = session?.user?.id
-      ? { userId: session.user.id }
-      : mesaId
-        ? { tableId: mesaId }
-        : null;
-    if (chaveDoSolicitante) {
-      const recentes = await prisma.order.findMany({
-        where: {
-          ...chaveDoSolicitante,
-          createdAt: { gte: new Date(Date.now() - JANELA_DUPLICIDADE_MS) },
-          status: { not: "CANCELLED" },
-        },
-        include: { items: { include: { menuItem: true } } },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-      });
-      const assinatura = assinaturaDosItens(items);
-      const repetido = recentes.find(
-        (r) =>
-          r.paymentMethod === paymentMethod &&
-          r.deliveryType === deliveryType &&
-          Number(r.total).toFixed(2) === total.toFixed(2) &&
-          assinaturaDosItens(r.items) === assinatura
-      );
-      if (repetido) return NextResponse.json(repetido, { status: 200 });
-    }
 
     const order = await prisma.order.create({
       data: {
