@@ -33,11 +33,22 @@ function baseUrl(): string {
  * numa conexão que cai, o POST pode ter chegado e criado a assinatura antes,
  * e repetir cobraria o cliente duas vezes.
  */
-class AsaasRecusou extends Error {}
+class AsaasRecusou extends Error {
+  constructor(
+    message: string,
+    readonly status?: number
+  ) {
+    super(message);
+  }
+}
 
-async function chamar<T>(caminho: string, body?: unknown): Promise<T> {
+async function chamar<T>(
+  caminho: string,
+  body?: unknown,
+  metodo?: "PUT" | "DELETE"
+): Promise<T> {
   const res = await fetch(`${baseUrl()}${caminho}`, {
-    method: body ? "POST" : "GET",
+    method: metodo ?? (body ? "POST" : "GET"),
     headers: {
       "Content-Type": "application/json",
       access_token: process.env.ASAAS_API_KEY ?? "",
@@ -52,7 +63,8 @@ async function chamar<T>(caminho: string, body?: unknown): Promise<T> {
       | null;
     throw new AsaasRecusou(
       corpo?.errors?.[0]?.description ??
-        `Asaas respondeu ${res.status} em ${caminho}`
+        `Asaas respondeu ${res.status} em ${caminho}`,
+      res.status
     );
   }
   return (await res.json()) as T;
@@ -209,6 +221,40 @@ export async function listarCobrancasDaAssinatura(
   subscriptionId: string
 ): Promise<{ data: { id: string; invoiceUrl: string }[] }> {
   return chamar(`/subscriptions/${subscriptionId}/payments`);
+}
+
+/**
+ * Cancela a assinatura no Asaas: as próximas cobranças deixam de ser emitidas.
+ * Sem isto, cancelar no CRM só mudava o banco local e o cartão do cliente
+ * seguia sendo cobrado.
+ *
+ * Assinatura que o Asaas não conhece mais (404) já está cancelada, que é o
+ * estado que se queria: não é erro. Qualquer outra falha propaga, para quem
+ * chama não gravar um cancelamento que não aconteceu.
+ */
+export async function cancelarAssinaturaNoAsaas(subscriptionId: string): Promise<void> {
+  try {
+    await chamar(`/subscriptions/${subscriptionId}`, undefined, "DELETE");
+  } catch (erro) {
+    if (erro instanceof AsaasRecusou && erro.status === 404) return;
+    throw erro;
+  }
+}
+
+/**
+ * Muda o valor da assinatura. `updatePendingPayments` leva junto as cobranças
+ * já emitidas e ainda não pagas; sem ele a próxima fatura sai com o valor
+ * antigo.
+ */
+export async function atualizarValorDaAssinatura(
+  subscriptionId: string,
+  valor: number
+): Promise<void> {
+  await chamar(
+    `/subscriptions/${subscriptionId}`,
+    { value: valor, updatePendingPayments: true },
+    "PUT"
+  );
 }
 
 /**

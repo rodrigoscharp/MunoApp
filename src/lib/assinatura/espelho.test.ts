@@ -373,6 +373,22 @@ describe("assinatura cancelada no Asaas", () => {
     expect(assinaturaUpdate.mock.calls[0][0].data.encerraEm).toEqual(new Date("2027-02-28T00:00:00Z"));
   });
 
+  // O operador cancelou no CRM (cortesia, acesso livre) e a rota cancelou a
+  // assinatura no Asaas; o webhook SUBSCRIPTION_DELETED que volta não pode
+  // transformar a cortesia em bloqueio.
+  it("assinatura CANCELADA pelo operador não ganha data de encerramento", async () => {
+    assinaturaFindUnique.mockResolvedValue({ ...assinatura, status: "CANCELADA" });
+    ultimaPaga("2026-11-10T00:00:00Z");
+
+    const tratado = await espelharEventoDeAssinatura(
+      { event: "SUBSCRIPTION_DELETED", subscription: { id: "sub_1" } },
+      AGORA
+    );
+
+    expect(tratado).toBe(true);
+    expect(assinaturaUpdate).not.toHaveBeenCalled();
+  });
+
   it("evento repetido não adia um encerramento já marcado", async () => {
     const jaMarcada = new Date("2026-12-10T00:00:00Z");
     assinaturaFindUnique.mockResolvedValue({ ...assinatura, encerraEm: jaMarcada });

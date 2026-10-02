@@ -76,7 +76,7 @@ export async function espelharEventoDeAssinatura(
     // Encerrada no gateway NÃO é CANCELADA (cortesia, acesso livre): o último
     // período pago vale até o fim, e depois o proxy bloqueia a gestão.
     // Evento repetido não adia um encerramento já marcado.
-    if (assinatura && !assinatura.encerraEm) {
+    if (assinatura && !assinatura.encerraEm && assinatura.status !== "CANCELADA") {
       const ultimaPaga = await prismaUnscoped.cobranca.findFirst({
         where: { assinaturaId: assinatura.id, status: "PAGA" },
         orderBy: { vencimento: "desc" },

@@ -589,3 +589,21 @@ Os pedidos ficam (são registro do restaurante, com valor fiscal) sem nome,
 telefone, endereço e observações; conversa de chat e posição do entregador são
 apagadas; a conta do cliente perde nome, e-mail e senha. Recusa conta de equipe.
 O restaurante é o controlador: o pedido do titular chega a ele, e a Muno executa.
+
+## Quando o acesso à gestão cai
+
+Três caminhos, e não se misturam:
+
+* **Atraso.** A régua (`src/lib/assinatura/regua.ts`) marca `INADIMPLENTE` com 7
+  dias corridos (só aviso) e `BLOQUEADA` com **10 dias úteis** (segunda a sexta;
+  feriado conta como útil). O proxy então fecha `/adm`, exceto as telas de
+  `ADM_LIVRE_DE_BLOQUEIO`. Cardápio e pedidos nunca caem.
+* **Assinatura encerrada no Asaas** (`SUBSCRIPTION_DELETED` ou `INACTIVATED`).
+  Não vira `CANCELADA`: o espelho grava `Assinatura.encerraEm` no fim do período
+  já pago (um mês, ou um ano no plano anual), e o proxy fecha `/adm` depois
+  dessa data.
+* **`CANCELADA` é decisão do operador** (cortesia, "este cliente não paga
+  mais") e dá acesso livre. Apagar a mensalidade no CRM cancela a assinatura no
+  Asaas antes de gravar; se o gateway falhar, a rota responde 502 e nada muda.
+  Mudar o valor mensal também vai ao Asaas; dia de vencimento e valor do plano
+  anual só se alteram no painel do Asaas (a rota responde 409).

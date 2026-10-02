@@ -7,6 +7,10 @@ import {
   DIA_VENCIMENTO_PADRAO,
 } from "@/lib/assinatura/competencia";
 import { inicioDaCobranca } from "@/lib/assinatura/inicio";
+import {
+  atualizarValorDaAssinatura,
+  cancelarAssinaturaNoAsaas,
+} from "@/lib/assinatura/asaas";
 
 // Só dinheiro. slug, status e nome ficam de fora de propósito: esta rota não
 // pode virar uma porta lateral para mudar a identidade de um cliente.
@@ -47,6 +51,54 @@ export async function PATCH(
   const assinatura = await prismaUnscoped.assinatura.findUnique({
     where: { tenantId: id },
   });
+
+  // O Asaas cobra o cartão sozinho: alterar só o banco local deixaria o cliente
+  // sendo cobrado do valor antigo, ou depois de cancelado. Por isso o gateway
+  // vai primeiro, e se ele falhar a rota falha, sem gravar um estado que não
+  // aconteceu.
+  // CANCELADA já foi cancelada lá (foi o que gravou o status), e chamar o Asaas
+  // de novo travaria a recontratação com um 404.
+  const noGateway =
+    assinatura && assinatura.status !== "CANCELADA"
+      ? (assinatura.asaasSubscriptionId ?? null)
+      : null;
+  if (assinatura && noGateway) {
+    if (diaVencimento != null && diaVencimento !== assinatura.diaVencimento) {
+      return NextResponse.json(
+        {
+          error:
+            "O dia de vencimento de uma assinatura no Asaas é definido pela próxima cobrança. Altere direto no painel do Asaas.",
+        },
+        { status: 409 }
+      );
+    }
+    if (
+      valorMensal != null &&
+      Number(assinatura.valorMensal) !== valorMensal &&
+      assinatura.ciclo === "ANUAL"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "No plano anual o valor cobrado pelo Asaas é o do ano inteiro. Altere direto no painel do Asaas.",
+        },
+        { status: 409 }
+      );
+    }
+    try {
+      if (valorMensal === null) {
+        await cancelarAssinaturaNoAsaas(noGateway);
+      } else if (valorMensal !== undefined && Number(assinatura.valorMensal) !== valorMensal) {
+        await atualizarValorDaAssinatura(noGateway, valorMensal);
+      }
+    } catch (erro) {
+      console.error("[platform/clientes] Asaas recusou a alteração da assinatura", erro);
+      return NextResponse.json(
+        { error: "O Asaas não aceitou a alteração. Nada foi gravado; tente de novo." },
+        { status: 502 }
+      );
+    }
+  }
 
   // Mensalidade apagada na tela é "este cliente não paga mais", e isso é
   // cancelar, não apagar: a assinatura carrega o histórico de cobrança da
@@ -105,6 +157,8 @@ export async function PATCH(
         ...(assinatura.status === "CANCELADA"
           ? {
               status: "ATIVA" as const,
+              // Recontratar também desfaz um encerramento vindo do gateway.
+              encerraEm: null,
               inicioCobranca: inicioDaCobranca(
                 new Date(),
                 0,

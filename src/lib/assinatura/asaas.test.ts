@@ -49,6 +49,48 @@ describe("cliente Asaas da plataforma", () => {
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it("cancela a assinatura com DELETE /subscriptions/{id}", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ deleted: true, id: "sub_1" }), { status: 200 })
+    );
+
+    const { cancelarAssinaturaNoAsaas } = await import("./asaas");
+    await cancelarAssinaturaNoAsaas("sub_1");
+
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(url).toBe("https://api-sandbox.asaas.com/v3/subscriptions/sub_1");
+    expect(init!.method).toBe("DELETE");
+  });
+
+  it("assinatura que o Asaas já não conhece (404) conta como cancelada", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ errors: [{ description: "Não encontrado" }] }), { status: 404 })
+    );
+    const { cancelarAssinaturaNoAsaas } = await import("./asaas");
+    await expect(cancelarAssinaturaNoAsaas("sub_x")).resolves.toBeUndefined();
+  });
+
+  it("outro erro ao cancelar propaga, para a rota não gravar cancelamento que não aconteceu", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ errors: [{ description: "Chave inválida" }] }), { status: 401 })
+    );
+    const { cancelarAssinaturaNoAsaas } = await import("./asaas");
+    await expect(cancelarAssinaturaNoAsaas("sub_1")).rejects.toThrow("Chave inválida");
+  });
+
+  it("atualiza o valor com PUT e leva as cobranças pendentes junto", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ id: "sub_1" }), { status: 200 })
+    );
+    const { atualizarValorDaAssinatura } = await import("./asaas");
+    await atualizarValorDaAssinatura("sub_1", 129.9);
+
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(url).toBe("https://api-sandbox.asaas.com/v3/subscriptions/sub_1");
+    expect(init!.method).toBe("PUT");
+    expect(JSON.parse(init!.body as string)).toEqual({ value: 129.9, updatePendingPayments: true });
+  });
+
   it("manda o valor em reais, não em centavos", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ id: "sub_1" }), { status: 200 })
