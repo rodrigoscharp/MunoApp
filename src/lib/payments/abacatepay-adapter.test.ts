@@ -33,9 +33,15 @@ function urlWith(secret: string | null): URL {
   return new URL(secret === null ? base : `${base}?webhookSecret=${secret}`);
 }
 
-function signedHeaders(secret: string, rawBody: string): Headers {
+// Esquema do Abacate Pay: HMAC-SHA256 do corpo com a chave pública da
+// documentação, em base64. O primeiro argumento fica para o teste de chave errada.
+const CHAVE_PUBLICA_ABACATE =
+  "t9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9";
+
+function signedHeaders(key: string, rawBody: string): Headers {
+  const chave = key === SECRET ? CHAVE_PUBLICA_ABACATE : key;
   return new Headers({
-    "x-webhook-signature": crypto.createHmac("sha256", secret).update(rawBody).digest("hex"),
+    "x-webhook-signature": crypto.createHmac("sha256", chave).update(rawBody).digest("base64"),
   });
 }
 
@@ -67,7 +73,23 @@ describe("handleWebhook — autenticação", () => {
     ).rejects.toThrow(InvalidWebhookSignatureError);
   });
 
-  it("recusa corpo adulterado quando vem assinatura", async () => {
+  it("recusa webhook sem o header de assinatura", async () => {
+    await expect(
+      adapter.handleWebhook(body, new Headers(), connectionWith(fullCreds), urlWith(SECRET))
+    ).rejects.toThrow(InvalidWebhookSignatureError);
+  });
+
+  it("recusa assinatura feita com o segredo do lojista em vez da chave do Abacate", async () => {
+    const headers = new Headers({
+      "x-webhook-signature": crypto.createHmac("sha256", SECRET).update(body).digest("base64"),
+    });
+
+    await expect(
+      adapter.handleWebhook(body, headers, connectionWith(fullCreds), urlWith(SECRET))
+    ).rejects.toThrow(InvalidWebhookSignatureError);
+  });
+
+  it("recusa corpo adulterado", async () => {
     const headers = signedHeaders(SECRET, body);
     const adulterado = JSON.stringify({
       event: "transparent.completed",
