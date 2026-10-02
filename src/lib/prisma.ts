@@ -47,11 +47,13 @@ function prenderAoTenant(data: unknown, tenantId: unknown): unknown {
   return { ...resto, tenantId };
 }
 
-function createPrismaClient() {
-  const basePrisma = new PrismaClient({
+function createBaseClient() {
+  return new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
+}
 
+function createPrismaClient(basePrisma: PrismaClient) {
   // Prisma permite combinar o(s) campo(s) únicos de um where com filtros
   // adicionais ("extended where unique input", estável desde o Prisma 5),
   // então basta mesclar tenantId em `where` mesmo para findUnique/update/delete —
@@ -101,16 +103,17 @@ const globalForPrisma = globalThis as unknown as {
   prismaUnscoped: PrismaClient | undefined;
 };
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
-
+// Um cliente base só, e o escopado é uma extensão dele. Antes eram dois
+// PrismaClient, cada um com o seu pool: o dobro de conexões por instância
+// contra o limite do Supabase, para o mesmo trabalho.
+//
 // Cliente sem o escopo automático de tenant — só para os poucos pontos de
 // entrada que não têm subdomínio pra resolver o tenant (webhooks, crons) e
 // por isso precisam descobrir o tenantId a partir de um id global (ex.: o
 // id do pedido) antes de entrar no contexto normal via runWithTenant().
-export const prismaUnscoped =
-  globalForPrisma.prismaUnscoped ?? new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
-  });
+export const prismaUnscoped = globalForPrisma.prismaUnscoped ?? createBaseClient();
+
+export const prisma = globalForPrisma.prisma ?? createPrismaClient(prismaUnscoped);
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;

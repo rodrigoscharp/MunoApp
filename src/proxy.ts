@@ -1,3 +1,4 @@
+import { buscarTenantComCache } from "@/lib/tenant-cache";
 import { auth } from "@/lib/auth";
 import { authPlatform } from "@/lib/auth-platform";
 import { NextResponse, type NextRequest } from "next/server";
@@ -334,18 +335,22 @@ export default auth(async (req) => {
     return new NextResponse(null, { status: 404 });
   }
 
-  const tenant = await prisma.tenant.findUnique({
-    where: { slug },
-    // A assinatura vem junto, na mesma consulta: o proxy roda em toda
-    // requisição, e uma segunda ida ao banco por causa da cobrança sairia caro
-    // em cada carregamento de cardápio.
-    select: {
-      id: true,
-      status: true,
-      plano: true,
-      assinatura: { select: { status: true, encerraEm: true } },
-    },
-  });
+  // Em cache por 30s (ver src/lib/tenant-cache.ts): sem ele cada requisição
+  // de cada tela aberta custava uma consulta só para achar o restaurante.
+  const tenant = await buscarTenantComCache(slug, () =>
+    prisma.tenant.findUnique({
+      where: { slug },
+      // A assinatura vem junto, na mesma consulta: o proxy roda em toda
+      // requisição, e uma segunda ida ao banco por causa da cobrança sairia caro
+      // em cada carregamento de cardápio.
+      select: {
+        id: true,
+        status: true,
+        plano: true,
+        assinatura: { select: { status: true, encerraEm: true } },
+      },
+    })
+  );
 
   if (!tenant || tenant.status !== "active") {
     return NextResponse.json({ error: "Restaurante não encontrado" }, { status: 404 });

@@ -1,3 +1,4 @@
+import { limparCacheDeTenants } from "@/lib/tenant-cache";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { authPlatform } from "@/lib/auth-platform";
@@ -104,6 +105,7 @@ const planoInjetado = (res: Response) =>
   res.headers.get("x-middleware-request-x-tenant-plano");
 
 beforeEach(() => {
+  limparCacheDeTenants();
   vi.clearAllMocks();
   comAssinatura("ATIVA");
   vi.mocked(authPlatform).mockResolvedValue(null as never);
@@ -800,5 +802,34 @@ describe("proxy: header de tenant forjado não atravessa rota sem tenant", () =>
 
     expect(tenantInjetado(res)).toBe(TENANT_ID);
     expect(planoInjetado(res)).toBe("MEMBRO");
+  });
+});
+
+
+describe("proxy: cache do restaurante", () => {
+  it("duas requisições seguidas ao mesmo restaurante fazem uma consulta só", async () => {
+    comAssinatura("ATIVA");
+
+    await proxy(requisicao("/adm/menu", DONO));
+    await proxy(requisicao("/adm/menu", DONO));
+
+    expect(findUnique).toHaveBeenCalledTimes(1);
+  });
+
+  it("o bloqueio por inadimplência passa a valer depois que o cache expira", async () => {
+    vi.useFakeTimers();
+    try {
+      comAssinatura("ATIVA");
+      expect(destino(await proxy(requisicao("/adm/menu", DONO)))).toBeNull();
+
+      comAssinatura("BLOQUEADA");
+      // ainda dentro da janela: o que estava em cache vale
+      expect(destino(await proxy(requisicao("/adm/menu", DONO)))).toBeNull();
+
+      vi.advanceTimersByTime(31_000);
+      expect(destino(await proxy(requisicao("/adm/menu", DONO)))).toBe(`http://${HOST}/adm/assinatura`);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
