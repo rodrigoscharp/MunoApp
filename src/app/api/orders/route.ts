@@ -328,6 +328,33 @@ export async function POST(req: NextRequest) {
       include: { items: { include: { menuItem: true } } },
     });
 
+    // Cupom de uso único e pedidos simultâneos: a checagem "já usou?" em
+    // aplicarCupom roda antes de gravar, então duas requisições do mesmo cliente
+    // passam as duas por ela. Gravado o pedido, confere-se se algum outro com o
+    // cupom nasceu antes; o mais novo cancela o próprio, e o desempate por id
+    // impede que, nascendo no mesmo instante, os dois se cancelem.
+    if (cupom.couponId && session?.user?.id) {
+      const anteriores = await prisma.order.count({
+        where: {
+          userId: session.user.id,
+          couponId: cupom.couponId,
+          status: { not: "CANCELLED" },
+          id: { not: order.id },
+          OR: [
+            { createdAt: { lt: order.createdAt } },
+            { createdAt: order.createdAt, id: { lt: order.id } },
+          ],
+        },
+      });
+      if (anteriores > 0) {
+        await prisma.order.update({
+          where: { id: order.id },
+          data: { status: "CANCELLED" },
+        });
+        return NextResponse.json({ error: "Você já usou este cupom." }, { status: 400 });
+      }
+    }
+
     await broadcastTenantEvent(tenantId, "kitchen-orders", "order-created", { orderId: order.id });
 
     return NextResponse.json(order, { status: 201 });

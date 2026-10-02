@@ -23,6 +23,7 @@ const couponFindUnique = vi.fn();
 const orderCount = vi.fn();
 const orderCreate = vi.fn();
 const orderFindMany = vi.fn();
+const orderUpdate = vi.fn();
 const settingFindUnique = vi.fn();
 const tableFindFirst = vi.fn();
 
@@ -35,6 +36,7 @@ vi.mock("@/lib/prisma", () => ({
       count: (...a: unknown[]) => orderCount(...a),
       create: (...a: unknown[]) => orderCreate(...a),
       findMany: (...a: unknown[]) => orderFindMany(...a),
+      update: (...a: unknown[]) => orderUpdate(...a),
     },
     setting: { findUnique: (...a: unknown[]) => settingFindUnique(...a) },
     table: { findFirst: (...a: unknown[]) => tableFindFirst(...a) },
@@ -89,6 +91,7 @@ beforeEach(() => {
   couponFindUnique.mockResolvedValue(null);
   orderCount.mockResolvedValue(0);
   orderFindMany.mockResolvedValue([]);
+  orderUpdate.mockResolvedValue({});
   settingFindUnique.mockResolvedValue(null);
   tableFindFirst.mockResolvedValue(null);
   orderCreate.mockResolvedValue({ id: "pedido-1", items: [] });
@@ -483,6 +486,61 @@ describe("cupom", () => {
     validFrom: null,
     validUntil: null,
   };
+
+  // A checagem "já usou?" acontece ANTES de gravar, e dois pedidos simultâneos
+  // do mesmo cliente passam os dois por ela. Depois de gravar, o que sobra é
+  // conferir se alguém chegou antes: o mais novo cancela o próprio pedido.
+  describe("uso simultâneo do cupom de uso único", () => {
+    beforeEach(() => {
+      couponFindUnique.mockResolvedValue(cupomValido);
+      orderCreate.mockResolvedValue({
+        id: "pedido-2",
+        createdAt: new Date("2026-10-02T12:00:00Z"),
+        items: [],
+      });
+    });
+
+    it("cancela o próprio pedido e recusa quando outro pedido com o cupom já existia", async () => {
+      orderCount.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+
+      const res = await POST(req({ ...pedidoBase, couponCode: "PROMO10" }));
+
+      expect(res.status).toBe(400);
+      expect(orderUpdate).toHaveBeenCalledWith({
+        where: { id: "pedido-2" },
+        data: { status: "CANCELLED" },
+      });
+      expect(broadcastTenantEvent).not.toHaveBeenCalled();
+    });
+
+    it("só considera pedidos anteriores ao seu, para os dois não se cancelarem", async () => {
+      await POST(req({ ...pedidoBase, couponCode: "PROMO10" }));
+
+      const verificacao = orderCount.mock.calls[1][0];
+      expect(verificacao.where.id).toEqual({ not: "pedido-2" });
+      expect(verificacao.where.couponId).toBe("cupom-1");
+      expect(verificacao.where.status).toEqual({ not: "CANCELLED" });
+      expect(verificacao.where.OR).toEqual([
+        { createdAt: { lt: new Date("2026-10-02T12:00:00Z") } },
+        { createdAt: new Date("2026-10-02T12:00:00Z"), id: { lt: "pedido-2" } },
+      ]);
+    });
+
+    it("segue normal quando ninguém chegou antes", async () => {
+      orderCount.mockResolvedValue(0);
+
+      const res = await POST(req({ ...pedidoBase, couponCode: "PROMO10" }));
+
+      expect(res.status).toBe(201);
+      expect(orderUpdate).not.toHaveBeenCalled();
+    });
+
+    it("pedido sem cupom não faz a segunda contagem", async () => {
+      orderCount.mockClear();
+      await POST(req(pedidoBase));
+      expect(orderCount).not.toHaveBeenCalled();
+    });
+  });
 
   it("recusa cupom inexistente com 400", async () => {
     couponFindUnique.mockResolvedValue(null);
