@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { PaymentConnection } from "@prisma/client";
 import { decryptCredentials } from "./credentials";
-import { GATEWAY_TIMEOUT_MS, InvalidWebhookSignatureError, safeParse } from "./types";
+import { GATEWAY_TIMEOUT_MS, InvalidWebhookSignatureError, safeParse, timestampRecente } from "./types";
 import type {
   Charge,
   ChargeableOrder,
@@ -60,6 +60,7 @@ function isValidSignature(secret: string, header: string | null, rawBody: string
   const timestamp = parts.t;
   const signature = parts.v1;
   if (!timestamp || !signature) return false;
+  if (!timestampRecente(timestamp)) return false;
 
   const expected = crypto
     .createHmac("sha256", secret)
