@@ -118,8 +118,16 @@ export function FiltroDeRestricoes({ menuItems, restaurantOpen }: FiltroDeRestri
   // atenda, a lista fica vazia e a mensagem diz por quê.
   const resultado = useMemo(() => filtrarPorRestricoes(menuItems, ativas), [menuItems, ativas]);
 
-  // Nada declarado, nada a mostrar: nem o wrapper, que carrega margem.
-  if (disponiveis.length === 0) return null;
+  // Algum filtro ligado que ninguém declarou: a lista vazia vem de "o restaurante
+  // ainda não informou", e não de "nenhum prato serve". Dizer o contrário seria
+  // afirmar algo que ninguém verificou.
+  const algumSemDeclaracao = ativas.some((id) => !disponiveis.includes(id));
+
+  // Sem item no cardápio não há o que filtrar: nem o wrapper, que carrega margem.
+  // Os botões, ao contrário, NÃO dependem de o dono já ter declarado algo. Eles
+  // são o atalho de quem tem restrição, e esconder o card até alguém preencher o
+  // formulário faz o filtro parecer inexistente.
+  if (menuItems.length === 0) return null;
 
   function alternar(id: RestricaoDeCardapio) {
     setAtivas((atuais) => (atuais.includes(id) ? atuais.filter((x) => x !== id) : [...atuais, id]));
@@ -175,7 +183,7 @@ export function FiltroDeRestricoes({ menuItems, restaurantOpen }: FiltroDeRestri
 
       <div className="px-4 py-4 space-y-3">
         <div className="flex flex-wrap gap-2">
-          {RESTRICOES.filter((r) => disponiveis.includes(r.id) || ativas.includes(r.id)).map(({ id, label, emoji }) => {
+          {RESTRICOES.map(({ id, label, emoji }) => {
             const ligado = ativas.includes(id);
             return (
               <button
@@ -204,7 +212,11 @@ export function FiltroDeRestricoes({ menuItems, restaurantOpen }: FiltroDeRestri
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-neutral-500">Nenhum item atende a todos os filtros marcados.</p>
+              <p className="text-sm text-neutral-500">
+                {algumSemDeclaracao
+                  ? "Este restaurante ainda não informou quais itens atendem a esse filtro."
+                  : "Nenhum item atende a todos os filtros marcados."}
+              </p>
             )}
             <p className="text-xs text-neutral-400">
               Informado pelo restaurante. Em caso de alergia, confirme com a equipe antes de pedir.
