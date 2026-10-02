@@ -199,3 +199,22 @@ describe("frete grátis", () => {
     expect(await res.json()).toEqual({ error: "Selecione o bairro de entrega." });
   });
 });
+
+
+describe("limite de tentativas", () => {
+  it("depois de 30 tentativas em 10 minutos, o mesmo cliente toma 429", async () => {
+    auth.mockResolvedValue({ user: { id: "chutador", role: "CUSTOMER" } });
+    const corpo = { code: "X", items: [{ menuItemId: "item-1", quantity: 1 }], deliveryType: "PICKUP" };
+
+    let ultimo = 0;
+    for (let i = 0; i < 31; i++) ultimo = (await POST(req(corpo))).status;
+
+    expect(ultimo).toBe(429);
+  });
+
+  it("outro cliente não é afetado", async () => {
+    auth.mockResolvedValue({ user: { id: "outro-cliente", role: "CUSTOMER" } });
+    const corpo = { code: "X", items: [{ menuItemId: "item-1", quantity: 1 }], deliveryType: "PICKUP" };
+    expect((await POST(req(corpo))).status).not.toBe(429);
+  });
+});

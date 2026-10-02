@@ -43,6 +43,21 @@ async function main() {
   const ordenados = blobs.sort((a, b) => b.pathname.localeCompare(a.pathname));
   const filtro = process.argv[2];
 
+  // O CI define MAX_IDADE_HORAS: um dump que existe mas é de três dias atrás
+  // significa que o agendamento parou (o GitHub desliga workflows agendados
+  // depois de 60 dias sem atividade no repositório), e o job deve falhar.
+  const maxHoras = Number(process.env.MAX_IDADE_HORAS);
+  if (maxHoras > 0) {
+    const maisNovo = Math.max(...ordenados.map((b) => new Date(b.uploadedAt).getTime()));
+    const idadeHoras = (Date.now() - maisNovo) / 3_600_000;
+    if (idadeHoras > maxHoras) {
+      console.error(
+        `\nO dump mais recente tem ${Math.round(idadeHoras)}h (limite ${maxHoras}h). O backup diário parou.\n`
+      );
+      process.exit(1);
+    }
+  }
+
   if (!filtro) {
     console.log(`\n${ordenados.length} dump(s) disponíveis:\n`);
     for (const b of ordenados) {

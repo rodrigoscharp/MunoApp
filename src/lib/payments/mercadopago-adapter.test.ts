@@ -201,7 +201,10 @@ describe("handleWebhook — caminho feliz", () => {
 
     await adapter.handleWebhook(payload, signedHeaders(WEBHOOK_SECRET), connection);
 
-    expect(mockConfigCtor).toHaveBeenCalledWith({ accessToken: "APP_USR-do-tenant" });
+    expect(mockConfigCtor).toHaveBeenCalledWith({
+      accessToken: "APP_USR-do-tenant",
+      options: { timeout: 15_000 },
+    });
     expect(mockPaymentGet).toHaveBeenCalledWith({ id: DATA_ID });
   });
 });

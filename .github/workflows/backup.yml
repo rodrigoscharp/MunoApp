@@ -24,6 +24,10 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Só para abrir a issue de alerta quando o backup falha.
+    permissions:
+      contents: read
+      issues: write
 
     steps:
       - uses: actions/checkout@v4
@@ -47,4 +51,18 @@ jobs:
       - name: Confirmar que o dump chegou na nuvem
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          # Falha se o dump mais novo for de mais de 26h: pega o caso em que o
+          # job "passa" mas o dump de hoje não subiu.
+          MAX_IDADE_HORAS: "26"
         run: npx tsx scripts/recuperar-backup.ts
+
+      # E-mail de falha do GitHub vai para quem criou o workflow e se perde.
+      # Uma issue aberta fica visível no repositório até alguém resolver.
+      - name: Abrir issue se o backup falhou
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --title "Backup diário falhou em $(date -u +%F)" \
+            --body "O workflow 'Backup do banco de produção' falhou. Execução: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

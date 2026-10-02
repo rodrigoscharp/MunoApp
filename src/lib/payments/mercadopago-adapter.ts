@@ -17,7 +17,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
 function configFor(connection: PaymentConnection): MercadoPagoConfig {
   const { accessToken } = decryptCredentials(connection.credentials);
   if (!accessToken) throw new Error("Conexão do Mercado Pago sem access token.");
-  return new MercadoPagoConfig({ accessToken });
+  return new MercadoPagoConfig({ accessToken, options: { timeout: GATEWAY_TIMEOUT_MS } });
 }
 
 // A URL do webhook carrega o tenant porque, sem aplicação de plataforma, o
@@ -240,7 +240,7 @@ export class MercadoPagoAdapter implements PaymentProvider {
 
     // Agora consultamos com o token do próprio lojista: o pagamento é da
     // conta dele, não existe mais token de plataforma.
-    const paymentApi = new Payment(new MercadoPagoConfig({ accessToken }));
+    const paymentApi = new Payment(new MercadoPagoConfig({ accessToken, options: { timeout: GATEWAY_TIMEOUT_MS } }));
     const payment = await paymentApi.get({ id: body.data.id });
 
     const orderId = payment.external_reference;
