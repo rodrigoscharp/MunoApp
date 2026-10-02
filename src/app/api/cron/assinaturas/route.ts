@@ -12,6 +12,7 @@ import {
   reconciliarInscricoesPagas,
   type ResultadoReconciliacao,
 } from "@/lib/assinatura/reconciliacao";
+import { reconciliarCobrancasDoAsaas } from "@/lib/assinatura/reconciliacao-cobrancas";
 import { registrarEvento } from "@/lib/funil/registrar";
 import { expurgarEventos } from "@/lib/funil/expurgo";
 
@@ -25,6 +26,11 @@ import { expurgarEventos } from "@/lib/funil/expurgo";
  *
  * É trabalho de plataforma, sem tenant no contexto: tudo por prismaUnscoped.
  */
+// O job faz chamadas ao Asaas (reconciliação de cobranças e inscrições), cada
+// uma com timeout de 15s. Sem isto vale o limite padrão da função e o job pode
+// morrer no meio da faxina.
+export const maxDuration = 300;
+
 async function executar(req: NextRequest) {
   // `segredo &&` não é redundante: sem ele, um ambiente onde a variável não
   // foi configurada compararia o header com a string "Bearer undefined" e
@@ -103,6 +109,19 @@ async function executar(req: NextRequest) {
       }
       cobrancasJaExistentes++;
     }
+  }
+
+  // Antes de medir o atraso: as cobranças de renovação do Asaas chegam por
+  // webhook, e esta passada cobre as que o webhook perdeu. Sem a Cobranca do
+  // mês a régua não enxerga o atraso e quem parou de pagar segue ATIVA. Não
+  // propaga, como o resto das etapas de conveniência.
+  let cobrancasDoAsaas = { assinaturas: 0, cobrancas: 0, falhas: 0 };
+  let cobrancasDoAsaasFalhou = false;
+  try {
+    cobrancasDoAsaas = await reconciliarCobrancasDoAsaas(agora);
+  } catch (erro) {
+    cobrancasDoAsaasFalhou = true;
+    await reportarErro({ origem: "cron/assinaturas:cobrancas-do-asaas", erro });
   }
 
   // Uma consulta só para todas as assinaturas, e não uma por assinatura: o job
@@ -314,6 +333,8 @@ async function executar(req: NextRequest) {
     competencia,
     reconciliacao,
     ...(reconciliacaoFalhou ? { reconciliacaoFalhou } : {}),
+    cobrancasDoAsaas,
+    ...(cobrancasDoAsaasFalhou ? { cobrancasDoAsaasFalhou: true } : {}),
     inscricoesExpiradas,
     assinaturas: assinaturas.length,
     cobrancasCriadas,

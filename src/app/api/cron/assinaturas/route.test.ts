@@ -50,6 +50,11 @@ vi.mock("@/lib/assinatura/reconciliacao", () => ({
   reconciliarInscricoesPagas: (...args: unknown[]) => reconciliar(...args),
 }));
 
+const reconciliarCobrancas = vi.fn();
+vi.mock("@/lib/assinatura/reconciliacao-cobrancas", () => ({
+  reconciliarCobrancasDoAsaas: (...args: unknown[]) => reconciliarCobrancas(...args),
+}));
+
 vi.mock("@/lib/assinatura/asaas", () => ({
   assinaturaTemPagamentoConfirmado: (...args: unknown[]) =>
     temPagamentoConfirmado(...args),
@@ -113,6 +118,7 @@ beforeEach(() => {
   inscricaoFindMany.mockResolvedValue([]);
   temPagamentoConfirmado.mockResolvedValue(false);
   reconciliar.mockResolvedValue({ candidatas: 0, provisionadas: 0, falhas: 0 });
+  reconciliarCobrancas.mockResolvedValue({ assinaturas: 0, cobrancas: 0, falhas: 0 });
   eventoCreate.mockResolvedValue({});
   leadUpdateMany.mockResolvedValue({ count: 0 });
 });
@@ -696,5 +702,39 @@ describe("POST /api/cron/assinaturas — reconciliação", () => {
     await POST(requisicao({ secret: "errado" }));
 
     expect(reconciliar).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("cron: cobranças de renovação do Asaas", () => {
+  // O espelho (webhook) é o caminho principal; esta passada cobre o webhook
+  // perdido. Tem que rodar ANTES de medir o atraso, senão a régua do dia ainda
+  // não enxerga a Cobranca que acabou de ser recuperada.
+  it("roda antes da régua, para ela já enxergar a cobrança recuperada", async () => {
+    const ordem: string[] = [];
+    reconciliarCobrancas.mockImplementation(async () => {
+      ordem.push("cobrancas-do-asaas");
+      return { assinaturas: 1, cobrancas: 1, falhas: 0 };
+    });
+    cobrancaFindMany.mockImplementation(async () => {
+      ordem.push("regua");
+      return [];
+    });
+
+    const res = await GET(requisicao());
+
+    expect(ordem).toEqual(["cobrancas-do-asaas", "regua"]);
+    expect(await res.json()).toMatchObject({
+      cobrancasDoAsaas: { assinaturas: 1, cobrancas: 1, falhas: 0 },
+    });
+  });
+
+  it("se a reconciliação das cobranças falha, o job segue e avisa na resposta", async () => {
+    reconciliarCobrancas.mockRejectedValue(new Error("Asaas fora do ar"));
+
+    const res = await GET(requisicao());
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ cobrancasDoAsaasFalhou: true });
   });
 });

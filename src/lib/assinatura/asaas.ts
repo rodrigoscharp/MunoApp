@@ -212,6 +212,19 @@ export async function listarCobrancasDaAssinatura(
 }
 
 /**
+ * Pagamentos recentes de uma assinatura, com o que o espelho precisa. O Asaas
+ * pagina de 10 em 10 por padrão; 24 cobre dois anos de cobrança mensal.
+ */
+export async function listarPagamentosDaAssinatura(
+  subscriptionId: string
+): Promise<{ id: string; status: string; value: number; dueDate: string }[]> {
+  const { data } = await chamar<{
+    data: { id: string; status: string; value: number; dueDate: string }[];
+  }>(`/subscriptions/${subscriptionId}/payments?limit=24`);
+  return data ?? [];
+}
+
+/**
  * O Asaas autentica webhook por token estático no header, não por assinatura
  * do corpo. timingSafeEqual porque comparação de string vaza o prefixo certo
  * pelo tempo de resposta.
