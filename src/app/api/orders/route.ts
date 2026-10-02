@@ -22,32 +22,52 @@ const KITCHEN_WINDOW_MS = 24 * 60 * 60 * 1000;
 // pedido antigo não existe: o que interessa é o que ainda está em curso.
 const CUSTOMER_ORDERS_LIMIT = 20;
 
+// Tetos do corpo. O endpoint é público (mesa não exige conta) e sem limite de
+// taxa, então sem teto qualquer um grava pedido de 100 mil unidades ou
+// observação de 1 MB, que a cozinha depois renderiza e o polling reenvia.
+// Folgados para o uso real: ninguém pede 99 do mesmo prato num cardápio de
+// restaurante, e 50 linhas passam de qualquer mesa.
+const MAX_QUANTIDADE_POR_ITEM = 99;
+const MAX_ITENS_POR_PEDIDO = 50;
+
+// Duplo clique e reenvio por rede ruim chegam em segundos. Mais que isso já é
+// alguém que de fato quer um segundo pedido igual.
+const JANELA_DUPLICIDADE_MS = 15_000;
+
 const orderSchema = z.object({
   items: z.array(
     z.object({
-      menuItemId: z.string(),
-      quantity: z.number().int().positive(),
-      notes: z.string().optional(),
+      menuItemId: z.string().max(64),
+      quantity: z.number().int().positive().max(MAX_QUANTIDADE_POR_ITEM),
+      notes: z.string().max(200).optional(),
     })
-  ).min(1),
+  ).min(1).max(MAX_ITENS_POR_PEDIDO),
   paymentMethod: z.enum(["PIX", "CREDIT_CARD", "CASH"]),
-  notes: z.string().optional(),
-  customerName: z.string().optional(),
-  customerPhone: z.string().optional(),
+  notes: z.string().max(500).optional(),
+  customerName: z.string().max(100).optional(),
+  customerPhone: z.string().max(30).optional(),
   deliveryType: z.enum(["PICKUP", "DELIVERY", "DINE_IN"]).default("PICKUP"),
-  deliveryAddress: z.string().optional(),
+  deliveryAddress: z.string().max(300).optional(),
   // O id da zona, não o preço: o valor do frete vem do banco, nunca do cliente.
-  deliveryZoneId: z.string().optional(),
+  deliveryZoneId: z.string().max(64).optional(),
   // Mesma regra do frete: só o código. Não existe campo de desconto aqui, então
   // um `discount` extra no corpo da requisição é descartado pelo zod.
-  couponCode: z.string().trim().min(1).optional(),
-  tableId: z.string().optional(),
+  couponCode: z.string().trim().min(1).max(30).optional(),
+  tableId: z.string().max(64).optional(),
 }).refine(
   (data) =>
     data.deliveryType !== "DELIVERY" ||
     (data.customerPhone?.trim().length ?? 0) >= 8,
   { path: ["customerPhone"], message: "Telefone é obrigatório para entrega" }
 );
+
+/** Carrinho como texto comparável: mesmos itens e quantidades, em qualquer ordem. */
+function assinaturaDosItens(items: { menuItemId: string; quantity: number }[]) {
+  return items
+    .map((i) => `${i.menuItemId}:${i.quantity}`)
+    .sort()
+    .join("|");
+}
 
 export async function GET(req: NextRequest) {
   const tenantId = getTenantIdFromRequest(req);
@@ -116,7 +136,8 @@ export async function POST(req: NextRequest) {
   return withTenant(tenantId, async () => {
     const session = await auth();
 
-    const body = await req.json();
+    // Corpo que não é JSON é erro do cliente, não do servidor.
+    const body = await req.json().catch(() => null);
     const parsed = orderSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
@@ -242,6 +263,38 @@ export async function POST(req: NextRequest) {
     });
     const estimatedMinutes = timeSetting ? parseInt(timeSetting.value, 10) : 45;
     const estimatedDeliveryAt = new Date(Date.now() + estimatedMinutes * 60_000);
+
+    // Duplo clique: o mesmo cliente (ou a mesma mesa, quando não há login)
+    // mandando o mesmo carrinho, com o mesmo pagamento e total, nos últimos
+    // segundos, recebe o pedido que acabou de ser gravado em vez de gerar um
+    // segundo na cozinha. Não há chave de idempotência do cliente: isto cobre
+    // o caso real (botão clicado duas vezes) sem mudar a tela nem o schema.
+    const chaveDoSolicitante = session?.user?.id
+      ? { userId: session.user.id }
+      : mesaId
+        ? { tableId: mesaId }
+        : null;
+    if (chaveDoSolicitante) {
+      const recentes = await prisma.order.findMany({
+        where: {
+          ...chaveDoSolicitante,
+          createdAt: { gte: new Date(Date.now() - JANELA_DUPLICIDADE_MS) },
+          status: { not: "CANCELLED" },
+        },
+        include: { items: { include: { menuItem: true } } },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      });
+      const assinatura = assinaturaDosItens(items);
+      const repetido = recentes.find(
+        (r) =>
+          r.paymentMethod === paymentMethod &&
+          r.deliveryType === deliveryType &&
+          Number(r.total).toFixed(2) === total.toFixed(2) &&
+          assinaturaDosItens(r.items) === assinatura
+      );
+      if (repetido) return NextResponse.json(repetido, { status: 200 });
+    }
 
     const order = await prisma.order.create({
       data: {

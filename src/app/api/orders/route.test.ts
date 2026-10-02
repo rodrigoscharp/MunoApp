@@ -22,6 +22,7 @@ const deliveryZoneFindUnique = vi.fn();
 const couponFindUnique = vi.fn();
 const orderCount = vi.fn();
 const orderCreate = vi.fn();
+const orderFindMany = vi.fn();
 const settingFindUnique = vi.fn();
 const tableFindFirst = vi.fn();
 
@@ -33,6 +34,7 @@ vi.mock("@/lib/prisma", () => ({
     order: {
       count: (...a: unknown[]) => orderCount(...a),
       create: (...a: unknown[]) => orderCreate(...a),
+      findMany: (...a: unknown[]) => orderFindMany(...a),
     },
     setting: { findUnique: (...a: unknown[]) => settingFindUnique(...a) },
     table: { findFirst: (...a: unknown[]) => tableFindFirst(...a) },
@@ -86,6 +88,7 @@ beforeEach(() => {
   deliveryZoneFindUnique.mockResolvedValue(null);
   couponFindUnique.mockResolvedValue(null);
   orderCount.mockResolvedValue(0);
+  orderFindMany.mockResolvedValue([]);
   settingFindUnique.mockResolvedValue(null);
   tableFindFirst.mockResolvedValue(null);
   orderCreate.mockResolvedValue({ id: "pedido-1", items: [] });
@@ -117,6 +120,137 @@ describe("porta de entrada", () => {
   it("recusa método de pagamento fora do enum", async () => {
     const res = await POST(req({ ...pedidoBase, paymentMethod: "BOLETO" }));
     expect(res.status).toBe(400);
+  });
+});
+
+describe("tetos: endpoint público não aceita corpo de tamanho ilimitado", () => {
+  const item = { menuItemId: "item-1", quantity: 1 };
+
+  it("recusa quantidade absurda de um item", async () => {
+    const res = await POST(req({ ...pedidoBase, items: [{ ...item, quantity: 100 }] }));
+    expect(res.status).toBe(400);
+    expect(orderCreate).not.toHaveBeenCalled();
+  });
+
+  it("aceita a quantidade máxima", async () => {
+    const res = await POST(req({ ...pedidoBase, items: [{ ...item, quantity: 99 }] }));
+    expect(res.status).toBe(201);
+  });
+
+  it("recusa carrinho com itens demais", async () => {
+    const itens = Array.from({ length: 51 }, () => item);
+    const res = await POST(req({ ...pedidoBase, items: itens }));
+    expect(res.status).toBe(400);
+  });
+
+  it.each([
+    ["notes", 501],
+    ["customerName", 101],
+    ["customerPhone", 31],
+    ["deliveryAddress", 301],
+    ["couponCode", 31],
+  ])("recusa %s com %i caracteres", async (campo, tamanho) => {
+    const res = await POST(req({ ...pedidoBase, [campo]: "x".repeat(tamanho) }));
+    expect(res.status).toBe(400);
+    expect(orderCreate).not.toHaveBeenCalled();
+  });
+
+  it("recusa observação de item muito longa", async () => {
+    const res = await POST(
+      req({ ...pedidoBase, items: [{ ...item, notes: "x".repeat(201) }] })
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("responde 400, e não 500, a corpo que não é JSON", async () => {
+    const quebrado = new NextRequest("http://localhost/api/orders", {
+      method: "POST",
+      headers: { "x-tenant-id": TENANT, "x-tenant-plano": "MEMBRO", "Content-Type": "application/json" },
+      body: "{isto não é json",
+    });
+    const res = await POST(quebrado);
+    expect(res.status).toBe(400);
+    expect(orderCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("clique duplo", () => {
+  /** O pedido que o primeiro clique acabou de gravar: mesmos itens, mesmo total. */
+  const jaGravado = {
+    id: "pedido-0",
+    paymentMethod: "PIX",
+    deliveryType: "PICKUP",
+    total: 20,
+    items: [{ menuItemId: "item-1", quantity: 2 }],
+  };
+
+  it("devolve o pedido recém-criado em vez de criar outro idêntico", async () => {
+    orderFindMany.mockResolvedValue([jaGravado]);
+
+    const res = await POST(req(pedidoBase));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ id: "pedido-0" });
+    expect(orderCreate).not.toHaveBeenCalled();
+    expect(broadcastTenantEvent).not.toHaveBeenCalled();
+  });
+
+  it("procura só os pedidos do mesmo cliente nos últimos segundos, sem os cancelados", async () => {
+    await POST(req(pedidoBase));
+
+    const consulta = orderFindMany.mock.calls[0][0];
+    expect(consulta.where.userId).toBe("cliente-1");
+    expect(consulta.where.status).toEqual({ not: "CANCELLED" });
+    const janela = Date.now() - consulta.where.createdAt.gte.getTime();
+    expect(janela).toBeGreaterThan(0);
+    expect(janela).toBeLessThan(60_000);
+  });
+
+  it("cria normalmente quando os itens são outros", async () => {
+    orderFindMany.mockResolvedValue([
+      { ...jaGravado, items: [{ menuItemId: "item-2", quantity: 2 }] },
+    ]);
+    const res = await POST(req(pedidoBase));
+    expect(res.status).toBe(201);
+    expect(orderCreate).toHaveBeenCalled();
+  });
+
+  it("cria normalmente quando a quantidade é outra", async () => {
+    orderFindMany.mockResolvedValue([
+      { ...jaGravado, items: [{ menuItemId: "item-1", quantity: 3 }] },
+    ]);
+    const res = await POST(req(pedidoBase));
+    expect(res.status).toBe(201);
+  });
+
+  it("cria normalmente quando o método de pagamento é outro", async () => {
+    orderFindMany.mockResolvedValue([{ ...jaGravado, paymentMethod: "CASH" }]);
+    const res = await POST(req(pedidoBase));
+    expect(res.status).toBe(201);
+  });
+
+  it("na mesa, sem login, a chave é a mesa", async () => {
+    auth.mockResolvedValue(null);
+    tableFindFirst.mockResolvedValue({ id: "mesa-1" });
+    orderFindMany.mockResolvedValue([{ ...jaGravado, deliveryType: "DINE_IN" }]);
+
+    const res = await POST(
+      req({ ...pedidoBase, deliveryType: "DINE_IN", tableId: "mesa-1" }, { "x-tenant-plano": "MEMBRO_MESA_QR" })
+    );
+
+    expect(orderFindMany.mock.calls[0][0].where.tableId).toBe("mesa-1");
+    expect(res.status).toBe(200);
+    expect(orderCreate).not.toHaveBeenCalled();
+  });
+
+  it("sem login e sem mesa não há com o que comparar, e a consulta nem acontece", async () => {
+    auth.mockResolvedValue(null);
+    // DINE_IN sem tableId é aceito hoje (balcão); não há chave para deduplicar.
+    const res = await POST(
+      req({ ...pedidoBase, deliveryType: "DINE_IN" }, { "x-tenant-plano": "MEMBRO_MESA_QR" })
+    );
+    expect(res.status).toBe(201);
+    expect(orderFindMany).not.toHaveBeenCalled();
   });
 });
 
