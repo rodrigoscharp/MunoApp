@@ -4,7 +4,7 @@ import { runWithTenant } from "@/lib/tenant-context";
 import { getRequestTenantId } from "@/lib/tenant-request";
 import { CategoryNav } from "@/components/menu/CategoryNav";
 import { ProductCard } from "@/components/menu/ProductCard";
-import { MenuAIAssistant } from "@/components/menu/MenuAIAssistant";
+import { FiltroDeRestricoes } from "@/components/menu/FiltroDeRestricoes";
 import { FaixaDeInstalacao } from "@/components/pwa/FaixaDeInstalacao";
 import { MenuItemWithCategory } from "@/types";
 import { getBusinessHours, checkIsOpen } from "@/lib/business-hours";
@@ -63,7 +63,7 @@ export default async function MenuPage() {
         <>
           <CategoryNav categories={nonEmpty.map(({ id, name, slug }) => ({ id, name, slug }))} />
           <div className="max-w-5xl mx-auto px-4 pt-4 pb-0">
-            <MenuAIAssistant
+            <FiltroDeRestricoes
               menuItems={nonEmpty.flatMap((c) =>
                 c.items.map((item) => ({
                   ...item,

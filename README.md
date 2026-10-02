@@ -79,7 +79,7 @@ cardápio.
 | | |
 |---|---|
 | **Cardápio por categorias** | Navegação com âncora por seção, busca visual, foto por item |
-| **Assistente de IA** | O "Muno" (Groq / LLaMA 3.3 70B) lê o cardápio e recomenda por nível de fome e restrição alimentar — vegano, sem glúten, sem lactose. Responde com os itens já prontos para adicionar ao carrinho |
+| **Filtro de restrições** | O dono declara, em cada item, se tem glúten, se tem lactose e se é vegano. No cardápio, três botões (Vegano, Sem glúten, Sem lactose) listam só o que foi declarado, com os itens prontos para adicionar ao carrinho. Item sem declaração nunca aparece em filtro nenhum |
 | **Carrinho persistente** | Sobrevive a recarregar a página e ao redirect do login (Zustand + localStorage) |
 | **Upsell no carrinho** | Sugere o item mais barato de categorias que ainda não estão no pedido |
 | **Cupom de desconto** | Percentual, valor fixo ou frete grátis. Prévia no checkout, recálculo do zero no servidor |
@@ -222,7 +222,7 @@ para a chave pública do Supabase.
 | | Membro | Membro + Mesas QR |
 |---|:---:|:---:|
 | Cardápio digital, carrinho, checkout | ✓ | ✓ |
-| Assistente de IA | ✓ | ✓ |
+| Filtro de restrições alimentares | ✓ | ✓ |
 | Delivery com GPS e retirada | ✓ | ✓ |
 | Cozinha, chat, cupons, analytics | ✓ | ✓ |
 | Gateway de pagamento próprio | ✓ | ✓ |
@@ -306,7 +306,6 @@ sessão de outro tenant tratada como deslogada · rotas de API com 404 em vez de
 | Tempo real | Supabase Realtime (Broadcast) |
 | Mapas | Leaflet, OpenStreetMap, Nominatim e OSRM |
 | Gráficos | Recharts |
-| IA | Groq — LLaMA 3.3 70B |
 | E-mail | Resend |
 | Arquivos | Supabase Storage (imagens) e Vercel Blob (backups) |
 | Testes | Vitest — 1749 testes |
@@ -331,7 +330,7 @@ src/
 │   └── api/
 │       ├── orders/ menu/ categories/ coupons/ tables/ delivery-zones/
 │       ├── payments/           # cobrança, conexões, webhook por tenant
-│       ├── motoboy/ chat/ analytics/ settings/ upload/ ai/
+│       ├── motoboy/ chat/ analytics/ settings/ upload/
 │       ├── platform/           # leads, clientes, cobranças
 │       ├── leads/publico/      # captação vinda da landing
 │       ├── funil/evento/       # ingestão dos eventos do funil
@@ -384,7 +383,7 @@ PENDING → CONFIRMED → IN_PREPARATION → READY → OUT_FOR_DELIVERY → DELI
 
 ### Pré-requisitos
 
-Node.js 20+ e Docker. As contas de Supabase, Resend e Groq só são necessárias
+Node.js 20+ e Docker. As contas de Supabase e Resend só são necessárias
 para as features que dependem delas — o cardápio e os pedidos rodam sem nenhuma.
 
 ### 1. Instale
@@ -443,7 +442,6 @@ desenvolvimento e produção divergirem exatamente no ramo onde o bug mora.
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Realtime e imagens no navegador |
 | `SUPABASE_SERVICE_ROLE_KEY` | Upload e publicação no Broadcast, no servidor |
 | `RESEND_API_KEY`, `RESEND_FROM_EMAIL` | E-mail de recuperação de senha |
-| `GROQ_API_KEY` | Assistente de IA do cardápio |
 | `CRON_SECRET` | Autentica o job diário de cobrança |
 | `LANDING_ORIGIN` | Origens autorizadas a gravar lead e evento de funil. Sem ela, produção recusa todas |
 | `ASAAS_API_KEY`, `ASAAS_ENV`, `ASAAS_WEBHOOK_TOKEN` | A cobrança **da Muno**, no checkout self-service. Nada a ver com o gateway do restaurante |

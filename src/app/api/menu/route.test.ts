@@ -172,3 +172,34 @@ describe("POST — a categoria é resolvida contra o banco", () => {
     expect(await res.json()).toMatchObject({ id: "item-novo" });
   });
 });
+
+describe("POST: informações alimentares", () => {
+  it.each([[true], [false], [null]])("aceita %s nos três campos", async (valor) => {
+    const res = await POST(
+      reqPost({ ...itemValido, containsGluten: valor, containsLactose: valor, isVegan: valor })
+    );
+
+    expect(res.status).toBe(201);
+    expect(menuItemCreate.mock.calls[0][0].data).toMatchObject({
+      containsGluten: valor,
+      containsLactose: valor,
+      isVegan: valor,
+    });
+  });
+
+  it("sem os campos, não inventa valor: ficam fora do data", async () => {
+    await POST(reqPost(itemValido));
+
+    const { data } = menuItemCreate.mock.calls[0][0];
+    expect(data).not.toHaveProperty("containsGluten");
+    expect(data).not.toHaveProperty("containsLactose");
+    expect(data).not.toHaveProperty("isVegan");
+  });
+
+  it.each([["true"], ["false"], ["sim"], [0], [1]])("recusa %j", async (valor) => {
+    const res = await POST(reqPost({ ...itemValido, containsLactose: valor }));
+
+    expect(res.status).toBe(400);
+    expect(menuItemCreate).not.toHaveBeenCalled();
+  });
+});

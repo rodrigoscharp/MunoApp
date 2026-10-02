@@ -8,9 +8,8 @@ import { z } from "zod";
 
 type Params = { params: Promise<{ id: string }> };
 
-// 2000 é o mesmo teto do histórico enviado à IA em /api/ai/menu-recommendation.
-// Mensagem de chat de pedido não chega perto disso; o limite existe para o
-// campo não ser um depósito de texto arbitrário no banco.
+// Mensagem de chat de pedido não chega perto de 2000 caracteres; o limite
+// existe para o campo não ser um depósito de texto arbitrário no banco.
 const mensagemSchema = z.object({ content: z.string().max(2000) });
 
 export async function GET(req: NextRequest, { params }: Params) {

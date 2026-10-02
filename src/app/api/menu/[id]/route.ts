@@ -12,6 +12,9 @@ const updateSchema = z.object({
   imageUrl: z.string().url().optional().nullable(),
   available: z.boolean().optional(),
   categoryId: z.string().optional(),
+  containsGluten: z.boolean().nullable().optional(),
+  containsLactose: z.boolean().nullable().optional(),
+  isVegan: z.boolean().nullable().optional(),
 });
 
 export async function GET(

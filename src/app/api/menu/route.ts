@@ -29,6 +29,12 @@ const menuItemSchema = z.object({
   imageUrl: z.string().url().optional().nullable(),
   available: z.boolean().default(true),
   categoryId: z.string(),
+  // null limpa a declaração ("não informado"); ausente não mexe. String como
+  // "false" é recusada de propósito: virar boolean por coerção reabriria o
+  // buraco que a coluna anulável fecha.
+  containsGluten: z.boolean().nullable().optional(),
+  containsLactose: z.boolean().nullable().optional(),
+  isVegan: z.boolean().nullable().optional(),
 });
 
 export async function POST(req: NextRequest) {
