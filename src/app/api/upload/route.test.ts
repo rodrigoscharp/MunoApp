@@ -10,11 +10,13 @@ vi.mock("@/lib/auth-platform", () => ({ authPlatform: () => authPlatform() }));
 
 const upload = vi.fn();
 const getPublicUrl = vi.fn();
+const list = vi.fn();
 vi.mock("@/lib/supabase-admin", () => ({
   supabaseAdmin: {
     storage: {
       from: () => ({
         upload: (...args: unknown[]) => upload(...args),
+        list: (...args: unknown[]) => list(...args),
         getPublicUrl: (...args: unknown[]) => getPublicUrl(...args),
       }),
     },
@@ -51,6 +53,7 @@ beforeEach(() => {
   auth.mockResolvedValue(null);
   authPlatform.mockResolvedValue(null);
   upload.mockResolvedValue({ error: null });
+  list.mockResolvedValue({ data: [], error: null });
   getPublicUrl.mockReturnValue({
     data: { publicUrl: "https://cdn.example/logo.png" },
   });
@@ -144,6 +147,36 @@ describe("POST /api/upload: o conteúdo é verificado e reprocessado", () => {
     authPlatform.mockResolvedValue({ user: { id: "adm-1" } });
     await POST(requisicao(arquivo()));
     expect(upload.mock.calls[0][0]).toMatch(/^plataforma\//);
+  });
+});
+
+describe("POST /api/upload: cota por restaurante", () => {
+  beforeEach(() => auth.mockResolvedValue({ user: { role: "ADMIN", tenantId: "rest-a" } }));
+
+  // Sem cota, um dono (ou um token roubado) enche o bucket público, e o custo
+  // de armazenamento é da Muno.
+  it("conta os arquivos da pasta do restaurante", async () => {
+    await POST(requisicao(arquivo()));
+    expect(list).toHaveBeenCalledWith("rest-a", { limit: 1000 });
+  });
+
+  it("recusa o upload quando a pasta já está cheia", async () => {
+    list.mockResolvedValue({ data: Array.from({ length: 500 }, (_, i) => ({ name: `f${i}.webp` })), error: null });
+
+    const res = await POST(requisicao(arquivo()));
+
+    expect(res.status).toBe(429);
+    expect(upload).not.toHaveBeenCalled();
+  });
+
+  it("um arquivo abaixo do limite passa", async () => {
+    list.mockResolvedValue({ data: Array.from({ length: 499 }, (_, i) => ({ name: `f${i}.webp` })), error: null });
+    expect((await POST(requisicao(arquivo()))).status).toBe(200);
+  });
+
+  it("se a contagem falhar, o upload segue: a cota não pode travar quem tem direito", async () => {
+    list.mockRejectedValue(new Error("storage lento"));
+    expect((await POST(requisicao(arquivo()))).status).toBe(200);
   });
 });
 

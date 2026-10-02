@@ -1,4 +1,5 @@
 import { buscarTenantComCache } from "@/lib/tenant-cache";
+import { ipPermitidoNoConsole } from "@/lib/ip-permitido";
 import { auth } from "@/lib/auth";
 import { authPlatform } from "@/lib/auth-platform";
 import { NextResponse, type NextRequest } from "next/server";
@@ -124,6 +125,15 @@ export default auth(async (req) => {
   // não injetamos x-tenant-id, o que obriga o código de lá a usar
   // prismaUnscoped conscientemente em vez de herdar um escopo em silêncio.
   if (resolvedSlug === PLATFORM_SUBDOMAIN) {
+    // Lista de IPs permitidos no console (PLATFORM_ALLOWED_IPS, separados por
+    // vírgula). O console enxerga todos os restaurantes e entra só com e-mail e
+    // senha; restringir por origem é a proteção que existe antes de um segundo
+    // fator. Desligada quando a variável não está definida. 404, e não 403: o
+    // endereço não precisa confessar que existe.
+    if (!ipPermitidoNoConsole(req.headers.get("x-forwarded-for"), process.env.PLATFORM_ALLOWED_IPS)) {
+      return new NextResponse(null, { status: 404 });
+    }
+
     const isPlatformLogin = nextUrl.pathname === "/platform/login";
     const isPlatformApi = nextUrl.pathname.startsWith("/api/platform");
     // Os endpoints do NextAuth da plataforma são o que sustenta o próprio

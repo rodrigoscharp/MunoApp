@@ -1,5 +1,5 @@
 import { limparCacheDeTenants } from "@/lib/tenant-cache";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { authPlatform } from "@/lib/auth-platform";
 
@@ -845,5 +845,42 @@ describe("proxy: aviso de privacidade no domínio do restaurante", () => {
   it("os Termos de Uso não são servidos no domínio do restaurante: são do contrato com a Muno", async () => {
     const res = await proxy(requisicao("/termos"));
     expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+  });
+});
+
+
+describe("proxy: restrição do console por IP (PLATFORM_ALLOWED_IPS)", () => {
+  function pedidoDeConsole(ip?: string) {
+    const req = new NextRequest(`http://${ADMIN_HOST}/platform/login`, {
+      headers: { host: ADMIN_HOST, ...(ip ? { "x-forwarded-for": ip } : {}) },
+    });
+    (req as unknown as { auth: Sessao }).auth = null;
+    return req;
+  }
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("com a lista definida, IP de fora recebe 404", async () => {
+    vi.stubEnv("PLATFORM_ALLOWED_IPS", "203.0.113.9");
+    const res = await proxy(pedidoDeConsole("192.0.2.5"));
+    expect(res.status).toBe(404);
+  });
+
+  it("com a lista definida, IP listado chega ao login", async () => {
+    vi.stubEnv("PLATFORM_ALLOWED_IPS", "203.0.113.9");
+    const res = await proxy(pedidoDeConsole("203.0.113.9"));
+    expect(res.status).not.toBe(404);
+  });
+
+  it("sem a variável o console abre para qualquer origem, como antes", async () => {
+    const res = await proxy(pedidoDeConsole("192.0.2.5"));
+    expect(res.status).not.toBe(404);
+  });
+
+  it("a restrição vale só para o console: o domínio de restaurante não é afetado", async () => {
+    vi.stubEnv("PLATFORM_ALLOWED_IPS", "203.0.113.9");
+    comAssinatura("ATIVA");
+    const res = await proxy(requisicao("/adm/menu", DONO));
+    expect(res.status).not.toBe(404);
   });
 });
