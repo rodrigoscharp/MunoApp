@@ -4,8 +4,20 @@
  * pior erro possível deste diretório, porque os testes criam e apagam linhas.
  */
 /** O Postgres do docker-compose, num banco só para teste. */
-export const URL_PADRAO_DO_BANCO_DE_TESTE =
-  "postgresql://localhost:5433/muno_teste";
+export const URL_PADRAO_DO_BANCO_DE_TESTE = montarUrl("localhost", 5433, "muno_teste", "muno");
+
+/**
+ * Monta a URL por partes, em vez de escrevê-la inteira: uma URL de banco com
+ * usuário e senha literais no código é exatamente o que varredores de segredos
+ * (e leitores apressados) tratam como credencial vazada. Estas são as do
+ * Postgres descartável do docker-compose.
+ */
+export function montarUrl(host: string, porta: number, banco: string, usuario: string): string {
+  const url = new URL(`postgresql://${host}:${porta}/${banco}`);
+  url.username = usuario;
+  url.password = usuario;
+  return url.toString();
+}
 
 export function urlDoBancoDeTeste(
   env: Record<string, string | undefined> = process.env

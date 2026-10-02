@@ -1,3 +1,4 @@
+import { gastarUmBcrypt } from "@/lib/gastar-bcrypt";
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prismaUnscoped } from "@/lib/prisma";
@@ -33,11 +34,6 @@ const limitador = criarLimitador({ max: 10, janelaMs: 10 * 60 * 1000 });
 // salão inteiro atrás do mesmo wifi.
 const limitadorPorIp = criarLimitador({ max: 30, janelaMs: 10 * 60 * 1000 });
 
-// Hash bcrypt (12 rodadas) de uma string descartável. Existe só para gastar o
-// mesmo tempo quando o e-mail não existe: sem isso, "usuário inexistente"
-// responde ~200 ms mais rápido que "senha errada" e entrega quais contas
-// existem.
-const HASH_FALSO = "hash-descartavel";
 
 /**
  * Exportada para ser testável: dentro do objeto do CredentialsProvider a função
@@ -70,7 +66,7 @@ export async function autorizarCredenciais(
   });
 
   if (!user || !user.password) {
-    await bcrypt.compare(parsed.data.password, HASH_FALSO);
+    await gastarUmBcrypt(parsed.data.password);
     return null;
   }
 

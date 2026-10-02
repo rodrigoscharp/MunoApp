@@ -1,3 +1,4 @@
+import { gastarUmBcrypt } from "@/lib/gastar-bcrypt";
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prismaUnscoped } from "@/lib/prisma";
@@ -23,10 +24,6 @@ const limitador = criarLimitador({ max: 10, janelaMs: 10 * 60 * 1000 });
 // não impede quem testa muitos e-mails.
 const limitadorPorIp = criarLimitador({ max: 20, janelaMs: 10 * 60 * 1000 });
 
-// Mesmo propósito de HASH_FALSO em auth.ts: gastar o tempo de um bcrypt quando
-// o e-mail não existe, para o cronômetro não revelar quem é admin.
-const HASH_FALSO = "hash-descartavel";
-
 /** Exportada para ser testável (ver src/lib/auth-platform.test.ts). */
 export async function autorizarPlataforma(
   credentials: Partial<Record<string, unknown>> | undefined,
@@ -44,7 +41,7 @@ export async function autorizarPlataforma(
     where: { email: parsed.data.email },
   });
   if (!admin) {
-    await bcrypt.compare(parsed.data.password, HASH_FALSO);
+    await gastarUmBcrypt(parsed.data.password);
     return null;
   }
 

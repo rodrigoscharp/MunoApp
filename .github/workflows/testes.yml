@@ -81,7 +81,9 @@ jobs:
     env:
       # src/test-integracao/banco.ts recusa qualquer host que não seja local e
       # qualquer banco sem "test" no nome.
-      DATABASE_URL_TESTE: postgresql://localhost:5432/muno_teste
+      PG_USUARIO: postgres
+      PG_SENHA: ${{ github.run_id }}
+      DATABASE_URL_TESTE: postgresql://${{ env.PG_USUARIO }}:${{ env.PG_SENHA }}@localhost:5432/muno_teste
 
     steps:
       - uses: actions/checkout@v4

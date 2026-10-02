@@ -18,6 +18,9 @@ const eslintConfig = defineConfig([
     // duas dezenas de avisos reais do código escrito à mão. Next 16 não roda
     // mais lint no build, então este é o único lugar onde eles aparecem.
     "src/generated/**",
+    // Bibliotecas de terceiros já minificadas (Tailwind, Lucide, GSAP) servidas
+    // pela landing. Não são código nosso e geravam mais de mil avisos.
+    "public/vendas/js/vendor/**",
   ]),
   {
     // Os scripts de operação em .js rodam por `node scripts/...` direto, antes
