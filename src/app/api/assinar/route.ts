@@ -1,3 +1,4 @@
+import { TERMOS_VERSAO } from "@/lib/termos";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -152,6 +153,8 @@ export async function POST(req: NextRequest) {
         ciclo,
         sessaoId,
         expiraEm: new Date(Date.now() + VALIDADE_MS[metodo]),
+        termosAceitosEm: new Date(),
+        termosVersao: TERMOS_VERSAO,
       },
     });
   } catch (err) {
@@ -200,6 +203,8 @@ export async function POST(req: NextRequest) {
             ciclo,
             sessaoId,
             expiraEm: new Date(Date.now() + VALIDADE_MS[metodo]),
+            termosAceitosEm: new Date(),
+            termosVersao: TERMOS_VERSAO,
           },
         });
       } catch (err2) {

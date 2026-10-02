@@ -99,9 +99,35 @@ export async function espelharEventoDeAssinatura(
 
   const competencia = competenciaDe(vencimento);
   const valor = pagamento.value ?? Number(assinatura.valorMensal);
-  const existente = await prismaUnscoped.cobranca.findUnique({
-    where: { assinaturaId_competencia: { assinaturaId: assinatura.id, competencia } },
-  });
+
+  // A cobrança é reconhecida pelo id do pagamento, e só na falta dele pela
+  // competência. O vencimento pode ser remarcado no Asaas (muda o mês, não o
+  // id); casar só por competência criava uma segunda cobrança no mês novo e
+  // deixava a antiga VENCIDA para sempre.
+  let existente = pagamento.id
+    ? await prismaUnscoped.cobranca.findUnique({
+        where: { asaasPaymentId: pagamento.id },
+      })
+    : null;
+  let adotar = false;
+  if (!existente) {
+    const daCompetencia = await prismaUnscoped.cobranca.findUnique({
+      where: { assinaturaId_competencia: { assinaturaId: assinatura.id, competencia } },
+    });
+    if (daCompetencia?.asaasPaymentId && daCompetencia.asaasPaymentId !== pagamento.id) {
+      // Outro pagamento do Asaas já ocupa este mês. Escrever por cima
+      // misturaria duas cobranças; sem como representar as duas, só o log.
+      console.error(
+        `[espelho/asaas] ${evento}: competência ${competencia} já é do pagamento ` +
+          `${daCompetencia.asaasPaymentId}, ignorando payment=${pagamento.id}`
+      );
+      return true;
+    }
+    existente = daCompetencia;
+    // Cobrança anterior a esta coluna (ou criada pelo cron): passa a carregar o id.
+    adotar = !!daCompetencia && !!pagamento.id;
+  }
+  const comId = adotar && pagamento.id ? { asaasPaymentId: pagamento.id } : {};
 
   if (PAGOS.has(evento)) {
     if (!existente) {
@@ -113,13 +139,14 @@ export async function espelharEventoDeAssinatura(
           vencimento,
           status: "PAGA",
           pagoEm: agora,
+          asaasPaymentId: pagamento.id ?? null,
         },
       });
     } else if (existente.status !== "PAGA") {
       // Vence até CANCELADA: se o dinheiro entrou, a dívida está paga.
       await prismaUnscoped.cobranca.update({
         where: { id: existente.id },
-        data: { status: "PAGA", pagoEm: agora },
+        data: { status: "PAGA", pagoEm: agora, ...comId },
       });
     }
   } else if (evento === "PAYMENT_DELETED") {
@@ -133,7 +160,14 @@ export async function espelharEventoDeAssinatura(
     const status = evento === "PAYMENT_OVERDUE" ? "VENCIDA" : "PENDENTE";
     if (!existente) {
       await prismaUnscoped.cobranca.create({
-        data: { assinaturaId: assinatura.id, competencia, valor, vencimento, status },
+        data: {
+          assinaturaId: assinatura.id,
+          competencia,
+          valor,
+          vencimento,
+          status,
+          asaasPaymentId: pagamento.id ?? null,
+        },
       });
     } else if (existente.status === "PENDENTE" || existente.status === "VENCIDA") {
       await prismaUnscoped.cobranca.update({
@@ -144,6 +178,7 @@ export async function espelharEventoDeAssinatura(
           status: evento === "PAYMENT_OVERDUE" ? "VENCIDA" : existente.status,
           valor,
           vencimento,
+          ...comId,
         },
       });
     }

@@ -30,7 +30,11 @@ import { registrarEvento } from "@/lib/funil/registrar";
  */
 export async function provisionarInscricao(
   inscricao: Inscricao,
-  { valorPago, origem }: { valorPago?: number | null; origem: string }
+  {
+    valorPago,
+    origem,
+    pagamentoId,
+  }: { valorPago?: number | null; origem: string; pagamentoId?: string | null }
 ): Promise<{ tenantId: string }> {
   const agora = new Date();
 
@@ -167,6 +171,10 @@ export async function provisionarInscricao(
         vencimento: agora,
         status: "PAGA",
         pagoEm: agora,
+        // O id do primeiro pagamento fica gravado para o espelho
+        // (espelho.ts) reconhecer esta cobrança quando o Asaas repetir
+        // CONFIRMED/RECEIVED/UPDATED dela, em vez de criar uma segunda.
+        asaasPaymentId: pagamentoId ?? inscricao.asaasPaymentId ?? null,
       },
     });
 

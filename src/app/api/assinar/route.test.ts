@@ -1,3 +1,4 @@
+import { TERMOS_VERSAO } from "@/lib/termos";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
@@ -107,6 +108,15 @@ function corpoValido() {
 }
 
 describe("aceite dos termos", () => {
+  it("grava quando e qual versão dos termos foi aceita", async () => {
+    await POST(requisicao(corpoValido()));
+
+    expect(inscricaoCreate.mock.calls[0][0].data).toMatchObject({
+      termosAceitosEm: expect.any(Date),
+      termosVersao: TERMOS_VERSAO,
+    });
+  });
+
   // Coletar nome, e-mail e documento sem o aceite registrado é o que a tela
   // promete que não acontece. O checkbox da tela é conveniência; esta recusa é
   // o que garante.

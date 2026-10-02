@@ -79,6 +79,7 @@ describe("cobrança de renovação emitida pelo Asaas", () => {
         valor: 119.99,
         vencimento: new Date("2026-11-10T00:00:00Z"),
         status: "PENDENTE",
+        asaasPaymentId: "pay_2",
       },
     });
   });
@@ -142,6 +143,72 @@ describe("cobrança de renovação emitida pelo Asaas", () => {
   });
 });
 
+describe("o id do pagamento identifica a cobrança, não o mês", () => {
+  // Vencimento remarcado no Asaas: o dueDate muda de mês, o id não. Sem o id, o
+  // PAYMENT_UPDATED criava uma segunda cobrança no mês novo e a velha ficava
+  // VENCIDA para sempre, bloqueando quem acabou de pagar.
+  it("PAYMENT_UPDATED com vencimento em outro mês atualiza a mesma Cobranca", async () => {
+    cobrancaFindUnique.mockImplementation(async ({ where }) =>
+      where.asaasPaymentId === "pay_2"
+        ? { id: "c1", status: "VENCIDA", asaasPaymentId: "pay_2" }
+        : null
+    );
+
+    await espelharEventoDeAssinatura(
+      pagamento("PAYMENT_UPDATED", { dueDate: "2026-12-05" }),
+      AGORA
+    );
+
+    expect(cobrancaCreate).not.toHaveBeenCalled();
+    expect(cobrancaUpdate).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: {
+        status: "VENCIDA",
+        valor: 119.99,
+        vencimento: new Date("2026-12-05T00:00:00Z"),
+      },
+    });
+  });
+
+  it("adota a Cobranca da competência que ainda não tem id (criada antes desta coluna)", async () => {
+    cobrancaFindUnique.mockImplementation(async ({ where }) =>
+      where.assinaturaId_competencia
+        ? { id: "c1", status: "PENDENTE", asaasPaymentId: null }
+        : null
+    );
+
+    await espelharEventoDeAssinatura(pagamento("PAYMENT_OVERDUE"), AGORA);
+
+    expect(cobrancaCreate).not.toHaveBeenCalled();
+    expect(cobrancaUpdate).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: {
+        status: "VENCIDA",
+        valor: 119.99,
+        vencimento: new Date("2026-11-10T00:00:00Z"),
+        asaasPaymentId: "pay_2",
+      },
+    });
+  });
+
+  it("competência já ocupada por OUTRO pagamento não é sobrescrita: loga e segue", async () => {
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    cobrancaFindUnique.mockImplementation(async ({ where }) =>
+      where.assinaturaId_competencia
+        ? { id: "c1", status: "PENDENTE", asaasPaymentId: "pay_outro" }
+        : null
+    );
+
+    const tratado = await espelharEventoDeAssinatura(pagamento("PAYMENT_CREATED"), AGORA);
+
+    expect(tratado).toBe(true);
+    expect(cobrancaCreate).not.toHaveBeenCalled();
+    expect(cobrancaUpdate).not.toHaveBeenCalled();
+    expect(erro).toHaveBeenCalled();
+    erro.mockRestore();
+  });
+});
+
 describe("pagamento da renovação", () => {
   it.each(["PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"])(
     "%s baixa a Cobranca existente e carimba pagoEm",
@@ -168,6 +235,7 @@ describe("pagamento da renovação", () => {
         vencimento: new Date("2026-11-10T00:00:00Z"),
         status: "PAGA",
         pagoEm: AGORA,
+        asaasPaymentId: "pay_2",
       },
     });
   });

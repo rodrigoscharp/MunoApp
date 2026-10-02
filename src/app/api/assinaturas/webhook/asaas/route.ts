@@ -152,6 +152,7 @@ export async function POST(req: NextRequest) {
   await provisionarInscricao(inscricao, {
     valorPago: pagamento.value,
     origem: "webhook/asaas",
+    pagamentoId: pagamento.id,
   });
 
   return ok();
