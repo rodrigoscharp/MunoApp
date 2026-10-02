@@ -1,11 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type UseFormRegister } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { X, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { booleanParaTri, triParaBoolean } from "@/lib/restricoes";
+
+// `.catch("nd")`: valor que não seja exatamente um dos três cai em "Não
+// informado". Falhar a validação aqui travaria o botão sem mensagem nenhuma, e
+// coagir para "Não" afirmaria algo que o dono não disse.
+const triEstado = z.enum(["sim", "nao", "nd"]).catch("nd");
 
 const schema = z.object({
   name: z.string().min(1, "Nome obrigatório"),
@@ -14,6 +20,9 @@ const schema = z.object({
   imageUrl: z.string().url("URL inválida").optional().or(z.literal("")),
   available: z.boolean(),
   categoryId: z.string().min(1, "Selecione uma categoria"),
+  containsGluten: triEstado,
+  containsLactose: triEstado,
+  isVegan: triEstado,
 });
 
 type FormData = z.infer<typeof schema>;
@@ -26,6 +35,41 @@ interface MenuItem {
   imageUrl: string | null;
   available: boolean;
   categoryId: string;
+  containsGluten?: boolean | null;
+  containsLactose?: boolean | null;
+  isVegan?: boolean | null;
+}
+
+const OPCOES_ALIMENTARES = [
+  { valor: "sim", rotulo: "Sim" },
+  { valor: "nao", rotulo: "Não" },
+  { valor: "nd", rotulo: "Não informado" },
+] as const;
+
+function PerguntaAlimentar({
+  legenda,
+  campo,
+  register,
+}: {
+  legenda: string;
+  campo: "containsGluten" | "containsLactose" | "isVegan";
+  register: UseFormRegister<FormData>;
+}) {
+  return (
+    <fieldset>
+      <legend className="text-sm text-neutral-700 mb-1">{legenda}</legend>
+      <div className="flex gap-2">
+        {OPCOES_ALIMENTARES.map(({ valor, rotulo }) => (
+          <label key={valor} className="flex-1 cursor-pointer">
+            <input type="radio" value={valor} {...register(campo)} className="peer sr-only" />
+            <span className="block text-center px-3 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-xs text-neutral-600 transition peer-checked:border-brand peer-checked:bg-brand-light peer-checked:text-brand-dark peer-focus-visible:ring-2 peer-focus-visible:ring-brand">
+              {rotulo}
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
 }
 
 interface Props {
@@ -79,6 +123,9 @@ export function MenuItemModal({ open, onClose, item, categories, onSaved }: Prop
         imageUrl: item.imageUrl ?? "",
         available: item.available,
         categoryId: item.categoryId,
+        containsGluten: booleanParaTri(item.containsGluten),
+        containsLactose: booleanParaTri(item.containsLactose),
+        isVegan: booleanParaTri(item.isVegan),
       });
     } else {
       reset({
@@ -88,6 +135,9 @@ export function MenuItemModal({ open, onClose, item, categories, onSaved }: Prop
         imageUrl: "",
         available: true,
         categoryId: categories[0]?.id ?? "",
+        containsGluten: "nd",
+        containsLactose: "nd",
+        isVegan: "nd",
       });
     }
     setError("");
@@ -97,11 +147,15 @@ export function MenuItemModal({ open, onClose, item, categories, onSaved }: Prop
     setLoading(true);
     setError("");
 
+    const { containsGluten, containsLactose, isVegan, ...resto } = data;
     const payload = {
-      ...data,
+      ...resto,
       price: Number(data.price),
       imageUrl: data.imageUrl || null,
       description: data.description || null,
+      containsGluten: triParaBoolean(containsGluten),
+      containsLactose: triParaBoolean(containsLactose),
+      isVegan: triParaBoolean(isVegan),
     };
 
     const res = item
@@ -242,6 +296,19 @@ export function MenuItemModal({ open, onClose, item, categories, onSaved }: Prop
             {errors.imageUrl && (
               <p className="text-brand text-xs mt-1">{errors.imageUrl.message}</p>
             )}
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-sm font-medium text-neutral-700">Informações para o cliente</h3>
+              <p className="text-xs text-neutral-400 mt-0.5">
+                Marque &quot;Não&quot; só se tiver certeza, incluindo contaminação cruzada na cozinha.
+                Quem tem alergia vai confiar nisso.
+              </p>
+            </div>
+            <PerguntaAlimentar legenda="Contém glúten?" campo="containsGluten" register={register} />
+            <PerguntaAlimentar legenda="Contém lactose?" campo="containsLactose" register={register} />
+            <PerguntaAlimentar legenda="É vegano?" campo="isVegan" register={register} />
           </div>
 
           <div className="flex items-center gap-3">

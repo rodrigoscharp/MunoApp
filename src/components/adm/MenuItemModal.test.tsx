@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const toastError = vi.fn();
@@ -272,5 +272,99 @@ describe("resposta do servidor", () => {
     await waitFor(() => expect(botao.disabled).toBe(false));
     expect(botao.textContent).toMatch(/salvar/i);
     expect(toastError).toHaveBeenCalled();
+  });
+});
+
+describe("informações para o cliente", () => {
+  // `null` e `false` são coisas diferentes aqui: "Não informado" nunca pode
+  // chegar ao servidor como "Não", porque o cardápio passaria a afirmar que o
+  // prato não tem lactose sem que o dono tenha dito isso.
+  const PERGUNTAS = [
+    ["Contém glúten?", /contém glúten/i, "containsGluten"],
+    ["Contém lactose?", /contém lactose/i, "containsLactose"],
+    ["É vegano?", /é vegano/i, "isVegan"],
+  ] as const;
+
+  const opcao = (grupo: RegExp, rotulo: string) =>
+    within(screen.getByRole("group", { name: grupo })).getByRole("radio", {
+      name: rotulo,
+    }) as HTMLInputElement;
+
+  const itemAntigo = {
+    id: "item-1",
+    name: "X-Bacon",
+    description: null,
+    price: 30,
+    imageUrl: null,
+    available: true,
+    categoryId: "cat-1",
+  };
+
+  it.each(PERGUNTAS)("%s começa em 'Não informado' num item novo", (_titulo, grupo) => {
+    montar();
+    expect(opcao(grupo, "Não informado").checked).toBe(true);
+  });
+
+  it("item anterior à migração, sem os campos, também abre em 'Não informado'", () => {
+    montar(itemAntigo);
+
+    for (const [, grupo] of PERGUNTAS) {
+      expect(opcao(grupo, "Não informado").checked).toBe(true);
+    }
+  });
+
+  it("salvar sem mexer manda null nos três, nunca false", async () => {
+    montar();
+    await preencherValido();
+    await salvar();
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(enviado()).toMatchObject({
+      containsGluten: null,
+      containsLactose: null,
+      isVegan: null,
+    });
+  });
+
+  it.each(PERGUNTAS)("%s: 'Sim' manda true", async (_titulo, grupo, campoApi) => {
+    montar();
+    await preencherValido();
+    await userEvent.click(opcao(grupo, "Sim"));
+    await salvar();
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(enviado()[campoApi]).toBe(true);
+  });
+
+  it.each(PERGUNTAS)("%s: 'Não' manda false", async (_titulo, grupo, campoApi) => {
+    montar();
+    await preencherValido();
+    await userEvent.click(opcao(grupo, "Não"));
+    await salvar();
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(enviado()[campoApi]).toBe(false);
+  });
+
+  it("carrega o que o item já declara", () => {
+    montar({ ...itemAntigo, containsGluten: false, containsLactose: true, isVegan: null });
+
+    expect(opcao(/contém glúten/i, "Não").checked).toBe(true);
+    expect(opcao(/contém lactose/i, "Sim").checked).toBe(true);
+    expect(opcao(/é vegano/i, "Não informado").checked).toBe(true);
+  });
+
+  it("dá para voltar uma declaração para 'Não informado'", async () => {
+    montar({ ...itemAntigo, containsLactose: false });
+    await userEvent.click(opcao(/contém lactose/i, "Não informado"));
+    await salvar();
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(enviado().containsLactose).toBeNull();
+  });
+
+  it("avisa sobre contaminação cruzada, porque o cliente vai confiar", () => {
+    montar();
+    expect(screen.getByText(/contaminação cruzada/i)).toBeDefined();
   });
 });

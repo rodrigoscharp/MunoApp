@@ -15,6 +15,9 @@ interface MenuItem {
   imageUrl: string | null;
   available: boolean;
   categoryId: string;
+  containsGluten?: boolean | null;
+  containsLactose?: boolean | null;
+  isVegan?: boolean | null;
 }
 
 interface Category {
