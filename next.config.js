@@ -1,3 +1,28 @@
+// Só o projeto Supabase do app e só o bucket de imagens do cardápio. Com
+// "**.supabase.co", o /_next/image servia de otimizador gratuito, na cota da
+// Muno, para qualquer projeto Supabase do mundo. Sem a variável (desenvolvimento
+// sem .env) cai no curinga antigo para a imagem não quebrar.
+function remotePatternsDasImagens() {
+  try {
+    const { hostname } = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "");
+    if (hostname) {
+      return [
+        {
+          protocol: "https",
+          hostname,
+          pathname: "/storage/v1/object/public/product-images/**",
+        },
+      ];
+    }
+  } catch {
+    // cai no curinga
+  }
+  return [
+    { protocol: "https", hostname: "**.supabase.co" },
+    { protocol: "https", hostname: "**.supabase.com" },
+  ];
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Não anuncia o framework e a versão em todo response. Não é defesa, mas é
@@ -5,16 +30,7 @@ const nextConfig = {
   // certa.
   poweredByHeader: false,
   images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "**.supabase.co",
-      },
-      {
-        protocol: "https",
-        hostname: "**.supabase.com",
-      },
-    ],
+    remotePatterns: remotePatternsDasImagens(),
   },
   async headers() {
     return [
