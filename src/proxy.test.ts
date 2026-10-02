@@ -79,12 +79,16 @@ function requisicaoPlataforma(caminho: string, method = "GET"): NextRequest {
 }
 
 /** Status da assinatura do tenant; `null` = tenant sem assinatura nenhuma. */
-function comAssinatura(status: string | null, plano: string = "MEMBRO") {
+function comAssinatura(
+  status: string | null,
+  plano: string = "MEMBRO",
+  encerraEm: Date | null = null
+) {
   findUnique.mockResolvedValue({
     id: TENANT_ID,
     status: "active",
     plano,
-    assinatura: status === null ? null : { status },
+    assinatura: status === null ? null : { status, encerraEm },
   });
 }
 
@@ -168,6 +172,34 @@ describe("proxy: bloqueio da área de gestão", () => {
       expect(destino(res)).toBe(`http://${HOST}/adm/assinatura`);
     }
   );
+
+  describe("assinatura encerrada no gateway (encerraEm)", () => {
+    const ontem = () => new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const amanha = () => new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    it("depois da data de encerramento, /adm redireciona para /adm/assinatura", async () => {
+      comAssinatura("ATIVA", "MEMBRO", ontem());
+      const res = await proxy(requisicao("/adm/menu", DONO));
+      expect(destino(res)).toBe(`http://${HOST}/adm/assinatura`);
+    });
+
+    it("antes da data, o acesso segue (o período pago vale até o fim)", async () => {
+      comAssinatura("ATIVA", "MEMBRO", amanha());
+      const res = await proxy(requisicao("/adm/menu", DONO));
+      expect(destino(res)).toBeNull();
+    });
+
+    it("encerrada, o cardápio e a operação continuam de pé, como no bloqueio por atraso", async () => {
+      comAssinatura("ATIVA", "MEMBRO", ontem());
+      const res = await proxy(requisicao("/adm/orders", DONO));
+      expect(destino(res)).toBeNull();
+    });
+
+    it("sem encerraEm nada muda", async () => {
+      comAssinatura("ATIVA", "MEMBRO", null);
+      expect(destino(await proxy(requisicao("/adm/menu", DONO)))).toBeNull();
+    });
+  });
 
   // O critério da lista de escape é uma pergunta só: algum cliente do
   // restaurante sofre se isto for bloqueado? Pedido que chegou e ninguém está

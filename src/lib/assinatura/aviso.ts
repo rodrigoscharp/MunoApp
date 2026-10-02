@@ -1,4 +1,4 @@
-import { AVISO_DIAS, BLOQUEIO_DIAS, diasDeAtraso } from "./regua";
+import { AVISO_DIAS, BLOQUEIO_DIAS_UTEIS, diasDeAtraso, diasUteisDeAtraso } from "./regua";
 
 /**
  * O tom da faixa de aviso no /adm, decidido pelo atraso da cobrança em aberto
@@ -41,7 +41,10 @@ export function avisoDeAtraso(
 
   // Os limiares são os mesmos da régua, importados e não recopiados: a faixa
   // precisa falar em bloqueio no dia em que o bloqueio de fato acontece.
-  if (dias >= BLOQUEIO_DIAS) return { tom: "BLOQUEIO", dias };
+  // O bloqueio é em dias úteis; o aviso e o texto "há N dias" seguem corridos.
+  if (diasUteisDeAtraso(vencimentoMaisAntigo, agora) >= BLOQUEIO_DIAS_UTEIS) {
+    return { tom: "BLOQUEIO", dias };
+  }
   if (dias >= AVISO_DIAS) return { tom: "FIRME", dias };
   return { tom: "INFORMATIVO", dias };
 }

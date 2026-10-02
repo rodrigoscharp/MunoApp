@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AlertTriangle, Info, Lock } from "lucide-react";
 import type { TomDoAviso } from "@/lib/assinatura/aviso";
-import { BLOQUEIO_DIAS } from "@/lib/assinatura/regua";
+import { BLOQUEIO_DIAS_UTEIS } from "@/lib/assinatura/regua";
 
 interface Props {
   tom: TomDoAviso;
@@ -66,7 +66,7 @@ export function AvisoDeCobranca({ tom, dias }: Props) {
         {tom === "FIRME" && (
           <p>
             Sua mensalidade da Muno está vencida <strong>{emAtraso(dias)}</strong>.
-            Com {BLOQUEIO_DIAS} dias de atraso o acesso às telas de gestão é
+            Com {BLOQUEIO_DIAS_UTEIS} dias úteis de atraso o acesso às telas de gestão é
             suspenso — seu cardápio continua no ar recebendo pedidos, mas você
             perde o painel.
           </p>

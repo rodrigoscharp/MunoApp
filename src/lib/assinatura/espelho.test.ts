@@ -310,9 +310,21 @@ describe("a régua depois do espelho", () => {
 });
 
 describe("assinatura cancelada no Asaas", () => {
+  /**
+   * Cancelamento pelo gateway NÃO vira `CANCELADA`: esse status é "cortesia" e
+   * dá acesso livre. O acesso vai até o fim do período já pago e então cai
+   * (`encerraEm`, que o proxy confere).
+   */
+  const ultimaPaga = (vencimento: string) =>
+    cobrancaFindFirst.mockImplementation(async ({ where }) =>
+      where.status === "PAGA" ? { vencimento: new Date(vencimento) } : null
+    );
+
   it.each(["SUBSCRIPTION_DELETED", "SUBSCRIPTION_INACTIVATED"])(
-    "%s marca a Assinatura como CANCELADA",
+    "%s encerra o acesso no fim do período pago e não marca CANCELADA",
     async (event) => {
+      ultimaPaga("2026-11-10T00:00:00Z"); // mensal: pago até 10/12
+
       const tratado = await espelharEventoDeAssinatura(
         { event, subscription: { id: "sub_1" } },
         AGORA
@@ -321,10 +333,55 @@ describe("assinatura cancelada no Asaas", () => {
       expect(tratado).toBe(true);
       expect(assinaturaUpdate).toHaveBeenCalledWith({
         where: { id: "ass-1" },
-        data: { status: "CANCELADA" },
+        data: { encerraEm: new Date("2026-12-10T00:00:00Z") },
       });
+      expect(JSON.stringify(assinaturaUpdate.mock.calls)).not.toContain("CANCELADA");
     }
   );
+
+  it("plano anual vale um ano a partir do último pagamento", async () => {
+    assinaturaFindUnique.mockResolvedValue({ ...assinatura, ciclo: "ANUAL" });
+    ultimaPaga("2026-11-10T00:00:00Z");
+
+    await espelharEventoDeAssinatura({ event: "SUBSCRIPTION_DELETED", subscription: { id: "sub_1" } }, AGORA);
+
+    expect(assinaturaUpdate.mock.calls[0][0].data.encerraEm).toEqual(new Date("2027-11-10T00:00:00Z"));
+  });
+
+  it("período pago que já acabou encerra agora", async () => {
+    ultimaPaga("2026-08-10T00:00:00Z"); // pago até 10/09, e hoje é 20/11
+
+    await espelharEventoDeAssinatura({ event: "SUBSCRIPTION_DELETED", subscription: { id: "sub_1" } }, AGORA);
+
+    expect(assinaturaUpdate.mock.calls[0][0].data.encerraEm).toEqual(AGORA);
+  });
+
+  it("sem nenhum pagamento, encerra agora", async () => {
+    cobrancaFindFirst.mockResolvedValue(null);
+
+    await espelharEventoDeAssinatura({ event: "SUBSCRIPTION_DELETED", subscription: { id: "sub_1" } }, AGORA);
+
+    expect(assinaturaUpdate.mock.calls[0][0].data.encerraEm).toEqual(AGORA);
+  });
+
+  it("dia 31 não vaza para o mês seguinte: 31/01 + 1 mês é 28/02", async () => {
+    ultimaPaga("2027-01-31T00:00:00Z");
+    await espelharEventoDeAssinatura(
+      { event: "SUBSCRIPTION_DELETED", subscription: { id: "sub_1" } },
+      new Date("2027-02-01T12:00:00Z")
+    );
+    expect(assinaturaUpdate.mock.calls[0][0].data.encerraEm).toEqual(new Date("2027-02-28T00:00:00Z"));
+  });
+
+  it("evento repetido não adia um encerramento já marcado", async () => {
+    const jaMarcada = new Date("2026-12-10T00:00:00Z");
+    assinaturaFindUnique.mockResolvedValue({ ...assinatura, encerraEm: jaMarcada });
+    ultimaPaga("2026-11-10T00:00:00Z");
+
+    await espelharEventoDeAssinatura({ event: "SUBSCRIPTION_DELETED", subscription: { id: "sub_1" } }, AGORA);
+
+    expect(assinaturaUpdate).not.toHaveBeenCalled();
+  });
 
   it("assinatura que não é nossa é tratada como nada a fazer", async () => {
     assinaturaFindUnique.mockResolvedValue(null);

@@ -11,8 +11,14 @@
  * dia em que roda.
  */
 
+/** Dias corridos de atraso até a assinatura virar INADIMPLENTE (só aviso). */
 export const AVISO_DIAS = 7;
-export const BLOQUEIO_DIAS = 15;
+/**
+ * Dias ÚTEIS de atraso até o acesso à gestão ser bloqueado: o prazo combinado
+ * com o cliente. Dia útil aqui é segunda a sexta; feriado conta como útil, o
+ * que dá ao cliente, no máximo, um ou dois dias a menos de prazo.
+ */
+export const BLOQUEIO_DIAS_UTEIS = 10;
 
 export type StatusAssinatura =
   | "ATIVA"
@@ -41,6 +47,29 @@ export function diasDeAtraso(vencimento: Date, agora: Date): number {
   return Math.round((diaDeHoje - diaDoVencimento) / UM_DIA_MS);
 }
 
+/**
+ * Dias úteis (segunda a sexta) de atraso: os dias do calendário depois do
+ * vencimento, até hoje inclusive, que não são sábado nem domingo. Mesma
+ * convenção de `diasDeAtraso`: o dia do vencimento não conta, e antes de vencer
+ * é zero.
+ */
+export function diasUteisDeAtraso(vencimento: Date, agora: Date): number {
+  const corridos = diasDeAtraso(vencimento, agora);
+  if (corridos <= 0) return 0;
+
+  const semanas = Math.floor(corridos / 7);
+  let uteis = semanas * 5;
+  // O que sobra depois das semanas inteiras: no máximo seis dias, e a semana
+  // completa não muda o dia da semana, então dá para andar a partir do dia do
+  // vencimento.
+  const diaDoVencimento = vencimento.getUTCDay(); // 0 = domingo
+  for (let i = 1; i <= corridos % 7; i++) {
+    const dia = (diaDoVencimento + i) % 7;
+    if (dia !== 0 && dia !== 6) uteis++;
+  }
+  return uteis;
+}
+
 export function statusPelaRegua(
   vencimentoMaisAntigo: Date | null,
   agora: Date
@@ -48,7 +77,9 @@ export function statusPelaRegua(
   if (!vencimentoMaisAntigo) return "ATIVA";
 
   const atraso = diasDeAtraso(vencimentoMaisAntigo, agora);
-  if (atraso >= BLOQUEIO_DIAS) return "BLOQUEADA";
+  if (diasUteisDeAtraso(vencimentoMaisAntigo, agora) >= BLOQUEIO_DIAS_UTEIS) {
+    return "BLOQUEADA";
+  }
   if (atraso >= AVISO_DIAS) return "INADIMPLENTE";
   return "ATIVA";
 }

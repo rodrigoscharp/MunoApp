@@ -520,6 +520,11 @@ model Assinatura {
   // o cliente que pagou em dia é bloqueado pela régua em 15 dias mesmo assim.
   asaasSubscriptionId String?          @unique
   status              AssinaturaStatus @default(ATIVA)
+  // Fim do acesso quando o Asaas encerra a assinatura (SUBSCRIPTION_DELETED ou
+  // INACTIVATED): o último período pago vale até aqui, e o proxy bloqueia a
+  // gestão depois. Não é CANCELADA, que é cortesia e dá acesso livre. Nulo =
+  // assinatura em vigor.
+  encerraEm           DateTime?
   cobrancas           Cobranca[]
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt

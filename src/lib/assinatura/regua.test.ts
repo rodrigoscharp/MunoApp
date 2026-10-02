@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diasDeAtraso, situacaoDaCobranca, statusPelaRegua } from "./regua";
+import { diasDeAtraso, diasUteisDeAtraso, situacaoDaCobranca, statusPelaRegua } from "./regua";
 
 const HOJE = new Date("2026-08-20T12:00:00Z");
 function diasAtras(n: number): Date {
@@ -22,6 +22,37 @@ describe("diasDeAtraso", () => {
   });
 });
 
+// HOJE é uma quinta-feira (20/08/2026). Os vencimentos abaixo estão escritos
+// como datas, e não como "n dias atrás", porque o que importa aqui é onde caem
+// os fins de semana.
+describe("diasUteisDeAtraso", () => {
+  it("não conta sábado nem domingo", () => {
+    // Sexta 07/08 vencida: segunda 10 a quinta 20 são 9 dias úteis.
+    expect(diasUteisDeAtraso(new Date("2026-08-07T00:00:00Z"), HOJE)).toBe(9);
+  });
+
+  it("vencimento no fim de semana conta a partir da segunda", () => {
+    expect(diasUteisDeAtraso(new Date("2026-08-08T00:00:00Z"), HOJE)).toBe(9); // sábado
+    expect(diasUteisDeAtraso(new Date("2026-08-09T00:00:00Z"), HOJE)).toBe(9); // domingo
+  });
+
+  it("o dia do vencimento não conta, como em diasDeAtraso", () => {
+    expect(diasUteisDeAtraso(new Date("2026-08-20T01:00:00Z"), HOJE)).toBe(0);
+    expect(diasUteisDeAtraso(new Date("2026-08-19T23:00:00Z"), HOJE)).toBe(1);
+  });
+
+  it("fica em zero antes de vencer", () => {
+    expect(diasUteisDeAtraso(new Date("2026-08-25T12:00:00Z"), HOJE)).toBe(0);
+  });
+
+  it("sobre muitas semanas soma cinco por semana", () => {
+    // Quinta 06/08 até quinta 20/08: duas semanas, 10 dias úteis.
+    expect(diasUteisDeAtraso(new Date("2026-08-06T00:00:00Z"), HOJE)).toBe(10);
+    // 52 semanas exatas: 260 dias úteis.
+    expect(diasUteisDeAtraso(new Date("2025-08-21T00:00:00Z"), HOJE)).toBe(260);
+  });
+});
+
 describe("statusPelaRegua", () => {
   it("sem cobrança vencida, fica ATIVA", () => {
     expect(statusPelaRegua(null, HOJE)).toBe("ATIVA");
@@ -32,21 +63,31 @@ describe("statusPelaRegua", () => {
     expect(statusPelaRegua(diasAtras(dias), HOJE)).toBe("ATIVA");
   });
 
-  it.each([7, 8, 14])("atraso de %i dias é INADIMPLENTE", (dias) => {
+  it.each([7, 8, 12])("atraso de %i dias corridos é INADIMPLENTE", (dias) => {
     expect(statusPelaRegua(diasAtras(dias), HOJE)).toBe("INADIMPLENTE");
   });
 
-  it.each([15, 30, 365])("atraso de %i dias é BLOQUEADA", (dias) => {
+  it.each([30, 365])("atraso de %i dias é BLOQUEADA", (dias) => {
     expect(statusPelaRegua(diasAtras(dias), HOJE)).toBe("BLOQUEADA");
   });
 
-  it("as bordas caem do lado certo", () => {
-    // 6 -> 7 e 14 -> 15 são onde o comportamento muda. Um erro de <= aqui
-    // bloqueia um restaurante um dia antes do combinado.
+  // O combinado com o cliente: o acesso à gestão cai com 10 DIAS ÚTEIS de
+  // atraso. O aviso (INADIMPLENTE) continua em 7 dias corridos.
+  it("bloqueia com 10 dias úteis de atraso, não antes", () => {
+    // 07/08 (sexta): 9 úteis, 13 dias corridos. Ainda INADIMPLENTE.
+    expect(statusPelaRegua(new Date("2026-08-07T00:00:00Z"), HOJE)).toBe("INADIMPLENTE");
+    // 06/08 (quinta): 10 úteis. BLOQUEADA.
+    expect(statusPelaRegua(new Date("2026-08-06T00:00:00Z"), HOJE)).toBe("BLOQUEADA");
+  });
+
+  it("os fins de semana adiam o bloqueio: 14 dias corridos podem ainda não ser 10 úteis", () => {
+    // Vencimento sábado 08/08: 12 dias corridos, 9 úteis.
+    expect(statusPelaRegua(new Date("2026-08-08T00:00:00Z"), HOJE)).toBe("INADIMPLENTE");
+  });
+
+  it("as bordas do aviso continuam em dias corridos", () => {
     expect(statusPelaRegua(diasAtras(6), HOJE)).toBe("ATIVA");
     expect(statusPelaRegua(diasAtras(7), HOJE)).toBe("INADIMPLENTE");
-    expect(statusPelaRegua(diasAtras(14), HOJE)).toBe("INADIMPLENTE");
-    expect(statusPelaRegua(diasAtras(15), HOJE)).toBe("BLOQUEADA");
   });
 });
 

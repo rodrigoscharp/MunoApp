@@ -38,6 +38,15 @@ const ASSINATURA_ENCERRADA = new Set([
   "SUBSCRIPTION_INACTIVATED",
 ]);
 
+/** Soma meses sem vazar para o mês seguinte: 31/01 + 1 mês é 28/02. */
+function somarMeses(data: Date, meses: number): Date {
+  const total = data.getUTCMonth() + meses;
+  const ano = data.getUTCFullYear() + Math.floor(total / 12);
+  const mes = ((total % 12) + 12) % 12;
+  const ultimoDia = new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(ano, mes, Math.min(data.getUTCDate(), ultimoDia)));
+}
+
 /** "2026-11-10" → meia-noite UTC, ou null se o formato não bate. */
 function vencimentoDe(dueDate: string | undefined): Date | null {
   if (!dueDate || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return null;
@@ -64,10 +73,23 @@ export async function espelharEventoDeAssinatura(
           where: { asaasSubscriptionId: id },
         })
       : null;
-    if (assinatura) {
+    // Encerrada no gateway NÃO é CANCELADA (cortesia, acesso livre): o último
+    // período pago vale até o fim, e depois o proxy bloqueia a gestão.
+    // Evento repetido não adia um encerramento já marcado.
+    if (assinatura && !assinatura.encerraEm) {
+      const ultimaPaga = await prismaUnscoped.cobranca.findFirst({
+        where: { assinaturaId: assinatura.id, status: "PAGA" },
+        orderBy: { vencimento: "desc" },
+        select: { vencimento: true },
+      });
+      const fimDoPeriodo = ultimaPaga
+        ? assinatura.ciclo === "ANUAL"
+          ? somarMeses(ultimaPaga.vencimento, 12)
+          : somarMeses(ultimaPaga.vencimento, 1)
+        : agora;
       await prismaUnscoped.assinatura.update({
         where: { id: assinatura.id },
-        data: { status: "CANCELADA" },
+        data: { encerraEm: fimDoPeriodo > agora ? fimDoPeriodo : agora },
       });
     }
     return true;

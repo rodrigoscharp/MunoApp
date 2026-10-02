@@ -343,7 +343,7 @@ export default auth(async (req) => {
       id: true,
       status: true,
       plano: true,
-      assinatura: { select: { status: true } },
+      assinatura: { select: { status: true, encerraEm: true } },
     },
   });
 
@@ -423,7 +423,8 @@ export default auth(async (req) => {
     // não têm como cair por causa de uma fatura — o código nem chega perto
     // deles. src/proxy.test.ts existe para manter isso verdadeiro.
     //
-    // Só BLOQUEADA (15 dias de atraso) fecha a porta: INADIMPLENTE avisa na
+    // Só BLOQUEADA (10 dias úteis de atraso) ou uma assinatura encerrada no
+    // gateway fecha a porta: INADIMPLENTE avisa na
     // tela e CANCELADA é a plataforma dizendo que o cliente não paga
     // mensalidade, não que ele está devendo. Tenant sem assinatura nenhuma
     // (implantação, cortesia, anterior à régua) também passa: ausência de
@@ -433,7 +434,12 @@ export default auth(async (req) => {
     // Nem todo /adm é gestão: ADM_LIVRE_DE_BLOQUEIO guarda as telas em que
     // quem pagaria a conta seria o cliente do restaurante, e o porquê de cada
     // uma.
-    const bloqueada = tenant.assinatura?.status === "BLOQUEADA";
+    // BLOQUEADA vem da régua (10 dias úteis de atraso). encerraEm vem do Asaas
+    // (assinatura cancelada ou inativada): o período pago vale até a data.
+    const encerraEm = tenant.assinatura?.encerraEm;
+    const bloqueada =
+      tenant.assinatura?.status === "BLOQUEADA" ||
+      (!!encerraEm && encerraEm.getTime() <= Date.now());
     if (bloqueada && !escapaDoBloqueio(nextUrl.pathname)) {
       return NextResponse.redirect(urlNoHost("/adm/assinatura"));
     }

@@ -6,7 +6,7 @@ import { formatCurrency } from "@/lib/utils";
 import { avisoDeAtraso } from "@/lib/assinatura/aviso";
 import { proximoVencimento } from "@/lib/assinatura/competencia";
 import {
-  BLOQUEIO_DIAS,
+  BLOQUEIO_DIAS_UTEIS,
   situacaoDaCobranca,
   type SituacaoCobranca,
 } from "@/lib/assinatura/regua";
@@ -239,7 +239,7 @@ export default async function AssinaturaPage() {
               gestão.
             </p>
             <p>
-              Com {BLOQUEIO_DIAS} dias de atraso o acesso às telas de gestão é
+              Com {BLOQUEIO_DIAS_UTEIS} dias úteis de atraso o acesso às telas de gestão é
               suspenso. Mesmo nesse caso{" "}
               <strong>seu cardápio continua no ar recebendo pedidos</strong> — o
               que você perde é o painel, não a operação.
