@@ -576,3 +576,16 @@ alimenta de novo todo dia com os pagamentos recentes
 (`reconciliacao-cobrancas.ts`), cobrindo webhook perdido. A cobrança é
 reconhecida por `Cobranca.asaasPaymentId`, não pela competência, porque o
 vencimento pode ser remarcado no gateway.
+
+## Pedido de titular (LGPD)
+
+```
+npm run cliente:anonimizar -- --slug "x" --telefone "11999998888"                 mostra o que seria alterado
+npm run cliente:anonimizar -- --slug "x" --email "ana@x.com" --confirmar "x"      anonimiza
+npm run cliente:anonimizar:prod -- --slug "x" --telefone "..." --confirmar "x"    produção, com backup antes
+```
+
+Os pedidos ficam (são registro do restaurante, com valor fiscal) sem nome,
+telefone, endereço e observações; conversa de chat e posição do entregador são
+apagadas; a conta do cliente perde nome, e-mail e senha. Recusa conta de equipe.
+O restaurante é o controlador: o pedido do titular chega a ele, e a Muno executa.
