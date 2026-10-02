@@ -13,6 +13,12 @@ import type {
 
 const API = "https://api.abacatepay.com/v2";
 
+// Chave pública do Abacate Pay, publicada na documentação de webhooks. Não é
+// segredo: a assinatura de cada webhook é um HMAC-SHA256 do corpo com ELA, em
+// base64. O que autentica a URL como nossa é o webhookSecret da query.
+const ABACATEPAY_PUBLIC_KEY =
+  "t9dXRhHHo3yDEj5pVDYz0frf7q6bMKyMRmxxCPIPp3RCplBfXRxqlC6ZpiWmOqj4L63qEaeUOtrCI8P0VMUgo6iIga2ri9ogaHFs0WIIywSMg0q7RmBfybe1E5XJcfC4IW3alNqym0tXoAKkzvfEjZxV6bE0oG2zJrNNYmUCKZyV0KZ3JS8Votf9EAWWYdiDkMkpbMdPggfh1EqHlVkMiTady6jOR3hyzGEHrIz2Ret0xHKMbiqkr9HS1JhNHDX9";
+
 async function call<T>(apiKey: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     signal: AbortSignal.timeout(GATEWAY_TIMEOUT_MS),
@@ -159,9 +165,10 @@ export class AbacatePayAdapter implements PaymentProvider {
       throw new InvalidWebhookSignatureError();
     }
 
-    // O Abacate Pay usa duas camadas: o segredo na query string e um HMAC do
-    // corpo no header. Exigimos as duas — a query sozinha vaza em log de
-    // servidor, e o HMAC sozinho não confirma que a URL é a nossa.
+    // O Abacate Pay usa duas camadas: o segredo na query string e o HMAC do
+    // corpo no header, que ele envia em todo webhook. Exigimos as duas: a query
+    // sozinha vaza em log de servidor, e o HMAC sozinho não confirma que a URL
+    // é a nossa.
     const secretFromQuery = url.searchParams.get("webhookSecret");
     if (!secretFromQuery || !timingSafeEquals(secretFromQuery, webhookSecret)) {
       console.error("[abacate_pay] Segredo da query inválido — rejeitando notificação.");
@@ -169,12 +176,13 @@ export class AbacatePayAdapter implements PaymentProvider {
     }
 
     const signature = headers.get("x-webhook-signature");
-    if (signature) {
-      const expected = crypto.createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
-      if (!timingSafeEquals(signature, expected)) {
-        console.error("[abacate_pay] Assinatura do corpo inválida — rejeitando notificação.");
-        throw new InvalidWebhookSignatureError();
-      }
+    const expected = crypto
+      .createHmac("sha256", ABACATEPAY_PUBLIC_KEY)
+      .update(rawBody)
+      .digest("base64");
+    if (!signature || !timingSafeEquals(signature, expected)) {
+      console.error("[abacate_pay] Assinatura do corpo ausente ou inválida — rejeitando notificação.");
+      throw new InvalidWebhookSignatureError();
     }
 
     const event = safeParse(rawBody) as {
