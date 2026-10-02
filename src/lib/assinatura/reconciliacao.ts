@@ -1,3 +1,4 @@
+import { reportarErro } from "@/lib/observabilidade";
 import { prismaUnscoped } from "@/lib/prisma";
 import { assinaturaTemPagamentoConfirmado } from "@/lib/assinatura/asaas";
 import { provisionarInscricao } from "@/lib/assinatura/provisionamento";
@@ -96,6 +97,11 @@ export async function reconciliarInscricoesPagas(
           `(slug ${inscricao.slug}) — fica para a próxima passada`,
         erro
       );
+      await reportarErro({
+        origem: "cron/reconciliacao",
+        erro,
+        extra: { inscricaoId: inscricao.id },
+      });
     }
   }
 

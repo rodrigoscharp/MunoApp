@@ -1,3 +1,4 @@
+import { reportarErro } from "@/lib/observabilidade";
 import { NextResponse, type NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prismaUnscoped } from "@/lib/prisma";
@@ -167,6 +168,7 @@ async function executar(req: NextRequest) {
       "[cron/assinaturas] Reconciliação falhou inteira — quem pagou e não foi provisionado continua esperando a próxima passada",
       erro
     );
+    await reportarErro({ origem: "cron/assinaturas:reconciliacao", erro });
   }
 
   // A REGRA: soltar slug abandonado é conveniência; emitir cobrança e mover a
@@ -289,6 +291,7 @@ async function executar(req: NextRequest) {
       "[cron/assinaturas] Falha ao apagar inscrição vencida — slug fica preso até a próxima passada",
       erro
     );
+    await reportarErro({ origem: "cron/assinaturas:faxina", erro });
   }
 
   // Por último, como a limpeza de slug e pelo mesmo motivo: conveniência não
@@ -304,6 +307,7 @@ async function executar(req: NextRequest) {
       "[cron/assinaturas] falha ao resumir e expurgar eventos do funil",
       erro
     );
+    await reportarErro({ origem: "cron/assinaturas:funil", erro });
   }
 
   const resposta = {

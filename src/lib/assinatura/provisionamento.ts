@@ -1,3 +1,4 @@
+import { reportarErro } from "@/lib/observabilidade";
 import type { Inscricao } from "@prisma/client";
 import { prismaUnscoped } from "@/lib/prisma";
 import { provisionTenant, ProvisionError } from "@/lib/tenant-provisioning";
@@ -262,9 +263,16 @@ export async function provisionarInscricao(
     });
   } catch (erro) {
     console.error(
-      `[${origem}] Falha ao enviar e-mail de boas-vindas — inscricao=${inscricao.id} slug=${inscricao.slug} email=${inscricao.email}`,
+      `[${origem}] Falha ao enviar e-mail de boas-vindas — inscricao=${inscricao.id} slug=${inscricao.slug}`,
       erro
     );
+    // O cliente pagou e não recebeu o link de senha: alguém precisa reenviar.
+    // Só ids; o e-mail está na Inscricao, não no log.
+    await reportarErro({
+      origem: `${origem}:boas-vindas`,
+      erro,
+      extra: { inscricaoId: inscricao.id, tenantId },
+    });
   }
 
 

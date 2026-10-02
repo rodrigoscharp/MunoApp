@@ -232,6 +232,11 @@ export default auth(async (req) => {
     return NextResponse.next(semTenant);
   }
 
+  // Monitor de disponibilidade: bate no host raiz, que não tem tenant.
+  if (nextUrl.pathname === "/api/health") {
+    return NextResponse.next(semTenant);
+  }
+
   // Webhook do Asaas, pelo mesmo motivo e com a mesma consequência do cron: o
   // gateway chama o host do deploy, que não é subdomínio de restaurante
   // nenhum. Pelo caminho normal a rota resolveria o slug "default" e tomaria

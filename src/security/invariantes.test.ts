@@ -93,6 +93,7 @@ const USO_DE_PRISMA_UNSCOPED: Record<string, string> = {
   "src/lib/auth.ts": BUNDLE_DO_PROXY,
   "src/lib/auth-platform.ts": BUNDLE_DO_PROXY,
   "src/lib/assinatura/baixa.ts": "baixa manual de cobrança, feita pela plataforma",
+  "src/app/api/health/route.ts": "monitor de disponibilidade, consulta trivial sem tenant",
   "src/lib/assinatura/espelho.ts":
     "webhook do Asaas espelhando cobrança da assinatura da plataforma, sem tenant",
   "src/lib/assinatura/email-boas-vindas.ts":

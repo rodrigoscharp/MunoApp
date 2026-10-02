@@ -1,3 +1,4 @@
+import { reportarErro } from "@/lib/observabilidade";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, prismaUnscoped } from "@/lib/prisma";
 import { runWithTenant } from "@/lib/tenant-context";
@@ -100,6 +101,11 @@ export async function POST(
               `[webhook/pagamento] pagamento aprovado em pedido CANCELADO, estornar: ` +
                 `tenant=${tenantId} order=${order.id} payment=${result.providerPaymentId}`
             );
+            await reportarErro({
+              origem: "webhook/pagamento:aprovado-em-cancelado",
+              erro: "pagamento aprovado em pedido cancelado, estornar",
+              extra: { tenantId, orderId: order.id, paymentId: result.providerPaymentId },
+            });
           }
           await broadcastOrderUpdate(tenantId, order);
         }
