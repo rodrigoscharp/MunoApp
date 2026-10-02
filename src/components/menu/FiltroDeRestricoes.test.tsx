@@ -191,7 +191,12 @@ describe("pedir pelo card", () => {
 });
 
 describe("o cardápio muda por baixo (cache de 60s)", () => {
-  it("filtro ligado cujo botão sumiu deixa de filtrar em silêncio", async () => {
+  // O pior erro possível aqui é ALARGAR a lista em silêncio: quem pediu "sem
+  // lactose" não pode passar a ver item sem essa declaração só porque o dono
+  // editou o cardápio com o card aberto. O filtro ligado continua visível e
+  // continua valendo; sem item que o atenda, a lista fica vazia e o cliente vê
+  // por quê.
+  it("filtro ligado cujo item perdeu a declaração continua valendo, visível e sem resultado", async () => {
     const { rerender } = montar();
     await clicar("Sem lactose");
     expect(screen.getByText("Salada")).toBeDefined();
@@ -200,9 +205,29 @@ describe("o cardápio muda por baixo (cache de 60s)", () => {
     const vegano = prato("6", "Salada vegana", { isVegan: true, containsLactose: true });
     rerender(<FiltroDeRestricoes menuItems={[vegano]} restaurantOpen />);
 
-    expect(screen.queryByRole("button", { name: "Sem lactose" })).toBeNull();
+    expect(botao("Sem lactose").getAttribute("aria-pressed")).toBe("true");
     expect(screen.queryByText("Salada vegana")).toBeNull();
-    expect(screen.queryByText(AVISO)).toBeNull();
+    expect(screen.queryByText("Salada")).toBeNull();
+    expect(screen.getByText("Nenhum item atende a todos os filtros marcados.")).toBeDefined();
+    expect(screen.getByText(AVISO)).toBeDefined();
+  });
+
+  it("numa combinação, perder um filtro não alarga a lista para o outro", async () => {
+    const bowl = prato("7", "Bowl vegano", { isVegan: true, containsLactose: false });
+    const wrap = prato("8", "Wrap vegano", { isVegan: true, containsLactose: null });
+    const { rerender } = montar([bowl, wrap]);
+    await clicar("Vegano");
+    await clicar("Sem lactose");
+    expect(screen.getByText("Bowl vegano")).toBeDefined();
+
+    // O dono tirou a declaração de lactose do bowl: ninguém atende "sem lactose".
+    rerender(
+      <FiltroDeRestricoes menuItems={[{ ...bowl, containsLactose: null }, wrap]} restaurantOpen />
+    );
+
+    expect(screen.queryByText("Wrap vegano")).toBeNull();
+    expect(screen.queryByText("Bowl vegano")).toBeNull();
+    expect(botao("Sem lactose").getAttribute("aria-pressed")).toBe("true");
   });
 });
 

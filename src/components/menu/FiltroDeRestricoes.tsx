@@ -112,12 +112,11 @@ export function FiltroDeRestricoes({ menuItems, restaurantOpen }: FiltroDeRestri
   const disponiveis = useMemo(() => restricoesDisponiveis(menuItems), [menuItems]);
 
   // O cardápio vem de um cache de 60s e pode mudar com o card aberto. Um filtro
-  // ligado cujo botão sumiu não pode seguir filtrando sem o cliente ver por quê.
-  const ligadas = useMemo(
-    () => ativas.filter((id) => disponiveis.includes(id)),
-    [ativas, disponiveis]
-  );
-  const resultado = useMemo(() => filtrarPorRestricoes(menuItems, ligadas), [menuItems, ligadas]);
+  // ligado NUNCA é descartado por baixo do cliente: ele continua visível,
+  // pressionado e valendo. Descartar alargaria a lista em silêncio, e quem pediu
+  // "sem lactose" passaria a ver item sem essa declaração. Sem item que o
+  // atenda, a lista fica vazia e a mensagem diz por quê.
+  const resultado = useMemo(() => filtrarPorRestricoes(menuItems, ativas), [menuItems, ativas]);
 
   // Nada declarado, nada a mostrar: nem o wrapper, que carrega margem.
   if (disponiveis.length === 0) return null;
@@ -176,8 +175,8 @@ export function FiltroDeRestricoes({ menuItems, restaurantOpen }: FiltroDeRestri
 
       <div className="px-4 py-4 space-y-3">
         <div className="flex flex-wrap gap-2">
-          {RESTRICOES.filter((r) => disponiveis.includes(r.id)).map(({ id, label, emoji }) => {
-            const ligado = ligadas.includes(id);
+          {RESTRICOES.filter((r) => disponiveis.includes(r.id) || ativas.includes(r.id)).map(({ id, label, emoji }) => {
+            const ligado = ativas.includes(id);
             return (
               <button
                 key={id}
@@ -196,7 +195,7 @@ export function FiltroDeRestricoes({ menuItems, restaurantOpen }: FiltroDeRestri
           })}
         </div>
 
-        {ligadas.length > 0 && (
+        {ativas.length > 0 && (
           <div className="space-y-2">
             {resultado.length > 0 ? (
               <div className="max-h-80 overflow-y-auto no-scrollbar">
