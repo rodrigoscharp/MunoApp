@@ -13,6 +13,7 @@ function pedido(): Parameters<typeof serializarPedidosDoAdmin>[0][number] {
     paymentMethod: "CASH",
     paymentStatus: "UNPAID",
     mpPaymentId: null,
+    idempotencyKey: null,
     total: new Prisma.Decimal("114.60"),
     notes: null,
     customerName: "Cliente",

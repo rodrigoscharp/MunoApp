@@ -24,6 +24,9 @@ export default function MesaCheckoutPage() {
   const router = useRouter();
   const { items, total, clearCart } = useCart();
   const { getTable } = useTable();
+  // Uma chave por tentativa de finalizar: reenvio ou segundo clique devolvem o
+  // mesmo pedido em vez de criar outro. Nova visita à página, nova chave.
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [tableInfo, setTableInfo] = useState<{ tableId: string; tableNumber: number; tableName: string | null } | null>(null);
@@ -79,6 +82,7 @@ export default function MesaCheckoutPage() {
           customerPhone: data.customerPhone,
           deliveryType: "DINE_IN",
           deliveryFee: 0,
+          idempotencyKey,
           tableId: tableInfo?.tableId,
         }),
       });

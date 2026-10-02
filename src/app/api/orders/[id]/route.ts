@@ -42,7 +42,14 @@ export async function GET(
     const eEquipe = role === "ADMIN" || role === "KITCHEN";
     const eDono = !!order.userId && order.userId === session?.user?.id;
     if (!eEquipe && !eDono) {
-      const { customerPhone: _t, mpPaymentId: _p, user: _u, ...publico } = order;
+      const {
+        customerPhone: _t,
+        customerName: _n,
+        notes: _o,
+        mpPaymentId: _p,
+        user: _u,
+        ...publico
+      } = order;
       return NextResponse.json(publico);
     }
 

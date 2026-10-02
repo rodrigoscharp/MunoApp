@@ -265,13 +265,14 @@ describe("GET /api/orders/[id]", () => {
 
   beforeEach(() => orderFindUnique.mockResolvedValue(completo));
 
-  it("pedido de mesa anônimo, lido sem login, sai sem telefone nem id do gateway", async () => {
+  it("pedido de mesa anônimo, lido sem login, sai sem nome, telefone, observação nem id do gateway", async () => {
     auth.mockResolvedValue(null);
 
     const corpo = await (await get()).json();
 
     expect(corpo.id).toBe(ORDER_ID);
-    expect(corpo.customerName).toBe("Ana");
+    expect(corpo).not.toHaveProperty("customerName");
+    expect(corpo).not.toHaveProperty("notes");
     expect(corpo).not.toHaveProperty("customerPhone");
     expect(corpo).not.toHaveProperty("mpPaymentId");
   });
