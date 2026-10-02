@@ -36,6 +36,10 @@ const schema = z.object({
   plano: z.enum(["MEMBRO", "MEMBRO_MESA_QR"]),
   ciclo: z.enum(["MENSAL", "ANUAL"]),
   metodo: z.enum(["CREDIT_CARD", "PIX"]),
+  // Aceite dos Termos e da Política de Privacidade (public/vendas/termos.html e
+  // privacidade.html). Literal true: a tela exige o checkbox, mas só esta
+  // recusa garante, já que a rota é pública.
+  aceiteTermos: z.literal(true),
 });
 
 // Cartão resolve em minutos; PIX gerado à noite é pago de manhã. Segurar o

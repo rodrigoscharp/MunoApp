@@ -70,9 +70,45 @@ async function preencherTudo(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/cpf ou cnpj/i), "24971563792");
   await vi.advanceTimersByTimeAsync(500);
   await waitFor(() => expect(screen.getByText(/endereço disponível/i)).toBeTruthy());
+  await user.click(screen.getByLabelText(/li e aceito/i));
 }
 
 const botao = () => screen.getByRole("button", { name: /ir para pagamento/i }) as HTMLButtonElement;
+
+describe("FormularioAssinatura: aceite dos termos", () => {
+  it("só libera o botão depois do aceite", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<FormularioAssinatura plano="MEMBRO" ciclo="MENSAL" />);
+    await preencherTudo(user);
+    expect(botao().disabled).toBe(false);
+
+    await user.click(screen.getByLabelText(/li e aceito/i));
+
+    expect(botao().disabled).toBe(true);
+  });
+
+  it("manda aceiteTermos: true para a API", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<FormularioAssinatura plano="MEMBRO" ciclo="MENSAL" />);
+    await preencherTudo(user);
+
+    await user.click(botao());
+
+    const chamada = fetchMock.mock.calls.find(([url]) => String(url) === "/api/assinar");
+    expect(JSON.parse(chamada![1].body).aceiteTermos).toBe(true);
+  });
+
+  it("aponta para os dois documentos, abrindo fora do formulário", () => {
+    render(<FormularioAssinatura plano="MEMBRO" ciclo="MENSAL" />);
+
+    const termos = screen.getByRole("link", { name: /termos de uso/i });
+    const privacidade = screen.getByRole("link", { name: /pol[ií]tica de privacidade/i });
+    expect(termos.getAttribute("href")).toBe("/termos");
+    expect(privacidade.getAttribute("href")).toBe("/privacidade");
+    expect(termos.getAttribute("target")).toBe("_blank");
+    expect(privacidade.getAttribute("target")).toBe("_blank");
+  });
+});
 
 describe("FormularioAssinatura", () => {
   // O CASO QUE ESTE ARQUIVO EXISTE PARA PEGAR. setLoading(true) acontece antes

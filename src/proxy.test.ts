@@ -477,6 +477,20 @@ describe("proxy: o domínio raiz serve a landing, nunca um restaurante", () => {
     expect(reescritaPara(res)).toContain("/vendas/index.html");
   });
 
+  // Os dois documentos legais moram em public/vendas/ como a landing e são as
+  // únicas páginas do raiz além da home. Precisam existir antes de a Muno
+  // coletar dado pessoal de quem assina.
+  it.each([
+    ["/termos", "/vendas/termos.html"],
+    ["/privacidade", "/vendas/privacidade.html"],
+    ["/privacidade/", "/vendas/privacidade.html"],
+  ])("%s no raiz reescreve para o documento legal", async (caminho, destino) => {
+    const res = await proxy(requisicaoRaiz(caminho));
+
+    expect(reescritaPara(res)).toContain(destino);
+    expect(findUnique).not.toHaveBeenCalled();
+  });
+
   // A asserção que realmente protege. A do rewrite acima diz que a landing
   // aparece; esta diz que o tenant "default" não tem como aparecer — nem se
   // alguém, um dia, mexer no rewrite sem entender por que ele existe.
