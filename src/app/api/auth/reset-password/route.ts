@@ -51,12 +51,25 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    await prisma.user.update({
-      where: { tenantId_email: { tenantId: resetToken.tenantId, email: resetToken.email } },
-      data: { password: hashedPassword, passwordChangedAt: new Date() },
+    // Queimar o token e trocar a senha são um passo só. Lidos e gravados em
+    // separado, dois pedidos simultâneos com o mesmo link passavam os dois; e
+    // se a troca falhasse depois de o token ser apagado, o link morria sem a
+    // senha mudar. Aqui o deleteMany é o que desempata (só um vê count 1), e
+    // um erro na troca desfaz a exclusão.
+    const trocou = await prisma.$transaction(async (tx) => {
+      const queimado = await tx.passwordResetToken.deleteMany({ where: { token } });
+      if (queimado.count !== 1) return false;
+
+      await tx.user.update({
+        where: { tenantId_email: { tenantId: resetToken.tenantId, email: resetToken.email } },
+        data: { password: hashedPassword, passwordChangedAt: new Date() },
+      });
+      return true;
     });
 
-    await prisma.passwordResetToken.delete({ where: { token } });
+    if (!trocou) {
+      return NextResponse.json({ error: "Link inválido ou expirado" }, { status: 400 });
+    }
 
     return NextResponse.json({ ok: true });
   });
