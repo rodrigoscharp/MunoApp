@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChevronDown, Leaf, X } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { triggerCartFly } from "@/components/menu/CartFlyAnimation";
@@ -21,6 +21,44 @@ const CHAVE_DISPENSA = "muno-filtro-dispensado";
 interface FiltroDeRestricoesProps {
   menuItems: MenuItemWithCategory[];
   restaurantOpen: boolean;
+}
+
+// O "fui dispensado" mora no localStorage, que o servidor não enxerga. Ler isso
+// num efeito e chamar setState lá dentro causa uma renderização em cascata (e é
+// erro de lint no React 19); useSyncExternalStore resolve sem isso e é seguro
+// na hidratação, porque o servidor responde `false` e o cliente corrige depois.
+const ouvintes = new Set<() => void>();
+
+function assinar(aviso: () => void) {
+  ouvintes.add(aviso);
+  // `storage` cobre outra aba do mesmo navegador dispensando o card.
+  window.addEventListener("storage", aviso);
+  return () => {
+    ouvintes.delete(aviso);
+    window.removeEventListener("storage", aviso);
+  };
+}
+
+// O localStorage pode lançar (janela privada, política do navegador). O card
+// precisa funcionar do mesmo jeito sem ele.
+function foiDispensado(): boolean {
+  try {
+    return localStorage.getItem(CHAVE_DISPENSA) === "1";
+  } catch {
+    return false;
+  }
+}
+
+const dispensadoNoServidor = () => false;
+
+function gravarDispensa(dispensar: boolean) {
+  try {
+    if (dispensar) localStorage.setItem(CHAVE_DISPENSA, "1");
+    else localStorage.removeItem(CHAVE_DISPENSA);
+  } catch {
+    /* sem armazenamento: o card só não lembra a escolha na próxima visita */
+  }
+  ouvintes.forEach((aviso) => aviso());
 }
 
 function ItemCard({ item, restaurantOpen }: { item: MenuItemWithCategory; restaurantOpen: boolean }) {
@@ -64,18 +102,12 @@ function ItemCard({ item, restaurantOpen }: { item: MenuItemWithCategory; restau
 }
 
 export function FiltroDeRestricoes({ menuItems, restaurantOpen }: FiltroDeRestricoesProps) {
-  const [dispensado, setDispensado] = useState(false);
   const [ativas, setAtivas] = useState<RestricaoDeCardapio[]>([]);
-
-  useEffect(() => {
-    // O localStorage pode lançar (janela privada, política do navegador). O card
-    // precisa funcionar do mesmo jeito sem ele.
-    try {
-      if (localStorage.getItem(CHAVE_DISPENSA) === "1") setDispensado(true);
-    } catch {
-      /* sem armazenamento: o card só não lembra que foi fechado */
-    }
-  }, []);
+  // Sem esta memória local, um storage bloqueado deixaria o card aberto mesmo
+  // depois de a pessoa clicar em fechar.
+  const [fechadoAgora, setFechadoAgora] = useState(false);
+  const dispensadoAntes = useSyncExternalStore(assinar, foiDispensado, dispensadoNoServidor);
+  const dispensado = fechadoAgora || dispensadoAntes;
 
   const disponiveis = useMemo(() => restricoesDisponiveis(menuItems), [menuItems]);
 
@@ -95,21 +127,13 @@ export function FiltroDeRestricoes({ menuItems, restaurantOpen }: FiltroDeRestri
   }
 
   function dispensar() {
-    setDispensado(true);
-    try {
-      localStorage.setItem(CHAVE_DISPENSA, "1");
-    } catch {
-      /* ver o useEffect acima */
-    }
+    setFechadoAgora(true);
+    gravarDispensa(true);
   }
 
   function reabrir() {
-    setDispensado(false);
-    try {
-      localStorage.removeItem(CHAVE_DISPENSA);
-    } catch {
-      /* ver o useEffect acima */
-    }
+    setFechadoAgora(false);
+    gravarDispensa(false);
   }
 
   if (dispensado) {
