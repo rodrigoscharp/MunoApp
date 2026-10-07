@@ -9,6 +9,7 @@ import {
   IconeGrafico,
   IconeLoja,
   IconePessoa,
+  IconeSaude,
 } from "./IconesConsole";
 
 export type ContagensDoMenu = {
@@ -71,6 +72,7 @@ const ITENS: Item[] = [
     Icone: IconeLoja,
     selo: { contagem: "atrasadas", tom: "laranja" },
   },
+  { tipo: "link", href: "/saude", rotulo: "Saúde", Icone: IconeSaude },
 ];
 
 const ALTURA_DO_FILHO = 40;
@@ -303,6 +305,7 @@ const DESTINOS_DO_CELULAR = [
   { href: "/leads", rotulo: "Leads", Icone: IconePessoa },
   { href: "/conversao", rotulo: "Conversão", Icone: IconeGrafico },
   { href: "/clientes", rotulo: "Clientes", Icone: IconeLoja },
+  { href: "/saude", rotulo: "Saúde", Icone: IconeSaude },
 ] as const;
 
 /**
@@ -317,7 +320,7 @@ export function MenuInferior({ contagens }: { contagens: ContagensDoMenu }) {
   };
 
   return (
-    <nav aria-label="Menu" className="grid grid-cols-4 px-2 py-1.5">
+    <nav aria-label="Menu" className="grid grid-cols-5 px-2 py-1.5">
       {DESTINOS_DO_CELULAR.map(({ href, rotulo, Icone }) => {
         const ativo = ativoNoLink(caminho, href);
         return (

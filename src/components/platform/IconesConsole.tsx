@@ -86,3 +86,13 @@ export function IconeChevron(props: Props) {
     </Base>
   );
 }
+
+/** Linha de pulso dentro de um coração: a saúde do sistema. */
+export function IconeSaude(props: Props) {
+  return (
+    <Base {...props}>
+      <path d="M12 20s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 10c0 5.65-7 10-7 10Z" />
+      <path d="M7.5 12h2.5l1.5-2.5 2 4 1.5-1.5h1.5" />
+    </Base>
+  );
+}
