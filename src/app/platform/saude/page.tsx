@@ -10,6 +10,19 @@ import { AtualizarSozinho } from "@/components/platform/saude/AtualizarSozinho";
 import { TOM_DA_COR } from "@/components/platform/saude/cores";
 
 /**
+ * Leitura que falha vira texto na tela, e vira linha no log: sem ela, uma
+ * consulta quebrada (coluna que não existe, SQL errado) mostraria "não foi
+ * possível ler" para sempre e ninguém saberia por quê. Só a classe do erro,
+ * porque a mensagem do Prisma pode trazer o SQL. Sem `reportarErro` de
+ * propósito: ele grava na tabela de eventos, que pode ser justamente o que
+ * está falhando.
+ */
+function leituraFalhou(qual: string, erro: unknown): null {
+  console.error(`[saude] ${qual} falhou`, erro instanceof Error ? erro.name : "erro");
+  return null;
+}
+
+/**
  * A saúde do sistema: semáforo das peças, volume de pedidos e o feed.
  *
  * A regra mora em src/lib/saude/avaliar.ts, a mesma que a rota do monitor
@@ -29,8 +42,8 @@ export default async function SaudePage({
   const filtros = lerFiltros(await searchParams);
   const [dados, porHora, eventos] = await Promise.all([
     coletarDadosDeSaude(agora),
-    coletarPedidosPorHora(agora).catch(() => null),
-    listarEventos(filtros).catch(() => null),
+    coletarPedidosPorHora(agora).catch((erro) => leituraFalhou("pedidos por hora", erro)),
+    listarEventos(filtros).catch((erro) => leituraFalhou("feed de eventos", erro)),
   ]);
   const saude = avaliarSaude(dados, agora);
 
