@@ -99,6 +99,10 @@ async function anonimizar(url: string) {
     `),
     prisma.$executeRawUnsafe(`update "LeadNote" set texto = '[nota removida no espelhamento]'`),
     prisma.$executeRawUnsafe(`update "PlatformAdmin" set email = 'admin@exemplo.local', password = $1`, senha),
+    // Eventos da tela de saúde: a mensagem é a do erro, e uma mensagem de erro
+    // pode citar o valor que estava sendo gravado (nome, telefone, endereço).
+    // São relatório de produção, sem valor para investigar aqui.
+    prisma.$executeRawUnsafe(`delete from "EventoSistema"`),
   ]);
 
   const [contagem] = await prisma.$queryRawUnsafe<{ vazou: number }[]>(`

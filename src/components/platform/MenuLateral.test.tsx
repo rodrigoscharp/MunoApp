@@ -31,6 +31,14 @@ describe.each([
     expect(ponto.className).toContain(tom);
   });
 
+  // aria-label num span sem papel é ignorado por parte dos leitores de tela;
+  // com role="img" o ponto é anunciado pelo nome.
+  it("o ponto tem papel de imagem, para o leitor de tela anunciá-lo", () => {
+    render(montar("vermelho"));
+
+    within(screen.getByRole("link", { name: /Saúde/ })).getByRole("img", { name: "algo parou" });
+  });
+
   it.each(["verde", "neutro"] as const)("não desenha nada quando a cor é %s", (cor) => {
     render(montar(cor));
 

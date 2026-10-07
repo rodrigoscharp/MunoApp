@@ -106,6 +106,7 @@ function PontoDaSaude({ saude, className }: { saude: Cor; className: string }) {
   if (saude !== "amarelo" && saude !== "vermelho") return null;
   return (
     <span
+      role="img"
       aria-label={saude === "vermelho" ? "algo parou" : "pede atenção"}
       className={`rounded-full ${TOM_DA_COR[saude]} ${className}`}
     />

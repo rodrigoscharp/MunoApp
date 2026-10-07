@@ -8,7 +8,9 @@ import { tempoDesde } from "./tempo";
  * peças coloridas. A tela e a rota do monitor chamam esta mesma função, então
  * se uma diz vermelho a outra diz 503.
  *
- * Os números vêm todos de LIMIARES. Nenhum limiar escrito aqui.
+ * Os limiares moram em LIMIARES. As janelas de 1 h e 24 h escritas aqui não
+ * são limiar: são as janelas fixas de leitura das regras ("na última hora",
+ * "nas últimas 24 h"), que a própria mensagem de cada peça cita.
  */
 export type Cor = "verde" | "amarelo" | "vermelho" | "neutro";
 export type Peca = { chave: ChavePeca; nome: string; cor: Cor; motivo: string; ultimoSinal: Date | null };

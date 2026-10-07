@@ -48,9 +48,11 @@ export async function registrarSaude(evento: EventoDeSaude): Promise<void> {
     });
     await Promise.race([gravacao, limite]);
   } catch (erro) {
+    // Só a classe do erro, como em coletar.ts: a mensagem do Prisma pode trazer
+    // o SQL, e com ele os valores que se tentava gravar.
     console.error(
       `[saude] falha ao registrar ${evento.origem}`,
-      erro instanceof Error ? erro.message : erro
+      erro instanceof Error ? erro.name : "erro"
     );
   } finally {
     clearTimeout(timer);

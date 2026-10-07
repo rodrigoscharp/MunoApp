@@ -53,10 +53,21 @@ describe("registrarSaude", () => {
     expect(create.mock.calls[0][0].data).toMatchObject({ tenantId: null, extra: undefined });
   });
 
-  it("nunca lança quando o banco rejeita", async () => {
-    create.mockRejectedValue(new Error("connection refused"));
+  // No log vai só a classe do erro: a mensagem do Prisma pode trazer o SQL, e
+  // com ele os valores que se tentava gravar.
+  it("nunca lança quando o banco rejeita, e loga só a classe do erro", async () => {
+    const erro = new Error('insert into "EventoSistema" values (ana@pizzaria.com)');
+    erro.name = "PrismaClientKnownRequestError";
+    create.mockRejectedValue(erro);
     await expect(registrarSaude({ origem: "x", nivel: "ERRO", mensagem: "m" })).resolves.toBeUndefined();
-    expect(log).toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith("[saude] falha ao registrar x", "PrismaClientKnownRequestError");
+    expect(JSON.stringify(log.mock.calls)).not.toContain("EventoSistema");
+  });
+
+  it("usa um nome genérico quando o que foi lançado não é um Error", async () => {
+    create.mockRejectedValue("quebrou");
+    await registrarSaude({ origem: "x", nivel: "ERRO", mensagem: "m" });
+    expect(log).toHaveBeenCalledWith("[saude] falha ao registrar x", "erro");
   });
 
   it("desiste depois de 2 segundos, sem lançar", async () => {
