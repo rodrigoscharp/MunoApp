@@ -148,7 +148,19 @@ export async function POST(req: NextRequest) {
 
   // Idempotência. O Asaas reentrega quando não recebe 200 — sem esta linha,
   // a segunda entrega cria um segundo restaurante para quem pagou uma vez.
-  if (inscricao.status === "PROVISIONADA") return ok();
+  //
+  // O sinal de saúde sai também aqui: depois de uma falha recuperada, são as
+  // reentregas que chegam, e sem ele a peça do webhook ficaria vermelha até o
+  // próximo pagamento novo.
+  if (inscricao.status === "PROVISIONADA") {
+    await registrarSaude({
+      origem: "webhook/asaas",
+      nivel: "OK",
+      mensagem: `${evento} já provisionada`,
+      extra: { inscricaoId: inscricao.id },
+    });
+    return ok();
+  }
 
   // O pagamento confirmado, no momento em que ele é conhecido. Fora da
   // transação de provisionamento de propósito: se o provisionamento falhar e o

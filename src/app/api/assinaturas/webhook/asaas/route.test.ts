@@ -888,6 +888,24 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
     );
   });
 
+  // Depois de uma falha recuperada, as reentregas do Asaas caem na guarda de
+  // idempotência. Sem um sinal ali, a peça ficaria vermelha até o próximo
+  // pagamento novo, que pode levar dias.
+  it("grava o sinal do webhook na entrega repetida de inscrição já provisionada", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando({ status: "PROVISIONADA", tenantId: "tenant-1" }));
+
+    const res = await POST(requisicao(eventoPago()));
+
+    expect(res.status).toBe(200);
+    expect(registrarSaude).toHaveBeenCalledWith({
+      origem: "webhook/asaas",
+      nivel: "OK",
+      mensagem: "PAYMENT_CONFIRMED já provisionada",
+      extra: { inscricaoId: "insc-1" },
+    });
+    expect(provisionTenant).not.toHaveBeenCalled();
+  });
+
   it("grava o sinal do webhook quando o evento vai para o espelho", async () => {
     espelharEventoDeAssinatura.mockResolvedValue(true);
 
