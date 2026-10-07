@@ -325,14 +325,18 @@ body {
     0 12px 32px -18px rgba(0, 0, 0, 0.08);
 }
 
-/* Entrada dos cartões: sobem 10px e acendem, em cascata pelo --atraso. */
+/* Entrada dos cartões: sobem 6px e acendem, em cascata pelo --atraso.
+   O atraso é comprimido para um terço: com 600ms de animação e atrasos de até
+   500ms, o último cartão só ficava legível mais de um segundo depois de a
+   página chegar, e cada clique no console parecia lento mesmo com o servidor
+   já tendo respondido. A ordem da cascata continua; a espera, não. */
 @keyframes console-sobe {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: none; }
 }
 .console-entra {
-  animation: console-sobe 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  animation-delay: var(--atraso, 0ms);
+  animation: console-sobe 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--atraso, 0ms) / 3);
 }
 
 /* O traço do sparkline se desenha da esquerda para a direita. O path leva

@@ -4,7 +4,7 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "regions": [
-    "gru1"
+    "iad1"
   ],
   "crons": [
     {

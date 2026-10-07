@@ -649,6 +649,19 @@ usam o mesmo banco. Por isso:
 
 O cron (`vercel.json`) usa horário **UTC**: `0 9 * * *` é 06:00 em Brasília.
 
+## A região das funções segue o banco
+
+`regions` em `vercel.json` é `iad1` (Virgínia), a mesma região do Supabase
+(`aws-1-us-east-1`). Até 06/10/2026 era `gru1` (São Paulo): parecia o certo
+para um público brasileiro, mas cada consulta atravessava São Paulo–Virgínia,
+~120ms por ida e volta, e uma tela do console faz uma dúzia delas por clique.
+O navegador paga a distância uma vez por requisição; a função a pagava uma vez
+por consulta.
+
+**Não volte para `gru1` sem levar o banco junto.** Se a latência para o Brasil
+passar a importar mais que isso, o caminho é mover o Supabase para `sa-east-1`
+e só então as funções para `gru1`, as duas coisas juntas.
+
 ## Testes de integração
 
 `npm test` roda os testes de unidade, que mockam o Prisma. Constraint única,
