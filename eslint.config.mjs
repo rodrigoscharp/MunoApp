@@ -21,6 +21,10 @@ const eslintConfig = defineConfig([
     // Bibliotecas de terceiros já minificadas (Tailwind, Lucide, GSAP) servidas
     // pela landing. Não são código nosso e geravam mais de mil avisos.
     "public/vendas/js/vendor/**",
+    // Ferramentas locais de agentes (skills do Remotion etc.), versionadas em
+    // b4ea15b. Os .ts/.tsx ali são exemplos de terceiros, não código do app, e
+    // os `any` deles reprovavam o lint do CI em todo push desde então.
+    ".agents/**",
   ]),
   {
     // Os scripts de operação em .js rodam por `node scripts/...` direto, antes
