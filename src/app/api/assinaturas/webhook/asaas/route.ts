@@ -166,6 +166,16 @@ export async function POST(req: NextRequest) {
     detalhe: inscricao.plano,
   });
 
+  // Junto do PAGOU, a Inscricao vira PAGA: é o estado de quem pagou e ainda
+  // não tem restaurante, e é ele que a peça "Provisionamento" da tela de saúde
+  // conta. Fora da transação pelo mesmo motivo do PAGOU: precisa sobreviver a
+  // um provisionamento que falhe. A guarda de status impede que uma entrega
+  // atrasada rebaixe uma inscrição que outro caminho já provisionou.
+  await prismaUnscoped.inscricao.updateMany({
+    where: { id: inscricao.id, status: "AGUARDANDO_PAGAMENTO" },
+    data: { status: "PAGA" },
+  });
+
   await provisionarInscricao(inscricao, {
     valorPago: pagamento.value,
     origem: "webhook/asaas",

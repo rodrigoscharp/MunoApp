@@ -436,7 +436,9 @@ describe("POST /api/cron/assinaturas — limpeza de inscrição vencida", () => 
     };
   }
 
-  it("procura apenas inscrição AGUARDANDO_PAGAMENTO e vencida", async () => {
+  // A igualdade exata do `where` é a trava: uma Inscricao PAGA (pagou e o
+  // provisionamento ainda não completou) nunca é candidata a ser apagada.
+  it("procura apenas inscrição AGUARDANDO_PAGAMENTO e vencida, nunca a PAGA", async () => {
     await POST(requisicao());
 
     expect(inscricaoFindMany).toHaveBeenCalledWith(

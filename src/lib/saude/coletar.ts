@@ -62,7 +62,8 @@ async function ler(agora: Date): Promise<LeituraDeSaude> {
       }),
       prismaUnscoped.eventoSistema.findFirst({ select: { criadoEm: true }, orderBy: { criadoEm: "asc" } }),
       prismaUnscoped.inscricao.count({ where: { status: "PAGA" } }),
-      // updatedAt é quando ela virou PAGA: nada mais a altera enquanto espera.
+      // updatedAt é, na prática, quando ela virou PAGA. O provisionamento pode
+      // movê-lo uma vez, segundos depois, ao gravar o tenantId antes de falhar.
       prismaUnscoped.inscricao.findFirst({
         where: { status: "PAGA" },
         select: { updatedAt: true },

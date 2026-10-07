@@ -376,7 +376,9 @@ A posição de cada evento no código é decisão, não acaso:
   não são caminho raro**: a tela de obrigado dispara a reconciliação a cada
   volta do gateway, e quando ela ganha do webhook, a guarda de idempotência
   impede o webhook de emitir. Sem os três, o funil mostra mais restaurantes no
-  ar do que pagamentos.
+  ar do que pagamentos. Nos três, junto do `PAGOU`, a `Inscricao` passa a
+  `PAGA` (com guarda: só sai de `AGUARDANDO_PAGAMENTO`), e é esse status que a
+  peça "Provisionamento" da tela de saúde lê.
 * **`PROVISIONADO` fica DENTRO da transação** que cria assinatura e cobrança,
   porque ali ele é parte do mesmo fato atômico.
 

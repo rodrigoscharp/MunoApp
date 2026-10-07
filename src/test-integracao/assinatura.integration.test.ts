@@ -2,10 +2,13 @@
  * O ciclo da assinatura recorrente sobre o banco real: o espelho do Asaas, a
  * régua e o bloqueio, com as constraints únicas valendo de verdade.
  */
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import crypto from "node:crypto";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prismaUnscoped } from "@/lib/prisma";
 import { espelharEventoDeAssinatura } from "@/lib/assinatura/espelho";
+import { POST as webhookDoAsaas } from "@/app/api/assinaturas/webhook/asaas/route";
 import { criarTenant, limparTenants } from "./apoio";
 
 // Quinta-feira, 20/11/2026.
@@ -147,5 +150,61 @@ describe("cancelamento pelo gateway", () => {
     await espelharEventoDeAssinatura(evento("PAYMENT_REFUNDED", "pay_1", "2026-11-10"), AGORA);
 
     expect((await cobrancas())[0]).toMatchObject({ status: "VENCIDA", pagoEm: null });
+  });
+});
+
+describe("primeiro pagamento pelo webhook", () => {
+  // O estado que a peça "Provisionamento" da tela de saúde conta. Quem pagou e
+  // não ganhou o restaurante precisa ficar PAGA no banco: nem apagada pela
+  // faxina de inscrição vencida, nem de volta a AGUARDANDO_PAGAMENTO, onde
+  // ninguém a enxergaria.
+  it("provisionamento que falha deixa a Inscricao PAGA, e o webhook propaga para o Asaas reentregar", async () => {
+    const token = "token-do-webhook-de-teste";
+    vi.stubEnv("ASAAS_WEBHOOK_TOKEN", token);
+    const sufixo = crypto.randomBytes(4).toString("hex");
+    const sessao = await prismaUnscoped.sessaoFunil.create({ data: { id: crypto.randomUUID() } });
+    // Slug com sublinhado: provisionTenant o recusa (SLUG_INVALIDO) antes de
+    // criar qualquer coisa, que é o provisionamento falhando de verdade.
+    const inscricao = await prismaUnscoped.inscricao.create({
+      data: {
+        nome: "Pizzaria Sem Sorte",
+        slug: `paga_${sufixo}`,
+        email: `paga-${sufixo}@exemplo.com`,
+        plano: "MEMBRO",
+        ciclo: "MENSAL",
+        asaasSubscriptionId: `sub_paga_${sufixo}`,
+        expiraEm: new Date(Date.now() + 3_600_000),
+        sessaoId: sessao.id,
+      },
+    });
+
+    try {
+      const requisicao = new NextRequest("http://localhost/api/assinaturas/webhook/asaas", {
+        method: "POST",
+        headers: { "content-type": "application/json", "asaas-access-token": token },
+        body: JSON.stringify({
+          event: "PAYMENT_CONFIRMED",
+          payment: {
+            id: `pay_paga_${sufixo}`,
+            value: 119.99,
+            subscription: `sub_paga_${sufixo}`,
+            externalReference: inscricao.id,
+          },
+        }),
+      });
+
+      await expect(webhookDoAsaas(requisicao)).rejects.toMatchObject({ code: "SLUG_INVALIDO" });
+
+      const depois = await prismaUnscoped.inscricao.findUnique({ where: { id: inscricao.id } });
+      expect(depois?.status).toBe("PAGA");
+      expect(
+        await prismaUnscoped.eventoFunil.count({ where: { sessaoId: sessao.id, tipo: "PAGOU" } })
+      ).toBe(1);
+    } finally {
+      vi.unstubAllEnvs();
+      await prismaUnscoped.eventoFunil.deleteMany({ where: { sessaoId: sessao.id } });
+      await prismaUnscoped.inscricao.deleteMany({ where: { id: inscricao.id } });
+      await prismaUnscoped.sessaoFunil.delete({ where: { id: sessao.id } });
+    }
   });
 });

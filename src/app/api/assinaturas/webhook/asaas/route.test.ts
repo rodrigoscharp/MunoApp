@@ -24,6 +24,9 @@ const inscricaoFindFirst = vi.fn();
 // abaixo) — separadas de propósito, para os testes de retomada distinguirem
 // as duas.
 const inscricaoUpdateTenantId = vi.fn();
+// prismaUnscoped.inscricao.updateMany: a marca de PAGA, com guarda de status,
+// que sai junto do PAGOU e antes de provisionar.
+const inscricaoUpdateMany = vi.fn();
 // prismaUnscoped.tenant.findUnique: usado só na retomada, quando a Inscricao
 // já chega com tenantId (uma entrega anterior já criou o tenant e morreu
 // antes de terminar o resto).
@@ -48,6 +51,7 @@ vi.mock("@/lib/prisma", () => ({
     inscricao: {
       findFirst: (...args: unknown[]) => inscricaoFindFirst(...args),
       update: (...args: unknown[]) => inscricaoUpdateTenantId(...args),
+      updateMany: (...args: unknown[]) => inscricaoUpdateMany(...args),
     },
     tenant: {
       findUnique: (...args: unknown[]) => tenantFindUnique(...args),
@@ -164,6 +168,7 @@ beforeEach(() => {
   espelharEventoDeAssinatura.mockResolvedValue(false);
   inscricaoFindFirst.mockResolvedValue(null);
   inscricaoUpdateTenantId.mockResolvedValue({});
+  inscricaoUpdateMany.mockResolvedValue({ count: 1 });
   inscricaoUpdateStatus.mockResolvedValue({});
   tenantFindUnique.mockResolvedValue(null);
   provisionTenant.mockResolvedValue({
@@ -293,6 +298,7 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
     expect(assinaturaCreate).not.toHaveBeenCalled();
     expect(cobrancaCreate).not.toHaveBeenCalled();
     expect(inscricaoUpdateTenantId).not.toHaveBeenCalled();
+    expect(inscricaoUpdateMany).not.toHaveBeenCalled();
     expect(inscricaoUpdateStatus).not.toHaveBeenCalled();
     expect(leadUpdateMany).not.toHaveBeenCalled();
   });
@@ -419,6 +425,38 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
 
     const dados = cobrancaCreate.mock.calls[0][0].data;
     expect(dados.valor).toBe(119.99);
+  });
+
+  // A peça "Provisionamento" da tela de saúde conta Inscricao PAGA: é o
+  // estado de quem pagou e ainda não tem restaurante. A marca sai junto do
+  // PAGOU, antes de provisionar e fora da transação, para sobreviver a um
+  // provisionamento que falhe. A guarda de status impede que ela rebaixe uma
+  // inscrição que outro caminho já provisionou.
+  it("marca a Inscricao como PAGA, com guarda de status, antes de provisionar", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando());
+
+    await POST(requisicao(eventoPago()));
+
+    expect(inscricaoUpdateMany).toHaveBeenCalledWith({
+      where: { id: "insc-1", status: "AGUARDANDO_PAGAMENTO" },
+      data: { status: "PAGA" },
+    });
+    expect(inscricaoUpdateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      provisionTenant.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("provisionamento que falha deixa a Inscricao já marcada PAGA, e propaga para o Asaas reentregar", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando());
+    provisionTenant.mockRejectedValue(new Error("banco caiu"));
+
+    await expect(POST(requisicao(eventoPago()))).rejects.toThrow("banco caiu");
+
+    expect(inscricaoUpdateMany).toHaveBeenCalledWith({
+      where: { id: "insc-1", status: "AGUARDANDO_PAGAMENTO" },
+      data: { status: "PAGA" },
+    });
+    expect(inscricaoUpdateStatus).not.toHaveBeenCalled();
   });
 
   // O vínculo é gravado em dois momentos diferentes, de propósito: o

@@ -2,10 +2,14 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
 const inscricaoFindUnique = vi.fn();
+const inscricaoUpdateMany = vi.fn();
 const eventoFunilCreate = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
-    inscricao: { findUnique: (...a: unknown[]) => inscricaoFindUnique(...a) },
+    inscricao: {
+      findUnique: (...a: unknown[]) => inscricaoFindUnique(...a),
+      updateMany: (...a: unknown[]) => inscricaoUpdateMany(...a),
+    },
     eventoFunil: { create: (...a: unknown[]) => eventoFunilCreate(...a) },
   },
 }));
@@ -53,6 +57,7 @@ function inscricao(over: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   inscricaoFindUnique.mockResolvedValue(inscricao());
+  inscricaoUpdateMany.mockResolvedValue({ count: 1 });
   temPagamento.mockResolvedValue(true);
   provisionar.mockResolvedValue({ tenantId: "tenant-1" });
   eventoFunilCreate.mockResolvedValue({});
@@ -100,6 +105,47 @@ describe("POST /api/assinar/reconciliar", () => {
     expect(eventoFunilCreate.mock.invocationCallOrder[0]).toBeLessThan(
       provisionar.mock.invocationCallOrder[0]
     );
+  });
+
+  // Junto do PAGOU sai a marca de PAGA, que é o que a peça "Provisionamento"
+  // da tela de saúde conta. A guarda de status não deixa rebaixar uma
+  // inscrição que o webhook provisionou enquanto esta rota consultava o Asaas.
+  it("marca a Inscricao como PAGA, com guarda de status, antes de provisionar", async () => {
+    const POST = await rotaNova();
+
+    await POST(requisicao({ inscricaoId: "insc-1" }));
+
+    expect(inscricaoUpdateMany).toHaveBeenCalledWith({
+      where: { id: "insc-1", status: "AGUARDANDO_PAGAMENTO" },
+      data: { status: "PAGA" },
+    });
+    expect(inscricaoUpdateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      provisionar.mock.invocationCallOrder[0]
+    );
+  });
+
+  // Marcada PAGA por uma tentativa anterior que não conseguiu provisionar: a
+  // volta do cliente tenta de novo, pelo mesmo caminho.
+  it("inscrição já PAGA e não provisionada é provisionada de novo", async () => {
+    inscricaoFindUnique.mockResolvedValue(inscricao({ status: "PAGA" }));
+    const POST = await rotaNova();
+
+    const res = await POST(requisicao({ inscricaoId: "insc-1" }));
+
+    expect(await res.json()).toMatchObject({ provisionada: true });
+    expect(provisionar).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "insc-1" }),
+      expect.objectContaining({ origem: "assinar/reconciliar" })
+    );
+  });
+
+  it("não marca PAGA quando o Asaas ainda não confirmou", async () => {
+    temPagamento.mockResolvedValue(false);
+    const POST = await rotaNova();
+
+    await POST(requisicao({ inscricaoId: "insc-1" }));
+
+    expect(inscricaoUpdateMany).not.toHaveBeenCalled();
   });
 
   // O webhook chegou primeiro — o caso comum. A página deve mostrar o mesmo

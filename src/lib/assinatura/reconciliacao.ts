@@ -28,10 +28,11 @@ export type ResultadoReconciliacao = {
  * nada aconteceu. Antes disto, o desfecho dependia de alguém ler um log.
  *
  * Aqui a pergunta é invertida: em vez de esperar o gateway avisar, nós
- * perguntamos. Quem está AGUARDANDO_PAGAMENTO e já tem assinatura no Asaas é
- * candidata; se o Asaas confirma pagamento, o provisionamento termina pelo
- * mesmo caminho do webhook — literalmente a mesma função, para os dois nunca
- * divergirem.
+ * perguntamos. Quem ainda não foi provisionada (AGUARDANDO_PAGAMENTO, ou PAGA
+ * quando um caminho anterior registrou o pagamento e o provisionamento
+ * falhou) e já tem assinatura no Asaas é candidata; se o Asaas confirma
+ * pagamento, o provisionamento termina pelo mesmo caminho do webhook —
+ * literalmente a mesma função, para os dois nunca divergirem.
  *
  * Três decisões que valem explicitar:
  *
@@ -51,7 +52,11 @@ export async function reconciliarInscricoesPagas(
 
   const candidatas = await prismaUnscoped.inscricao.findMany({
     where: {
-      status: "AGUARDANDO_PAGAMENTO",
+      // PAGA entra porque é quem pagou e ainda não tem restaurante: sem ela
+      // aqui, um provisionamento que falhou depois da marca dependeria só de
+      // uma reentrega do Asaas. A consulta ao Asaas abaixo vale igual para
+      // ela, e só confirma o que a marca já dizia.
+      status: { in: ["AGUARDANDO_PAGAMENTO", "PAGA"] },
       asaasSubscriptionId: { not: null },
     },
     // Quem espera há mais tempo é atendido antes — e é o que garante que uma
@@ -80,6 +85,13 @@ export async function reconciliarInscricoesPagas(
         sessaoId: inscricao.sessaoId,
         tipo: "PAGOU",
         detalhe: inscricao.plano,
+      });
+
+      // Junto do PAGOU, o status PAGA, como no webhook e na volta do cliente.
+      // A guarda faz disto um nada numa candidata que já estava PAGA.
+      await prismaUnscoped.inscricao.updateMany({
+        where: { id: inscricao.id, status: "AGUARDANDO_PAGAMENTO" },
+        data: { status: "PAGA" },
       });
 
       await provisionarInscricao(inscricao, { origem: "cron/reconciliacao" });

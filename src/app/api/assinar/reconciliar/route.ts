@@ -90,6 +90,15 @@ export async function POST(req: NextRequest) {
       detalhe: inscricao.plano,
     });
 
+    // PAGOU e o status PAGA saem juntos nos três caminhos (aqui, o webhook e
+    // o job diário): PAGA é o que a peça "Provisionamento" da tela de saúde
+    // conta. A guarda de status não deixa rebaixar uma inscrição que o
+    // webhook provisionou enquanto esta rota consultava o Asaas.
+    await prismaUnscoped.inscricao.updateMany({
+      where: { id: inscricao.id, status: "AGUARDANDO_PAGAMENTO" },
+      data: { status: "PAGA" },
+    });
+
     await provisionarInscricao(inscricao, { origem: "assinar/reconciliar" });
 
     console.error(

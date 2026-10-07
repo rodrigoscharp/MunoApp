@@ -1,10 +1,14 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 const inscricaoFindMany = vi.fn();
+const inscricaoUpdateMany = vi.fn();
 const eventoFunilCreate = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
-    inscricao: { findMany: (...a: unknown[]) => inscricaoFindMany(...a) },
+    inscricao: {
+      findMany: (...a: unknown[]) => inscricaoFindMany(...a),
+      updateMany: (...a: unknown[]) => inscricaoUpdateMany(...a),
+    },
     eventoFunil: { create: (...a: unknown[]) => eventoFunilCreate(...a) },
   },
 }));
@@ -38,6 +42,7 @@ let erroSpy: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
   vi.clearAllMocks();
   inscricaoFindMany.mockResolvedValue([]);
+  inscricaoUpdateMany.mockResolvedValue({ count: 1 });
   temPagamento.mockResolvedValue(false);
   provisionar.mockResolvedValue({ tenantId: "tenant-1" });
   eventoFunilCreate.mockResolvedValue({});
@@ -55,13 +60,17 @@ describe("reconciliarInscricoesPagas", () => {
   // Asaas; quando ele não chega — fila interrompida, deploy caindo, rede — o
   // cliente pagou e nada aconteceu. Sem isto, alguém precisa LER um log para
   // descobrir. Com isto, o sistema termina o serviço sozinho.
-  it("procura só inscrição não provisionada que já tem assinatura no Asaas", async () => {
+  //
+  // PAGA entra junto: é a inscrição que um caminho anterior marcou como paga
+  // e cujo provisionamento falhou. Sem ela aqui, quem pagou e não ganhou o
+  // restaurante esperaria para sempre por uma reentrega do Asaas.
+  it("procura só inscrição não provisionada que já tem assinatura no Asaas, inclusive a já PAGA", async () => {
     await reconciliarInscricoesPagas(AGORA);
 
     expect(inscricaoFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          status: "AGUARDANDO_PAGAMENTO",
+          status: { in: ["AGUARDANDO_PAGAMENTO", "PAGA"] },
           asaasSubscriptionId: { not: null },
         },
       })
@@ -159,6 +168,33 @@ describe("reconciliarInscricoesPagas", () => {
     expect(
       eventoFunilCreate.mock.invocationCallOrder[0]
     ).toBeLessThan(provisionar.mock.invocationCallOrder[0]);
+  });
+
+  // A marca que a peça "Provisionamento" da tela de saúde conta. Sai junto do
+  // PAGOU, antes de provisionar, e a guarda de status a torna inofensiva numa
+  // candidata que já estava PAGA.
+  it("marca a Inscricao como PAGA, com guarda de status, antes de provisionar", async () => {
+    inscricaoFindMany.mockResolvedValue([inscricao()]);
+    temPagamento.mockResolvedValue(true);
+
+    await reconciliarInscricoesPagas(AGORA);
+
+    expect(inscricaoUpdateMany).toHaveBeenCalledWith({
+      where: { id: "insc-1", status: "AGUARDANDO_PAGAMENTO" },
+      data: { status: "PAGA" },
+    });
+    expect(inscricaoUpdateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      provisionar.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("não marca PAGA quem o Asaas diz que não pagou", async () => {
+    inscricaoFindMany.mockResolvedValue([inscricao()]);
+    temPagamento.mockResolvedValue(false);
+
+    await reconciliarInscricoesPagas(AGORA);
+
+    expect(inscricaoUpdateMany).not.toHaveBeenCalled();
   });
 
   // Teto por execução: o job roda uma vez por dia e não pode virar uma
