@@ -89,11 +89,11 @@ o `.env.local`: só devem sobrar `BLOB_READ_WRITE_TOKEN` e `VERCEL_OIDC_TOKEN`.
 
 **Para investigar problema de cliente, use `db:espelhar`, não produção.** Ele
 restaura o dump mais recente no banco local e apaga nome, telefone, e-mail,
-endereço, conteúdo de chat e credencial de gateway, preservando volume,
-relacionamentos e status. Você fica com a forma real dos dados sem carregar dado
-pessoal. As senhas viram `dev123`. O script se recusa a rodar contra qualquer
-host que não seja localhost, porque ele derruba o banco de destino antes de
-restaurar.
+endereço, conteúdo de chat, credencial de gateway e eventos de saúde
+(`EventoSistema`), preservando volume, relacionamentos e status. Você fica com
+a forma real dos dados sem carregar dado pessoal. As senhas viram `dev123`. O
+script se recusa a rodar contra qualquer host que não seja localhost, porque
+ele derruba o banco de destino antes de restaurar.
 
 Toda tabela com `tenantId` obrigatório precisa de três coisas: entrada em
 `src/lib/tenant-scoped-models.ts`, `@@index([tenantId])` no schema, e a policy

@@ -101,8 +101,16 @@ async function anonimizar(url: string) {
     prisma.$executeRawUnsafe(`update "PlatformAdmin" set email = 'admin@exemplo.local', password = $1`, senha),
     // Eventos da tela de saúde: a mensagem é a do erro, e uma mensagem de erro
     // pode citar o valor que estava sendo gravado (nome, telefone, endereço).
-    // São relatório de produção, sem valor para investigar aqui.
-    prisma.$executeRawUnsafe(`delete from "EventoSistema"`),
+    // São relatório de produção, sem valor para investigar aqui. Só se a tabela
+    // existir, porque o dump é restaurado sem migrar e um dump anterior a ela
+    // derrubaria a transação inteira, deixando o banco sem anonimizar.
+    prisma.$executeRawUnsafe(`
+      do $$ begin
+        if to_regclass('public."EventoSistema"') is not null then
+          delete from "EventoSistema";
+        end if;
+      end $$
+    `),
   ]);
 
   const [contagem] = await prisma.$queryRawUnsafe<{ vazou: number }[]>(`
