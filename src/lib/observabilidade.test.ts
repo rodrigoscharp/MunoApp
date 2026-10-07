@@ -1,10 +1,12 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { reportarErro, _limparLimiteDeEnvio } from "./observabilidade";
+import { registrarSaude } from "@/lib/saude/registrar";
 
 let log: ReturnType<typeof vi.spyOn>;
 let fetchSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
+  vi.mocked(registrarSaude).mockClear();
   _limparLimiteDeEnvio();
   log = vi.spyOn(console, "error").mockImplementation(() => {});
   fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("ok"));
@@ -73,5 +75,42 @@ describe("reportarErro com erro de SDK", () => {
   it("usa a message do objeto simples, em vez de [object Object]", async () => {
     await reportarErro({ origem: "x", erro: { name: "validation_error", message: "domain is not verified" } });
     expect(JSON.parse(log.mock.calls[0][0] as string).mensagem).toBe("domain is not verified");
+  });
+});
+
+describe("reportarErro grava o evento de saúde", () => {
+  it("grava ERRO com origem, mensagem, tenant e extra", async () => {
+    await reportarErro({ origem: "webhook/pagamento", erro: new Error("boom"), extra: { tenantId: "t1", orderId: "o1" } });
+    expect(registrarSaude).toHaveBeenCalledWith({
+      origem: "webhook/pagamento",
+      nivel: "ERRO",
+      mensagem: "boom",
+      tenantId: "t1",
+      extra: { tenantId: "t1", orderId: "o1" },
+    });
+  });
+
+  it("grava mesmo quando o aviso ao canal é suprimido pelo limite de um minuto", async () => {
+    vi.stubEnv("ERROR_WEBHOOK_URL", "https://hooks.example/abc");
+    await reportarErro({ origem: "cron", erro: new Error("igual") });
+    await reportarErro({ origem: "cron", erro: new Error("igual") });
+    expect(registrarSaude).toHaveBeenCalledTimes(2);
+  });
+
+  it("erro sem mensagem grava a origem no lugar", async () => {
+    await reportarErro({ origem: "cron/assinaturas:faxina" });
+    expect(vi.mocked(registrarSaude).mock.calls[0][0].mensagem).toBe("cron/assinaturas:faxina");
+  });
+
+  it("falha ao gravar não lança nem reporta de novo", async () => {
+    vi.mocked(registrarSaude).mockRejectedValueOnce(new Error("banco fora"));
+    await expect(reportarErro({ origem: "x", erro: new Error("a") })).resolves.toBeUndefined();
+    expect(registrarSaude).toHaveBeenCalledTimes(1);
+  });
+
+  it("no runtime edge não tenta gravar", async () => {
+    vi.stubEnv("NEXT_RUNTIME", "edge");
+    await reportarErro({ origem: "proxy:/", erro: new Error("a") });
+    expect(registrarSaude).not.toHaveBeenCalled();
   });
 });

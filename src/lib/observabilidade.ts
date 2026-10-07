@@ -4,9 +4,10 @@
  * Hoje a produção não tem Sentry nem alarme: webhook que falha, cron que morre
  * e provisionamento que quebra viram uma linha em `console.error` no painel da
  * Vercel, e ninguém é avisado. Aqui o erro vira uma linha JSON estável (fácil
- * de filtrar no painel e de enviar a um dreno de logs) e, se `ERROR_WEBHOOK_URL`
- * estiver definida, também uma mensagem para um canal (Slack, Discord, ou
- * qualquer endpoint que aceite `{ "text": "..." }`).
+ * de filtrar no painel e de enviar a um dreno de logs), um EventoSistema que a
+ * tela de saúde do console mostra, e, se `ERROR_WEBHOOK_URL` estiver definida,
+ * uma mensagem para um canal (Slack, Discord, ou qualquer endpoint que aceite
+ * `{ "text": "..." }`).
  *
  * Trocar por Sentry depois é mudar só este arquivo.
  *
@@ -40,6 +41,36 @@ export function semEmail(texto: string): string {
   return texto.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[email]");
 }
 
+/**
+ * Grava o erro em EventoSistema, para a tela de saúde do console.
+ *
+ * Import dinâmico, e só fora do edge: onRequestError (src/instrumentation.ts)
+ * também pode rodar no runtime edge, onde o Prisma não carrega. Um import
+ * estático levaria o Prisma para esse bundle.
+ *
+ * Não reporta a própria falha: registrarSaude já engole e loga, e reportar
+ * daqui chamaria esta função de novo.
+ */
+async function gravarEventoDeSaude(
+  origem: string,
+  mensagem: string,
+  extra: ErroReportado["extra"]
+): Promise<void> {
+  if (process.env.NEXT_RUNTIME === "edge") return;
+  try {
+    const { registrarSaude } = await import("@/lib/saude/registrar");
+    await registrarSaude({
+      origem,
+      nivel: "ERRO",
+      mensagem: mensagem || origem,
+      tenantId: typeof extra?.tenantId === "string" ? extra.tenantId : null,
+      extra,
+    });
+  } catch {
+    // gravar evento nunca pode causar erro
+  }
+}
+
 export async function reportarErro({ origem, erro, extra }: ErroReportado): Promise<void> {
   try {
     const mensagem = semEmail(mensagemDe(erro)).slice(0, 500);
@@ -49,6 +80,10 @@ export async function reportarErro({ origem, erro, extra }: ErroReportado): Prom
         : undefined;
 
     console.error(JSON.stringify({ nivel: "erro", origem, mensagem, digest, ...extra }));
+
+    // Antes do limite de envio: o canal recebe uma mensagem por minuto, mas a
+    // tela de saúde conta todas.
+    await gravarEventoDeSaude(origem, mensagem, extra);
 
     const url = process.env.ERROR_WEBHOOK_URL;
     if (!url) return;
