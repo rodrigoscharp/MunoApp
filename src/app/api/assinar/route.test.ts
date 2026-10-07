@@ -103,6 +103,7 @@ function corpoValido() {
   return {
     nome: "Pizzaria",
     email: "a@b.com",
+    whatsapp: "(11) 98765-4321",
     slug: "pizzaria",
     cpfCnpj: "11222333000181",
     plano: "MEMBRO",
@@ -111,6 +112,33 @@ function corpoValido() {
     aceiteTermos: true,
   };
 }
+
+describe("WhatsApp", () => {
+  it("grava só os dígitos na Inscricao e no Lead e manda ao Asaas", async () => {
+    await POST(requisicao({ ...corpoValido(), whatsapp: "+55 (11) 98765-4321" }));
+
+    expect(inscricaoCreate.mock.calls[0][0].data.whatsapp).toBe("11987654321");
+    expect(leadCreate.mock.calls[0][0].data.telefone).toBe("11987654321");
+    expect(criarCliente.mock.calls[0][0].whatsapp).toBe("11987654321");
+  });
+
+  // Sem número não há como recuperar quem para na página de pagamento, que
+  // foi exatamente o primeiro checkout de produção.
+  it.each([
+    ["ausente", undefined],
+    ["fixo", "(11) 3456-7890"],
+    ["vazio", ""],
+  ])("recusa com 400 quando está %s, antes de tocar no banco", async (_nome, valor) => {
+    const corpo: Record<string, unknown> = { ...corpoValido(), whatsapp: valor };
+    if (valor === undefined) delete corpo.whatsapp;
+
+    const res = await POST(requisicao(corpo));
+
+    expect(res.status).toBe(400);
+    expect(inscricaoCreate).not.toHaveBeenCalled();
+    expect(criarCliente).not.toHaveBeenCalled();
+  });
+});
 
 describe("aceite dos termos", () => {
   it("grava quando e qual versão dos termos foi aceita", async () => {

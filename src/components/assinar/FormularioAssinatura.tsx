@@ -5,6 +5,7 @@ import type { PlanoTenant } from "@prisma/client";
 import type { Ciclo } from "@/lib/plans";
 import { sugerirSlug } from "@/lib/inscricao/sugerir-slug";
 import { isValidCpfCnpj, stripDocumento } from "@/lib/cpf";
+import { mascararWhatsapp, normalizarWhatsapp } from "@/lib/inscricao/whatsapp";
 
 type Metodo = "CREDIT_CARD" | "PIX";
 
@@ -66,6 +67,7 @@ export function FormularioAssinatura({
 }) {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
   const [cpfCnpj, setCpfCnpj] = useState("");
   const [slug, setSlug] = useState("");
   // Uma vez que a pessoa mexeu no endereço na mão, trocar o nome não pode
@@ -201,11 +203,17 @@ export function FormularioAssinatura({
   const cpfCnpjPreenchidoInvalido =
     cpfCnpjDigitos.length >= 11 && !isValidCpfCnpj(cpfCnpj);
 
+  const whatsappDigitos = whatsapp.replace(/\D/g, "");
+  const whatsappValido = normalizarWhatsapp(whatsapp) !== null;
+  const whatsappPreenchidoInvalido =
+    whatsappDigitos.length >= 10 && !whatsappValido;
+
   const podeEnviar =
     !loading &&
     estadoSlug === "livre" &&
     nome.trim().length >= 2 &&
     email.trim().length > 0 &&
+    whatsappValido &&
     isValidCpfCnpj(cpfCnpj) &&
     aceitouTermos;
 
@@ -227,6 +235,7 @@ export function FormularioAssinatura({
         body: JSON.stringify({
           nome,
           email,
+          whatsapp,
           slug,
           cpfCnpj,
           plano,
@@ -346,6 +355,31 @@ export function FormularioAssinatura({
           placeholder="joao@pizzaria.com"
           className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
         />
+      </div>
+
+      <div>
+        <label
+          htmlFor="assinar-whatsapp"
+          className="block text-sm font-medium text-neutral-700 mb-1"
+        >
+          WhatsApp *
+        </label>
+        <input
+          type="tel"
+          id="assinar-whatsapp"
+          value={whatsapp}
+          onChange={(e) => setWhatsapp(mascararWhatsapp(e.target.value))}
+          required
+          inputMode="numeric"
+          autoComplete="tel-national"
+          placeholder="(11) 98765-4321"
+          className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+        />
+        {whatsappPreenchidoInvalido && (
+          <p className="mt-1 text-xs text-red-600">
+            Informe um celular com DDD.
+          </p>
+        )}
       </div>
 
       <div>

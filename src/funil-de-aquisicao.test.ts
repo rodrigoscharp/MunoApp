@@ -255,6 +255,7 @@ describe("costura 3 — o Lead que o checkout cria é o Lead que o provisionamen
         body: JSON.stringify({
           nome: "Pizzaria do Zé",
           email: "dono@pizzaria.com",
+          whatsapp: "(11) 98765-4321",
           slug: "pizzaria-do-ze",
           cpfCnpj: "24971563792",
           plano: "MEMBRO",
@@ -282,6 +283,7 @@ describe("costura 3 — o Lead que o checkout cria é o Lead que o provisionamen
         body: JSON.stringify({
           nome: "Pizzaria do Zé",
           email: "dono@pizzaria.com",
+          whatsapp: "(11) 98765-4321",
           slug: "pizzaria-do-ze",
           cpfCnpj: "24971563792",
           plano: "MEMBRO",

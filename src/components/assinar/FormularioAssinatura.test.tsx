@@ -66,6 +66,7 @@ afterEach(() => {
 async function preencherTudo(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/nome do restaurante/i), "Pizzaria do Ze");
   await user.type(screen.getByLabelText(/e-mail/i), "dono@pizzaria.com");
+  await user.type(screen.getByLabelText(/whatsapp/i), "11987654321");
   // CPF válido pelo dígito verificador — isValidCpfCnpj roda de verdade aqui.
   await user.type(screen.getByLabelText(/cpf ou cnpj/i), "24971563792");
   await vi.advanceTimersByTimeAsync(500);
@@ -107,6 +108,35 @@ describe("FormularioAssinatura: aceite dos termos", () => {
     expect(privacidade.getAttribute("href")).toBe("/privacidade");
     expect(termos.getAttribute("target")).toBe("_blank");
     expect(privacidade.getAttribute("target")).toBe("_blank");
+  });
+});
+
+describe("FormularioAssinatura: WhatsApp", () => {
+  it("mantém o botão travado com fixo no lugar de celular", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<FormularioAssinatura plano="MEMBRO" ciclo="MENSAL" />);
+    await preencherTudo(user);
+    const campo = screen.getByLabelText(/whatsapp/i);
+
+    await user.clear(campo);
+    await user.type(campo, "1134567890");
+
+    expect(botao().disabled).toBe(true);
+    expect(screen.getByText(/celular com ddd/i)).toBeTruthy();
+  });
+
+  it("formata o número e manda para a API", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<FormularioAssinatura plano="MEMBRO" ciclo="MENSAL" />);
+    await preencherTudo(user);
+
+    expect((screen.getByLabelText(/whatsapp/i) as HTMLInputElement).value).toBe(
+      "(11) 98765-4321"
+    );
+    await user.click(botao());
+
+    const chamada = fetchMock.mock.calls.find(([url]) => String(url) === "/api/assinar");
+    expect(JSON.parse(chamada![1].body).whatsapp).toBe("(11) 98765-4321");
   });
 });
 

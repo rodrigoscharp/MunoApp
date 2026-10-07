@@ -586,6 +586,8 @@ model Inscricao {
   nome                String
   slug                String          @unique
   email               String
+  // Celular só com dígitos. Nulo nas inscrições anteriores a esta coluna.
+  whatsapp            String?
   plano               PlanoTenant
   ciclo               Ciclo
   asaasCustomerId     String?

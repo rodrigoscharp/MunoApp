@@ -7,6 +7,7 @@ import { prismaUnscoped } from "@/lib/prisma";
 import { criarLimitador } from "@/lib/rate-limit";
 import { checarSlug } from "@/lib/inscricao/slug";
 import { isValidCpfCnpj, stripDocumento } from "@/lib/cpf";
+import { normalizarWhatsapp } from "@/lib/inscricao/whatsapp";
 import { precoDoCiclo, PLANO_LABELS } from "@/lib/plans";
 import {
   criarAssinatura,
@@ -28,6 +29,20 @@ const limitador = criarLimitador({ max: 5, janelaMs: 10 * 60 * 1000 });
 const schema = z.object({
   nome: z.string().trim().min(2).max(120),
   email: z.string().trim().email(),
+  // Obrigatório: é por ele que se recupera quem para na página de pagamento
+  // do Asaas, e é para ele que o Asaas manda lembrete de cobrança. Sai daqui
+  // só com dígitos, sem o +55.
+  whatsapp: z
+    .string()
+    .max(30)
+    .transform((v, ctx) => {
+      const normalizado = normalizarWhatsapp(v);
+      if (!normalizado) {
+        ctx.addIssue({ code: "custom", message: "WhatsApp inválido" });
+        return z.NEVER;
+      }
+      return normalizado;
+    }),
   // toLowerCase aqui, e não dentro de checarSlug: o contrato dela exige
   // slug já normalizado (ver o JSDoc em src/lib/inscricao/slug.ts) — ela
   // recusa maiúscula como INVALIDO em vez de corrigir. Normalizar depois da
@@ -74,7 +89,8 @@ export async function POST(req: NextRequest) {
       { status: 429 }
     );
   }
-  const { nome, email, slug, cpfCnpj, plano, ciclo, metodo } = parsed.data;
+  const { nome, email, whatsapp, slug, cpfCnpj, plano, ciclo, metodo } =
+    parsed.data;
 
   // A FK de Inscricao.sessaoId aponta para SessaoFunil, e a linha da sessão só
   // nasce quando um evento chega em /api/funil/evento. Quem abre /assinar
@@ -149,6 +165,7 @@ export async function POST(req: NextRequest) {
       data: {
         nome,
         email,
+        whatsapp,
         slug,
         plano,
         ciclo,
@@ -199,6 +216,7 @@ export async function POST(req: NextRequest) {
           data: {
             nome,
             email,
+            whatsapp,
             slug,
             plano,
             ciclo,
@@ -246,6 +264,7 @@ export async function POST(req: NextRequest) {
       data: {
         restaurante: nome,
         email,
+        telefone: whatsapp,
         plano: PLANO_LABELS[plano],
         origem: "checkout",
         status: "NEGOCIACAO",
@@ -301,6 +320,7 @@ export async function POST(req: NextRequest) {
     cliente = await criarCliente({
       nome,
       email,
+      whatsapp,
       cpfCnpj: stripDocumento(cpfCnpj),
     });
 

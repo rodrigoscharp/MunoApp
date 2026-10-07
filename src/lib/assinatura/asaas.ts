@@ -97,11 +97,16 @@ function proximoVencimentoISO(): string {
 export async function criarCliente(input: {
   nome: string;
   email: string;
+  // Celular só com dígitos, sem +55. Opcional porque o checkout é o único
+  // caminho que o coleta; mobilePhone é o campo para onde o Asaas manda os
+  // lembretes de cobrança por WhatsApp e SMS.
+  whatsapp?: string;
   cpfCnpj: string;
 }): Promise<{ id: string }> {
   return chamar<{ id: string }>("/customers", {
     name: input.nome,
     email: input.email,
+    ...(input.whatsapp ? { mobilePhone: input.whatsapp } : {}),
     cpfCnpj: input.cpfCnpj,
   });
 }
