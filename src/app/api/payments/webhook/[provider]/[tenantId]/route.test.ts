@@ -14,6 +14,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { InvalidWebhookSignatureError } from "@/lib/payments/types";
+import { registrarSaude } from "@/lib/saude/registrar";
 
 const TENANT = "restaurante-a";
 const PROVIDER = "stripe";
@@ -344,5 +345,35 @@ describe("falha genérica não pode virar 200", () => {
     const res = await POST(req(), params);
 
     expect(res.status).toBe(500);
+  });
+});
+
+describe("sinais para a tela de saúde", () => {
+  it("evento processado grava OK com provider e tenant", async () => {
+    const res = await POST(req(), params);
+
+    expect(res.status).toBe(200);
+    expect(registrarSaude).toHaveBeenCalledWith(
+      expect.objectContaining({ origem: "webhook/pagamento", nivel: "OK", tenantId: TENANT, extra: { provider: PROVIDER } })
+    );
+  });
+
+  it("falha genérica vira evento de erro, não só log", async () => {
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    handleWebhook.mockRejectedValue(new Error("credencial corrompida"));
+
+    const res = await POST(req(), params);
+
+    expect(res.status).toBe(500);
+    expect(registrarSaude).toHaveBeenCalledWith(
+      expect.objectContaining({ origem: "webhook/pagamento", nivel: "ERRO", tenantId: TENANT })
+    );
+    erro.mockRestore();
+  });
+
+  it("assinatura inválida não grava nada: qualquer um pode chamar a URL", async () => {
+    handleWebhook.mockRejectedValue(new InvalidWebhookSignatureError());
+    await POST(req(), params);
+    expect(registrarSaude).not.toHaveBeenCalled();
   });
 });

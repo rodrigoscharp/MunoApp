@@ -1,4 +1,5 @@
 import { reportarErro } from "@/lib/observabilidade";
+import { registrarSaude } from "@/lib/saude/registrar";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, prismaUnscoped } from "@/lib/prisma";
 import { runWithTenant } from "@/lib/tenant-context";
@@ -160,6 +161,14 @@ export async function POST(
       }
     });
 
+    await registrarSaude({
+      origem: "webhook/pagamento",
+      nivel: "OK",
+      mensagem: `${providerId}: evento processado`,
+      tenantId,
+      extra: { provider: providerId },
+    });
+
     return NextResponse.json({ received: true });
   } catch (err) {
     // Qualquer falha genérica (ex.: blob de credenciais corrompido ou chave
@@ -167,6 +176,14 @@ export async function POST(
     // comum) precisa virar 500 — nunca 200. Reportar "received" pro gateway
     // quando na verdade falhamos esconderia um problema real.
     console.error("Webhook error:", extractErrorMessage(err));
+    // Até aqui o erro só ia para o log. Credencial que não abre (chave
+    // rotacionada) derruba todos os pagamentos online de um restaurante, e
+    // precisa aparecer na tela de saúde.
+    await reportarErro({
+      origem: "webhook/pagamento",
+      erro: extractErrorMessage(err),
+      extra: { provider: providerId, tenantId },
+    });
     return NextResponse.json({ error: "Webhook error" }, { status: 500 });
   }
 }

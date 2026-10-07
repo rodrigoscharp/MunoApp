@@ -19,6 +19,9 @@ import { reconciliarCobrancasDoAsaas } from "@/lib/assinatura/reconciliacao-cobr
 import { registrarEvento } from "@/lib/funil/registrar";
 import { aplicarRetencao, limparTokensExpirados, mesesDeRetencao } from "@/lib/retencao";
 import { expurgarEventos } from "@/lib/funil/expurgo";
+import { registrarSaude } from "@/lib/saude/registrar";
+import { expurgarEventosDeSaude } from "@/lib/saude/expurgo";
+import { ORIGEM_DO_CRON } from "@/lib/saude/origens";
 
 /**
  * Job diário da assinatura. Duas responsabilidades, nesta ordem: gerar a
@@ -361,6 +364,17 @@ async function executar(req: NextRequest) {
     await reportarErro({ origem: "cron/assinaturas:retencao", erro });
   }
 
+  // Eventos de saúde com mais de 30 dias. Conveniência, como o expurgo do
+  // funil: não derruba a cobrança do dia.
+  let eventosDeSaudeApagados = 0;
+  let expurgoDeSaudeFalhou = false;
+  try {
+    eventosDeSaudeApagados = await expurgarEventosDeSaude(agora);
+  } catch (erro) {
+    expurgoDeSaudeFalhou = true;
+    await reportarErro({ origem: "cron/assinaturas:saude", erro });
+  }
+
   const resposta = {
     competencia,
     reconciliacao,
@@ -377,7 +391,27 @@ async function executar(req: NextRequest) {
     tokensApagados,
     ...(retencao ? { retencao } : {}),
     ...(faxinaDeDadosFalhou ? { faxinaDeDadosFalhou: true } : {}),
+    eventosDeSaudeApagados,
+    ...(expurgoDeSaudeFalhou ? { expurgoDeSaudeFalhou: true } : {}),
   };
+
+  // O sinal de vida que a tela de saúde lê. Gravado no fim, de propósito: "o
+  // cron rodou" é o que pega a Vercel parando de chamá-lo, e uma execução que
+  // morre no meio não chega aqui. Etapa que falhou vira AVISO, não ausência.
+  const etapasComErro = [
+    cobrancasDoAsaasFalhou,
+    reconciliacaoFalhou,
+    limpezaDeInscricoesFalhou,
+    expurgoDoFunilFalhou,
+    faxinaDeDadosFalhou,
+    expurgoDeSaudeFalhou,
+  ].filter(Boolean).length;
+  await registrarSaude({
+    origem: ORIGEM_DO_CRON,
+    nivel: etapasComErro ? "AVISO" : "OK",
+    mensagem: etapasComErro ? `rodou com ${etapasComErro} etapa(s) em erro` : "rodou",
+    extra: { cobrancasCriadas, statusAtualizados, etapasComErro },
+  });
 
   // Contador honesto: se a limpeza falhou, inscricoesExpiradas fica 0 (nada
   // apurado, e não um "0" que finge sucesso) e o campo abaixo torna a falha

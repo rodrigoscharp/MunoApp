@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { Prisma } from "@prisma/client";
+import { registrarSaude } from "@/lib/saude/registrar";
 
 const SEGREDO = "segredo-do-cron";
 
@@ -71,6 +72,20 @@ vi.mock("@/lib/assinatura/asaas", () => ({
   cancelarAssinaturaNoAsaas: (...args: unknown[]) => cancelarNoAsaas(...args),
 }));
 
+// As duas etapas de expurgo são I/O no Prisma, mockadas como as outras. O
+// $transaction que o expurgo do funil exige não existe no prismaUnscoped
+// falso acima: sem este mock a etapa cai no catch em todo teste, e o sinal de
+// vida nunca poderia ser OK.
+const expurgarFunil = vi.fn();
+vi.mock("@/lib/funil/expurgo", () => ({
+  expurgarEventos: (...a: unknown[]) => expurgarFunil(...a),
+}));
+
+const expurgarSaude = vi.fn();
+vi.mock("@/lib/saude/expurgo", () => ({
+  expurgarEventosDeSaude: (...a: unknown[]) => expurgarSaude(...a),
+}));
+
 const { GET, POST } = await import("@/app/api/cron/assinaturas/route");
 
 // --- helpers ---------------------------------------------------------------
@@ -136,6 +151,8 @@ beforeEach(() => {
   reconciliarCobrancas.mockResolvedValue({ assinaturas: 0, cobrancas: 0, falhas: 0 });
   eventoCreate.mockResolvedValue({});
   leadUpdateMany.mockResolvedValue({ count: 0 });
+  expurgarFunil.mockResolvedValue({ resumidos: 0, apagados: 0 });
+  expurgarSaude.mockResolvedValue(0);
 });
 
 afterEach(() => {
@@ -825,5 +842,43 @@ describe("cron: retenção de dados e limpeza de tokens", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ faxinaDeDadosFalhou: true });
     erro.mockRestore();
+  });
+});
+
+describe("sinal de vida do cron", () => {
+  it("grava OK com as contagens quando todas as etapas passam", async () => {
+    const res = await POST(requisicao());
+    expect(res.status).toBe(200);
+    expect(registrarSaude).toHaveBeenCalledWith(
+      expect.objectContaining({ origem: "cron/assinaturas", nivel: "OK", mensagem: "rodou" })
+    );
+  });
+
+  it("grava AVISO quando uma etapa cai no catch", async () => {
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    expurgarSaude.mockRejectedValue(new Error("boom"));
+    await POST(requisicao());
+    expect(registrarSaude).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origem: "cron/assinaturas",
+        nivel: "AVISO",
+        extra: expect.objectContaining({ etapasComErro: 1 }),
+      })
+    );
+    erro.mockRestore();
+  });
+
+  it("expurgo de saúde que falha não derruba o job", async () => {
+    const erro = vi.spyOn(console, "error").mockImplementation(() => {});
+    expurgarSaude.mockRejectedValue(new Error("boom"));
+    const res = await POST(requisicao());
+    expect(res.status).toBe(200);
+    expect((await res.json()).expurgoDeSaudeFalhou).toBe(true);
+    erro.mockRestore();
+  });
+
+  it("sem o segredo não grava sinal nenhum", async () => {
+    await POST(requisicao({ secret: null }));
+    expect(registrarSaude).not.toHaveBeenCalled();
   });
 });

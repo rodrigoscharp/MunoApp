@@ -5,6 +5,7 @@ import { provisionarInscricao } from "@/lib/assinatura/provisionamento";
 import { registrarEvento } from "@/lib/funil/registrar";
 import { espelharEventoDeAssinatura } from "@/lib/assinatura/espelho";
 import { reportarErro } from "@/lib/observabilidade";
+import { registrarSaude } from "@/lib/saude/registrar";
 
 /**
  * Webhook chamado pelo Asaas quando um pagamento da PLATAFORMA (a Muno
@@ -76,7 +77,10 @@ export async function POST(req: NextRequest) {
   // porque o cron não gera Cobranca para assinatura do gateway: sem este
   // espelho, quem para de pagar no mês 2 nunca vira INADIMPLENTE. Falha aqui
   // propaga (500) e o Asaas reentrega, que é o desejado.
-  if (await espelharEventoDeAssinatura(corpo, new Date())) return ok();
+  if (await espelharEventoDeAssinatura(corpo, new Date())) {
+    await registrarSaude({ origem: "webhook/asaas", nivel: "OK", mensagem: `${evento} espelhado` });
+    return ok();
+  }
 
   const pagamento = corpo.payment;
   if (!pagamento) return ok();
@@ -167,6 +171,13 @@ export async function POST(req: NextRequest) {
     origem: "webhook/asaas",
     pagamentoId: pagamento.id,
     assinaturaGatewayId: pagamento.subscription,
+  });
+
+  await registrarSaude({
+    origem: "webhook/asaas",
+    nivel: "OK",
+    mensagem: `${evento} processado`,
+    extra: { inscricaoId: inscricao.id },
   });
 
   return ok();

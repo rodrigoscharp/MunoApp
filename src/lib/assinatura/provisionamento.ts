@@ -6,6 +6,8 @@ import { PRECOS } from "@/lib/plans";
 import { competenciaDe, DIA_VENCIMENTO_MAX } from "@/lib/assinatura/competencia";
 import { enviarBoasVindas } from "@/lib/assinatura/email-boas-vindas";
 import { registrarEvento } from "@/lib/funil/registrar";
+import { registrarSaude } from "@/lib/saude/registrar";
+import { ORIGEM_DO_PROVISIONAMENTO } from "@/lib/saude/origens";
 
 /**
  * Transforma uma Inscricao paga em restaurante no ar.
@@ -266,6 +268,16 @@ export async function provisionarInscricao(
       tipo: "PROVISIONADO",
       detalhe: inscricao.plano,
     });
+  });
+
+  // Fora da transação: evento de saúde é relatório, e não pode desfazer um
+  // restaurante que já nasceu.
+  await registrarSaude({
+    origem: ORIGEM_DO_PROVISIONAMENTO,
+    nivel: "OK",
+    mensagem: `restaurante ${inscricao.slug} no ar`,
+    tenantId,
+    extra: { inscricaoId: inscricao.id, via: origem },
   });
 
   // E-mail de boas-vindas: a única coisa que o cliente recebe depois de

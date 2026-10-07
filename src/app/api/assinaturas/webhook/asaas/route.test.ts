@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { ProvisionError } from "@/lib/tenant-provisioning";
+import { registrarSaude } from "@/lib/saude/registrar";
 
 // --- mocks -------------------------------------------------------------
 //
@@ -833,5 +834,35 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
     );
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it("grava o sinal do webhook e o do provisionamento depois de processar o pagamento", async () => {
+    inscricaoFindFirst.mockResolvedValue(inscricaoAguardando());
+
+    const res = await POST(requisicao(eventoPago()));
+
+    expect(res.status).toBe(200);
+    expect(registrarSaude).toHaveBeenCalledWith(
+      expect.objectContaining({ origem: "webhook/asaas", nivel: "OK", mensagem: "PAYMENT_CONFIRMED processado" })
+    );
+    expect(registrarSaude).toHaveBeenCalledWith(
+      expect.objectContaining({ origem: "provisionamento", nivel: "OK", tenantId: "tenant-1" })
+    );
+  });
+
+  it("grava o sinal do webhook quando o evento vai para o espelho", async () => {
+    espelharEventoDeAssinatura.mockResolvedValue(true);
+
+    await POST(requisicao({ ...eventoPago(), event: "PAYMENT_OVERDUE" }));
+
+    expect(registrarSaude).toHaveBeenCalledWith(
+      expect.objectContaining({ origem: "webhook/asaas", nivel: "OK", mensagem: "PAYMENT_OVERDUE espelhado" })
+    );
+  });
+
+  it("token inválido não grava sinal", async () => {
+    webhookAutorizado.mockReturnValue(false);
+    await POST(requisicao(eventoPago(), "errado"));
+    expect(registrarSaude).not.toHaveBeenCalled();
   });
 });
