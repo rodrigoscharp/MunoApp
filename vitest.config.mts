@@ -14,6 +14,8 @@ export default defineConfig({
     // Os de integração falam com Postgres de verdade: rodam à parte, em
     // `npm run test:integracao` (vitest.integration.config.mts).
     exclude: ["**/node_modules/**", "src/**/*.integration.test.ts"],
+    // Mock global de registrarSaude: ver o comentário no arquivo.
+    setupFiles: ["src/test-setup/sem-saude.ts"],
     // Chave fixa de 32 bytes só pra teste — src/lib/crypto.ts exige uma.
     env: {
       PAYMENT_TOKEN_ENCRYPTION_KEY: "0".repeat(64),

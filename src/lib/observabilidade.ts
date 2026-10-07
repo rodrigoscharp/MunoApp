@@ -36,7 +36,7 @@ function mensagemDe(erro: unknown): string {
 }
 
 /** Substitui o que parece e-mail, para a mensagem do erro não vazar PII. */
-function semEmail(texto: string): string {
+export function semEmail(texto: string): string {
   return texto.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[email]");
 }
 

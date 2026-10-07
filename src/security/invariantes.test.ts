@@ -98,6 +98,8 @@ const USO_DE_PRISMA_UNSCOPED: Record<string, string> = {
     "cria e apaga restaurantes de teste no banco descartável dos testes de integração",
   "src/lib/retencao.ts":
     "cron diário aplicando retenção de dado pessoal entre todos os restaurantes, sem tenant",
+  "src/lib/saude/registrar.ts":
+    "evento de saúde da plataforma, gravado por qualquer rota, sem tenant",
   "src/lib/anonimizacao-cliente.ts":
     "atende pedido de titular (LGPD) por script de operação, com tenantId explícito em toda consulta",
   "src/lib/assinatura/reconciliacao-cobrancas.ts":
