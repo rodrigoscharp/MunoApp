@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import type { Cor } from "@/lib/saude/avaliar";
+import { TOM_DA_COR } from "./saude/cores";
 import {
   IconeChevron,
   IconeGrade,
@@ -96,7 +98,27 @@ function ativoNoLink(caminho: string, href: string) {
   return href === "/" ? caminho === "/" : caminho.startsWith(href);
 }
 
-export function MenuLateral({ contagens }: { contagens: ContagensDoMenu }) {
+/**
+ * O ponto do item "Saúde". Só amarelo e vermelho desenham: verde e neutro não
+ * dizem nada, e um ponto sempre aceso vira papel de parede.
+ */
+function PontoDaSaude({ saude, className }: { saude: Cor; className: string }) {
+  if (saude !== "amarelo" && saude !== "vermelho") return null;
+  return (
+    <span
+      aria-label={saude === "vermelho" ? "algo parou" : "pede atenção"}
+      className={`rounded-full ${TOM_DA_COR[saude]} ${className}`}
+    />
+  );
+}
+
+export function MenuLateral({
+  contagens,
+  saude,
+}: {
+  contagens: ContagensDoMenu;
+  saude: Cor;
+}) {
   const { caminho, estagio } = useRotaAtual();
 
   return (
@@ -108,6 +130,7 @@ export function MenuLateral({ contagens }: { contagens: ContagensDoMenu }) {
             item={item}
             ativo={ativoNoLink(caminho, item.href)}
             contagens={contagens}
+            saude={saude}
           />
         ) : (
           <Grupo
@@ -127,10 +150,12 @@ function ItemLink({
   item,
   ativo,
   contagens,
+  saude,
 }: {
   item: Extract<Item, { tipo: "link" }>;
   ativo: boolean;
   contagens: ContagensDoMenu;
+  saude: Cor;
 }) {
   const { Icone } = item;
   return (
@@ -148,6 +173,7 @@ function ItemLink({
       {item.selo && (
         <SeloDeContagem n={contagens[item.selo.contagem]} tom={item.selo.tom} />
       )}
+      {item.href === "/saude" && <PontoDaSaude saude={saude} className="size-2.5 shrink-0" />}
     </Link>
   );
 }
@@ -312,7 +338,13 @@ const DESTINOS_DO_CELULAR = [
  * O rodapé do celular. Sem árvore: em 375px ela não cabe, e os filtros de
  * estágio continuam a um toque dentro da própria tela de leads.
  */
-export function MenuInferior({ contagens }: { contagens: ContagensDoMenu }) {
+export function MenuInferior({
+  contagens,
+  saude,
+}: {
+  contagens: ContagensDoMenu;
+  saude: Cor;
+}) {
   const { caminho } = useRotaAtual();
   const pendencias: Record<string, number> = {
     "/leads": contagens.novos,
@@ -342,6 +374,12 @@ export function MenuInferior({ contagens }: { contagens: ContagensDoMenu }) {
                 <span
                   aria-hidden
                   className="absolute top-0.5 right-3 size-2 rounded-full bg-[#FF8051] ring-2 ring-console-papel"
+                />
+              )}
+              {href === "/saude" && (
+                <PontoDaSaude
+                  saude={saude}
+                  className="absolute top-0.5 right-3 size-2 ring-2 ring-console-papel"
                 />
               )}
             </span>

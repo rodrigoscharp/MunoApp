@@ -4,6 +4,8 @@ import { Inter } from "next/font/google";
 import { prismaUnscoped } from "@/lib/prisma";
 import { authPlatform } from "@/lib/auth-platform";
 import { diasDeAtraso } from "@/lib/assinatura/regua";
+import { avaliarSaude } from "@/lib/saude/avaliar";
+import { coletarDadosDeSaude } from "@/lib/saude/coletar";
 import { MenuInferior, MenuLateral } from "@/components/platform/MenuLateral";
 import { BotaoSair } from "@/components/platform/BotaoSair";
 import { TemaBotao } from "@/components/platform/TemaBotao";
@@ -66,13 +68,14 @@ export default async function PlatformLayout({
   // visão geral e da lista de clientes, para o número no menu nunca discordar
   // do número na tela que ele abre.
   const agora = new Date();
-  const [novos, negociando, emAberto] = await Promise.all([
+  const [novos, negociando, emAberto, dadosDaSaude] = await Promise.all([
     prismaUnscoped.lead.count({ where: { status: "NOVO" } }),
     prismaUnscoped.lead.count({ where: { status: "NEGOCIACAO" } }),
     prismaUnscoped.cobranca.findMany({
       where: { status: { in: ["PENDENTE", "VENCIDA"] } },
       select: { vencimento: true },
     }),
+    coletarDadosDeSaude(agora),
   ]);
   const contagens = {
     novos,
@@ -80,6 +83,9 @@ export default async function PlatformLayout({
     atrasadas: emAberto.filter((c) => diasDeAtraso(c.vencimento, agora) > 0)
       .length,
   };
+
+  // O ponto do item "Saúde" no menu: a mesma regra da tela e do monitor.
+  const corDaSaude = avaliarSaude(dadosDaSaude, agora).geral;
 
   const email = session.user.email ?? "";
   const nome = session.user.name ?? email.split("@")[0];
@@ -108,7 +114,7 @@ export default async function PlatformLayout({
           <p className="text-[12px] text-console-mudo mt-1.5">plataforma</p>
         </div>
 
-        <MenuLateral contagens={contagens} />
+        <MenuLateral contagens={contagens} saude={corDaSaude} />
 
         <div className="mt-auto pt-8 space-y-3">
           <TemaBotao />
@@ -164,7 +170,7 @@ export default async function PlatformLayout({
       </header>
 
       <div className="md:hidden fixed bottom-0 inset-x-0 z-20 bg-console-papel/90 backdrop-blur-md border-t border-console-linha pb-[env(safe-area-inset-bottom)]">
-        <MenuInferior contagens={contagens} />
+        <MenuInferior contagens={contagens} saude={corDaSaude} />
       </div>
 
       <main className="md:ml-[272px] px-4 sm:px-6 md:pl-3 md:pr-10 pt-3 md:pt-10 pb-28 md:pb-14">
