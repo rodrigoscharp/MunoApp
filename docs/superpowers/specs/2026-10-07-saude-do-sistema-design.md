@@ -101,9 +101,11 @@ model EventoSistema {
 
 * `tenantId` é opcional e sem `@relation`. Por isso o model **não** entra em
   `src/lib/tenant-scoped-models.ts` (que é para `tenantId` obrigatório) nem em
-  `ORDEM_DE_EXCLUSAO` de `src/lib/tenant-removal.ts`. Conferir que o teste de remoção
-  aceita isso; se ele exigir toda coluna `tenantId`, registrar a exceção ali com o mesmo
-  motivo do `Lead`.
+  `ORDEM_DE_EXCLUSAO` de `src/lib/tenant-removal.ts`. Conferido: os dois testes só
+  contam `tenantId String` obrigatório, então nenhuma exceção é necessária.
+* `Order` ganha `@@index([createdAt])`. Os índices que existem começam todos por
+  `tenantId`, e a contagem de pedidos da plataforma inteira por hora precisaria varrer
+  a tabela.
 * A migração liga `ENABLE ROW LEVEL SECURITY` sem policy, como toda tabela nova
   (AGENTS.md, "Toda tabela nova precisa de RLS").
 * Leitura e escrita só por `prismaUnscoped`, com entrada em `USO_DE_PRISMA_UNSCOPED`
@@ -153,8 +155,12 @@ Sem eles não existe "última vez que funcionou". São poucos e escolhidos:
 |---|---|---|
 | `cron/assinaturas` | fim do handler do cron, com um campo dizendo se alguma etapa caiu no `catch` | contagens que o handler já devolve; `etapasComErro` |
 | `webhook/asaas` | depois de processar o evento no webhook de assinaturas | tipo do evento, `assinaturaId` |
-| `webhook/pagamento` | depois de processar o webhook de pagamento de restaurante | `provider`, `tenantId`, `orderId` |
+| `webhook/pagamento` | depois de processar o webhook de pagamento de restaurante | `provider` (e `tenantId` na coluna) |
 | `provisionamento` | quando o restaurante nasce | `inscricaoId`, `tenantId` |
+
+O `catch` genérico do webhook de pagamento hoje só faz `console.error`. Ele passa a
+chamar `reportarErro({ origem: "webhook/pagamento" })`: credencial que não abre derruba
+todos os pagamentos online de um restaurante e precisa aparecer na tela.
 
 O cron registra `OK` mesmo quando uma etapa falhou, com `etapasComErro > 0` e nível
 `AVISO`. "O cron rodou" e "tudo no cron deu certo" são perguntas diferentes, e a
@@ -184,7 +190,7 @@ topo: "Tudo funcionando", ou o motivo da peça mais grave.
 | Peça | Fonte | Amarelo | Vermelho |
 |---|---|---|---|
 | Banco | `select 1` cronometrado | resposta > 500 ms | consulta falhou |
-| Cron diário | último evento de `cron/assinaturas` | último sinal > 26 h, ou último sinal com `etapasComErro > 0` | último sinal > 50 h, ou nenhum |
+| Cron diário | último evento de `cron/assinaturas` | último sinal > 26 h, ou último sinal com `etapasComErro > 0`, ou erro do cron depois do último sinal, ou nenhum sinal com a tabela nova | último sinal > 50 h, ou nenhum sinal com a tabela existindo há mais de 50 h |
 | Webhook Asaas | eventos `webhook/asaas` | algum `ERRO` nas últimas 24 h | evento mais recente é `ERRO` |
 | Provisionamento | `Inscricao` com `status = PAGA` | a mais antiga paga há > 15 min | a mais antiga paga há > 1 h |
 | Pagamentos dos restaurantes | eventos `webhook/pagamento` | algum `ERRO` nas últimas 24 h | 3 ou mais `ERRO` na última hora |
@@ -193,6 +199,16 @@ topo: "Tudo funcionando", ou o motivo da peça mais grave.
 | Pedidos | `Order`, agregado por hora | ver abaixo | nunca |
 
 Notas:
+
+* **Primeiro deploy.** A tabela nasce vazia e o cron só roda às 06:00 de Brasília.
+  Sem sinal nenhum e com o evento mais antigo da tabela mais novo que 50 h, o cron é
+  amarelo ("aguardando a primeira execução registrada"), e não vermelho: senão o
+  monitor tocaria a noite inteira depois do deploy.
+* **A avaliação lê as últimas 50 h de eventos**, mais o último sinal do cron sem
+  limite de tempo. "Evento mais recente" do webhook é o mais recente dessa janela.
+* **Cada evento pertence a no máximo uma peça**, decidido por `classificarOrigem()`
+  pelo prefixo da origem. A ordem das regras importa: `<quem chamou>:boas-vindas` é
+  e-mail mesmo quando quem chamou é o webhook do Asaas.
 
 * **"Pago há" de uma inscrição** usa `Inscricao.updatedAt`, que é quando ela virou
   `PAGA`. Enquanto estiver em `PAGA` nada mais a altera.
