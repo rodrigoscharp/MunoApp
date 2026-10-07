@@ -558,6 +558,36 @@ não tratado de rota chega a `onRequestError` em `src/instrumentation.ts`. Só
 ids vão em `extra`: nunca e-mail, telefone, corpo ou cabeçalho. `/api/health`
 responde 200 ou 503 conforme o banco, para o monitor externo.
 
+## A saúde do sistema
+
+`admin.munoapp.com.br/saude` mostra um semáforo das peças que param em
+silêncio (cron, webhook do Asaas, provisionamento, pagamentos dos
+restaurantes, e-mail, erros de rota, volume de pedidos) e um feed de eventos.
+A spec é `docs/superpowers/specs/2026-10-07-saude-do-sistema-design.md`.
+
+* **Todo `reportarErro` vira um `EventoSistema`.** Não é preciso fazer nada
+  para um erro novo aparecer no feed. Para ele acender uma peça, a origem
+  precisa casar com um prefixo de `classificarOrigem()`
+  (`src/lib/saude/origens.ts`), e a ordem das regras ali importa.
+* **"Funcionou" precisa ser dito.** Ausência de erro não prova nada; as peças
+  leem o último `registrarSaude({ nivel: "OK" })`. Fluxo novo que deve ser
+  vigiado ganha um sinal no ponto de sucesso, não só o `reportarErro` no
+  `catch`.
+* **A regra mora em `avaliarSaude()`**, função pura, e os números em
+  `src/lib/saude/limiares.ts`. A tela e `/api/health/sistema` chamam a mesma
+  função: não recrie a regra em outro lugar.
+* **Quem avisa é um monitor externo**, não código nosso. Ele consulta
+  `munoapp.com.br/api/health/sistema?token=<HEALTH_MONITOR_TOKEN>` a cada 5
+  minutos e alerta em 503, que só acontece com peça vermelha. A rota mora no
+  host raiz porque o `admin.` fecha por IP e por sessão.
+* **Pedidos nunca fica vermelho**, de propósito: queda de volume tem causa
+  inocente, e vermelho por motivo inocente ensina a ignorar o alarme.
+* **Nos testes de unidade, `registrarSaude` é mock global**
+  (`src/test-setup/sem-saude.ts`), porque o Prisma lê o `.env` sozinho e
+  gravaria no banco local. O teste do próprio registrar usa `vi.importActual`.
+* O cron diário apaga eventos com mais de 30 dias.
+* O item "Saúde" do menu do console ganha um ponto quando o estado geral é amarelo ou vermelho. Ele é calculado no layout do console (`src/app/platform/layout.tsx`) com a mesma `avaliarSaude()`, e por isso é um retrato do carregamento da página: navegação dentro do console não o recalcula.
+
 ## Termos e privacidade
 
 `public/vendas/termos.html` e `privacidade.html` guardam campos `<mark>[...]</mark>`
