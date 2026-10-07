@@ -42,6 +42,14 @@ const inter = Inter({
   display: "swap",
 });
 
+/** O valor de reserva de uma contagem do menu que falhou, com a linha no log. */
+function contagemFalhou<T>(reserva: T) {
+  return (erro: unknown): T => {
+    console.error("[console] contagem do menu falhou", erro instanceof Error ? erro.name : "erro");
+    return reserva;
+  };
+}
+
 export default async function PlatformLayout({
   children,
 }: {
@@ -67,14 +75,20 @@ export default async function PlatformLayout({
   // Os selos do menu. Contagem pura, e a de atraso usa o mesmo diasDeAtraso da
   // visão geral e da lista de clientes, para o número no menu nunca discordar
   // do número na tela que ele abre.
+  //
+  // Contagem que falha vira zero, e não erro de página: este layout envolve a
+  // tela de saúde, que precisa abrir justamente com o banco fora do ar. No log
+  // vai só a classe do erro, porque a mensagem do Prisma pode trazer o SQL.
   const agora = new Date();
   const [novos, negociando, emAberto, dadosDaSaude] = await Promise.all([
-    prismaUnscoped.lead.count({ where: { status: "NOVO" } }),
-    prismaUnscoped.lead.count({ where: { status: "NEGOCIACAO" } }),
-    prismaUnscoped.cobranca.findMany({
-      where: { status: { in: ["PENDENTE", "VENCIDA"] } },
-      select: { vencimento: true },
-    }),
+    prismaUnscoped.lead.count({ where: { status: "NOVO" } }).catch(contagemFalhou(0)),
+    prismaUnscoped.lead.count({ where: { status: "NEGOCIACAO" } }).catch(contagemFalhou(0)),
+    prismaUnscoped.cobranca
+      .findMany({
+        where: { status: { in: ["PENDENTE", "VENCIDA"] } },
+        select: { vencimento: true },
+      })
+      .catch(contagemFalhou<{ vencimento: Date }[]>([])),
     coletarDadosDeSaude(agora),
   ]);
   const contagens = {
