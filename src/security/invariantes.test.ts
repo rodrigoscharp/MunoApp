@@ -100,6 +100,10 @@ const USO_DE_PRISMA_UNSCOPED: Record<string, string> = {
     "cron diário aplicando retenção de dado pessoal entre todos os restaurantes, sem tenant",
   "src/lib/saude/registrar.ts":
     "evento de saúde da plataforma, gravado por qualquer rota, sem tenant",
+  "src/lib/saude/coletar.ts":
+    "leitura da saúde da plataforma inteira, só para o console e o monitor",
+  "src/lib/saude/expurgo.ts":
+    "cron diário apagando eventos de saúde antigos, sem tenant",
   "src/lib/anonimizacao-cliente.ts":
     "atende pedido de titular (LGPD) por script de operação, com tenantId explícito em toda consulta",
   "src/lib/assinatura/reconciliacao-cobrancas.ts":
