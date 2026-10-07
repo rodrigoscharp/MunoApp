@@ -20,19 +20,26 @@ export async function coletarDadosDeSaude(agora: Date): Promise<DadosDeSaude> {
   const inicio = Date.now();
   try {
     await prismaUnscoped.$queryRaw`select 1`;
-  } catch {
+  } catch (erro) {
+    // Só o nome do erro: a mensagem do Prisma pode ecoar o texto da consulta.
+    // reportarErro não serve aqui, ele grava na mesma tabela que acabou de falhar.
+    console.error("[saude] o banco não respondeu ao select 1", nomeDoErro(erro));
     return { banco: { ok: false, ms: Date.now() - inicio }, leitura: null };
   }
   const ms = Date.now() - inicio;
 
   try {
     return { banco: { ok: true, ms }, leitura: await ler(agora) };
-  } catch {
+  } catch (erro) {
     // O banco respondeu ao select 1 e falhou na leitura: para quem olha, é o
-    // mesmo problema.
+    // mesmo problema. Sem este log, uma coluna que falta ou um SQL errado
+    // apareceriam na tela como "o banco não respondeu", sem rastro nenhum.
+    console.error("[saude] leitura da saúde falhou", nomeDoErro(erro));
     return { banco: { ok: false, ms }, leitura: null };
   }
 }
+
+const nomeDoErro = (erro: unknown) => (erro instanceof Error ? erro.name : "erro");
 
 async function ler(agora: Date): Promise<LeituraDeSaude> {
   const contarPedidos = (fim: Date) =>
