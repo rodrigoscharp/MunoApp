@@ -176,6 +176,7 @@ model Order {
   @@index([motoboyId])
   @@index([tableId])
   @@index([couponId, userId]) // "já usei este cupom?" na validação do checkout
+  @@index([createdAt]) // volume da plataforma inteira, na tela de saúde
 }
 
 model Table {
@@ -612,4 +613,32 @@ model Inscricao {
 
   @@index([status])
   @@index([sessaoId])
+}
+
+enum NivelEvento {
+  OK
+  AVISO
+  ERRO
+}
+
+// Registro de plataforma, como Lead: não pertence a um restaurante. O tenantId é
+// só um rótulo para filtrar, sem relação, para que remover um cliente não apague
+// o histórico de falhas que o envolveu. Por ser opcional, o model fica fora de
+// TENANT_SCOPED_MODELS e de ORDEM_DE_EXCLUSAO, que tratam tenantId obrigatório.
+//
+// Quem escreve é registrarSaude() (src/lib/saude/registrar.ts), e só ele.
+// Expurgado com 30 dias pelo cron diário.
+model EventoSistema {
+  id       String      @id @default(cuid())
+  origem   String
+  nivel    NivelEvento
+  mensagem String
+  tenantId String?
+  extra    Json?
+  criadoEm DateTime    @default(now())
+
+  @@index([origem, criadoEm])
+  @@index([nivel, criadoEm])
+  @@index([tenantId, criadoEm])
+  @@index([criadoEm])
 }
