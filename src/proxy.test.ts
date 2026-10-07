@@ -321,6 +321,7 @@ describe("proxy: rotas que não pertencem a tenant nenhum", () => {
   it.each([
     "/api/cron/assinaturas",
     "/api/health",
+    "/api/health/sistema",
     "/api/leads/publico",
     "/api/assinaturas/webhook/asaas",
     "/api/payments/webhook/mercado_pago/tenant-1",
@@ -774,6 +775,7 @@ describe("proxy: header de tenant forjado não atravessa rota sem tenant", () =>
   it.each([
     ["/api/cron/assinaturas", "GET"],
     ["/api/health", "GET"],
+    ["/api/health/sistema", "GET"],
     ["/api/leads/publico", "POST"],
     ["/api/funil/evento", "POST"],
     ["/api/assinaturas/webhook/asaas", "POST"],

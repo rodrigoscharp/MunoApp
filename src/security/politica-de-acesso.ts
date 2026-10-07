@@ -47,6 +47,7 @@ export const POLITICA: Record<string, Nivel> = {
     "o canal depende de quem é o dono do pedido (order) ou do papel (kitchen); src/app/api/realtime/topic/route.test.ts cobre cada caso"
   ),
   "GET /api/health": publico("monitor de disponibilidade; só diz se o app e o banco respondem, sem detalhe"),
+  "GET /api/health/sistema": segredo("HEALTH_MONITOR_TOKEN no Authorization: Bearer ou em ?token=, enviado pelo monitor externo"),
 
   "POST /api/assinar": publico("checkout de restaurante novo, que ainda não tem conta; limitado por IP"),
   "POST /api/assinar/reconciliar": publico(

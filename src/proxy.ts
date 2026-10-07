@@ -248,6 +248,13 @@ export default auth(async (req) => {
     return NextResponse.next(semTenant);
   }
 
+  // O monitor externo da saúde do sistema. Mesmo motivo do /api/health: bate
+  // no host raiz, que não tem tenant, e o raiz responde 404 para qualquer
+  // caminho fora da landing. A porta é o HEALTH_MONITOR_TOKEN, não o proxy.
+  if (nextUrl.pathname === "/api/health/sistema") {
+    return NextResponse.next(semTenant);
+  }
+
   // Webhook do Asaas, pelo mesmo motivo e com a mesma consequência do cron: o
   // gateway chama o host do deploy, que não é subdomínio de restaurante
   // nenhum. Pelo caminho normal a rota resolveria o slug "default" e tomaria
