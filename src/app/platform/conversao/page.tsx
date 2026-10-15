@@ -153,7 +153,7 @@ export default async function ConversaoPage() {
                         venda vaza", e por isso ele vem antes, e não como
                         rodapé de uma coluna à direita que o olho não visita. */}
                     {anterior !== null && (
-                      <p className="flex items-baseline gap-2 pl-[6.5rem] sm:pl-[9.5rem] py-1.5 text-[12px]">
+                      <p className="flex flex-wrap items-baseline gap-x-2 pl-[6.5rem] sm:pl-[9.5rem] py-1.5 text-[12px]">
                         <span className="tabular text-console-tinta/70">
                           {formatarTaxa(d.doAnterior)}
                         </span>
@@ -163,12 +163,27 @@ export default async function ConversaoPage() {
                             · {saiu} {saiu === 1 ? "saiu" : "saíram"}
                           </span>
                         )}
+                        {/* Quem saiu antes de pagar pode ter desistido ou
+                            ter tido o cartão recusado, e só a segunda
+                            pessoa quer comprar. A recusa vem do webhook do
+                            Asaas e conta tentativas, não pessoas. */}
+                        {!!d.recusas && (
+                          <span className="text-console-tinta/70">
+                            · {d.recusas}{" "}
+                            {d.recusas === 1 ? "tentativa recusada" : "tentativas recusadas"}
+                          </span>
+                        )}
                       </p>
                     )}
 
                     <div className="flex items-center gap-3">
                       <span className="text-[13px] text-console-segunda w-24 sm:w-36 shrink-0 leading-snug">
                         {d.rotulo}
+                        {d.desde && (
+                          <span className="block text-[11px] text-console-tinta/35">
+                            conta desde {d.desde}
+                          </span>
+                        )}
                       </span>
                       <span className="flex-1 h-2.5 rounded-full bg-console-tinta/6 overflow-hidden">
                         <span

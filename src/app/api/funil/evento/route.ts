@@ -45,7 +45,8 @@ const schema = z.object({
   dispositivo: z.enum(["celular", "desktop"]).optional(),
 });
 
-// Os tipos de servidor (CHECKOUT_CRIADO, PAGOU, PROVISIONADO, ABANDONOU) ficam
+// Os tipos de servidor (CHECKOUT_CRIADO, FOI_PARA_PAGAMENTO,
+// PAGAMENTO_RECUSADO, PAGOU, PROVISIONADO, ABANDONOU) ficam
 // FORA do enum acima de propósito: eles nascem de fatos que o servidor conhece,
 // e aceitá-los aqui deixaria qualquer um declarar que pagou.
 

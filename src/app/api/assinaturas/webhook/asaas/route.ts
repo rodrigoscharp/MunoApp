@@ -47,6 +47,16 @@ import { registrarSaude } from "@/lib/saude/registrar";
 // restaurante a partir do primeiro pagamento confirmado.
 const PAGOS = new Set(["PAYMENT_CONFIRMED", "PAYMENT_RECEIVED"]);
 
+// Tentativa de pagamento que não passou: cartão recusado na captura, ou
+// cobrança reprovada pela análise de risco do Asaas. Sem este ramo os dois
+// caíam no "evento que este handler não sabe tratar" e sumiam, e o funil não
+// distinguia quem desistiu na página de pagamento de quem tentou pagar e não
+// conseguiu — a segunda pessoa quer comprar, e um telefonema resolve.
+const RECUSADOS = new Set([
+  "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED",
+  "PAYMENT_REPROVED_BY_RISK_ANALYSIS",
+]);
+
 /** Valor que nenhum id real assume — placeholder do OR abaixo. */
 const SENTINELA = "__nenhum__";
 
@@ -85,6 +95,11 @@ export async function POST(req: NextRequest) {
   const pagamento = corpo.payment;
   if (!pagamento) return ok();
 
+  if (RECUSADOS.has(evento)) {
+    await registrarRecusa(evento, pagamento);
+    return ok();
+  }
+
   // Evento que este handler não sabe tratar: 200 e sai, para não virar
   // reentrega infinita de algo que nunca vai mudar de resultado.
   if (!PAGOS.has(evento)) return ok();
@@ -105,15 +120,7 @@ export async function POST(req: NextRequest) {
   // O `?? SENTINELA` em cada campo evita `{ asaasPaymentId: undefined }` no
   // OR: um valor undefined pode casar de forma indesejada no Prisma, e um
   // valor sentinela impossível ("__nenhum__") não casa com nada de verdade.
-  const inscricao = await prismaUnscoped.inscricao.findFirst({
-    where: {
-      OR: [
-        { id: pagamento.externalReference ?? SENTINELA },
-        { asaasPaymentId: pagamento.id ?? SENTINELA },
-        { asaasSubscriptionId: pagamento.subscription ?? SENTINELA },
-      ],
-    },
-  });
+  const inscricao = await acharInscricao(pagamento);
 
   // Pagamento que não é de uma inscrição nossa. 200, e não 404: um 404 faria
   // o Asaas reentregar para sempre um evento que nunca vai casar.
@@ -203,4 +210,68 @@ export async function POST(req: NextRequest) {
   });
 
   return ok();
+}
+
+type PagamentoAsaas = {
+  id?: string;
+  subscription?: string;
+  externalReference?: string;
+};
+
+/** A busca em três campos descrita no corpo de POST, e a ordem dela importa. */
+function acharInscricao(pagamento: PagamentoAsaas) {
+  return prismaUnscoped.inscricao.findFirst({
+    where: {
+      OR: [
+        { id: pagamento.externalReference ?? SENTINELA },
+        { asaasPaymentId: pagamento.id ?? SENTINELA },
+        { asaasSubscriptionId: pagamento.subscription ?? SENTINELA },
+      ],
+    },
+  });
+}
+
+/**
+ * Cartão recusado ou cobrança reprovada no primeiro pagamento de um checkout.
+ *
+ * Relatório puro: nada aqui muda a Inscricao, que continua AGUARDANDO_PAGAMENTO
+ * porque o cliente pode tentar outro cartão na mesma página. Por isso nada
+ * aqui propaga. Uma falha de banco devolveria 500 e o Asaas reentregaria um
+ * evento que só serve para contar, e o webhook ficaria preso nele.
+ *
+ * Inscricao já PROVISIONADA fica de fora: aí é renovação de quem já é
+ * cliente, que a régua de atraso trata, e não degrau do funil de checkout.
+ */
+async function registrarRecusa(evento: string, pagamento: PagamentoAsaas) {
+  try {
+    const inscricao = await acharInscricao(pagamento);
+    if (!inscricao || inscricao.status === "PROVISIONADA") return;
+
+    await registrarEvento(prismaUnscoped, {
+      sessaoId: inscricao.sessaoId,
+      tipo: "PAGAMENTO_RECUSADO",
+      detalhe: evento,
+    });
+
+    // AVISO em origem que nenhuma peça reclama (ver classificarOrigem): entra
+    // no feed da tela de saúde, que é onde alguém olha para ligar para o
+    // cliente, sem pintar de amarelo um webhook que funcionou.
+    await registrarSaude({
+      origem: "funil/pagamento-recusado",
+      nivel: "AVISO",
+      mensagem: `${evento} no checkout`,
+      extra: { inscricaoId: inscricao.id, paymentId: pagamento.id },
+    });
+    await registrarSaude({
+      origem: "webhook/asaas",
+      nivel: "OK",
+      mensagem: `${evento} registrado`,
+      extra: { inscricaoId: inscricao.id },
+    });
+  } catch (erro) {
+    console.error(
+      `[webhook/asaas] falha ao registrar ${evento} — payment=${pagamento.id}`,
+      erro instanceof Error ? erro.name : "erro"
+    );
+  }
 }

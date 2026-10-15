@@ -459,6 +459,10 @@ enum TipoEvento {
   PAGOU
   PROVISIONADO
   ABANDONOU
+  // No fim, e não junto do checkout: ADD VALUE acrescenta no fim do tipo no
+  // Postgres, e a ordem aqui acompanha a do banco.
+  FOI_PARA_PAGAMENTO
+  PAGAMENTO_RECUSADO
 }
 
 model EventoFunil {

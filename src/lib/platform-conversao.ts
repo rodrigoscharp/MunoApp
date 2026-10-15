@@ -138,6 +138,14 @@ export type Degrau = {
   /** Quantos do degrau anterior chegaram aqui. Nulo no primeiro e quando o
    *  degrau anterior está zerado. */
   doAnterior: number | null;
+  /** Para degrau que nasceu depois dos outros: a data a partir da qual ele
+   *  conta. Sem ela, o zero do histórico parece gente que parou ali. */
+  desde?: string;
+  /** Só no degrau "pagou": tentativas recusadas pelo Asaas (cartão recusado
+   *  ou reprovado na análise de risco). Separa quem tentou pagar e não
+   *  conseguiu de quem desistiu na página de pagamento. Conta tentativas,
+   *  não pessoas: um cliente que tenta três cartões soma três. */
+  recusas?: number;
 };
 
 /**
@@ -147,17 +155,20 @@ export type Degrau = {
  * ainda não aconteceu precisa aparecer com zero, e não sumir. Degrau que some
  * faz a escada parecer completa quando ela está furada.
  */
-const ESCADA = [
+const ESCADA: ReadonlyArray<readonly [string, string, string?]> = [
   ["VISITA", "chegou na página"],
   ["VIU_PRECO", "chegou no preço"],
   ["CLICOU_ASSINAR", "clicou em assinar"],
   ["CHECKOUT_CRIADO", "iniciou o checkout"],
+  // CHECKOUT_CRIADO sai antes do Asaas; este sai quando a cobrança existe e o
+  // navegador recebeu a URL de pagamento.
+  ["FOI_PARA_PAGAMENTO", "foi para o pagamento", "15/10/2026"],
   ["PAGOU", "pagou"],
   ["PROVISIONADO", "restaurante no ar"],
-] as const;
+];
 
 export function degrausDoFunil(contagens: Record<string, number>): Degrau[] {
-  return ESCADA.map(([chave, rotulo], i) => {
+  return ESCADA.map(([chave, rotulo, desde], i) => {
     const n = contagens[chave] ?? 0;
     const anterior = i === 0 ? null : (contagens[ESCADA[i - 1][0]] ?? 0);
     return {
@@ -165,6 +176,8 @@ export function degrausDoFunil(contagens: Record<string, number>): Degrau[] {
       rotulo,
       n,
       doAnterior: anterior === null || anterior === 0 ? null : n / anterior,
+      ...(desde ? { desde } : {}),
+      ...(chave === "PAGOU" ? { recusas: contagens.PAGAMENTO_RECUSADO ?? 0 } : {}),
     };
   });
 }

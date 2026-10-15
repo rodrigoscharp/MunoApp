@@ -129,20 +129,40 @@ describe("degrausDoFunil", () => {
       VIU_PRECO: 40,
       CLICOU_ASSINAR: 10,
       CHECKOUT_CRIADO: 5,
+      FOI_PARA_PAGAMENTO: 5,
       PAGOU: 4,
       PROVISIONADO: 4,
     });
 
     expect(degraus[0]).toMatchObject({ n: 100, doAnterior: null });
     expect(degraus[1]).toMatchObject({ n: 40, doAnterior: 0.4 });
-    expect(degraus[4]).toMatchObject({ n: 4, doAnterior: 0.8 });
+    expect(degraus[5]).toMatchObject({ chave: "PAGOU", n: 4, doAnterior: 0.8 });
+  });
+
+  // CHECKOUT_CRIADO sai antes do Asaas e não prova que a pessoa chegou à
+  // página de pagamento; o degrau que prova vem entre ele e "pagou".
+  it("põe 'foi para o pagamento' entre o checkout e o pagamento, com a data de início", () => {
+    const chaves = degrausDoFunil({}).map((d) => d.chave);
+
+    expect(chaves.slice(3, 6)).toEqual(["CHECKOUT_CRIADO", "FOI_PARA_PAGAMENTO", "PAGOU"]);
+    expect(degrausDoFunil({})[4].desde).toBe("15/10/2026");
+  });
+
+  // A recusa não é degrau (ninguém sobe para ela): é a explicação de parte de
+  // quem parou antes de pagar, e por isso mora no degrau "pagou".
+  it("leva as recusas do Asaas para o degrau 'pagou', e só para ele", () => {
+    const degraus = degrausDoFunil({ FOI_PARA_PAGAMENTO: 3, PAGAMENTO_RECUSADO: 2 });
+
+    expect(degraus.find((d) => d.chave === "PAGOU")?.recusas).toBe(2);
+    expect(degraus.filter((d) => d.recusas !== undefined)).toHaveLength(1);
+    expect(degraus.map((d) => d.chave)).not.toContain("PAGAMENTO_RECUSADO");
   });
 
   // Degrau que some faz a escada parecer completa quando ela está furada.
   it("mantém o degrau zerado na escada, em vez de escondê-lo", () => {
     const degraus = degrausDoFunil({ VISITA: 10 });
 
-    expect(degraus).toHaveLength(6);
+    expect(degraus).toHaveLength(7);
     expect(degraus[1]).toMatchObject({ n: 0, doAnterior: 0 });
   });
 

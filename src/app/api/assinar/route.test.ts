@@ -646,6 +646,59 @@ describe("POST /api/assinar", () => {
     expect(inscricaoDelete).not.toHaveBeenCalled();
   });
 
+  // CHECKOUT_CRIADO sai antes do Asaas e não prova que o cliente recebeu para
+  // onde ir pagar. FOI_PARA_PAGAMENTO é esse degrau, e só pode nascer depois
+  // que a URL existe.
+  it("registra FOI_PARA_PAGAMENTO depois de obter a URL de pagamento", async () => {
+    await POST(requisicao(corpoValido(), { cookie: `muno_s=${SESSAO_VALIDA}` }));
+
+    const chamada = eventoFunilCreate.mock.calls.findIndex(
+      ([arg]) => arg.data.tipo === "FOI_PARA_PAGAMENTO"
+    );
+    expect(chamada).not.toBe(-1);
+    expect(eventoFunilCreate.mock.calls[chamada][0]).toEqual({
+      data: {
+        sessaoId: SESSAO_VALIDA,
+        tipo: "FOI_PARA_PAGAMENTO",
+        detalhe: "MEMBRO/ANUAL/PIX",
+      },
+    });
+    expect(eventoFunilCreate.mock.invocationCallOrder[chamada]).toBeGreaterThan(
+      listarCobrancasDaAssinatura.mock.invocationCallOrder[0]
+    );
+  });
+
+  it.each([
+    ["criarAssinatura falha", () => criarAssinatura.mockRejectedValue(new Error("Asaas fora"))],
+    ["a assinatura nasce sem cobrança", () => listarCobrancasDaAssinatura.mockResolvedValue({ data: [] })],
+  ])("sem URL de pagamento (%s) não registra FOI_PARA_PAGAMENTO", async (_nome, preparar) => {
+    preparar();
+
+    const res = await POST(requisicao(corpoValido()));
+
+    expect(res.status).toBe(502);
+    const tipos = eventoFunilCreate.mock.calls.map(([arg]) => arg.data.tipo);
+    expect(tipos).toEqual(["CHECKOUT_CRIADO"]);
+  });
+
+  // Fora do try da fase 2 de propósito: lá dentro, um evento que falhasse
+  // viraria 502 para quem já tem a cobrança pronta no Asaas.
+  it("FOI_PARA_PAGAMENTO falhando ainda entrega a URL de pagamento", async () => {
+    eventoFunilCreate.mockImplementation(async ({ data }) => {
+      if (data.tipo === "FOI_PARA_PAGAMENTO") throw new Error("banco fora do ar");
+      return { id: "evento-1" };
+    });
+
+    const res = await POST(requisicao(corpoValido()));
+
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({
+      inscricaoId: "insc-1",
+      checkoutUrl: "https://sandbox.asaas.com/i/123",
+    });
+    expect(inscricaoDelete).not.toHaveBeenCalled();
+  });
+
   // Mesma garantia acima, para o upsert que existe só para não violar a FK
   // de Inscricao.sessaoId: se ele falhar (banco fora do ar, sessão
   // corrompida, o que for), a compra segue — só perde a origem, não o

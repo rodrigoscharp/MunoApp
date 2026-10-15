@@ -361,6 +361,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  let checkoutUrl: string;
   try {
     // A partir daqui a assinatura já existe e é cobrável no Asaas. Gravar os
     // ids na Inscricao é o primeiro passo, ANTES de listar as cobranças: a
@@ -375,12 +376,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const checkoutUrl = await urlDaPrimeiraCobranca(assinatura.id);
-
-    return NextResponse.json(
-      { inscricaoId: inscricao.id, checkoutUrl },
-      { status: 201 }
-    );
+    checkoutUrl = await urlDaPrimeiraCobranca(assinatura.id);
   } catch (erro) {
     // A assinatura já existe no Asaas — a Inscricao NÃO é apagada aqui, nem
     // se o próprio update acima tiver falhado. O slug fica preso até
@@ -397,6 +393,31 @@ export async function POST(req: NextRequest) {
       { status: 502 }
     );
   }
+
+  // O degrau que CHECKOUT_CRIADO não prova: a cobrança existe e o navegador
+  // recebeu para onde ir pagar. Sem ele, quem nunca chegou à página do Asaas
+  // e quem chegou e desistiu ficavam no mesmo número.
+  //
+  // FORA dos dois try do Asaas, pelo motivo de CHECKOUT_CRIADO: dentro do
+  // segundo, uma falha ao gravar evento viraria 502 para um cliente com a
+  // cobrança pronta, e a URL de pagamento nunca chegaria a ele.
+  try {
+    await registrarEvento(prismaUnscoped, {
+      sessaoId,
+      tipo: "FOI_PARA_PAGAMENTO",
+      detalhe: `${plano}/${ciclo}/${metodo}`,
+    });
+  } catch (err) {
+    console.error(
+      `Falha ao registrar FOI_PARA_PAGAMENTO da inscrição ${inscricao.id}:`,
+      err
+    );
+  }
+
+  return NextResponse.json(
+    { inscricaoId: inscricao.id, checkoutUrl },
+    { status: 201 }
+  );
 }
 
 /**

@@ -89,6 +89,18 @@ describe("POST /api/funil/evento", () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  // Evento de servidor aceito aqui deixaria qualquer um declarar que pagou,
+  // ou fabricar recusas que a tela de conversão apresentaria como fato.
+  it.each(["CHECKOUT_CRIADO", "FOI_PARA_PAGAMENTO", "PAGAMENTO_RECUSADO", "PAGOU", "PROVISIONADO", "ABANDONOU"])(
+    "recusa o tipo de servidor %s",
+    async (tipo) => {
+      const res = await post({ tipo });
+
+      expect(res.status).toBe(400);
+      expect(create).not.toHaveBeenCalled();
+    }
+  );
+
   // Atribuição de primeiro toque: o anúncio que trouxe a pessoa é quem pagou
   // pela visita, e uma volta digitando o endereço não pode roubar o crédito.
   it("não sobrescreve o utm de uma sessão que já existe", async () => {

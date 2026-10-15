@@ -314,8 +314,8 @@ liga "visita vinda do Instagram" a "membro pagante".
 ```
 proxy (host raiz)  →  Set-Cookie: muno_s=<uuid>
 landing e checkout →  POST /api/funil/evento
-/api/assinar       →  Inscricao.sessaoId e Lead.sessaoId
-webhook do Asaas   →  PAGOU
+/api/assinar       →  Inscricao.sessaoId e Lead.sessaoId, CHECKOUT_CRIADO, FOI_PARA_PAGAMENTO
+webhook do Asaas   →  PAGOU, ou PAGAMENTO_RECUSADO
 provisionamento    →  PROVISIONADO
 cron das 09:00 UTC (06:00 em Brasília)        →  ABANDONOU, e o resumo dos 90 dias
 ```
@@ -381,10 +381,46 @@ A posição de cada evento no código é decisão, não acaso:
   peça "Provisionamento" da tela de saúde lê.
 * **`PROVISIONADO` fica DENTRO da transação** que cria assinatura e cobrança,
   porque ali ele é parte do mesmo fato atômico.
+* **`FOI_PARA_PAGAMENTO` sai depois dos dois `try` do Asaas**, quando a URL
+  da cobrança já existe e vai ser devolvida. O `CHECKOUT_CRIADO` sai antes do
+  Asaas e não prova que a pessoa chegou à página de pagamento. Dentro do
+  segundo `try`, uma falha ao gravar o evento viraria 502 para quem já tem
+  cobrança pronta, e a URL nunca chegaria ao navegador.
 
-Os tipos de evento de servidor (`CHECKOUT_CRIADO`, `PAGOU`, `PROVISIONADO`,
-`ABANDONOU`) ficam fora do enum aceito pela rota pública, senão qualquer um
-declara que pagou.
+Os tipos de evento de servidor (`CHECKOUT_CRIADO`, `FOI_PARA_PAGAMENTO`,
+`PAGAMENTO_RECUSADO`, `PAGOU`, `PROVISIONADO`, `ABANDONOU`) ficam fora do
+enum aceito pela rota pública, senão qualquer um declara que pagou.
+
+## Desistiu ou teve o cartão recusado
+
+Até 15/10/2026 o funil não distinguia as duas coisas. De 31/08 a 15/10, três
+pessoas preencheram o checkout e nenhuma pagou, e para duas delas não havia
+como saber se desistiram na página do Asaas ou tiveram o cartão recusado:
+o webhook descartava os eventos de recusa, e nada registrava que a pessoa
+tinha recebido a URL de pagamento.
+
+Desde então a escada da tela de conversão tem o degrau "foi para o
+pagamento", entre "iniciou o checkout" e "pagou", e a linha de perda antes de
+"pagou" conta as tentativas recusadas. A queda entre os dois degraus, menos as
+recusas, é quem desistiu.
+
+* **`PAGAMENTO_RECUSADO` sai do webhook** para
+  `PAYMENT_CREDIT_CARD_CAPTURE_REFUSED` e `PAYMENT_REPROVED_BY_RISK_ANALYSIS`
+  (`RECUSADOS` em `src/app/api/assinaturas/webhook/asaas/route.ts`). A
+  Inscricao é casada pela mesma busca do `PAGOU` e **não muda de status**,
+  porque a pessoa pode tentar outro cartão na mesma página. Inscricao já
+  `PROVISIONADA` fica de fora: é renovação, e a régua de atraso cuida dela.
+* **A recusa é relatório puro e nunca propaga.** Uma falha de banco ali
+  responde 200, e não 500: a reentrega do Asaas existe para terminar trabalho,
+  e aqui não há trabalho, só contagem.
+* **Ela vira um `AVISO` em `funil/pagamento-recusado`**, só com ids. A origem
+  não casa com nenhuma peça de `classificarOrigem()`, de propósito: aparece no
+  feed da tela de saúde, que é onde alguém olha para ligar para o cliente,
+  sem pintar de amarelo um webhook que funcionou.
+* **Recusa conta tentativas, não pessoas.** Quem tenta três cartões soma três,
+  e por isso ela é uma nota no degrau "pagou", não um degrau.
+* **O degrau novo só conta a partir de 15/10/2026**, e a tela diz isso abaixo
+  do rótulo. Antes, o zero dele não é gente que parou ali.
 
 ## O expurgo dos 90 dias
 

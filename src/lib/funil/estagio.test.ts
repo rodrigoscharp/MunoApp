@@ -35,6 +35,21 @@ describe("estagioDoLead", () => {
     );
   });
 
+  // A recusa do cartão não tira ninguém do checkout: a Inscricao segue
+  // aguardando, e outro cartão na mesma página ainda paga.
+  it.each(["FOI_PARA_PAGAMENTO", "PAGAMENTO_RECUSADO"] as const)(
+    "%s ainda é CHECKOUT",
+    (tipo) => {
+      expect(estagioDoLead(leadDeCheckout, [{ tipo }])).toBe("CHECKOUT");
+    }
+  );
+
+  it("recusa seguida de pagamento é PAGOU", () => {
+    expect(
+      estagioDoLead(leadDeCheckout, [{ tipo: "PAGAMENTO_RECUSADO" }, { tipo: "PAGOU" }])
+    ).toBe("PAGOU");
+  });
+
   // A ordem em que os eventos chegam não pode mandar no estágio: o webhook do
   // Asaas reentrega, e um PAGOU pode ser gravado depois de um CHECKOUT_PASSO
   // que ficou na fila do navegador.

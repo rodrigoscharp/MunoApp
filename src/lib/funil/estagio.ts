@@ -39,7 +39,16 @@ export function estagioDoLead(
   if (tem("ABANDONOU")) return "ABANDONOU";
   if (tem("PAGOU")) return "PAGOU";
   if (lead.status === "PERDIDO") return "PERDIDO";
-  if (tem("CHECKOUT_CRIADO") || tem("CHECKOUT_PASSO")) return "CHECKOUT";
+  // Recusa no Asaas ainda é CHECKOUT: a Inscricao segue aguardando e o
+  // cliente pode tentar outro cartão na mesma página.
+  if (
+    tem("CHECKOUT_CRIADO") ||
+    tem("CHECKOUT_PASSO") ||
+    tem("FOI_PARA_PAGAMENTO") ||
+    tem("PAGAMENTO_RECUSADO")
+  ) {
+    return "CHECKOUT";
+  }
 
   // O piso de um lead é IDENTIFICOU: a pessoa deixou um contato. VISITANTE é
   // estágio de sessão, e uma sessão que virou lead nunca volta para ele.

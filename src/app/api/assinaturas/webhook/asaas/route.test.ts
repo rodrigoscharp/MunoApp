@@ -916,6 +916,96 @@ describe("POST /api/assinaturas/webhook/asaas", () => {
     );
   });
 
+  // Cartão recusado e risco reprovado caíam no "evento que não sei tratar" e
+  // sumiam: o funil não separava quem desistiu na página de pagamento de quem
+  // tentou pagar e não conseguiu.
+  describe("pagamento recusado", () => {
+    const RECUSAS = ["PAYMENT_CREDIT_CARD_CAPTURE_REFUSED", "PAYMENT_REPROVED_BY_RISK_ANALYSIS"];
+
+    it.each(RECUSAS)("%s vira PAGAMENTO_RECUSADO na sessão da Inscricao", async (event) => {
+      inscricaoFindFirst.mockResolvedValue(inscricaoAguardando({ sessaoId: "sessao-1" }));
+
+      const res = await POST(requisicao({ ...eventoPago(), event }));
+
+      expect(res.status).toBe(200);
+      expect(eventoFunilCreate).toHaveBeenCalledWith({
+        data: { sessaoId: "sessao-1", tipo: "PAGAMENTO_RECUSADO", detalhe: event },
+      });
+      expect(eventoFunilCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it("casa a Inscricao pela mesma busca do pagamento confirmado", async () => {
+      await POST(requisicao({ ...eventoPago(), event: RECUSAS[0] }));
+
+      expect(inscricaoFindFirst).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            { id: "insc-1" },
+            { asaasPaymentId: "pay_1" },
+            { asaasSubscriptionId: "sub_1" },
+          ],
+        },
+      });
+    });
+
+    it("não paga, não provisiona e não mexe no status da Inscricao", async () => {
+      inscricaoFindFirst.mockResolvedValue(inscricaoAguardando());
+
+      await POST(requisicao({ ...eventoPago(), event: RECUSAS[0] }));
+
+      expect(provisionTenant).not.toHaveBeenCalled();
+      expect(inscricaoUpdateMany).not.toHaveBeenCalled();
+      expect(inscricaoUpdateTenantId).not.toHaveBeenCalled();
+      const tipos = eventoFunilCreate.mock.calls.map(([arg]) => arg.data.tipo);
+      expect(tipos).not.toContain("PAGOU");
+    });
+
+    it("avisa no feed de saúde só com ids, sem acender a peça do webhook", async () => {
+      inscricaoFindFirst.mockResolvedValue(inscricaoAguardando());
+
+      await POST(requisicao({ ...eventoPago(), event: RECUSAS[0] }));
+
+      expect(registrarSaude).toHaveBeenCalledWith({
+        origem: "funil/pagamento-recusado",
+        nivel: "AVISO",
+        mensagem: "PAYMENT_CREDIT_CARD_CAPTURE_REFUSED no checkout",
+        extra: { inscricaoId: "insc-1", paymentId: "pay_1" },
+      });
+      expect(registrarSaude).toHaveBeenCalledWith(
+        expect.objectContaining({ origem: "webhook/asaas", nivel: "OK" })
+      );
+    });
+
+    it("Inscricao já PROVISIONADA é renovação, e não degrau do checkout", async () => {
+      inscricaoFindFirst.mockResolvedValue(inscricaoAguardando({ status: "PROVISIONADA", tenantId: "tenant-1" }));
+
+      const res = await POST(requisicao({ ...eventoPago(), event: RECUSAS[0] }));
+
+      expect(res.status).toBe(200);
+      expect(eventoFunilCreate).not.toHaveBeenCalled();
+    });
+
+    it("recusa sem Inscricao correspondente responde 200 sem registrar nada", async () => {
+      const res = await POST(requisicao({ ...eventoPago(), event: RECUSAS[0] }));
+
+      expect(res.status).toBe(200);
+      expect(eventoFunilCreate).not.toHaveBeenCalled();
+      expect(registrarSaude).not.toHaveBeenCalled();
+    });
+
+    // Relatório não pode virar reentrega infinita: um 500 aqui prenderia o
+    // webhook num evento que só serve para contar.
+    it("falha de banco ao registrar a recusa não propaga e responde 200", async () => {
+      inscricaoFindFirst.mockRejectedValue(new Error("banco caiu"));
+      const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const res = await POST(requisicao({ ...eventoPago(), event: RECUSAS[0] }));
+
+      expect(res.status).toBe(200);
+      spy.mockRestore();
+    });
+  });
+
   it("token inválido não grava sinal", async () => {
     webhookAutorizado.mockReturnValue(false);
     await POST(requisicao(eventoPago(), "errado"));
