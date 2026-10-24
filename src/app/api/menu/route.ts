@@ -2,23 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
-import { invalidarCardapio } from "@/lib/menu-cache";
+import { getCardapio, invalidarCardapio } from "@/lib/menu-cache";
 import { z } from "zod";
 
 export async function GET(req: NextRequest) {
   const tenantId = getTenantIdFromRequest(req);
   if (!tenantId) return apiError("Tenant não identificado", 400);
 
+  // Mesmo cache da vitrine: o upsell do carrinho abre em toda página do
+  // cardápio, e cada abertura ia direto ao banco. Falha de banco aqui é 500
+  // (withTenant), e não lista vazia: o CartUpsell já some quando a resposta não
+  // é ok, e um vazio com 200 seria indistinguível de cardápio sem itens.
   return withTenant(tenantId, async () => {
-    const categories = await prisma.category.findMany({
-      orderBy: { position: "asc" },
-      include: {
-        items: {
-          where: { available: true },
-          orderBy: { name: "asc" },
-        },
-      },
-    });
+    const categories = await getCardapio(tenantId);
     return NextResponse.json(categories);
   });
 }

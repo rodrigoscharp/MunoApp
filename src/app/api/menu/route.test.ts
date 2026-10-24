@@ -85,7 +85,7 @@ describe("GET — o cardápio que o cliente vê", () => {
 
   it("esconde item indisponível", async () => {
     await GET(reqGet());
-    expect(categoryFindMany.mock.calls[0][0].include.items.where).toEqual({ available: true });
+    expect(categoryFindMany.mock.calls[0][0].select.items.where).toEqual({ available: true });
   });
 
   it("entrega as categorias na ordem definida pelo dono", async () => {
@@ -95,7 +95,27 @@ describe("GET — o cardápio que o cliente vê", () => {
 
   it("ordena os itens por nome dentro da categoria", async () => {
     await GET(reqGet());
-    expect(categoryFindMany.mock.calls[0][0].include.items.orderBy).toEqual({ name: "asc" });
+    expect(categoryFindMany.mock.calls[0][0].select.items.orderBy).toEqual({ name: "asc" });
+  });
+
+  it("entrega o preço como número, que é o que o upsell soma", async () => {
+    categoryFindMany.mockResolvedValue([
+      {
+        id: "cat-1",
+        name: "Lanches",
+        slug: "lanches",
+        position: 0,
+        items: [{ id: "i1", name: "X", price: { valueOf: () => 25.9 }, available: true }],
+      },
+    ]);
+    const corpo = await (await GET(reqGet())).json();
+    expect(corpo[0].items[0].price).toBe(25.9);
+  });
+
+  it("falha de banco é 500, e não um cardápio vazio com 200", async () => {
+    categoryFindMany.mockRejectedValue(new Error("conexão recusada"));
+    const res = await GET(reqGet());
+    expect(res.status).toBe(500);
   });
 });
 
