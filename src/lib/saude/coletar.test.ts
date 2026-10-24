@@ -8,7 +8,7 @@ const prismaMock = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/prisma", () => ({ prismaUnscoped: prismaMock }));
 
-import { coletarDadosDeSaude } from "./coletar";
+import { coletarDadosDeSaude, coletarSaudeDaRequisicao } from "./coletar";
 
 // O texto que o Prisma devolveria num erro de consulta: pode ecoar SQL e
 // valores, e por isso nunca pode chegar ao log.
@@ -55,5 +55,29 @@ describe("coletarDadosDeSaude quando o banco falha", () => {
     expect(textoDoLog()).toContain("[saude]");
     expect(textoDoLog()).not.toContain(SEGREDO);
     expect(textoDoLog()).not.toContain("11999998888");
+  });
+});
+
+describe("coletarSaudeDaRequisicao", () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it("devolve o agora com que leu, para a regra e a grade medirem com o mesmo relógio", async () => {
+    prismaMock.$queryRaw.mockResolvedValue([{ "?column?": 1 }]);
+    prismaMock.eventoSistema.findMany.mockResolvedValue([]);
+    prismaMock.eventoSistema.findFirst.mockResolvedValue(null);
+    prismaMock.inscricao.count.mockResolvedValue(0);
+    prismaMock.inscricao.findFirst.mockResolvedValue(null);
+    prismaMock.order.count.mockResolvedValue(0);
+    prismaMock.order.findFirst.mockResolvedValue(null);
+
+    const antes = Date.now();
+    const { agora, dados } = await coletarSaudeDaRequisicao();
+
+    expect(agora.getTime()).toBeGreaterThanOrEqual(antes);
+    expect(dados.banco.ok).toBe(true);
+    // A janela das contagens de pedido termina nesse mesmo agora.
+    expect(prismaMock.order.count).toHaveBeenCalledWith({
+      where: { createdAt: { gte: new Date(agora.getTime() - 3_600_000), lt: agora } },
+    });
   });
 });

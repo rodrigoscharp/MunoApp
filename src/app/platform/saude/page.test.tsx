@@ -10,7 +10,9 @@ vi.mock("@/lib/auth-platform", () => ({
 }));
 
 vi.mock("@/lib/saude/coletar", () => ({
-  coletarDadosDeSaude: vi.fn().mockResolvedValue({ banco: { ok: true, ms: 3 }, leitura: null }),
+  coletarSaudeDaRequisicao: vi
+    .fn()
+    .mockResolvedValue({ agora: new Date(), dados: { banco: { ok: true, ms: 3 }, leitura: null } }),
   coletarPedidosPorHora: vi.fn(),
   listarEventos: vi.fn(),
 }));

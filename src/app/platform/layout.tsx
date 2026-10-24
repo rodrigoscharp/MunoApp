@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { Inter } from "next/font/google";
+import { unstable_cache } from "next/cache";
+import type { LeadStatus } from "@prisma/client";
 import { prismaUnscoped } from "@/lib/prisma";
 import { authPlatform } from "@/lib/auth-platform";
-import { diasDeAtraso } from "@/lib/assinatura/regua";
 import { avaliarSaude } from "@/lib/saude/avaliar";
-import { coletarDadosDeSaude } from "@/lib/saude/coletar";
+import { coletarSaudeDaRequisicao } from "@/lib/saude/coletar";
+import { inicioDoAtraso } from "./atraso";
 import { MenuInferior, MenuLateral } from "@/components/platform/MenuLateral";
 import { BotaoSair } from "@/components/platform/BotaoSair";
 import { TemaBotao } from "@/components/platform/TemaBotao";
@@ -50,6 +52,36 @@ function contagemFalhou<T>(reserva: T) {
   };
 }
 
+/**
+ * Os selos do menu, guardados por um minuto entre requisições.
+ *
+ * O layout roda em toda página do console, e sem cache cada clique pagava três
+ * contagens na ida e volta até o banco. Um selo que demora até um minuto para
+ * mudar não engana ninguém: a tela que ele abre lê ao vivo. A saúde fica de
+ * fora de propósito (ver coletarSaudeDaRequisicao): um "banco OK" guardado
+ * mentiria no minuto em que o banco caísse.
+ */
+const UM_MINUTO = 60;
+
+const contarLeads = unstable_cache(
+  (status: LeadStatus) => prismaUnscoped.lead.count({ where: { status } }),
+  ["console:menu:leads"],
+  { revalidate: UM_MINUTO, tags: ["console:menu"] }
+);
+
+// Contagem no banco, e não as linhas filtradas aqui: o selo só precisa do
+// número, e trazer toda cobrança em aberto para contar era carregar a lista a
+// cada página. O limite entra como argumento (string, que é o que a chave do
+// cache serializa) para a virada do dia mudar a chave.
+const contarAtrasadas = unstable_cache(
+  (limite: string) =>
+    prismaUnscoped.cobranca.count({
+      where: { status: { in: ["PENDENTE", "VENCIDA"] }, vencimento: { lt: new Date(limite) } },
+    }),
+  ["console:menu:atrasadas"],
+  { revalidate: UM_MINUTO, tags: ["console:menu"] }
+);
+
 export default async function PlatformLayout({
   children,
 }: {
@@ -72,34 +104,27 @@ export default async function PlatformLayout({
     );
   }
 
-  // Os selos do menu. Contagem pura, e a de atraso usa o mesmo diasDeAtraso da
-  // visão geral e da lista de clientes, para o número no menu nunca discordar
-  // do número na tela que ele abre.
+  // Os selos do menu. Contagem pura, e a de atraso usa um limite equivalente
+  // ao diasDeAtraso da visão geral e da lista de clientes (ver atraso.ts),
+  // para o número no menu nunca discordar do número na tela que ele abre.
   //
   // Contagem que falha vira zero, e não erro de página: este layout envolve a
   // tela de saúde, que precisa abrir justamente com o banco fora do ar. No log
   // vai só a classe do erro, porque a mensagem do Prisma pode trazer o SQL.
-  const agora = new Date();
-  const [novos, negociando, emAberto, dadosDaSaude] = await Promise.all([
-    prismaUnscoped.lead.count({ where: { status: "NOVO" } }).catch(contagemFalhou(0)),
-    prismaUnscoped.lead.count({ where: { status: "NEGOCIACAO" } }).catch(contagemFalhou(0)),
-    prismaUnscoped.cobranca
-      .findMany({
-        where: { status: { in: ["PENDENTE", "VENCIDA"] } },
-        select: { vencimento: true },
-      })
-      .catch(contagemFalhou<{ vencimento: Date }[]>([])),
-    coletarDadosDeSaude(agora),
+  //
+  // O `.catch` fica do lado de fora do cache: falha não é guardada, e a
+  // próxima página tenta de novo em vez de mostrar zero por um minuto.
+  const [novos, negociando, atrasadas, saude] = await Promise.all([
+    contarLeads("NOVO").catch(contagemFalhou(0)),
+    contarLeads("NEGOCIACAO").catch(contagemFalhou(0)),
+    contarAtrasadas(inicioDoAtraso(new Date()).toISOString()).catch(contagemFalhou(0)),
+    coletarSaudeDaRequisicao(),
   ]);
-  const contagens = {
-    novos,
-    negociando,
-    atrasadas: emAberto.filter((c) => diasDeAtraso(c.vencimento, agora) > 0)
-      .length,
-  };
+  const contagens = { novos, negociando, atrasadas };
 
-  // O ponto do item "Saúde" no menu: a mesma regra da tela e do monitor.
-  const corDaSaude = avaliarSaude(dadosDaSaude, agora).geral;
+  // O ponto do item "Saúde" no menu: a mesma regra da tela e do monitor, e a
+  // mesma leitura que a tela de saúde usa quando é ela que está abrindo.
+  const corDaSaude = avaliarSaude(saude.dados, saude.agora).geral;
 
   const email = session.user.email ?? "";
   const nome = session.user.name ?? email.split("@")[0];

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { NivelEvento } from "@prisma/client";
 import { prismaUnscoped } from "@/lib/prisma";
 import { FUSO, chaveDoDia } from "@/lib/platform-series";
@@ -38,6 +39,25 @@ export async function coletarDadosDeSaude(agora: Date): Promise<DadosDeSaude> {
     return { banco: { ok: false, ms }, leitura: null };
   }
 }
+
+/**
+ * A leitura da saúde uma vez por requisição, com o `agora` junto.
+ *
+ * O layout do console (o ponto no menu) e a tela de saúde pediam a mesma
+ * leitura, cada um com seu `new Date()`, e a mesma página fazia duas vezes o
+ * select 1 e as onze consultas. `cache` do React vale só dentro de uma
+ * renderização, então os dois passam a dividir uma ida ao banco sem que
+ * nenhuma requisição enxergue a leitura de outra: um "banco OK" guardado entre
+ * requisições mentiria justamente na hora em que o banco caísse. Sem argumento
+ * de propósito: a chave do `cache` é a identidade do argumento, e dois
+ * `new Date()` nunca seriam a mesma chave.
+ *
+ * A rota do monitor continua chamando `coletarDadosDeSaude` direto.
+ */
+export const coletarSaudeDaRequisicao = cache(async () => {
+  const agora = new Date();
+  return { agora, dados: await coletarDadosDeSaude(agora) };
+});
 
 const nomeDoErro = (erro: unknown) => (erro instanceof Error ? erro.name : "erro");
 
