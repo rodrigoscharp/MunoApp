@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { authPlatform } from "@/lib/auth-platform";
 import { darBaixa } from "@/lib/assinatura/baixa";
+import { invalidarCacheDeCobranca } from "@/lib/cache-de-cobranca";
 
 /**
  * Baixa manual de uma cobrança, feita pelo operador da plataforma.
@@ -30,6 +31,10 @@ export async function POST(
           { status: 409 }
         );
   }
+
+  // A faixa do /adm e o menu do console guardam a cobrança em cache. Sem isto,
+  // o dono que acabou de pagar via "BLOQUEIO" por mais cinco minutos.
+  invalidarCacheDeCobranca();
 
   return NextResponse.json({
     cobranca: resultado.cobranca,

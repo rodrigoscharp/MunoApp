@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   LineChart,
   Line,
@@ -13,38 +12,13 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { formatCurrency, PAYMENT_METHOD_LABELS } from "@/lib/utils";
+import type { DadosDosGraficos } from "@/lib/analytics";
 
-interface PaymentBreakdown {
-  CASH: number;
-  CREDIT_CARD: number;
-  PIX: number;
-}
-
-interface AnalyticsData {
-  dailySales: { date: string; revenue: number }[];
-  topItems: { name: string; quantity: number }[];
-  paymentBreakdown: { today: PaymentBreakdown; month: PaymentBreakdown };
-}
-
-export function AdminCharts() {
-  const [data, setData] = useState<AnalyticsData | null>(null);
-
-  useEffect(() => {
-    fetch("/api/analytics")
-      .then((r) => r.json())
-      .then(setData);
-  }, []);
-
-  if (!data) {
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {[0, 1].map((i) => (
-          <div key={i} className="bg-white rounded-xl border border-neutral-200 p-5 h-64 animate-pulse" />
-        ))}
-      </div>
-    );
-  }
-
+// Os dados chegam prontos da página, calculados no servidor. Antes o
+// componente montava, buscava /api/analytics e só então desenhava: duas idas
+// ao servidor em série antes do primeiro gráfico. O esqueleto de carregamento
+// mora em AdminChartsLazy, que é quem espera o recharts chegar.
+export default function AdminCharts({ data }: { data: DadosDosGraficos }) {
   const formattedSales = data.dailySales.map((d) => ({
     ...d,
     day: new Date(d.date + "T12:00:00").toLocaleDateString("pt-BR", {

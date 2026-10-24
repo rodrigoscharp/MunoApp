@@ -5,6 +5,7 @@ import { getSession, signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -72,10 +73,14 @@ export function LoginForm({ restaurantInfo }: { restaurantInfo: RestaurantInfo }
     // vitrine, sem nunca encontrar o painel. Para ver o cardápio como cliente
     // ele abre o endereço, que é público e não pede senha.
     //
+    // A equipe da cozinha também: ela caía na vitrine e precisava saber que o
+    // quadro mora em /dashboard, um endereço que ninguém digita de memória.
+    //
     // callbackUrl tem precedência: quem foi barrado numa página específica
     // volta para ela, não para o painel.
+    const papel = sessao?.user?.role;
     const destino =
-      callbackUrl ?? (sessao?.user?.role === "ADMIN" ? "/adm" : "/");
+      callbackUrl ?? (papel === "ADMIN" ? "/adm" : papel === "KITCHEN" ? "/dashboard" : "/");
 
     // Deixa o bilhete do convite de instalação, que o ConviteDeInstalacao
     // consome na tela seguinte. Aqui não dá para mostrá-lo: o router.push
@@ -112,7 +117,7 @@ export function LoginForm({ restaurantInfo }: { restaurantInfo: RestaurantInfo }
               width={160}
               height={60}
               className="h-16 w-auto object-contain"
-              unoptimized={restaurantInfo.logoUrl.startsWith("http")}
+              unoptimized={!imagemOtimizavel(restaurantInfo.logoUrl)}
             />
           </div>
 

@@ -96,7 +96,9 @@ script se recusa a rodar contra qualquer host que não seja localhost, porque
 ele derruba o banco de destino antes de restaurar.
 
 Toda tabela com `tenantId` obrigatório precisa de três coisas: entrada em
-`src/lib/tenant-scoped-models.ts`, `@@index([tenantId])` no schema, e a policy
+`src/lib/tenant-scoped-models.ts`, um índice que comece por `tenantId` no
+schema (`@@index([tenantId])` ou um composto como `[tenantId, createdAt]`, que
+torna o solto redundante), e a policy
 RLS na migração (copiar de
 `20260801193000_rls_em_orderitem_e_deliverytracking`). O teste
 `src/lib/tenant-scoped-models.test.ts` cobre a primeira.
@@ -566,6 +568,13 @@ traz a versão corrigida, só o `8.1.0-dev`. O uso é o `deepmerge` simples, que
 `deepmerge-ts` 8**, conferindo com `npm view @prisma/config@<versão>
 dependencies`.
 
+O segundo override força o `zod` de `@vercel/cli-config` para `^4.6.6`. Ele
+trava a 4.1.11, vulnerável a esgotar memória validando coleção grande
+(GHSA-mrhx-c7xc-m3w5), e chega pelo `@vercel/blob` via `@vercel/oidc`. Dentro
+da 4 a troca é compatível; o `npm audit fix --force` sugeria rebaixar o
+`@vercel/blob`. **Remova quando `@vercel/cli-config` depender de zod 4.6.6 ou
+mais**, conferindo com `npm view @vercel/cli-config dependencies`.
+
 
 # Tempo real, alarme e documentos legais
 
@@ -585,6 +594,23 @@ evolução. `REALTIME_TOPIC_SECRET` é opcional: sem ela o segredo deriva de
 
 Todo canal tem polling de reserva. Se o tópico não vier, a tela segue funcionando
 sem o aviso instantâneo.
+
+**Assine com `useCanalRealtime`, nunca com `supabase.channel()` direto.**
+`supabase.channel(topic)` devolve o canal que já existe para o mesmo tópico, e
+a tela do pedido tem três ouvintes no mesmo (acompanhamento, chat e mapa).
+Quando cada um fazia `removeChannel` ao desmontar, fechar o chat derrubava os
+outros dois em silêncio. `src/lib/canal-compartilhado.ts` conta os ouvintes,
+fecha o canal só quando sai o último, e reabre depois de queda com espera
+crescente. `useCanalRealtime` também devolve o estado da conexão, e é ele que
+decide o polling: esparso com o canal de pé, apertado sem ele. A cozinha toca
+um alarme enquanto houver pedido pendente sem "Ciente", e mostra "Sem tempo
+real" quando o canal cai.
+
+O broadcast sai **depois** da resposta (`depoisDaResposta()`, em
+`src/lib/depois-da-resposta.ts`, que embrulha o `after()` do Next). Antes, cada
+clique de status na cozinha e cada pedido novo esperavam até 2s pelo Realtime.
+Todo `order-updated` leva `id`, `status`, `paymentStatus` e `paymentMethod`: é
+assim que o `/track` troca o QR do Pix por "Pagamento confirmado".
 
 ## Erro que importa passa por reportarErro
 
@@ -731,6 +757,45 @@ usam o mesmo banco. Por isso:
   se a migração obedecer as duas regras acima.
 
 O cron (`vercel.json`) usa horário **UTC**: `0 9 * * *` é 06:00 em Brasília.
+
+## O que fica em cache, e quem limpa
+
+Tudo com `unstable_cache`, e cada cache tem quem o invalida. Cache sem
+invalidação vira bug de "editei e não mudou".
+
+```
+menu:<tenantId>              cardápio, 1h         invalidarCardapio() nas rotas de menu e categoria
+restaurant_info:<tenantId>   perfil, 60s          rota de settings do restaurante
+business_hours:<tenantId>    horário, 60s         rota de settings do horário
+adm:aviso-de-cobranca        faixa do /adm, 5min  invalidarCacheDeCobranca(): baixa, webhook, cron
+console:menu                 badges, 60s          a mesma, e as rotas de lead
+console:visao-geral          home do console, 10min, sem invalidação (agregado de um ano)
+console:clientes             pedidos por cliente, 10min, sem invalidação
+gráficos do /adm             60s por tenant, sem invalidação
+```
+
+* **Tag por tenant onde o dado é do restaurante.** Tag global fazia uma
+  pizzaria salvar o horário e jogar fora o cache de todas.
+* **Falha de banco lança DENTRO do cache e degrada FORA.** Um `.catch` lá
+  dentro guardava o cardápio vazio, o perfil sem nome ou o horário padrão por
+  todo o prazo do cache, depois de o banco já ter voltado.
+  `getCardapioOuVazio`, `getRestaurantInfo` e `getBusinessHours` seguem esse
+  desenho, e `src/lib/leitura-degradada.test.ts` trava os dois últimos.
+* **O cache passa por JSON.** Decimal do Prisma volta como string e Date como
+  texto: converta antes de gravar (o `price` do cardápio é number por isso).
+* **A saúde do banco nunca vai para cache.** Um "banco OK" guardado mentiria
+  justamente no dia em que importa. O que a tela de saúde e o ponto do menu
+  dividem é uma leitura por requisição (`React.cache`), não entre requisições.
+
+## O pool de conexões
+
+A `DATABASE_URL` de produção usa o pooler de transação do Supavisor (porta
+6543, `pgbouncer=true`) com `connection_limit=5&pool_timeout=10`. A doc antiga
+mandava `connection_limit=1`, e com ele todo `Promise.all` do código virava
+fila: as consultas de uma página rodavam uma atrás da outra, e duas
+requisições na mesma instância esperavam pela mesma conexão. Quem segura as
+conexões de verdade é o pooler, não o Prisma. O valor mora na variável da
+Vercel, não no código: confira lá depois de qualquer troca de credencial.
 
 ## A região das funções segue o banco
 

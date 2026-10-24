@@ -116,6 +116,8 @@ const USO_DE_PRISMA_UNSCOPED: Record<string, string> = {
   "src/lib/assinatura/reconciliacao.ts":
     "job de plataforma que atravessa as inscrições de todos os restaurantes",
   "src/lib/payments/factory.ts": "resolve a conexão de pagamento por tenantId explícito",
+  "src/lib/analytics.ts":
+    "gráficos do painel com $queryRaw, que a extensão não escopa, e dentro de unstable_cache: tenantId explícito em toda consulta",
   "src/lib/tenant-provisioning.ts": "cria tenant novo, fora de qualquer contexto de tenant",
   "src/lib/tenant-removal.ts": "apaga um tenant model por model, na ordem das foreign keys",
 };

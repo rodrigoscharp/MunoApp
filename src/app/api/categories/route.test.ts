@@ -26,6 +26,15 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+
+// O revalidateTag de verdade exige o contexto de request do Next. O que importa
+// aqui é QUAL tag a rota invalida, e quando.
+const revalidateTag = vi.fn();
+vi.mock("next/cache", () => ({
+  unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
+  revalidateTag: (...a: unknown[]) => revalidateTag(...a),
+}));
+
 import { GET, POST } from "./route";
 
 function req(method: string, body?: Record<string, unknown>, comTenant = true) {
@@ -137,5 +146,18 @@ describe("POST — slug repetido", () => {
     categoryCreate.mockRejectedValue(new Error("connection terminated"));
     const res = await POST(req("POST", categoriaValida));
     expect(res.status).toBe(500);
+  });
+});
+
+describe("POST — o cache da vitrine", () => {
+  it("invalida o cardápio do restaurante ao criar categoria", async () => {
+    await POST(req("POST", categoriaValida));
+    expect(revalidateTag).toHaveBeenCalledWith(`menu:${TENANT}`, { expire: 0 });
+  });
+
+  it("não invalida no slug repetido", async () => {
+    categoryCreate.mockRejectedValue(erroPrisma("P2002"));
+    await POST(req("POST", categoriaValida));
+    expect(revalidateTag).not.toHaveBeenCalled();
   });
 });

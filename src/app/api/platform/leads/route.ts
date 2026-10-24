@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prismaUnscoped } from "@/lib/prisma";
 import { authPlatform } from "@/lib/auth-platform";
+import { invalidarMenuDoConsole } from "@/lib/cache-de-cobranca";
 
 const createSchema = z.object({
   restaurante: z.string().min(2, "Informe o nome do restaurante"),
@@ -48,5 +49,6 @@ export async function POST(req: NextRequest) {
   const lead = await prismaUnscoped.lead.create({
     data: { restaurante, origem, ...limpos },
   });
+  invalidarMenuDoConsole();
   return NextResponse.json(lead, { status: 201 });
 }

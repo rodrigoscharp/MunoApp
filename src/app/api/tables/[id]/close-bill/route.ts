@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiError, getPlanoFromRequest, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { tenantTemMesaQr } from "@/lib/plans";
+import { broadcastOrderUpdate } from "@/lib/realtime";
+import { depoisDaResposta } from "@/lib/depois-da-resposta";
 import { z } from "zod";
 
 const closeBillSchema = z.object({
@@ -52,7 +54,18 @@ export async function POST(
     const resultado = await prisma.$transaction(async (tx) => {
       const openOrders = await tx.order.findMany({
         where: { tableId: id, paymentStatus: "UNPAID", status: { not: "CANCELLED" } },
-        select: { id: true, total: true },
+        // Além do que a soma usa, o que o aviso de tempo real leva: quitar a
+        // mesa muda o pagamento sem mudar o status, e sem o aviso a tela do
+        // pedido de quem está na mesa só descobria no próximo polling.
+        select: {
+          id: true,
+          total: true,
+          userId: true,
+          status: true,
+          paymentMethod: true,
+          deliveryType: true,
+          estimatedDeliveryAt: true,
+        },
       });
 
       if (openOrders.length === 0) {
@@ -82,7 +95,7 @@ export async function POST(
       await tx.payment.createMany({
         data: payments.map((p) => ({ tenantId, tableId: id, method: p.method, amount: p.amount })),
       });
-      return { count } as const;
+      return { count, quitados: openOrders } as const;
     }).catch((erro) => {
       if (erro instanceof ContaMudouError) return { conflito: true } as const;
       throw erro;
@@ -97,7 +110,19 @@ export async function POST(
     if ("erro" in resultado) {
       return NextResponse.json({ error: resultado.erro }, { status: 400 });
     }
-    const { count } = resultado;
+    const { count, quitados } = resultado;
+
+    // updatedAt é o instante da quitação, não o lido antes dela: o @updatedAt
+    // mudou no updateMany, e reler os pedidos só para isso é uma ida ao banco a
+    // mais por um campo que a tela mostra como "atualizado às".
+    const quitadoEm = new Date();
+    depoisDaResposta(() =>
+      Promise.all(
+        quitados.map((o) =>
+          broadcastOrderUpdate(tenantId, { ...o, paymentStatus: "PAID", updatedAt: quitadoEm })
+        )
+      )
+    );
 
     return NextResponse.json({ ok: true, count });
   });

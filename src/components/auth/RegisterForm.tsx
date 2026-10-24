@@ -6,6 +6,7 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -68,11 +69,23 @@ export function RegisterForm({ restaurantInfo }: { restaurantInfo: RestaurantInf
       return;
     }
 
-    await signIn("credentials", {
+    // O resultado do signIn era ignorado: se o login automático falhasse, o
+    // formulário seguia para o callbackUrl, e no /checkout o proxy devolvia a
+    // pessoa ao login sem explicação, como se o cadastro não tivesse ido. A
+    // conta já existe, então o recado é entrar, não cadastrar de novo.
+    const entrou = await signIn("credentials", {
       email: data.email,
       password: data.password,
       redirect: false,
-    });
+    })
+      .then((result) => !result?.error)
+      .catch(() => false);
+
+    if (!entrou) {
+      setError("Sua conta foi criada, mas não conseguimos entrar agora. Use o link Entrar abaixo.");
+      setLoading(false);
+      return;
+    }
 
     router.push(callbackUrl);
     router.refresh();
@@ -97,7 +110,7 @@ export function RegisterForm({ restaurantInfo }: { restaurantInfo: RestaurantInf
               width={160}
               height={60}
               className="h-16 w-auto object-contain"
-              unoptimized={restaurantInfo.logoUrl.startsWith("http")}
+              unoptimized={!imagemOtimizavel(restaurantInfo.logoUrl)}
             />
           </div>
 

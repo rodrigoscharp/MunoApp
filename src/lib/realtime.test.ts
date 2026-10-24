@@ -23,6 +23,8 @@ function pedido(over: Partial<Parameters<typeof broadcastOrderUpdate>[1]> = {}) 
     id: "order-1",
     userId: "cliente-1",
     status: "READY",
+    paymentStatus: "UNPAID",
+    paymentMethod: "PIX",
     deliveryType: "DELIVERY",
     updatedAt: new Date("2026-08-01T12:00:00.000Z"),
     estimatedDeliveryAt: null,
@@ -131,6 +133,18 @@ describe("broadcastOrderUpdate", () => {
         estimatedDeliveryAt: null,
       },
     });
+  });
+
+  it("todo envio leva id e pagamento, para a tela do pedido esconder o PIX já pago", async () => {
+    await broadcastOrderUpdate(TENANT, pedido({ paymentStatus: "PAID" }));
+
+    expect(send).toHaveBeenCalledTimes(3);
+    for (const [envio] of send.mock.calls) {
+      expect(envio).toMatchObject({
+        event: "order-updated",
+        payload: { id: "order-1", status: "READY", paymentStatus: "PAID", paymentMethod: "PIX" },
+      });
+    }
   });
 
   it("propaga a previsão de entrega quando existe", async () => {

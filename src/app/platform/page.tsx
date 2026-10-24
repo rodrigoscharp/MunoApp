@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import { ArrowUpRight } from "lucide-react";
 import { prismaUnscoped } from "@/lib/prisma";
 import { authPlatform } from "@/lib/auth-platform";
@@ -23,6 +24,7 @@ import {
 } from "@/lib/platform-series";
 import { formatCurrency } from "@/lib/utils";
 import { diasDeAtraso } from "@/lib/assinatura/regua";
+import { inicioDoAtraso } from "./atraso";
 import { Painel } from "@/components/platform/Painel";
 import {
   VisaoGeralKpis,
@@ -44,6 +46,71 @@ const TOM_DA_PAUTA: Record<ChaveDaPauta, string> = {
   "em-dia": "bg-console-grafico",
 };
 
+/**
+ * Os agregados de pedido, guardados por dez minutos entre requisições.
+ *
+ * São as duas consultas caras da tela: um ano de pedidos de todos os
+ * restaurantes agrupado por dia, e trinta dias agrupados por restaurante. Elas
+ * rodavam a cada abertura da visão geral, e o que mostram (a série do ano, o
+ * total de 30 dias, o ranking) não muda de forma que dez minutos importem.
+ * O resto da tela (leads, clientes, cobranças) continua ao vivo: é ali que o
+ * operador age e espera ver a ação refletida.
+ *
+ * Sem argumento: a janela é calculada dentro, no momento em que o cache é
+ * refeito, para a chave não mudar a cada milissegundo. O resultado passa por
+ * JSON no cache, então o ranking sai já como número, sem o Decimal do Prisma.
+ */
+const DEZ_MINUTOS = 600;
+
+const lerPedidosPorDia = unstable_cache(
+  async () => {
+    const desde = new Date(Date.now() - 366 * DIA_EM_MS);
+    // Pedidos de todos os restaurantes, um ano dia a dia. Agregado no banco:
+    // trazer as linhas seria carregar cada pedido do ano para somar três
+    // colunas. O dia é o de São Paulo, o mesmo fuso das chaves que
+    // preencherDias gera, senão a série troca o nome dos dias perto da meia
+    // noite. `createdAt` é timestamp sem fuso gravado em UTC, daí o duplo AT
+    // TIME ZONE.
+    return prismaUnscoped.$queryRaw<LinhaDiaria[]>`
+      SELECT
+        to_char(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${FUSO}, 'YYYY-MM-DD') AS dia,
+        count(*)::int AS pedidos,
+        coalesce(sum(total), 0)::float8 AS volume
+      FROM "Order"
+      WHERE "createdAt" >= ${desde} AND status <> 'CANCELLED'
+      GROUP BY 1
+    `;
+  },
+  ["console:visao-geral:pedidos-por-dia"],
+  { revalidate: DEZ_MINUTOS, tags: ["console:visao-geral"] }
+);
+
+const lerQuemMaisVende = unstable_cache(
+  async () => {
+    const linhas = await prismaUnscoped.order.groupBy({
+      by: ["tenantId"],
+      where: {
+        createdAt: { gte: new Date(Date.now() - 30 * DIA_EM_MS) },
+        status: { not: "CANCELLED" },
+      },
+      _count: { _all: true },
+      _sum: { total: true },
+      orderBy: { _count: { tenantId: "desc" } },
+      take: 6,
+    });
+    return linhas.map((r) => ({
+      tenantId: r.tenantId,
+      pedidos: r._count._all,
+      volume: Number(r._sum.total ?? 0),
+    }));
+  },
+  ["console:visao-geral:quem-mais-vende"],
+  { revalidate: DEZ_MINUTOS, tags: ["console:visao-geral"] }
+);
+
+/** Quantas cobranças em aberto o painel lista; o total e as vencidas contam todas. */
+const COBRANCAS_NA_LISTA = 5;
+
 export default async function VisaoGeralPage() {
   const session = await authPlatform();
   if (!session?.user) return null;
@@ -53,11 +120,15 @@ export default async function VisaoGeralPage() {
   const [primeiroMes] = ultimosMeses(agora, 12);
   const inicioDosDozeMeses = new Date(`${primeiroMes}-01T00:00:00-03:00`);
 
+  const emAbertoWhere = { status: { in: ["PENDENTE" as const, "VENCIDA" as const] } };
+
   const [
     leads,
     tenants,
     assinaturas,
     emAberto,
+    totalEmAberto,
+    vencidas,
     pagas,
     linhasDiarias,
     porRestaurante,
@@ -77,10 +148,14 @@ export default async function VisaoGeralPage() {
       },
     }),
     // O que ainda não entrou. Mesmo predicado que a régua e a baixa usam,
-    // para os três não contarem conjuntos diferentes.
+    // para os três não contarem conjuntos diferentes. A lista traz só as que
+    // o painel mostra; o total a receber e as vencidas saem de agregados no
+    // banco sobre o mesmo predicado, em vez de carregar toda cobrança em
+    // aberto para somar no JavaScript.
     prismaUnscoped.cobranca.findMany({
-      where: { status: { in: ["PENDENTE", "VENCIDA"] } },
+      where: emAbertoWhere,
       orderBy: { vencimento: "asc" },
+      take: COBRANCAS_NA_LISTA,
       select: {
         id: true,
         valor: true,
@@ -89,33 +164,22 @@ export default async function VisaoGeralPage() {
         assinatura: { select: { tenant: { select: { nome: true } } } },
       },
     }),
+    prismaUnscoped.cobranca.aggregate({
+      where: emAbertoWhere,
+      _count: { _all: true },
+      _sum: { valor: true },
+    }),
+    // Limite equivalente a diasDeAtraso > 0 (ver atraso.ts), o mesmo do selo
+    // do menu.
+    prismaUnscoped.cobranca.count({
+      where: { ...emAbertoWhere, vencimento: { lt: inicioDoAtraso(agora) } },
+    }),
     prismaUnscoped.cobranca.findMany({
       where: { status: "PAGA", pagoEm: { gte: inicioDosDozeMeses } },
       select: { valor: true, pagoEm: true },
     }),
-    // Pedidos de todos os restaurantes, um ano dia a dia. Agregado no banco:
-    // trazer as linhas seria carregar cada pedido do ano para somar três
-    // colunas. O dia é o de São Paulo, o mesmo fuso das chaves que
-    // preencherDias gera, senão a série troca o nome dos dias perto da meia
-    // noite. `createdAt` é timestamp sem fuso gravado em UTC, daí o duplo AT
-    // TIME ZONE.
-    prismaUnscoped.$queryRaw<LinhaDiaria[]>`
-      SELECT
-        to_char(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${FUSO}, 'YYYY-MM-DD') AS dia,
-        count(*)::int AS pedidos,
-        coalesce(sum(total), 0)::float8 AS volume
-      FROM "Order"
-      WHERE "createdAt" >= ${ha(366)} AND status <> 'CANCELLED'
-      GROUP BY 1
-    `,
-    prismaUnscoped.order.groupBy({
-      by: ["tenantId"],
-      where: { createdAt: { gte: ha(30) }, status: { not: "CANCELLED" } },
-      _count: { _all: true },
-      _sum: { total: true },
-      orderBy: { _count: { tenantId: "desc" } },
-      take: 6,
-    }),
+    lerPedidosPorDia(),
+    lerQuemMaisVende(),
   ]);
 
   // ---- Resumo -------------------------------------------------------------
@@ -218,12 +282,12 @@ export default async function VisaoGeralPage() {
   const ranking = porRestaurante.map((r) => ({
     id: r.tenantId,
     nome: nomes.get(r.tenantId) ?? "Restaurante removido",
-    pedidos: r._count._all,
-    volume: Number(r._sum.total ?? 0),
+    pedidos: r.pedidos,
+    volume: r.volume,
   }));
 
-  const aReceber = emAberto.reduce((s, c) => s + Number(c.valor), 0);
-  const vencidas = emAberto.filter((c) => diasDeAtraso(c.vencimento, agora) > 0);
+  const aReceber = Number(totalEmAberto._sum.valor ?? 0);
+  const quantasEmAberto = totalEmAberto._count._all;
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -335,17 +399,17 @@ export default async function VisaoGeralPage() {
         <Painel
           titulo="Cobranças"
           subtitulo={
-            emAberto.length === 0
+            quantasEmAberto === 0
               ? "nada a receber"
               : `${formatCurrency(aReceber)} a receber${
-                  vencidas.length > 0
-                    ? `, ${vencidas.length} ${vencidas.length === 1 ? "vencida" : "vencidas"}`
+                  vencidas > 0
+                    ? `, ${vencidas} ${vencidas === 1 ? "vencida" : "vencidas"}`
                     : ""
                 }`
           }
           atraso={500}
           acessorio={
-            emAberto.length > 0 ? (
+            quantasEmAberto > 0 ? (
               <Link
                 href="/clientes"
                 className="shrink-0 inline-flex items-center gap-1 h-9 px-3 rounded-xl border border-console-linha bg-console-cartao text-[13px] font-medium hover:border-console-mudo transition-colors"
@@ -356,13 +420,13 @@ export default async function VisaoGeralPage() {
             ) : undefined
           }
         >
-          {emAberto.length === 0 ? (
+          {quantasEmAberto === 0 ? (
             <p className="text-[14px] text-console-mudo py-10 text-center">
               Toda cobrança emitida foi paga.
             </p>
           ) : (
             <ul className="-my-3 divide-y divide-console-linha">
-              {emAberto.slice(0, 5).map((c) => {
+              {emAberto.map((c) => {
                 const dias = diasDeAtraso(c.vencimento, agora);
                 const nome = c.assinatura.tenant.nome;
                 return (

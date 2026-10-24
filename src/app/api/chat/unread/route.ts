@@ -3,6 +3,10 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 
+// Mais do que isso não cabe num sino: são avisos, e a conversa inteira continua
+// em /api/orders/[id]/chat.
+const LIMITE_DO_SINO = 50;
+
 /**
  * GET /api/chat/unread?since=<ISO timestamp>
  * Retorna mensagens de ADMIN (restaurante) enviadas após `since`
@@ -30,13 +34,20 @@ export async function GET(req: NextRequest) {
     // toda mensagem do admin que o cliente já recebeu na vida, a cada abertura.
     const seteDiasAtras = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    const messages = await prisma.chatMessage.findMany({
+    // Com teto. Sem ele, a resposta crescia com o que o restaurante escrevesse
+    // desde o cursor, e um sino que ficou dias fechado recebia tudo de uma vez,
+    // de minuto em minuto até alcançar. As mais recentes (desc + take), em ordem
+    // de chegada: o sino avança o cursor para a última, então as que ficaram de
+    // fora são as velhas, que já não valem notificação. O índice
+    // [tenantId, senderRole, createdAt] serve exatamente este where.
+    const recentes = await prisma.chatMessage.findMany({
       where: {
         senderRole: "ADMIN",
         order: { userId: session.user.id },
         createdAt: { gt: desde ?? seteDiasAtras },
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
+      take: LIMITE_DO_SINO,
       select: {
         id: true,
         orderId: true,
@@ -45,6 +56,6 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(messages);
+    return NextResponse.json(recentes.reverse());
   });
 }

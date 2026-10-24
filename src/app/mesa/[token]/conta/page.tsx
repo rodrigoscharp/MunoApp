@@ -48,7 +48,9 @@ export default function MesaContaPage() {
     }
     load();
 
-    return iniciarPollingVisivel(load, 10000);
+    // A conta muda quando alguém da mesa pede, coisa de minutos. 10s em cada
+    // celular aberto era custo sem ganho; o botão de atualizar cobre a pressa.
+    return iniciarPollingVisivel(load, 20000);
   }, [params.token]);
 
   const byPerson = new Map<string, Order[]>();

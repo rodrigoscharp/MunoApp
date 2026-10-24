@@ -20,14 +20,28 @@ const TENANT = "restaurante-a";
 const TOKEN = "token-da-mesa";
 
 const tableFindFirst = vi.fn();
-const orderFindMany = vi.fn();
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     table: { findFirst: (...a: unknown[]) => tableFindFirst(...a) },
-    order: { findMany: (...a: unknown[]) => orderFindMany(...a) },
   },
 }));
+
+/** A parte da consulta que lê os pedidos, aninhada na da mesa. */
+function consultaDosPedidos() {
+  return tableFindFirst.mock.calls[0][0].select.orders;
+}
+
+const pedidosAbertos = [
+  {
+    id: "pedido-1",
+    total: 42.5,
+    customerName: "Ana",
+    items: [
+      { id: "oi-1", quantity: 2, unitPrice: 10, notes: null, menuItem: { name: "X-Salada" } },
+    ],
+  },
+];
 
 import { GET } from "./route";
 
@@ -47,17 +61,7 @@ function req({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  tableFindFirst.mockResolvedValue({ id: "mesa-1", number: 7, name: "Varanda" });
-  orderFindMany.mockResolvedValue([
-    {
-      id: "pedido-1",
-      total: 42.5,
-      customerName: "Ana",
-      items: [
-        { id: "oi-1", quantity: 2, unitPrice: 10, notes: null, menuItem: { name: "X-Salada" } },
-      ],
-    },
-  ]);
+  tableFindFirst.mockResolvedValue({ number: 7, name: "Varanda", orders: pedidosAbertos });
 });
 
 describe("porta de entrada", () => {
@@ -83,15 +87,13 @@ describe("porta de entrada", () => {
     const res = await GET(req(), params);
 
     expect(res.status).toBe(404);
-    expect(orderFindMany).not.toHaveBeenCalled();
   });
 
-  it("exige que a mesa esteja ativa", async () => {
+  it("exige que a mesa esteja ativa, e da mesa só pede número e nome", async () => {
     await GET(req(), params);
-    expect(tableFindFirst).toHaveBeenCalledWith({
-      where: { token: TOKEN, active: true },
-      select: { id: true, number: true, name: true },
-    });
+    const consulta = tableFindFirst.mock.calls[0][0];
+    expect(consulta.where).toEqual({ token: TOKEN, active: true });
+    expect(Object.keys(consulta.select).sort()).toEqual(["name", "number", "orders"]);
   });
 });
 
@@ -99,7 +101,7 @@ describe("a rota é pública, então o select é a proteção", () => {
   it("pede ao banco apenas o que a conta precisa", async () => {
     await GET(req(), params);
 
-    const consulta = orderFindMany.mock.calls[0][0];
+    const consulta = consultaDosPedidos();
     expect(consulta.select).toEqual({
       id: true,
       total: true,
@@ -118,7 +120,8 @@ describe("a rota é pública, então o select é a proteção", () => {
 
   it("nunca usa include, que traria a linha inteira do pedido", async () => {
     await GET(req(), params);
-    expect(orderFindMany.mock.calls[0][0]).not.toHaveProperty("include");
+    expect(consultaDosPedidos()).not.toHaveProperty("include");
+    expect(tableFindFirst.mock.calls[0][0]).not.toHaveProperty("include");
   });
 
   it.each([
@@ -130,21 +133,18 @@ describe("a rota é pública, então o select é a proteção", () => {
     "couponCode",
   ])("não pede o campo %s", async (campo) => {
     await GET(req(), params);
-    expect(orderFindMany.mock.calls[0][0].select).not.toHaveProperty(campo);
+    expect(consultaDosPedidos().select).not.toHaveProperty(campo);
   });
 
-  it("lista só os pedidos em aberto da própria mesa", async () => {
+  // Os pedidos vêm pela relação da mesa resolvida pelo token, e a leitura
+  // aninhada não passa pela extensão de tenant: o tenantId tem de estar ali.
+  it("lista só os pedidos em aberto da própria mesa, e do próprio restaurante", async () => {
     await GET(req(), params);
-    expect(orderFindMany.mock.calls[0][0].where).toEqual({
-      tableId: "mesa-1",
+    expect(consultaDosPedidos().where).toEqual({
+      tenantId: TENANT,
       paymentStatus: "UNPAID",
       status: { not: "CANCELLED" },
     });
-  });
-
-  it("usa o id da mesa resolvida pelo token, não o token cru", async () => {
-    await GET(req(), params);
-    expect(orderFindMany.mock.calls[0][0].where.tableId).toBe("mesa-1");
   });
 });
 
@@ -153,17 +153,19 @@ describe("resposta", () => {
     const res = await GET(req(), params);
     const corpo = await res.json();
 
+    expect(corpo.orders).toEqual(pedidosAbertos);
+
     expect(corpo.table).toEqual({ number: 7, name: "Varanda" });
     expect(corpo.table).not.toHaveProperty("id");
   });
 
   it("devolve os pedidos em ordem de chegada", async () => {
     await GET(req(), params);
-    expect(orderFindMany.mock.calls[0][0].orderBy).toEqual({ createdAt: "asc" });
+    expect(consultaDosPedidos().orderBy).toEqual({ createdAt: "asc" });
   });
 
   it("responde com conta vazia quando a mesa não tem pedido aberto", async () => {
-    orderFindMany.mockResolvedValue([]);
+    tableFindFirst.mockResolvedValue({ number: 7, name: "Varanda", orders: [] });
     const res = await GET(req(), params);
 
     expect(res.status).toBe(200);
@@ -171,7 +173,7 @@ describe("resposta", () => {
   });
 
   it("devolve 500 genérico quando o banco falha", async () => {
-    orderFindMany.mockRejectedValue(new Error("timeout"));
+    tableFindFirst.mockRejectedValue(new Error("timeout"));
     const res = await GET(req(), params);
 
     expect(res.status).toBe(500);

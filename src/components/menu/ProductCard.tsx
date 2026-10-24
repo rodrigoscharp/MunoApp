@@ -9,7 +9,21 @@ import { formatCurrency } from "@/lib/utils";
 import { MenuItemWithCategory } from "@/types";
 import { AddToCartModal } from "@/components/menu/AddToCartModal";
 
-export function ProductCard({ item, restaurantOpen = true }: { item: MenuItemWithCategory; restaurantOpen?: boolean }) {
+export function ProductCard({
+  item,
+  restaurantOpen = true,
+  prioridade = false,
+}: {
+  item: MenuItemWithCategory;
+  restaurantOpen?: boolean;
+  /**
+   * Os primeiros cards, acima da dobra, são candidatos a LCP. Com isso a foto
+   * sai na frente das outras em vez de esperar o lazy loading descobri-la.
+   * Não usa `preload` (o antigo `priority`): a doc do Next o desaconselha
+   * quando há várias imagens candidatas, que é o caso de uma grade.
+   */
+  prioridade?: boolean;
+}) {
   const addItem = useCart((s) => s.addItem);
   const btnRef = useRef<HTMLButtonElement>(null);
   const [showModal, setShowModal] = useState(false);
@@ -32,7 +46,11 @@ export function ProductCard({ item, restaurantOpen = true }: { item: MenuItemWit
               src={item.imageUrl}
               alt={item.name}
               fill
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              // No celular o card é uma faixa de rolagem com largura fixa
+              // (w-44, 176px, na página); 50vw pedia o dobro em telas largas.
+              sizes="(max-width: 640px) 176px, (max-width: 1024px) 33vw, 25vw"
+              loading={prioridade ? "eager" : "lazy"}
+              fetchPriority={prioridade ? "high" : undefined}
               className="object-cover group-hover:scale-105 transition-transform duration-300"
             />
           ) : (

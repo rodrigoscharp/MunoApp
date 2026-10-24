@@ -1,6 +1,9 @@
-import { unstable_cache } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { runWithTenant } from "@/lib/tenant-context";
+import {
+  cardTemPrioridade,
+  getCardapioOuVazio,
+  itemParaCard,
+  itemParaFiltro,
+} from "@/lib/menu-cache";
 import { getRequestTenantId } from "@/lib/tenant-request";
 import { CategoryNav } from "@/components/menu/CategoryNav";
 import { ProductCard } from "@/components/menu/ProductCard";
@@ -9,39 +12,9 @@ import { FaixaDeInstalacao } from "@/components/pwa/FaixaDeInstalacao";
 import { MenuItemWithCategory } from "@/types";
 import { getBusinessHours, checkIsOpen } from "@/lib/business-hours";
 
-// tenantId como argumento diferencia o cache por tenant (mesmo motivo de
-// src/lib/restaurant.ts).
-const getMenuCached = unstable_cache(
-  async (tenantId: string) => {
-    try {
-      return await runWithTenant(tenantId, () =>
-        prisma.category.findMany({
-          orderBy: { position: "asc" },
-          include: {
-            items: { where: { available: true }, orderBy: { name: "asc" } },
-          },
-        })
-      );
-    } catch {
-      return [];
-    }
-  },
-  ["menu"],
-  { revalidate: 60 }
-);
-
-// runWithTenant precisa envolver a chamada por fora do unstable_cache: se
-// ficar só dentro do callback cacheado, o contexto do AsyncLocalStorage se
-// perde antes da extensão de tenant do Prisma rodar (getCurrentTenantId()
-// lança "Nenhum tenant no contexto da request"), e a query cai silenciosamente
-// no catch, retornando [].
-function getMenu(tenantId: string) {
-  return runWithTenant(tenantId, () => getMenuCached(tenantId));
-}
-
 export default async function MenuPage() {
   const tenantId = await getRequestTenantId();
-  const [categories, schedule] = await Promise.all([getMenu(tenantId), getBusinessHours(tenantId)]);
+  const [categories, schedule] = await Promise.all([getCardapioOuVazio(tenantId), getBusinessHours(tenantId)]);
   const isOpen = checkIsOpen(schedule);
   const nonEmpty = categories.filter((c) => c.items.length > 0);
 
@@ -64,13 +37,9 @@ export default async function MenuPage() {
           <CategoryNav categories={nonEmpty.map(({ id, name, slug }) => ({ id, name, slug }))} />
           <div className="max-w-5xl mx-auto px-4 pt-4 pb-0">
             <FiltroDeRestricoes
-              menuItems={nonEmpty.flatMap((c) =>
-                c.items.map((item) => ({
-                  ...item,
-                  price: Number(item.price),
-                  category: { id: c.id, name: c.name, slug: c.slug },
-                } as unknown as MenuItemWithCategory))
-              )}
+              // A lista inteira vai uma segunda vez no payload, para este
+              // componente: só com o que o filtro lê (ver ItemDoFiltro).
+              menuItems={nonEmpty.flatMap((c) => c.items.map((item) => itemParaFiltro(item, c)))}
               restaurantOpen={isOpen}
             />
             {/*
@@ -86,7 +55,7 @@ export default async function MenuPage() {
             </div>
           </div>
           <div className="max-w-5xl mx-auto px-4 py-8 space-y-10">
-            {nonEmpty.map((category) => (
+            {nonEmpty.map((category, indiceCategoria) => (
               <section key={category.id} id={category.slug}>
                 <div className="flex items-center justify-between gap-3 mb-5">
                   <div className="flex items-center gap-3">
@@ -116,11 +85,15 @@ export default async function MenuPage() {
                   sm:grid sm:grid-cols-3 lg:grid-cols-4
                   sm:gap-4 sm:overflow-visible sm:mx-0 sm:px-0 sm:pb-0
                 ">
-                  {category.items.map((item) => (
+                  {category.items.map((item, indiceItem) => (
                     <div key={item.id} className="shrink-0 w-44 snap-start sm:w-auto sm:shrink sm:h-full">
                       <ProductCard
-                        item={{ ...item, price: Number(item.price) } as unknown as MenuItemWithCategory}
+                        // O cast fica até o ProductCard tipar a prop pelo que
+                        // lê (ItemDoCard): hoje ele pede MenuItemWithCategory
+                        // inteiro, com categoria, e só usa estes campos.
+                        item={itemParaCard(item) as MenuItemWithCategory}
                         restaurantOpen={isOpen}
+                        prioridade={cardTemPrioridade(indiceCategoria, indiceItem)}
                       />
                     </div>
                   ))}

@@ -1,44 +1,22 @@
-"use client";
-
-import { useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { useTable } from "@/hooks/useTable";
+import Link from "next/link";
 import { UtensilsCrossed, ArrowRight } from "lucide-react";
 
-interface TableData {
-  id: string;
-  number: number;
-  name: string | null;
-  token: string;
-}
-
-export default function MesaLandingPage() {
-  const params = useParams<{ token: string }>();
-  const router = useRouter();
-  const { setTable } = useTable();
-
-  useEffect(() => {
-    async function loadTable() {
-      try {
-        const res = await fetch(`/api/tables/token/${params.token}`);
-        if (!res.ok) return;
-        const table: TableData = await res.json();
-        setTable({
-          tableId: table.id,
-          tableNumber: table.number,
-          tableName: table.name,
-          tableToken: table.token,
-        });
-      } catch {
-        // silently fail — layout already validated the token
-      }
-    }
-    loadTable();
-  }, [params.token, setTable]);
-
-  function handleEnter() {
-    router.push(`/mesa/${params.token}/cardapio`);
-  }
+/**
+ * Boas-vindas do QR da mesa.
+ *
+ * Componente de servidor: a mesa já foi validada pelo layout, que também a
+ * guarda na aba (MesaDaAba). Antes esta tela era de cliente e buscava a mesma
+ * mesa de novo em /api/tables/token só para guardá-la.
+ *
+ * A tela fica, em vez de um redirect direto ao cardápio: é a primeira coisa
+ * que o cliente vê ao ler o QR, e tirá-la é decisão de produto, não conserto.
+ */
+export default async function MesaLandingPage({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}) {
+  const { token } = await params;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center gap-6">
@@ -58,13 +36,13 @@ export default function MesaLandingPage() {
         </p>
       </div>
 
-      <button
-        onClick={handleEnter}
+      <Link
+        href={`/mesa/${token}/cardapio`}
         className="flex items-center gap-2 bg-brand hover:bg-brand-dark text-white font-semibold px-8 py-3.5 rounded-xl transition shadow-md"
       >
         Ver Cardápio
         <ArrowRight size={18} />
-      </button>
+      </Link>
     </div>
   );
 }

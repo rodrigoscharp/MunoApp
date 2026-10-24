@@ -2,8 +2,7 @@
 
 import { iniciarPollingVisivel } from "@/lib/polling-visivel";
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { useTopicoRealtime } from "@/hooks/useTopicoRealtime";
+import { useCanalRealtime } from "@/hooks/useTopicoRealtime";
 
 export interface ChatMessageData {
   id: string;
@@ -20,11 +19,47 @@ export interface ChatMessageData {
 // Rede de segurança, não a fonte principal. Até a migração para Broadcast a
 // assinatura de postgres_changes nunca disparava (RLS em ChatMessage bloqueia a
 // role anon), então o chat inteiro vivia deste intervalo — a 4s ele sozinho
-// gerava 15 requisições por minuto por conversa aberta.
-const POLL_INTERVAL = 15_000;
+// gerava 15 requisições por minuto por conversa aberta. Com o canal de pé o
+// aviso chega na hora, e o polling só cobre mensagem perdida.
+export function intervaloDoChat(conectado: boolean): number {
+  return conectado ? 60_000 : 15_000;
+}
+
+/**
+ * O cursor do `?since=`: a mensagem confirmada mais recente, 1ms antes. O
+ * servidor filtra `createdAt > since`, e duas mensagens no mesmo milissegundo
+ * fariam a segunda nunca chegar; o milissegundo de folga a traz de volta, e a
+ * deduplicação por id descarta a repetida.
+ */
+export function cursorDoChat(mensagens: ChatMessageData[]): string | null {
+  let maior = -Infinity;
+  for (const m of mensagens) {
+    if (m.pending || m.failed) continue;
+    const t = new Date(m.createdAt).getTime();
+    if (t > maior) maior = t;
+  }
+  return Number.isFinite(maior) ? new Date(maior - 1).toISOString() : null;
+}
+
+/** Junta as novas às confirmadas, sem repetir id, em ordem cronológica. */
+export function juntarMensagens(
+  confirmadas: ChatMessageData[],
+  novas: ChatMessageData[]
+): ChatMessageData[] {
+  const porId = new Map(confirmadas.map((m) => [m.id, m]));
+  for (const m of novas) porId.set(m.id, m);
+  return [...porId.values()].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+}
 
 // Cache em memória por orderId
 const messageCache = new Map<string, ChatMessageData[]>();
+
+/** Só para teste: o cache vive no módulo e atravessaria de um caso a outro. */
+export function _esquecerChats(): void {
+  messageCache.clear();
+}
 
 export async function prefetchChat(orderId: string): Promise<void> {
   if (messageCache.has(orderId)) return;
@@ -39,26 +74,33 @@ export async function prefetchChat(orderId: string): Promise<void> {
 }
 
 export function useChat(orderId: string) {
-  const topic = useTopicoRealtime("order", orderId);
   const cached = messageCache.get(orderId);
   const [messages, setMessages] = useState<ChatMessageData[]>(cached ?? []);
   const [loading, setLoading] = useState(!cached);
   const [sending, setSending] = useState(false);
   const seenIds = useRef<Set<string>>(new Set(cached?.map((m) => m.id)));
 
-  // Faz fetch e integra com estado atual (preserva mensagens pending)
+  // Faz fetch e integra com estado atual (preserva mensagens pending). Com
+  // mensagens já em mãos, pede só as novas: antes cada volta do polling
+  // baixava as 200 últimas de novo.
   async function fetchMessages(silent = false) {
     try {
-      const res = await fetch(`/api/orders/${orderId}/chat`);
+      const confirmadas = messageCache.get(orderId) ?? [];
+      const cursor = cursorDoChat(confirmadas);
+      const url = cursor
+        ? `/api/orders/${orderId}/chat?since=${encodeURIComponent(cursor)}`
+        : `/api/orders/${orderId}/chat`;
+      const res = await fetch(url);
       if (!res.ok) return;
       const data: ChatMessageData[] = await res.json();
 
       data.forEach((m) => seenIds.current.add(m.id));
-      messageCache.set(orderId, data);
+      const todas = cursor ? juntarMensagens(confirmadas, data) : data;
+      messageCache.set(orderId, todas);
 
       setMessages((prev) => {
         const pending = prev.filter((m) => m.pending || m.failed);
-        return [...data, ...pending];
+        return [...todas, ...pending];
       });
     } catch {
       // silencia erros de polling
@@ -73,28 +115,24 @@ export function useChat(orderId: string) {
     fetchMessages(!!cached);
   }, [orderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Polling — fonte principal de novas mensagens
-  useEffect(() => {
-    return iniciarPollingVisivel(() => fetchMessages(true), POLL_INTERVAL);
-  }, [orderId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Broadcast no canal do pedido — esta é a fonte principal de novas
+  // mensagens. O evento é só um aviso (id, sem conteúdo); o texto vem do GET
+  // protegido.
+  const conexao = useCanalRealtime("order", orderId, {
+    "chat-message": (payload) => {
+      const messageId = payload.messageId as string;
+      // A própria mensagem enviada volta pela resposta do POST; ignorar aqui
+      // evita um fetch redundante por mensagem que o remetente já tem.
+      if (!messageId || seenIds.current.has(messageId)) return;
+      fetchMessages(true);
+    },
+  });
+  const conectado = conexao === "conectado";
 
-  // Broadcast no canal do tenant — esta é a fonte principal de novas mensagens.
-  // O evento é só um aviso (id, sem conteúdo); o texto vem do GET protegido.
+  // Polling de reserva, esparso com o canal de pé e apertado sem ele.
   useEffect(() => {
-    if (!topic) return;
-    const channel = supabase
-      .channel(topic)
-      .on("broadcast", { event: "chat-message" }, ({ payload }) => {
-        const messageId = payload.messageId as string;
-        // A própria mensagem enviada volta pela resposta do POST; ignorar aqui
-        // evita um fetch redundante por mensagem que o remetente já tem.
-        if (!messageId || seenIds.current.has(messageId)) return;
-        fetchMessages(true);
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [topic]); // eslint-disable-line react-hooks/exhaustive-deps
+    return iniciarPollingVisivel(() => fetchMessages(true), intervaloDoChat(conectado));
+  }, [orderId, conectado]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * `substituirId` é a mensagem que esta substitui — o caso do reenvio depois de

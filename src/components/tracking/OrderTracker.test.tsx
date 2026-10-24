@@ -344,3 +344,35 @@ describe("pedido entregue", () => {
     expect(screen.queryByText(/bom apetite/i)).toBeNull();
   });
 });
+
+describe("o bloco do Pix", () => {
+  const PIX = { pix: { qrSrc: "data:image/png;base64,AAA", copyPaste: "000201pix" } };
+
+  it("mostra o QR enquanto o Pix não foi pago", () => {
+    montar({}, PIX);
+    expect(screen.getByAltText("QR Code Pix")).toBeDefined();
+    expect(screen.queryByText("Pagamento confirmado")).toBeNull();
+  });
+
+  // O QR era renderizado pela página no servidor e ficava na tela depois de
+  // pago, convidando o cliente a pagar duas vezes.
+  it("troca o QR por \"Pagamento confirmado\" quando o pagamento entra", () => {
+    realtime.mockReturnValue({ status: null, paymentStatus: "PAID", estimatedDeliveryAt: null });
+    montar({}, PIX);
+
+    expect(screen.queryByAltText("QR Code Pix")).toBeNull();
+    expect(screen.getByText("Pagamento confirmado")).toBeDefined();
+    expect(screen.getByText("Pago ✓")).toBeDefined();
+  });
+
+  it("sem QR na URL, não há bloco nenhum", () => {
+    montar();
+    expect(screen.queryByAltText("QR Code Pix")).toBeNull();
+    expect(screen.queryByText("Pagamento confirmado")).toBeNull();
+  });
+
+  it("pedido cancelado não oferece o QR", () => {
+    montar({ status: "CANCELLED" }, PIX);
+    expect(screen.queryByAltText("QR Code Pix")).toBeNull();
+  });
+});

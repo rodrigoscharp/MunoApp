@@ -29,6 +29,15 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+
+// O revalidateTag de verdade exige o contexto de request do Next. O que importa
+// aqui é QUAL tag a rota invalida, e quando.
+const revalidateTag = vi.fn();
+vi.mock("next/cache", () => ({
+  unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
+  revalidateTag: (...a: unknown[]) => revalidateTag(...a),
+}));
+
 import { GET, POST } from "./route";
 
 function reqGet(comTenant = true) {
@@ -76,7 +85,7 @@ describe("GET — o cardápio que o cliente vê", () => {
 
   it("esconde item indisponível", async () => {
     await GET(reqGet());
-    expect(categoryFindMany.mock.calls[0][0].include.items.where).toEqual({ available: true });
+    expect(categoryFindMany.mock.calls[0][0].select.items.where).toEqual({ available: true });
   });
 
   it("entrega as categorias na ordem definida pelo dono", async () => {
@@ -86,7 +95,27 @@ describe("GET — o cardápio que o cliente vê", () => {
 
   it("ordena os itens por nome dentro da categoria", async () => {
     await GET(reqGet());
-    expect(categoryFindMany.mock.calls[0][0].include.items.orderBy).toEqual({ name: "asc" });
+    expect(categoryFindMany.mock.calls[0][0].select.items.orderBy).toEqual({ name: "asc" });
+  });
+
+  it("entrega o preço como número, que é o que o upsell soma", async () => {
+    categoryFindMany.mockResolvedValue([
+      {
+        id: "cat-1",
+        name: "Lanches",
+        slug: "lanches",
+        position: 0,
+        items: [{ id: "i1", name: "X", price: { valueOf: () => 25.9 }, available: true }],
+      },
+    ]);
+    const corpo = await (await GET(reqGet())).json();
+    expect(corpo[0].items[0].price).toBe(25.9);
+  });
+
+  it("falha de banco é 500, e não um cardápio vazio com 200", async () => {
+    categoryFindMany.mockRejectedValue(new Error("conexão recusada"));
+    const res = await GET(reqGet());
+    expect(res.status).toBe(500);
   });
 });
 
@@ -201,5 +230,18 @@ describe("POST: informações alimentares", () => {
 
     expect(res.status).toBe(400);
     expect(menuItemCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST — o cache da vitrine", () => {
+  it("invalida o cardápio do restaurante ao criar item", async () => {
+    await POST(reqPost(itemValido));
+    expect(revalidateTag).toHaveBeenCalledWith(`menu:${TENANT}`, { expire: 0 });
+  });
+
+  it("não invalida quando nada foi gravado", async () => {
+    categoryFindUnique.mockResolvedValue(null);
+    await POST(reqPost(itemValido));
+    expect(revalidateTag).not.toHaveBeenCalled();
   });
 });

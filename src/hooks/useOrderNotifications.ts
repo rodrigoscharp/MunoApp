@@ -3,9 +3,9 @@
 import { iniciarPollingVisivel } from "@/lib/polling-visivel";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
-import { useTopicoRealtime } from "@/hooks/useTopicoRealtime";
+import { useCanalRealtime } from "@/hooks/useTopicoRealtime";
 import { DeliveryType, OrderStatus } from "@/types";
 
 export interface OrderNotification {
@@ -134,11 +134,11 @@ type OrderResumo = { id: string } & OrderMeta;
 
 export function useOrderNotifications() {
   const { data: session } = useSession();
+  const router = useRouter();
   const [notifications, setNotifications] = useState<OrderNotification[]>(loadFromStorage);
   const userId = session?.user?.id;
   // Nome secreto do canal do próprio usuário, entregue pelo servidor.
   // Enquanto não vem (ou se falhar), só o polling alimenta o sino.
-  const topic = useTopicoRealtime("user", userId, !!userId);
 
   // Mapa orderId → { status, deliveryType } dos pedidos do usuário
   const knownOrders = useRef<Map<string, OrderMeta>>(new Map());
@@ -202,53 +202,29 @@ export function useOrderNotifications() {
         duration: 7000,
         action: {
           label: "Ver chat",
-          onClick: () => { window.location.href = `/pedidos/${orderId}/chat`; },
+          // Pelo router, e não por location.href: navegação interna recarregava
+          // o app inteiro, e o sino com ele, para abrir uma tela do mesmo app.
+          onClick: () => router.push(`/pedidos/${orderId}/chat`),
         },
       });
     },
-    []
+    [router]
   );
 
+  // Pedidos: uma busca inicial e o polling de reserva. Depende só do usuário,
+  // e não do tópico: antes, a chegada do nome do canal (logo depois de montar)
+  // reiniciava o efeito e repetia a busca inicial. A primeira rodada de
+  // fetchAndCompare só registra (pedido desconhecido não notifica), então ela
+  // mesma faz o papel do antigo initStatuses, que era uma segunda cópia dela.
   useEffect(() => {
     if (!userId) return;
 
-    // Timestamp da última mensagem de chat vista — inicia com "agora" para não
-    // notificar mensagens históricas ao abrir o app
-    const lastChatCheck = { current: new Date().toISOString() };
-
-    async function fetchChatMessages() {
-      try {
-        const res = await fetch(`/api/chat/unread?since=${encodeURIComponent(lastChatCheck.current)}`);
-        if (!res.ok) return;
-        const msgs: { id: string; orderId: string; content: string; createdAt: string }[] = await res.json();
-        if (msgs.length === 0) return;
-        // Avança o cursor para a mensagem mais recente
-        lastChatCheck.current = msgs[msgs.length - 1].createdAt;
-        for (const msg of msgs) {
-          addChatNotification(msg.id, msg.orderId, msg.content, msg.createdAt);
-        }
-      } catch {}
-    }
-
-    /**
-     * Uma busca de chat por vez, em fila.
-     *
-     * Duas mensagens seguidas do restaurante disparam dois `chat-message` quase
-     * juntos. Rodando em paralelo, as duas buscas saem com o **mesmo** cursor —
-     * ele só avança depois da resposta — e as duas trazem a mesma mensagem. O
-     * `addChatNotification` deduplica a entrada do sino, mas o toast fica fora
-     * do dedup: o cliente via o mesmo aviso duas vezes. Encadeando, a segunda
-     * busca só sai com o cursor já avançado, e volta vazia.
-     */
-    let filaDeChat: Promise<void> = Promise.resolve();
-    function agendarBuscaDeChat() {
-      filaDeChat = filaDeChat.then(fetchChatMessages).catch(() => {});
-      return filaDeChat;
-    }
-
     async function fetchAndCompare() {
       try {
-        const res = await fetch("/api/orders");
+        // `mine=1` pede a versão enxuta da rota (id, status, deliveryType e
+        // updatedAt dos pedidos do próprio usuário). A resposta continua uma
+        // lista de pedidos, então a rota antiga, que ignora o parâmetro, serve.
+        const res = await fetch("/api/orders?mine=1");
         if (!res.ok) return;
         const orders: OrderResumo[] = await res.json();
 
@@ -265,32 +241,55 @@ export function useOrderNotifications() {
       } catch {}
     }
 
-    async function initStatuses() {
+    fetchAndCompare();
+    return iniciarPollingVisivel(fetchAndCompare, POLL_INTERVAL);
+  }, [userId, addNotification]);
+
+  // Timestamp da última mensagem de chat vista — inicia com "agora" para não
+  // notificar mensagens históricas ao abrir o app. Mora num ref, e não dentro
+  // do effect, porque o effect reinicia quando o canal cai ou volta, e um
+  // cursor recomeçado em "agora" perderia o que chegou no meio.
+  const lastChatCheck = useRef(new Date().toISOString());
+  /**
+   * Uma busca de chat por vez, em fila.
+   *
+   * Duas mensagens seguidas do restaurante disparam dois `chat-message` quase
+   * juntos. Rodando em paralelo, as duas buscas saem com o **mesmo** cursor —
+   * ele só avança depois da resposta — e as duas trazem a mesma mensagem. O
+   * `addChatNotification` deduplica a entrada do sino, mas o toast fica fora
+   * do dedup: o cliente via o mesmo aviso duas vezes. Encadeando, a segunda
+   * busca só sai com o cursor já avançado, e volta vazia.
+   */
+  const filaDeChat = useRef<Promise<void>>(Promise.resolve());
+
+  const agendarBuscaDeChat = useCallback(() => {
+    async function fetchChatMessages() {
       try {
-        const res = await fetch("/api/orders");
+        const res = await fetch(`/api/chat/unread?since=${encodeURIComponent(lastChatCheck.current)}`);
         if (!res.ok) return;
-        const orders: OrderResumo[] = await res.json();
-        orders.forEach((o) =>
-          knownOrders.current.set(o.id, {
-            status: o.status,
-            deliveryType: o.deliveryType,
-          })
-        );
+        const msgs: { id: string; orderId: string; content: string; createdAt: string }[] = await res.json();
+        if (msgs.length === 0) return;
+        // Avança o cursor para a mensagem mais recente
+        lastChatCheck.current = msgs[msgs.length - 1].createdAt;
+        for (const msg of msgs) {
+          addChatNotification(msg.id, msg.orderId, msg.content, msg.createdAt);
+        }
       } catch {}
     }
+    filaDeChat.current = filaDeChat.current.then(fetchChatMessages).catch(() => {});
+    return filaDeChat.current;
+  }, [addChatNotification]);
 
-    initStatuses();
-
-    // Canal do próprio cliente. A versão anterior assinava postgres_changes na
-    // tabela Order inteira e filtrava no navegador — o que, além do fan-out,
-    // nunca chegou a disparar: Order tem RLS e a policy bloqueia a role anon
-    // por inteiro (app.current_tenant não é definido). Na prática o sino vivia
-    // só do polling. Agora o servidor publica direto em user:<id>.
-    const channel = !topic
-      ? null
-      : supabase
-      .channel(topic)
-      .on("broadcast", { event: "order-updated" }, ({ payload }) => {
+  // Canal do próprio cliente. A versão anterior assinava postgres_changes na
+  // tabela Order inteira e filtrava no navegador — o que, além do fan-out,
+  // nunca chegou a disparar: Order tem RLS e a policy bloqueia a role anon
+  // por inteiro (app.current_tenant não é definido). Na prática o sino vivia
+  // só do polling. Agora o servidor publica direto em user:<id>.
+  const conexao = useCanalRealtime(
+    "user",
+    userId,
+    {
+      "order-updated": (payload) => {
         const orderId = payload.orderId as string;
         const status = payload.status as OrderStatus;
         const prev = knownOrders.current.get(orderId);
@@ -309,23 +308,24 @@ export function useOrderNotifications() {
         const deliveryType = (payload.deliveryType as DeliveryType) ?? prev.deliveryType;
         knownOrders.current.set(orderId, { status, deliveryType });
         addNotification(orderId, status, deliveryType);
-      })
-      .on("broadcast", { event: "chat-message" }, ({ payload }) => {
+      },
+      "chat-message": (payload) => {
         // Mensagem do próprio cliente não vira notificação para ele.
         if (payload.senderRole === "CUSTOMER") return;
         agendarBuscaDeChat();
-      })
-      .subscribe();
+      },
+    },
+    !!userId
+  );
+  const conectado = conexao === "conectado";
 
-    const pararPoll = iniciarPollingVisivel(fetchAndCompare, POLL_INTERVAL);
-    const pararChatPoll = iniciarPollingVisivel(agendarBuscaDeChat, POLL_INTERVAL);
-
-    return () => {
-      if (channel) supabase.removeChannel(channel);
-      pararPoll();
-      pararChatPoll();
-    };
-  }, [userId, topic, addNotification, addChatNotification]);
+  // Sem o canal de pé, o polling é a única fonte de chat. Com ele, o
+  // `chat-message` do Broadcast já dispara a busca na hora, e o polling a
+  // cada 60s seria uma consulta por cliente que nunca traz nada novo.
+  useEffect(() => {
+    if (!userId || conectado) return;
+    return iniciarPollingVisivel(agendarBuscaDeChat, POLL_INTERVAL);
+  }, [userId, conectado, agendarBuscaDeChat]);
 
   const markAllAsRead = useCallback(() => {
     setNotifications((prev) => {

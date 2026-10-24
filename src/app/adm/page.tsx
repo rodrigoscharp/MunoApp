@@ -9,7 +9,8 @@ import {
 } from "@/lib/onboarding";
 import { formatCurrency } from "@/lib/utils";
 import { FILTRO_DE_RECEITA, inicioDoDiaBRT, inicioDoMesBRT } from "@/lib/faturamento";
-import { AdminCharts } from "@/components/adm/AdminCharts";
+import { AdminChartsLazy } from "@/components/adm/AdminChartsLazy";
+import { graficosEmCache } from "@/lib/analytics";
 
 export default async function AdminDashboard() {
   const session = await auth();
@@ -17,37 +18,25 @@ export default async function AdminDashboard() {
   // aqui o proxy já garantiu um ADMIN de tenant antes de a página rodar.
   const tenantId = session!.user.tenantId!;
   // "Hoje" e "receita" vêm de src/lib/faturamento.ts, o mesmo módulo que
-  // /api/analytics usa: os cards e o gráfico logo abaixo deles precisam
+  // src/lib/analytics.ts usa: os cards e o gráfico logo abaixo deles precisam
   // responder a mesma pergunta do mesmo jeito.
   const agora = new Date();
   const todayBRT = inicioDoDiaBRT(agora);
   const startOfMonthBRT = inicioDoMesBRT(agora);
 
-  const [todayStats, monthStats, menuItemCount, pendingOrders] = await Promise.all([
-    prismaUnscoped.order.aggregate({
-      where: { tenantId, createdAt: { gte: todayBRT }, ...FILTRO_DE_RECEITA },
-      _sum: { total: true },
-      _count: true,
-    }),
-    prismaUnscoped.order.aggregate({
-      where: { tenantId, createdAt: { gte: startOfMonthBRT }, ...FILTRO_DE_RECEITA },
-      _sum: { total: true },
-      _count: true,
-    }),
-    prismaUnscoped.menuItem.count({ where: { tenantId } }),
-    prismaUnscoped.order.count({
-      where: { tenantId, status: { in: ["PENDING", "CONFIRMED", "IN_PREPARATION"] } },
-    }),
-  ]);
-
-  // O estado do onboarding sai dos DADOS, e metade dele já estava aqui:
-  // menuItemCount é calculado acima para o card de cardápio.
-  const [info, dispensa] = await Promise.all([
+  // O estado do onboarding sai dos DADOS, e vem antes de tudo: quem ainda
+  // está montando a casa é mandado para /adm/comecar sem pagar as consultas de
+  // faturamento que esta tela nem chegaria a mostrar. As três consultas saem
+  // juntas — cadastro, dispensa e contagem de itens não dependem uma da outra,
+  // e esperar uma para disparar a seguinte só somava idas ao banco.
+  const [info, dispensa, menuItemCount] = await Promise.all([
     getRestaurantInfo(tenantId),
     prismaUnscoped.setting.findUnique({
       where: { tenantId_key: { tenantId, key: ONBOARDING_DISPENSADO } },
       select: { value: true },
     }),
+    // Serve aos dois: ao onboarding e ao card "Itens no Cardápio".
+    prismaUnscoped.menuItem.count({ where: { tenantId } }),
   ]);
   const onboarding = {
     enderecoPreenchido: info.address.trim().length > 0,
@@ -61,6 +50,26 @@ export default async function AdminDashboard() {
   // efeito seria pior: quem digita /adm/cardapio direto seria sequestrado no
   // meio do caminho. Aqui só pega quem chega na porta do painel.
   if (deveRedirecionar(onboarding)) redirect("/adm/comecar");
+
+  // Os gráficos saem junto dos cards, calculados aqui no servidor e guardados
+  // por um minuto por restaurante (src/lib/analytics.ts). O componente recebe
+  // pronto, em vez de montar vazio e buscar /api/analytics depois.
+  const [todayStats, monthStats, pendingOrders, graficos] = await Promise.all([
+    prismaUnscoped.order.aggregate({
+      where: { tenantId, createdAt: { gte: todayBRT }, ...FILTRO_DE_RECEITA },
+      _sum: { total: true },
+      _count: true,
+    }),
+    prismaUnscoped.order.aggregate({
+      where: { tenantId, createdAt: { gte: startOfMonthBRT }, ...FILTRO_DE_RECEITA },
+      _sum: { total: true },
+      _count: true,
+    }),
+    prismaUnscoped.order.count({
+      where: { tenantId, status: { in: ["PENDING", "CONFIRMED", "IN_PREPARATION"] } },
+    }),
+    graficosEmCache(tenantId),
+  ]);
 
   return (
     <div>
@@ -123,7 +132,7 @@ export default async function AdminDashboard() {
 
       {/* Charts */}
       <div className="mb-8">
-        <AdminCharts />
+        <AdminChartsLazy data={graficos} />
       </div>
     </div>
   );

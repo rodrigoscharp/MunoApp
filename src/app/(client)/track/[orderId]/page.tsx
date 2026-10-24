@@ -4,7 +4,6 @@ import { auth } from "@/lib/auth";
 import { getRequestTenantId } from "@/lib/tenant-request";
 import { canViewOrder } from "@/lib/order-access";
 import { OrderTracker } from "@/components/tracking/OrderTracker";
-import { PixPayment } from "@/components/tracking/PixPayment";
 import { toQrImageSrc } from "@/lib/pix-qr";
 
 interface Props {
@@ -30,11 +29,6 @@ export default async function TrackPage({ params, searchParams }: Props) {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6">
-      {/* Pix payment display */}
-      {order.paymentMethod === "PIX" && order.paymentStatus !== "PAID" && (pix || copy) && (
-        <PixPayment qrSrc={toQrImageSrc(pix)} copyPaste={copy ?? ""} />
-      )}
-
       {/* Payment result feedback */}
       {payment === "success" && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4 text-center">
@@ -52,6 +46,14 @@ export default async function TrackPage({ params, searchParams }: Props) {
         orderId={orderId}
         initialStatus={order.status}
         canChat={!!order.userId && order.userId === session?.user?.id}
+        // O bloco do Pix vai para o tracker, que troca o QR por "Pagamento
+        // confirmado" quando o pagamento entra (tempo real ou polling). Pedido
+        // que já chega pago não recebe o QR.
+        pix={
+          order.paymentMethod === "PIX" && order.paymentStatus !== "PAID" && (pix || copy)
+            ? { qrSrc: toQrImageSrc(pix), copyPaste: copy ?? "" }
+            : null
+        }
         order={{
           id: order.id,
           status: order.status,

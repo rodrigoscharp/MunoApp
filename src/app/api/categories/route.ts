@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import { invalidarCardapio } from "@/lib/menu-cache";
 import { z } from "zod";
 
 export async function GET(req: NextRequest) {
@@ -41,6 +42,9 @@ export async function POST(req: NextRequest) {
 
     try {
       const category = await prisma.category.create({ data: { ...parsed.data, tenantId } });
+      // Categoria vazia não aparece na vitrine, mas a lista de categorias faz
+      // parte do que fica em cache; invalidar mantém a regra sem exceção.
+      invalidarCardapio(tenantId);
       return NextResponse.json(category, { status: 201 });
     } catch (err) {
       // Colisão do @@unique([tenantId, slug]) — mesmo tratamento de /api/coupons

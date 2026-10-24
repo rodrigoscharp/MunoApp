@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { runWithTenant } from "@/lib/tenant-context";
+import { reportarErro } from "@/lib/observabilidade";
 
 /**
  * O que o PUT aceita gravar.
@@ -52,46 +53,61 @@ export const SEM_CADASTRO: Omit<RestaurantInfo, "name"> = {
   floorPlanImageUrl: null,
 };
 
-// tenantId entra como argumento para que o unstable_cache diferencie o
-// cache por tenant — sem isso, o restaurante info de um tenant vazaria
-// para os outros (mesma chave de cache global).
-const getRestaurantInfoCached = unstable_cache(
-  async (tenantId: string): Promise<RestaurantInfo> => {
-    // Tenant não é model escopado por tenant (ver tenant-scoped-models.ts), por
-    // isso a consulta é direta pelo id.
-    const [tenant, setting] = await Promise.all([
-      prisma.tenant
-        .findUnique({ where: { id: tenantId }, select: { nome: true } })
-        .catch(() => null),
-      runWithTenant(tenantId, () =>
-        prisma.setting
-          .findUnique({
-            where: { tenantId_key: { tenantId, key: "restaurant_info" } },
-          })
-          .catch(() => null)
-      ),
-    ]);
+/**
+ * A tag do cadastro de UM restaurante. Era "restaurant_info" para todos: o
+ * dono que salvava o endereço invalidava o cache de cada restaurante da
+ * plataforma, e a visita seguinte de todos eles ia ao banco.
+ */
+export function tagDoRestaurante(tenantId: string): string {
+  return `restaurant_info:${tenantId}`;
+}
 
-    const base: RestaurantInfo = { ...SEM_CADASTRO, name: tenant?.nome ?? "" };
-    if (!setting) return base;
+async function lerRestaurantInfo(tenantId: string): Promise<RestaurantInfo> {
+  // Tenant não é model escopado por tenant (ver tenant-scoped-models.ts), por
+  // isso a consulta é direta pelo id.
+  //
+  // Falha de banco propaga de propósito: dentro do unstable_cache, um `.catch`
+  // que devolvesse o cadastro vazio o guardava por 60s, e o cabeçalho ficava
+  // sem nome e sem logo um minuto inteiro depois de o banco já ter voltado.
+  // Quem degrada é getRestaurantInfo, fora do cache.
+  const [tenant, setting] = await Promise.all([
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { nome: true } }),
+    runWithTenant(tenantId, () =>
+      prisma.setting.findUnique({
+        where: { tenantId_key: { tenantId, key: "restaurant_info" } },
+      })
+    ),
+  ]);
 
-    try {
-      return { ...base, ...JSON.parse(setting.value) };
-    } catch {
-      // JSON corrompido no Setting. Cair para o cadastro vazio é melhor que
-      // cair para o de outro restaurante.
-      return base;
-    }
-  },
-  ["restaurant_info"],
-  { revalidate: 60, tags: ["restaurant_info"] }
-);
+  const base: RestaurantInfo = { ...SEM_CADASTRO, name: tenant?.nome ?? "" };
+  if (!setting) return base;
 
+  try {
+    return { ...base, ...JSON.parse(setting.value) };
+  } catch {
+    // JSON corrompido no Setting. Cair para o cadastro vazio é melhor que
+    // cair para o de outro restaurante.
+    return base;
+  }
+}
+
+// O unstable_cache é montado por chamada porque a tag depende do tenant, e as
+// opções de um unstable_cache de módulo são fixas. O tenantId vai nas keyParts:
+// o callback é uma closure, e sem ele na chave o cadastro de um restaurante
+// vazaria para os outros.
+//
 // runWithTenant precisa envolver a chamada por fora do unstable_cache: se
 // ficar só dentro do callback cacheado, o contexto do AsyncLocalStorage se
 // perde antes da extensão de tenant do Prisma rodar (getCurrentTenantId()
 // lança "Nenhum tenant no contexto da request"), e a query cai silenciosamente
 // no catch, retornando o valor default.
 export function getRestaurantInfo(tenantId: string): Promise<RestaurantInfo> {
-  return runWithTenant(tenantId, () => getRestaurantInfoCached(tenantId));
+  const emCache = unstable_cache(() => lerRestaurantInfo(tenantId), ["restaurant_info", tenantId], {
+    revalidate: 60,
+    tags: [tagDoRestaurante(tenantId)],
+  });
+  return runWithTenant(tenantId, emCache).catch(async (erro) => {
+    await reportarErro({ origem: "restaurante/leitura", erro, extra: { tenantId } });
+    return { ...SEM_CADASTRO, name: "" };
+  });
 }

@@ -9,10 +9,23 @@
  * o dono e o cliente discutem olhando contas diferentes.
  */
 
-import { describe, expect, it, afterEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
+import { render, screen, cleanup, within, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AdminOrdersTable } from "./AdminOrdersTable";
+
+const refresh = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+
+/** Os tratadores do canal da cozinha, para o teste simular um aviso. */
+const canal = vi.hoisted(() => ({ tratadores: {} as Record<string, (p: Record<string, unknown>) => void> }));
+vi.mock("@/hooks/useTopicoRealtime", () => ({
+  useCanalRealtime: (_c: string, _id: unknown, t: Record<string, (p: Record<string, unknown>) => void>) => {
+    canal.tratadores = t;
+    return "conectado";
+  },
+}));
+
+import { AdminOrdersTable, ajusteDoEvento } from "./AdminOrdersTable";
 
 function pedido(over: Record<string, unknown> = {}) {
   return {
@@ -54,8 +67,46 @@ async function abrirDetalhe(idCurto = "#ABC123") {
   return document.querySelector<HTMLElement>(".max-w-md")!;
 }
 
+beforeEach(() => {
+  refresh.mockClear();
+});
+
 afterEach(() => {
   cleanup();
+});
+
+describe("ao vivo", () => {
+  it("remenda o status da linha quando a cozinha avança o pedido", () => {
+    montar([pedido()]);
+    act(() => canal.tratadores["order-updated"]({ orderId: "pedido-abc123", status: "READY" }));
+
+    const linha = screen.getByText("#ABC123").closest("tr")!;
+    expect(within(linha).getByText("Pronto")).toBeDefined();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("o modal aberto acompanha o pagamento que entra", async () => {
+    montar([pedido()]);
+    const modal = await abrirDetalhe();
+    expect(within(modal).getByText("Não Pago")).toBeDefined();
+
+    act(() => canal.tratadores["order-updated"]({ id: "pedido-abc123", paymentStatus: "PAID" }));
+    expect(within(document.querySelector<HTMLElement>(".max-w-md")!).getByText("Pago")).toBeDefined();
+  });
+
+  it("pedido novo recarrega a lista pelo servidor", async () => {
+    montar([pedido()]);
+    act(() => canal.tratadores["order-created"]({ orderId: "outro" }));
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+  });
+
+  it("ajusteDoEvento ignora o que não reconhece", () => {
+    expect(ajusteDoEvento({ status: "READY" })).toBeNull();
+    expect(ajusteDoEvento({ id: "a", status: "X", paymentStatus: "PAID" })).toEqual({
+      id: "a",
+      ajuste: { paymentStatus: "PAID" },
+    });
+  });
 });
 
 describe("a lista", () => {

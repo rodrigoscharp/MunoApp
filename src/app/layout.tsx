@@ -11,18 +11,26 @@ const geistSans = Geist({
   preload: true,
 });
 
+// Sem preload: a mono só aparece em número tabular e código, nunca no texto
+// que pinta primeiro. Com preload, todo cardápio pedia o arquivo no <head>
+// disputando banda com o CSS e o logo. A variável continua definida, então
+// as classes que a usam funcionam; a fonte só chega quando alguém a usa.
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
+  preload: false,
 });
 
 // Repete a geometria pesada e redonda do logotipo. Só o console usa, e só nos
-// títulos e números grandes.
+// títulos e números grandes. Sem preload pelo mesmo motivo da mono: o layout
+// raiz atende também o cardápio, que nunca a usa e baixava o arquivo dela.
 const fredoka = Fredoka({
   variable: "--font-fredoka",
   subsets: ["latin"],
   weight: ["500", "600", "700"],
   display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {

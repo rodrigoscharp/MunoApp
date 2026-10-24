@@ -1,7 +1,19 @@
+"use client";
+
+import { useState } from "react";
 import { formatCurrency, getCustomerDisplayName } from "@/lib/utils";
 import { OrderWithItems } from "@/types";
 import { Clock, ChevronLeft, Printer } from "lucide-react";
 import { DELIVERY_TYPE_META } from "./constants";
+import { useAgora } from "@/hooks/useAgora";
+import { rotuloDePagamento, type TomDoPagamento } from "@/lib/pagamento-rotulo";
+
+const TOM_DO_PAGAMENTO: Record<TomDoPagamento, string> = {
+  pago: "border-green-500/40 bg-green-500/10 text-green-300",
+  pendente: "border-amber-500/40 bg-amber-500/10 text-amber-300",
+  "na-entrega": "border-yellow-500/30 bg-yellow-500/5 text-yellow-200",
+  neutro: "border-neutral-700 bg-neutral-800 text-neutral-400",
+};
 
 export function OrderCard({
   order,
@@ -12,6 +24,7 @@ export function OrderCard({
   hasPrev,
   printerEnabled,
   paperWidth,
+  ocupado = false,
 }: {
   order: OrderWithItems;
   onAdvance: () => void;
@@ -21,8 +34,16 @@ export function OrderCard({
   hasPrev: boolean;
   printerEnabled: boolean;
   paperWidth: "58mm" | "80mm";
+  /** Há um PATCH deste pedido em andamento: os botões de ação ficam travados. */
+  ocupado?: boolean;
 }) {
-  const elapsed = Math.floor((Date.now() - new Date(order.createdAt).getTime()) / 60_000);
+  const agora = useAgora();
+  const elapsed = Math.max(0, Math.floor((agora - new Date(order.createdAt).getTime()) / 60_000));
+  // Confirmação no próprio card, não window.confirm: o diálogo nativo trava a
+  // aba inteira, e no tablet do balcão isso para o quadro (e o alarme) até
+  // alguém tocar nele.
+  const [confirmandoCancelamento, setConfirmandoCancelamento] = useState(false);
+  const pagamento = rotuloDePagamento(order.paymentMethod, order.paymentStatus);
   const deliveryMeta = DELIVERY_TYPE_META[order.deliveryType] ?? DELIVERY_TYPE_META.PICKUP;
   const DeliveryIcon = deliveryMeta.icon;
   const customerDisplayName = getCustomerDisplayName(order);
@@ -52,6 +73,14 @@ export function OrderCard({
           </span>
         </div>
       </div>
+
+      {pagamento && (
+        <span
+          className={`self-start text-[10px] font-semibold px-1.5 py-0.5 rounded border ${TOM_DO_PAGAMENTO[pagamento.tom]}`}
+        >
+          {pagamento.texto}
+        </span>
+      )}
 
       {/* Cliente */}
       {customerDisplayName && (
@@ -99,42 +128,71 @@ export function OrderCard({
             </button>
           )}
         </div>
-        <div className="flex flex-wrap gap-1 ml-auto">
-          {hasPrev && (
+        {confirmandoCancelamento ? (
+          <div className="flex flex-wrap items-center gap-1 ml-auto">
+            <span className="text-xs text-red-300">Cancelar pedido?</span>
             <button
-              onClick={onRevert}
-              title="Voltar fase anterior"
-              className="text-xs px-2 py-1 rounded bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white transition flex items-center gap-1"
+              onClick={() => setConfirmandoCancelamento(false)}
+              disabled={ocupado}
+              className="text-xs px-2 py-1 rounded bg-neutral-800 text-neutral-300 hover:bg-neutral-700 transition disabled:opacity-50"
             >
-              <ChevronLeft size={12} />
-              Voltar
+              Manter
             </button>
-          )}
-          {order.status !== "READY" && (
             <button
-              onClick={onCancel}
-              className="text-xs px-2 py-1 rounded bg-neutral-800 text-neutral-400 hover:bg-red-900/60 hover:text-red-300 transition"
+              onClick={() => {
+                setConfirmandoCancelamento(false);
+                onCancel();
+              }}
+              disabled={ocupado}
+              className="text-xs px-2 py-1 rounded bg-red-700 text-white font-semibold hover:bg-red-600 transition disabled:opacity-50"
             >
-              Cancelar
+              Sim, cancelar
             </button>
-          )}
-          {hasNext && (
-            <button
-              onClick={onAdvance}
-              className="text-xs px-2.5 py-1 rounded bg-brand hover:bg-brand-dark text-white font-semibold transition"
-            >
-              {order.status === "OUT_FOR_DELIVERY"
-                ? "Entregue"
-                : order.status === "READY"
-                ? order.deliveryType === "DELIVERY"
-                  ? "Saiu p/ entrega"
-                  : order.deliveryType === "DINE_IN"
-                  ? "Servido"
-                  : "Retirado"
-                : "Avançar →"}
-            </button>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-1 ml-auto">
+            {/* `disabled` enquanto o PATCH anda: o card já mudou de coluna
+                pelo passo otimista, e um segundo toque no mesmo lugar mandava
+                o passo seguinte, pulando uma etapa. */}
+            {hasPrev && (
+              <button
+                onClick={onRevert}
+                disabled={ocupado}
+                title="Voltar fase anterior"
+                className="text-xs px-2 py-1 rounded bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft size={12} />
+                Voltar
+              </button>
+            )}
+            {order.status !== "READY" && (
+              <button
+                onClick={() => setConfirmandoCancelamento(true)}
+                disabled={ocupado}
+                className="text-xs px-2 py-1 rounded bg-neutral-800 text-neutral-400 hover:bg-red-900/60 hover:text-red-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancelar
+              </button>
+            )}
+            {hasNext && (
+              <button
+                onClick={onAdvance}
+                disabled={ocupado}
+                className="text-xs px-2.5 py-1 rounded bg-brand hover:bg-brand-dark text-white font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {order.status === "OUT_FOR_DELIVERY"
+                  ? "Entregue"
+                  : order.status === "READY"
+                  ? order.deliveryType === "DELIVERY"
+                    ? "Saiu p/ entrega"
+                    : order.deliveryType === "DINE_IN"
+                    ? "Servido"
+                    : "Retirado"
+                  : "Avançar →"}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

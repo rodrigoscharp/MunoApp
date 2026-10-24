@@ -1,3 +1,5 @@
+import { unstable_cache } from "next/cache";
+import { TAG_AVISO_DE_COBRANCA } from "@/lib/cache-de-cobranca";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AdminSidebar } from "@/components/adm/AdminSidebar";
@@ -7,18 +9,24 @@ import { withRequestTenant, getRequestTenantPlano } from "@/lib/tenant-request";
 import { avisoDeAtraso } from "@/lib/assinatura/aviso";
 import { tenantTemMesaQr } from "@/lib/plans";
 
-export default async function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const session = await auth();
-  if (!session || session.user.role !== "ADMIN") redirect("/login");
-
-  // A faixa mora no layout para aparecer em toda tela de gestão, e não só na
-  // que o dono resolveu abrir. Ela olha a cobrança em aberto mais antiga, não
-  // assinatura.status — ver o comentário em src/lib/assinatura/aviso.ts.
-  const aviso = await withRequestTenant(async (tenantId) => {
+/**
+ * O vencimento da cobrança em aberto mais antiga, guardado por cinco minutos
+ * por restaurante.
+ *
+ * O layout roda em toda navegação dentro do /adm, e esta consulta ia junto a
+ * cada clique no menu, para uma resposta que muda uma vez por mês. O cache é
+ * só da FAIXA: quem fecha a gestão é o proxy, que lê a assinatura por conta
+ * própria (`BLOQUEADA` ou `encerraEm` vencido). Quem grava cobrança limpa
+ * este cache (`invalidarCacheDeCobranca`); se algum caminho escapar, o pior é
+ * uma faixa velha por cinco minutos, nunca um acesso negado ou concedido por
+ * engano.
+ *
+ * O tenantId é argumento, e entra na chave do cache. O retorno é a data em ISO
+ * porque o cache passa por JSON, e um Date voltaria como texto de qualquer
+ * jeito.
+ */
+const vencimentoEmAbertoMaisAntigo = unstable_cache(
+  async (tenantId: string): Promise<string | null> => {
     const cobranca = await prisma.cobranca.findFirst({
       where: {
         // Cobranca não tem tenantId (ela pendura na Assinatura), então o
@@ -32,7 +40,34 @@ export default async function AdminLayout({
       orderBy: { vencimento: "asc" },
       select: { vencimento: true },
     });
-    return avisoDeAtraso(cobranca?.vencimento ?? null, new Date());
+    return cobranca?.vencimento.toISOString() ?? null;
+  },
+  ["adm-aviso-de-cobranca"],
+  { revalidate: 300, tags: [TAG_AVISO_DE_COBRANCA] }
+);
+
+export default async function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const session = await auth();
+  // O layout não conhece o caminho pedido; /adm é o ponto de entrada da
+  // gestão e é para lá que o login devolve. O LoginForm passa o callbackUrl
+  // por destinoSeguro().
+  if (!session || session.user.role !== "ADMIN") {
+    redirect(`/login?callbackUrl=${encodeURIComponent("/adm")}`);
+  }
+
+  // A faixa mora no layout para aparecer em toda tela de gestão, e não só na
+  // que o dono resolveu abrir. Ela olha a cobrança em aberto mais antiga, não
+  // assinatura.status — ver o comentário em src/lib/assinatura/aviso.ts.
+  //
+  // Só o vencimento vem do cache; os dias de atraso são contados agora, com o
+  // relógio de agora, para a faixa não mostrar o número de cinco minutos atrás.
+  const aviso = await withRequestTenant(async (tenantId) => {
+    const vencimento = await vencimentoEmAbertoMaisAntigo(tenantId);
+    return avisoDeAtraso(vencimento ? new Date(vencimento) : null, new Date());
   });
 
   const plano = await getRequestTenantPlano();

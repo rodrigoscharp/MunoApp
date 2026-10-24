@@ -37,6 +37,15 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+
+// O revalidateTag de verdade exige o contexto de request do Next. O que importa
+// aqui é QUAL tag a rota invalida, e quando.
+const revalidateTag = vi.fn();
+vi.mock("next/cache", () => ({
+  unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
+  revalidateTag: (...a: unknown[]) => revalidateTag(...a),
+}));
+
 import { GET, PUT, DELETE } from "./route";
 
 const params = { params: Promise.resolve({ id: ITEM_ID }) };
@@ -236,5 +245,34 @@ describe("PUT: informações alimentares", () => {
 
     expect(res.status).toBe(400);
     expect(menuItemUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("o cache da vitrine", () => {
+  it("PUT invalida o cardápio do restaurante, inclusive no liga/desliga", async () => {
+    await PUT(req("PUT", { available: false }), params);
+    expect(revalidateTag).toHaveBeenCalledWith(`menu:${TENANT}`, { expire: 0 });
+  });
+
+  it("DELETE invalida o cardápio do restaurante", async () => {
+    await DELETE(req("DELETE"), params);
+    expect(revalidateTag).toHaveBeenCalledWith(`menu:${TENANT}`, { expire: 0 });
+  });
+
+  it("não invalida quando o update não casou linha", async () => {
+    menuItemUpdate.mockRejectedValue(erroPrisma("P2025"));
+    await PUT(req("PUT", { available: false }), params);
+    expect(revalidateTag).not.toHaveBeenCalled();
+  });
+
+  it("não invalida quando o item já pedido não pôde ser apagado", async () => {
+    menuItemDelete.mockRejectedValue(erroPrisma("P2003"));
+    await DELETE(req("DELETE"), params);
+    expect(revalidateTag).not.toHaveBeenCalled();
+  });
+
+  it("GET não invalida nada", async () => {
+    await GET(req("GET"), params);
+    expect(revalidateTag).not.toHaveBeenCalled();
   });
 });
