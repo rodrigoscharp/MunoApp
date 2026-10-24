@@ -18,7 +18,9 @@ vi.mock("sonner", () => ({
   toast: { error: (...a: unknown[]) => toastError(...a), success: (...a: unknown[]) => toastSuccess(...a) },
 }));
 
-vi.mock("qrcode.react", () => ({ QRCodeSVG: () => <svg data-testid="qr" /> }));
+vi.mock("qrcode.react", () => ({
+  QRCodeSVG: ({ value }: { value: string }) => <svg data-testid="qr" data-value={value} />,
+}));
 vi.mock("./TableMapView", () => ({ TableMapView: () => <div data-testid="mapa-salao" /> }));
 
 import { TableManager } from "./TableManager";
@@ -158,6 +160,32 @@ describe("a lista de mesas", () => {
     await montar();
 
     expect(screen.getByText(/1 pedido em aberto/i)).toBeDefined();
+  });
+});
+
+describe("o QR da mesa", () => {
+  // A biblioteca de QR chega sob demanda (next/dynamic e import()), e não no
+  // carregamento da tela. Os dois caminhos que a usam precisam continuar
+  // funcionando depois que ela deixou de estar no bundle.
+  it("aparece no modal ao clicar em Ver QR", async () => {
+    await montar();
+    await userEvent.click(screen.getByRole("button", { name: /ver qr/i }));
+
+    const qr = await screen.findByTestId("qr");
+    expect(qr.getAttribute("data-value")).toMatch(/\/mesa\/tok-1$/);
+  });
+
+  it("baixa o QR sem precisar de um escondido no cartão da mesa", async () => {
+    const serializar = vi.spyOn(XMLSerializer.prototype, "serializeToString");
+    await montar();
+    expect(screen.queryByTestId("qr")).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: /^baixar$/i }));
+
+    await waitFor(() => expect(serializar).toHaveBeenCalled());
+    const svg = serializar.mock.calls[0][0] as Element;
+    expect(svg.getAttribute("data-value")).toMatch(/\/mesa\/tok-1$/);
+    serializar.mockRestore();
   });
 });
 

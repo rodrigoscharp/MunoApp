@@ -14,11 +14,9 @@ export default async function AdminMenuPage() {
     },
   });
 
-  const allCategories = await prismaUnscoped.category.findMany({
-    where: { tenantId },
-    orderBy: { position: "asc" },
-    select: { id: true, name: true, slug: true },
-  });
+  // As mesmas categorias, na mesma ordem, só com o que o modal precisa.
+  // Era uma segunda consulta ao banco, em série, pela lista que já estava aqui.
+  const allCategories = categories.map(({ id, name, slug }) => ({ id, name, slug }));
 
   return (
     <div>

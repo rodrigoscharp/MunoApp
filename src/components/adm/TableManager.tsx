@@ -1,12 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { QRCodeSVG } from "qrcode.react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
+import dynamic from "next/dynamic";
 import { Plus, Trash2, QrCode, Download, X, TableProperties, Receipt, ClipboardList, Check, Printer, Percent, ArrowLeft, CircleDot, CircleCheck, LayoutGrid, Map as MapIcon } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "sonner";
 import type { PrinterConfig } from "@/app/api/settings/printer/route";
 import { TableMapView } from "./TableMapView";
+
+// O qrcode.react só é preciso quando o dono abre ou baixa um QR, e não para
+// listar as mesas. Carregado sob demanda, ele sai do bundle da tela.
+const QRCodeSVG = dynamic(() => import("qrcode.react").then((m) => m.QRCodeSVG), {
+  ssr: false,
+  loading: () => <div className="w-[200px] h-[200px] bg-neutral-100 rounded animate-pulse" />,
+});
 
 interface Table {
   id: string;
@@ -255,11 +264,20 @@ export function TableManager() {
     setTableOrders((prev) => prev.filter((o) => o.id !== order.id));
   }
 
-  function handleDownloadQR(table: Table) {
-    const svg = document.getElementById(`qr-${table.id}`) as unknown as SVGSVGElement;
-    if (!svg) return;
+  async function handleDownloadQR(table: Table) {
+    // O SVG é desenhado na hora, fora da tela, em vez de ficar escondido no
+    // cartão de cada mesa. Antes eram N QRs renderizados no carregamento para
+    // um botão que se aperta de vez em quando, e eles prendiam a biblioteca
+    // ao bundle inicial.
+    const { QRCodeSVG: Qr } = await import("qrcode.react");
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    flushSync(() => root.render(<Qr value={`${origin}/mesa/${table.token}`} size={256} level="M" />));
+    const svg = container.querySelector("svg");
+    const svgData = svg ? new XMLSerializer().serializeToString(svg) : null;
+    root.unmount();
+    if (!svgData) return;
 
-    const svgData = new XMLSerializer().serializeToString(svg);
     const canvas = document.createElement("canvas");
     const size = 400;
     canvas.width = size;
@@ -453,16 +471,6 @@ export function TableManager() {
                     </span>
                   </div>
                 )}
-
-                {/* Hidden QR for download */}
-                <div className="hidden">
-                  <QRCodeSVG
-                    id={`qr-${table.id}`}
-                    value={url}
-                    size={256}
-                    level="M"
-                  />
-                </div>
 
                 <div className="flex gap-2">
                   <button
