@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { MapPin } from "lucide-react";
 import type { RestaurantInfo } from "@/lib/restaurant";
 
@@ -36,7 +37,7 @@ export function AuthBrandPanel({
           width={200}
           height={75}
           className="h-20 w-auto object-contain brightness-0 invert"
-          unoptimized={restaurantInfo.logoUrl.startsWith("http")}
+          unoptimized={!imagemOtimizavel(restaurantInfo.logoUrl)}
         />
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">{restaurantInfo.name}</h1>

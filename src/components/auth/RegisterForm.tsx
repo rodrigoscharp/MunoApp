@@ -6,6 +6,7 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -97,7 +98,7 @@ export function RegisterForm({ restaurantInfo }: { restaurantInfo: RestaurantInf
               width={160}
               height={60}
               className="h-16 w-auto object-contain"
-              unoptimized={restaurantInfo.logoUrl.startsWith("http")}
+              unoptimized={!imagemOtimizavel(restaurantInfo.logoUrl)}
             />
           </div>
 

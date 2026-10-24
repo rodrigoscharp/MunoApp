@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { MapPin, Clock, Phone } from "lucide-react";
 import type { RestaurantInfo } from "@/lib/restaurant";
 import type { WeekSchedule } from "@/lib/business-hours";
@@ -54,7 +55,7 @@ export function Footer({ restaurantInfo, schedule }: FooterProps) {
               width={120}
               height={45}
               className="h-12 w-auto object-contain brightness-0 invert opacity-90"
-              unoptimized={restaurantInfo.logoUrl.startsWith("http")}
+              unoptimized={!imagemOtimizavel(restaurantInfo.logoUrl)}
             />
             <p className="text-sm text-neutral-400 leading-relaxed">
               Sabor e qualidade em cada prato. Venha nos visitar ou faça seu pedido online.

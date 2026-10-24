@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { useSession, signOut } from "next-auth/react";
 import { useCart } from "@/hooks/useCart";
 import { CartDrawer } from "@/components/cart/CartDrawer";
@@ -39,7 +40,7 @@ export function Header({ restaurantInfo }: HeaderProps) {
       <header className="sticky top-8 z-40 bg-white border-b border-neutral-200 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
           <Link href="/" className="shrink-0 flex items-center gap-3">
-            <Image src={restaurantInfo.logoUrl} alt={restaurantInfo.name} width={180} height={68} className="h-10 sm:h-16 w-auto object-contain" loading="eager" fetchPriority="high" unoptimized={restaurantInfo.logoUrl.startsWith("http")} />
+            <Image src={restaurantInfo.logoUrl} alt={restaurantInfo.name} width={180} height={68} className="h-10 sm:h-16 w-auto object-contain" loading="eager" fetchPriority="high" unoptimized={!imagemOtimizavel(restaurantInfo.logoUrl)} />
             <div className="flex flex-col justify-center leading-tight">
               <span className="text-sm sm:text-base font-bold text-neutral-900 tracking-tight">{restaurantInfo.name}</span>
               {/* Sem endereço cadastrado não se mostra o pino sozinho — e desde

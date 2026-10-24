@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { useCart } from "@/hooks/useCart";
 import { CartFlyAnimation } from "@/components/menu/CartFlyAnimation";
 import { MesaCartDrawer } from "@/components/mesa/MesaCartDrawer";
@@ -49,7 +50,7 @@ export function MesaHeader({ restaurantInfo, tableNumber, tableName, token }: Me
               className="h-10 w-auto object-contain"
               loading="eager"
               fetchPriority="high"
-              unoptimized={restaurantInfo.logoUrl.startsWith("http")}
+              unoptimized={!imagemOtimizavel(restaurantInfo.logoUrl)}
             />
             <div className="flex flex-col justify-center leading-tight">
               <span className="text-sm font-bold text-neutral-900 tracking-tight">
