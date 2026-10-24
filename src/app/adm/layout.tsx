@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { TAG_AVISO_DE_COBRANCA } from "@/lib/cache-de-cobranca";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { AdminSidebar } from "@/components/adm/AdminSidebar";
@@ -15,9 +16,10 @@ import { tenantTemMesaQr } from "@/lib/plans";
  * O layout roda em toda navegação dentro do /adm, e esta consulta ia junto a
  * cada clique no menu, para uma resposta que muda uma vez por mês. O cache é
  * só da FAIXA: quem fecha a gestão é o proxy, que lê a assinatura por conta
- * própria (`BLOQUEADA` ou `encerraEm` vencido). Uma faixa cinco minutos
- * atrasada depois de um pagamento é um aviso velho, nunca um acesso negado ou
- * concedido por engano.
+ * própria (`BLOQUEADA` ou `encerraEm` vencido). Quem grava cobrança limpa
+ * este cache (`invalidarCacheDeCobranca`); se algum caminho escapar, o pior é
+ * uma faixa velha por cinco minutos, nunca um acesso negado ou concedido por
+ * engano.
  *
  * O tenantId é argumento, e entra na chave do cache. O retorno é a data em ISO
  * porque o cache passa por JSON, e um Date voltaria como texto de qualquer
@@ -41,7 +43,7 @@ const vencimentoEmAbertoMaisAntigo = unstable_cache(
     return cobranca?.vencimento.toISOString() ?? null;
   },
   ["adm-aviso-de-cobranca"],
-  { revalidate: 300 }
+  { revalidate: 300, tags: [TAG_AVISO_DE_COBRANCA] }
 );
 
 export default async function AdminLayout({

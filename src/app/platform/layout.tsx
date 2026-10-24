@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { Inter } from "next/font/google";
 import { unstable_cache } from "next/cache";
+import { TAG_MENU_DO_CONSOLE } from "@/lib/cache-de-cobranca";
 import type { LeadStatus } from "@prisma/client";
 import { prismaUnscoped } from "@/lib/prisma";
 import { authPlatform } from "@/lib/auth-platform";
@@ -66,7 +67,7 @@ const UM_MINUTO = 60;
 const contarLeads = unstable_cache(
   (status: LeadStatus) => prismaUnscoped.lead.count({ where: { status } }),
   ["console:menu:leads"],
-  { revalidate: UM_MINUTO, tags: ["console:menu"] }
+  { revalidate: UM_MINUTO, tags: [TAG_MENU_DO_CONSOLE] }
 );
 
 // Contagem no banco, e não as linhas filtradas aqui: o selo só precisa do
@@ -79,7 +80,7 @@ const contarAtrasadas = unstable_cache(
       where: { status: { in: ["PENDENTE", "VENCIDA"] }, vencimento: { lt: new Date(limite) } },
     }),
   ["console:menu:atrasadas"],
-  { revalidate: UM_MINUTO, tags: ["console:menu"] }
+  { revalidate: UM_MINUTO, tags: [TAG_MENU_DO_CONSOLE] }
 );
 
 export default async function PlatformLayout({

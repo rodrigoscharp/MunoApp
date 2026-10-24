@@ -6,6 +6,7 @@ import { registrarEvento } from "@/lib/funil/registrar";
 import { espelharEventoDeAssinatura } from "@/lib/assinatura/espelho";
 import { reportarErro } from "@/lib/observabilidade";
 import { registrarSaude } from "@/lib/saude/registrar";
+import { invalidarCacheDeCobranca } from "@/lib/cache-de-cobranca";
 
 /**
  * Webhook chamado pelo Asaas quando um pagamento da PLATAFORMA (a Muno
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
   // espelho, quem para de pagar no mês 2 nunca vira INADIMPLENTE. Falha aqui
   // propaga (500) e o Asaas reentrega, que é o desejado.
   if (await espelharEventoDeAssinatura(corpo, new Date())) {
+    invalidarCacheDeCobranca();
     await registrarSaude({ origem: "webhook/asaas", nivel: "OK", mensagem: `${evento} espelhado` });
     return ok();
   }

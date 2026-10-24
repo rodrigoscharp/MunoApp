@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prismaUnscoped } from "@/lib/prisma";
 import { authPlatform } from "@/lib/auth-platform";
 import { podeMoverAMao } from "@/lib/funil/estagio";
+import { invalidarMenuDoConsole } from "@/lib/cache-de-cobranca";
 
 // tenantId NÃO está aqui de propósito: esse campo é escrito só pela rota de
 // conversão, que é o único caminho que provisiona um cliente de verdade.
@@ -92,5 +93,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     },
   });
 
+  // O badge de leads novos e em negociação no menu do console vive em cache.
+  invalidarMenuDoConsole();
   return NextResponse.json(lead);
 }

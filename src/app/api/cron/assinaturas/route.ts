@@ -22,6 +22,7 @@ import { expurgarEventos } from "@/lib/funil/expurgo";
 import { registrarSaude } from "@/lib/saude/registrar";
 import { expurgarEventosDeSaude } from "@/lib/saude/expurgo";
 import { ORIGEM_DO_CRON } from "@/lib/saude/origens";
+import { invalidarCacheDeCobranca } from "@/lib/cache-de-cobranca";
 
 /**
  * Job diário da assinatura. Duas responsabilidades, nesta ordem: gerar a
@@ -126,6 +127,7 @@ async function executar(req: NextRequest) {
   let cobrancasDoAsaasFalhou = false;
   try {
     cobrancasDoAsaas = await reconciliarCobrancasDoAsaas(agora);
+    invalidarCacheDeCobranca();
   } catch (erro) {
     cobrancasDoAsaasFalhou = true;
     await reportarErro({ origem: "cron/assinaturas:cobrancas-do-asaas", erro });
