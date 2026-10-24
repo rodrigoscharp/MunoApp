@@ -10,6 +10,7 @@ import { ConviteDeInstalacao } from "@/components/pwa/ConviteDeInstalacao";
 import { origemDoLogo } from "@/lib/pwa/logo-do-tenant";
 import { versaoDoLogo } from "@/lib/pwa/manifest";
 import { auth } from "@/lib/auth";
+import { ContextoDoCarrinho } from "@/components/cart/ContextoDoCarrinho";
 
 /**
  * A identidade do restaurante nas tags que o manifest não alcança.
@@ -73,6 +74,7 @@ export default async function ClientLayout({
   // não busca de novo, e o login e o logout atualizam pelo próprio next-auth.
   return (
     <SessionProvider session={session}>
+      <ContextoDoCarrinho contexto="delivery" />
       <BusinessHours schedule={schedule} />
       <Header restaurantInfo={info} />
       <main className="flex-1">{children}</main>

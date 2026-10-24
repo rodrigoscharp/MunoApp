@@ -10,11 +10,19 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+const nav = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: nav.replace, refresh: nav.refresh, push: vi.fn() }),
+}));
+
 import { Comecar } from "./Comecar";
 
 const fetchMock = vi.fn();
 
 beforeEach(() => {
+  nav.replace.mockClear();
+  nav.refresh.mockClear();
   fetchMock.mockReset();
   fetchMock.mockResolvedValue({
     ok: true,
@@ -143,5 +151,47 @@ describe("Comecar", () => {
     await user.click(screen.getByRole("button", { name: /salvar e continuar/i }));
 
     expect(await screen.findByText(/Endereço inválido/)).toBeTruthy();
+  });
+
+  // A saída para o painel era window.location.href, que recarrega o app
+  // inteiro. A navegação do router com refresh relê o servidor (que decide se
+  // o onboarding ainda vale) sem jogar fora o que já estava carregado.
+  describe("a saída para o painel", () => {
+    const foiParaOPainel = async () => {
+      await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/adm"));
+      expect(nav.refresh).toHaveBeenCalled();
+      expect(window.location.href).toBe("");
+    };
+
+    it("depois de salvar o item", async () => {
+      const user = userEvent.setup();
+      render(<Comecar nomeRestaurante="Cantina da Ana" enderecoPreenchido temItem={false} />);
+
+      await user.type(screen.getByLabelText(/categoria/i), "Lanches");
+      await user.type(screen.getByLabelText(/nome do item/i), "X-Salada");
+      await user.type(screen.getByLabelText(/preço/i), "25");
+      await user.click(screen.getByRole("button", { name: /salvar item/i }));
+
+      await foiParaOPainel();
+    });
+
+    it("depois da identidade, quando já há item", async () => {
+      const user = userEvent.setup();
+      render(<Comecar nomeRestaurante="Cantina da Ana" enderecoPreenchido={false} temItem />);
+
+      await user.type(screen.getByLabelText(/endereço/i), "Rua A, 10, Ubatuba");
+      await user.click(screen.getByRole("button", { name: /salvar e continuar/i }));
+
+      await foiParaOPainel();
+    });
+
+    it("ao deixar para depois", async () => {
+      const user = userEvent.setup();
+      render(<Comecar nomeRestaurante="Cantina da Ana" enderecoPreenchido={false} temItem={false} />);
+
+      await user.click(screen.getByRole("button", { name: /deixar para depois/i }));
+
+      await foiParaOPainel();
+    });
   });
 });

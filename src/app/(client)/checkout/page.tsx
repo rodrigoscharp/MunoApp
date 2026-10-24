@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useCart } from "@/hooks/useCart";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useCart, useCarrinhoHidratado, tirarDoCarrinho } from "@/hooks/useCart";
+import { avisoDeIndisponiveis, lerErroDoPedido } from "@/lib/erro-do-pedido";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
@@ -20,6 +21,14 @@ interface DeliveryZone {
   price: number;
 }
 
+// Os três estados da lista de bairros. Antes era só a lista, e lista vazia
+// queria dizer ao mesmo tempo "carregando", "a busca falhou" e "o restaurante
+// não cadastrou bairro": o cliente via "Carregando bairros..." para sempre.
+type EstadoDasZonas =
+  | { estado: "carregando" }
+  | { estado: "erro" }
+  | { estado: "pronto"; zonas: DeliveryZone[] };
+
 // O que /api/coupons/validate devolve. É prévia: quem decide o desconto de
 // verdade é o POST /api/orders, que revalida tudo antes de gravar o total.
 interface AppliedCoupon {
@@ -28,22 +37,40 @@ interface AppliedCoupon {
   freeShipping: boolean;
 }
 
-const schema = z.object({
-  customerName: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
-  customerPhone: z.string().min(8, "Telefone inválido").optional().or(z.literal("")),
-  notes: z.string().optional(),
-  rua: z.string().optional(),
-  numero: z.string().optional(),
-  complemento: z.string().optional(),
-});
+// O jeito de receber e o bairro moram no formulário, e não em estado solto,
+// para que o schema possa exigir endereço e telefone só na entrega. Antes essa
+// conferência era feita à mão no submit, e o erro aparecia num bloco no fim da
+// página, longe do campo que faltava.
+const schema = z
+  .object({
+    deliveryType: z.enum(["PICKUP", "DELIVERY"]),
+    zonaId: z.string().optional(),
+    customerName: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
+    customerPhone: z.string().min(8, "Telefone inválido").optional().or(z.literal("")),
+    notes: z.string().optional(),
+    rua: z.string().optional(),
+    numero: z.string().optional(),
+    complemento: z.string().optional(),
+  })
+  .superRefine((dados, ctx) => {
+    if (dados.deliveryType !== "DELIVERY") return;
+    const falta = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
+    if (!dados.zonaId) falta("zonaId", "Selecione o bairro de entrega.");
+    if (!dados.rua?.trim()) falta("rua", "Informe a rua.");
+    if (!dados.numero?.trim()) falta("numero", "Informe o número.");
+    if (!dados.customerPhone?.trim()) {
+      falta("customerPhone", "Informe um telefone para contato na entrega.");
+    }
+  });
 
 type FormData = z.infer<typeof schema>;
-type DeliveryType = "PICKUP" | "DELIVERY";
+type DeliveryType = FormData["deliveryType"];
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const { items, total, clearCart } = useCart();
+  const carrinhoHidratado = useCarrinhoHidratado();
   // Uma chave por tentativa de finalizar: reenvio ou segundo clique devolvem o
   // mesmo pedido em vez de criar outro. Nova visita à página, nova chave.
   const [idempotencyKey] = useState(() => crypto.randomUUID());
@@ -51,9 +78,9 @@ export default function CheckoutPage() {
   const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[] | null>(null);
   const [requiresPayerDocument, setRequiresPayerDocument] = useState(false);
   const [payerDocument, setPayerDocument] = useState("");
-  const [deliveryType, setDeliveryType] = useState<DeliveryType>("PICKUP");
-  const [selectedZone, setSelectedZone] = useState<DeliveryZone | null>(null);
-  const [zones, setZones] = useState<DeliveryZone[]>([]);
+  const [estadoDasZonas, setEstadoDasZonas] = useState<EstadoDasZonas>({ estado: "carregando" });
+  const zones = estadoDasZonas.estado === "pronto" ? estadoDasZonas.zonas : [];
+  const semEntrega = estadoDasZonas.estado === "pronto" && zones.length === 0;
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
   const [couponError, setCouponError] = useState("");
@@ -61,9 +88,29 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    setError: setErroNoCampo,
+    formState: { errors, isSubmitted },
+  } = useForm<FormData>({
     resolver: zodResolver(schema),
+    defaultValues: { deliveryType: "PICKUP", zonaId: "" },
   });
+  const deliveryType = watch("deliveryType");
+  const zonaId = watch("zonaId");
+  const selectedZone = zones.find((z) => z.id === zonaId) ?? null;
+  // Revalida na troca depois do primeiro envio, para o erro de entrega sumir
+  // quando o cliente muda para retirada.
+  const setDeliveryType = useCallback(
+    (tipo: DeliveryType) => {
+      setValue("deliveryType", tipo, { shouldValidate: isSubmitted });
+      setValue("zonaId", "", { shouldValidate: isSubmitted });
+    },
+    [setValue, isSubmitted]
+  );
 
   // A sessão chega de forma assíncrona, então o prefill é feito por efeito em vez
   // de defaultValues. O ref garante que isso rode uma única vez: o next-auth
@@ -99,12 +146,28 @@ export default function CheckoutPage() {
       .catch(() => setEnabledMethods(["CASH"]));
   }, []);
 
-  useEffect(() => {
+  const carregarZonas = useCallback(() => {
+    setEstadoDasZonas({ estado: "carregando" });
     fetch("/api/delivery-zones")
-      .then((r) => r.json())
-      .then((data: DeliveryZone[]) => setZones(data.map((z) => ({ ...z, price: Number(z.price) }))))
-      .catch(() => {});
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((data: DeliveryZone[]) =>
+        setEstadoDasZonas({
+          estado: "pronto",
+          zonas: data.map((z) => ({ ...z, price: Number(z.price) })),
+        })
+      )
+      .catch(() => setEstadoDasZonas({ estado: "erro" }));
   }, []);
+
+  useEffect(() => {
+    carregarZonas();
+  }, [carregarZonas]);
+
+  // Restaurante sem bairro cadastrado não entrega pelo app: se a entrega
+  // estava escolhida quando a lista chegou vazia, volta para retirada.
+  useEffect(() => {
+    if (semEntrega) setDeliveryType("PICKUP");
+  }, [semEntrega, setDeliveryType]);
 
   // Trocar entrega por retirada derruba um cupom de frete grátis, e mexer no
   // carrinho pode derrubar o pedido mínimo. Em vez de adivinhar qual regra caiu,
@@ -115,9 +178,21 @@ export default function CheckoutPage() {
     setCouponError("");
   }, [items, deliveryType]);
 
+  // Antes de ler o localStorage o carrinho parece vazio para todo mundo.
+  if (!carrinhoHidratado) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <p className="text-neutral-400 text-sm">Carregando seu pedido...</p>
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        {/* O carrinho pode ter esvaziado agora, pelo 422 de item fora do ar:
+            o aviso de quais itens saíram continua aqui. */}
+        {error && <p className="text-brand-dark text-sm mb-4">{error}</p>}
         <p className="text-neutral-500 mb-4">Seu carrinho está vazio.</p>
         <Link href="/" className="text-brand font-medium hover:underline">Ver cardápio</Link>
       </div>
@@ -176,13 +251,11 @@ export default function CheckoutPage() {
   }
 
   async function onSubmit(data: FormData) {
-    if (deliveryType === "DELIVERY") {
-      if (!selectedZone) { setError("Selecione o bairro de entrega."); return; }
-      if (!data.rua || !data.numero) { setError("Preencha rua e número."); return; }
-      if (!data.customerPhone || data.customerPhone.trim().length < 8) {
-        setError("Informe um telefone para contato na entrega.");
-        return;
-      }
+    // Endereço e telefone da entrega já passaram pelo schema. O bairro também,
+    // mas a lista pode ter sido recarregada sem ele.
+    if (data.deliveryType === "DELIVERY" && !selectedZone) {
+      setError("Selecione o bairro de entrega.");
+      return;
     }
 
     // Só bloqueia quando o gateway do restaurante realmente precisa do CPF
@@ -240,8 +313,19 @@ export default function CheckoutPage() {
       }
 
       if (!orderRes.ok) {
-        const errBody = await orderRes.json().catch(() => ({}));
-        throw new Error(errBody?.error ? JSON.stringify(errBody.error) : "Erro ao criar pedido");
+        const erro = lerErroDoPedido(await orderRes.json().catch(() => null));
+        // Item que saiu do ar sai do carrinho, e o cliente fica sabendo qual.
+        // Reenviar o mesmo carrinho só devolveria o mesmo 422.
+        const removidos = tirarDoCarrinho(erro.indisponiveis);
+        if (removidos.length > 0) {
+          setError(avisoDeIndisponiveis(removidos));
+          setLoading(false);
+          return;
+        }
+        for (const [campo, mensagem] of Object.entries(erro.campos)) {
+          setErroNoCampo(campo as keyof FormData, { message: mensagem });
+        }
+        throw new Error(erro.mensagem);
       }
       const order = await orderRes.json();
 
@@ -304,8 +388,9 @@ export default function CheckoutPage() {
                 <button
                   key={type}
                   type="button"
-                  onClick={() => { setDeliveryType(type); setSelectedZone(null); }}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition ${
+                  disabled={type === "DELIVERY" && semEntrega}
+                  onClick={() => setDeliveryType(type)}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition disabled:opacity-40 disabled:cursor-not-allowed ${
                     deliveryType === type
                       ? "border-brand bg-brand-light text-brand"
                       : "border-neutral-200 text-neutral-500 hover:border-neutral-300"
@@ -319,6 +404,13 @@ export default function CheckoutPage() {
               ))}
             </div>
 
+            {semEntrega && (
+              <p className="text-xs text-neutral-500">
+                Este restaurante não está fazendo entregas pelo app no momento. Você pode retirar
+                no local.
+              </p>
+            )}
+
             {deliveryType === "DELIVERY" && (
               <div className="space-y-3 pt-1">
 
@@ -327,15 +419,24 @@ export default function CheckoutPage() {
                   <label className="block text-xs font-medium text-neutral-600 mb-2 flex items-center gap-1">
                     <MapPin size={11} /> Selecione seu bairro *
                   </label>
-                  {zones.length === 0 ? (
+                  {estadoDasZonas.estado === "carregando" ? (
                     <p className="text-xs text-neutral-400 italic py-2">Carregando bairros disponíveis...</p>
+                  ) : estadoDasZonas.estado === "erro" ? (
+                    <div className="flex items-center justify-between gap-3 py-2">
+                      <p className="text-xs text-brand-dark">
+                        Não conseguimos carregar os bairros de entrega.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={carregarZonas}
+                        className="text-xs font-semibold text-brand hover:underline shrink-0"
+                      >
+                        Tentar de novo
+                      </button>
+                    </div>
                   ) : (
                     <select
-                      value={selectedZone?.id ?? ""}
-                      onChange={(e) => {
-                        const zone = zones.find((z) => z.id === e.target.value) ?? null;
-                        setSelectedZone(zone);
-                      }}
+                      {...register("zonaId")}
                       className="w-full px-3 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm text-neutral-700 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
                     >
                       <option value="">Selecione seu bairro</option>
@@ -344,6 +445,7 @@ export default function CheckoutPage() {
                       ))}
                     </select>
                   )}
+                  {errors.zonaId && <p className="text-brand text-xs mt-1">{errors.zonaId.message}</p>}
                 </div>
 
                 {/* Endereço */}
@@ -352,23 +454,28 @@ export default function CheckoutPage() {
                     <label className="block text-xs font-medium text-neutral-600 mb-1">Rua *</label>
                     <input
                       {...register("rua")}
+                      autoComplete="address-line1"
                       placeholder="Rua das Flores"
                       className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
                     />
+                    {errors.rua && <p className="text-brand text-xs mt-1">{errors.rua.message}</p>}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-neutral-600 mb-1">Número *</label>
                     <input
                       {...register("numero")}
+                      inputMode="numeric"
                       placeholder="123"
                       className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
                     />
+                    {errors.numero && <p className="text-brand text-xs mt-1">{errors.numero.message}</p>}
                   </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-neutral-600 mb-1">Complemento (opcional)</label>
                   <input
                     {...register("complemento")}
+                    autoComplete="address-line2"
                     placeholder="Apto 12, Bloco B"
                     className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
                   />
@@ -384,6 +491,7 @@ export default function CheckoutPage() {
               <label className="block text-sm font-medium text-neutral-700 mb-1">Nome *</label>
               <input
                 {...register("customerName")}
+                autoComplete="name"
                 placeholder="Seu nome"
                 className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
               />
@@ -395,6 +503,9 @@ export default function CheckoutPage() {
               </label>
               <input
                 {...register("customerPhone")}
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
                 placeholder="(11) 99999-9999"
                 className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
               />
@@ -408,6 +519,7 @@ export default function CheckoutPage() {
                 rows={2}
                 className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition resize-none"
               />
+              {errors.notes && <p className="text-brand text-xs mt-1">{errors.notes.message}</p>}
             </div>
           </div>
 

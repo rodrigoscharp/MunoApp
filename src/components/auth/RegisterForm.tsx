@@ -69,11 +69,23 @@ export function RegisterForm({ restaurantInfo }: { restaurantInfo: RestaurantInf
       return;
     }
 
-    await signIn("credentials", {
+    // O resultado do signIn era ignorado: se o login automático falhasse, o
+    // formulário seguia para o callbackUrl, e no /checkout o proxy devolvia a
+    // pessoa ao login sem explicação, como se o cadastro não tivesse ido. A
+    // conta já existe, então o recado é entrar, não cadastrar de novo.
+    const entrou = await signIn("credentials", {
       email: data.email,
       password: data.password,
       redirect: false,
-    });
+    })
+      .then((result) => !result?.error)
+      .catch(() => false);
+
+    if (!entrou) {
+      setError("Sua conta foi criada, mas não conseguimos entrar agora. Use o link Entrar abaixo.");
+      setLoading(false);
+      return;
+    }
 
     router.push(callbackUrl);
     router.refresh();

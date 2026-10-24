@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useCart } from "@/hooks/useCart";
+import { useCart, useCarrinhoHidratado, tirarDoCarrinho } from "@/hooks/useCart";
+import { avisoDeIndisponiveis, lerErroDoPedido } from "@/lib/erro-do-pedido";
 import { useTable } from "@/hooks/useTable";
 import { useRouter, useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -23,6 +24,7 @@ export default function MesaCheckoutPage() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
   const { items, total, clearCart } = useCart();
+  const carrinhoHidratado = useCarrinhoHidratado();
   const { getTable } = useTable();
   // Uma chave por tentativa de finalizar: reenvio ou segundo clique devolvem o
   // mesmo pedido em vez de criar outro. Nova visita à página, nova chave.
@@ -31,26 +33,39 @@ export default function MesaCheckoutPage() {
   const [error, setError] = useState("");
   const [tableInfo, setTableInfo] = useState<{ tableId: string; tableNumber: number; tableName: string | null } | null>(null);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, setError: setErroNoCampo, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
   useEffect(() => {
-    const ctx = getTable();
+    // getTable só devolve a mesa guardada se ela for a do token da URL. Mesa de
+    // outro QR lido antes nesta aba cai no fetch, e o token da URL decide.
+    const ctx = getTable(params.token);
     if (ctx) {
       setTableInfo({ tableId: ctx.tableId, tableNumber: ctx.tableNumber, tableName: ctx.tableName });
     } else {
-      // Fallback: fetch by token
       fetch(`/api/tables/token/${params.token}`)
-        .then((r) => r.json())
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
         .then((t) => setTableInfo({ tableId: t.id, tableNumber: t.number, tableName: t.name }))
-        .catch(() => {});
+        .catch(() => setError("Não conseguimos identificar a mesa. Leia o QR code de novo."));
     }
   }, [params.token, getTable]);
+
+  // Antes de ler o localStorage o carrinho parece vazio para todo mundo.
+  if (!carrinhoHidratado) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <p className="text-neutral-400 text-sm">Carregando seu pedido...</p>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        {/* O carrinho pode ter esvaziado agora, pelo 422 de item fora do ar:
+            o aviso de quais itens saíram continua aqui. */}
+        {error && <p className="text-brand-dark text-sm mb-4">{error}</p>}
         <p className="text-neutral-500 mb-4">Seu carrinho está vazio.</p>
         <Link href={`/mesa/${params.token}/cardapio`} className="text-brand font-medium hover:underline">
           Ver cardápio
@@ -63,6 +78,12 @@ export default function MesaCheckoutPage() {
   const tableLabel = tableInfo?.tableName || `Mesa ${tableInfo?.tableNumber ?? ""}`;
 
   async function onSubmit(data: FormData) {
+    // Sem a mesa resolvida, o pedido iria sem tableId. Melhor não enviar do
+    // que deixar o servidor adivinhar a mesa.
+    if (!tableInfo) {
+      setError("Ainda identificando a mesa. Tente de novo em instantes.");
+      return;
+    }
     setLoading(true);
     setError("");
 
@@ -83,13 +104,27 @@ export default function MesaCheckoutPage() {
           deliveryType: "DINE_IN",
           deliveryFee: 0,
           idempotencyKey,
-          tableId: tableInfo?.tableId,
+          tableId: tableInfo.tableId,
         }),
       });
 
       if (!orderRes.ok) {
-        const errBody = await orderRes.json().catch(() => ({}));
-        throw new Error(errBody?.error ? JSON.stringify(errBody.error) : "Erro ao criar pedido");
+        const erro = lerErroDoPedido(await orderRes.json().catch(() => null));
+        // Item que saiu do ar sai do carrinho, e o cliente fica sabendo qual.
+        // Reenviar o mesmo carrinho só devolveria o mesmo 422.
+        const removidos = tirarDoCarrinho(erro.indisponiveis);
+        if (removidos.length > 0) {
+          setError(avisoDeIndisponiveis(removidos));
+          setLoading(false);
+          return;
+        }
+        // A mesa só mostra nome, telefone e observações; o resto fica na
+        // mensagem geral.
+        for (const campo of ["customerName", "customerPhone", "notes"] as const) {
+          const mensagem = erro.campos[campo];
+          if (mensagem) setErroNoCampo(campo, { message: mensagem });
+        }
+        throw new Error(erro.mensagem);
       }
 
       const order = await orderRes.json();
@@ -134,6 +169,7 @@ export default function MesaCheckoutPage() {
               <label className="block text-sm font-medium text-neutral-700 mb-1">Nome *</label>
               <input
                 {...register("customerName")}
+                autoComplete="name"
                 placeholder="Seu nome"
                 className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
               />
@@ -149,9 +185,13 @@ export default function MesaCheckoutPage() {
               <label className="block text-sm font-medium text-neutral-700 mb-1">Telefone (opcional)</label>
               <input
                 {...register("customerPhone")}
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
                 placeholder="(11) 99999-9999"
                 className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
               />
+              {errors.customerPhone && <p className="text-brand text-xs mt-1">{errors.customerPhone.message}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">Observações (opcional)</label>
@@ -161,6 +201,7 @@ export default function MesaCheckoutPage() {
                 rows={2}
                 className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition resize-none"
               />
+              {errors.notes && <p className="text-brand text-xs mt-1">{errors.notes.message}</p>}
             </div>
           </div>
 
@@ -172,7 +213,7 @@ export default function MesaCheckoutPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !tableInfo}
             className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition"
           >
             {loading ? "Enviando pedido..." : "Confirmar Pedido"}
