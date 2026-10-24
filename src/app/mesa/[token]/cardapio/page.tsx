@@ -51,10 +51,7 @@ export default async function MesaCardapioPage() {
                         // inteiro, com categoria, e só usa estes campos.
                         item={itemParaCard(item) as MenuItemWithCategory}
                         restaurantOpen={true}
-                        // Spread até o ProductCard declarar `prioridade?:
-                        // boolean`: como atributo direto, o TypeScript recusaria
-                        // a prop que o componente ainda não conhece.
-                        {...{ prioridade: cardTemPrioridade(indiceCategoria, indiceItem) }}
+                        prioridade={cardTemPrioridade(indiceCategoria, indiceItem)}
                       />
                     </div>
                   ))}
