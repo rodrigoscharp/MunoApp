@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useKitchenOrders } from "@/hooks/useKitchenOrders";
 import { ORDER_STATUS_LABELS } from "@/lib/utils";
 import { OrderWithItems } from "@/types";
-import { RefreshCw, AlertTriangle } from "lucide-react";
+import { RefreshCw, AlertTriangle, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import type { PrinterConfig } from "@/app/api/settings/printer/route";
 import { KITCHEN_COLUMNS, STATUS_COLORS, BADGE_COLORS, HEADER_COLORS } from "./constants";
@@ -17,7 +17,8 @@ import { OrderCard } from "./OrderCard";
 const STATUS_NO_QUADRO = new Set(KITCHEN_COLUMNS.map((c) => c.status));
 
 export function KitchenBoard() {
-  const { orders, loading, error, refetch, updateOrderStatus, removeOrder } = useKitchenOrders();
+  const { orders, loading, error, estado, refetch, updateOrderStatus, removeOrder } =
+    useKitchenOrders();
   const [printer, setPrinter] = useState<PrinterConfig>({ enabled: false, paperWidth: "80mm" });
 
   useEffect(() => {
@@ -108,6 +109,18 @@ export function KitchenBoard() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Só depois de falhar: "conectando" no carregamento é o estado normal e
+          não merece aviso. O texto diz o que muda para quem está no balcão. */}
+      {estado === "sem-tempo-real" && (
+        <div
+          role="status"
+          className="self-start flex items-center gap-1.5 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-full px-3 py-1"
+        >
+          <WifiOff size={12} />
+          Sem tempo real · atualizando a cada 10s
+        </div>
+      )}
+
       {/* Error banner */}
       {error && (
         <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-lg px-4 py-2.5">
