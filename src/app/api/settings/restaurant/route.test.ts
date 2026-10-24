@@ -30,10 +30,15 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-// unstable_cache é transparente aqui: o teste quer a leitura, não o cache.
+// unstable_cache é transparente aqui: o teste quer a leitura, não o cache. Os
+// dois registram as chamadas para conferir a tag, que é por restaurante.
+const unstableCache = vi.fn(
+  <T extends (...args: never[]) => unknown>(fn: T, _chave: string[], _opcoes: unknown) => fn
+);
+const revalidateTag = vi.fn();
 vi.mock("next/cache", () => ({
-  unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
-  revalidateTag: vi.fn(),
+  unstable_cache: (...a: Parameters<typeof unstableCache>) => unstableCache(...a),
+  revalidateTag: (...a: unknown[]) => revalidateTag(...a),
 }));
 
 import { GET, PUT } from "./route";
@@ -154,5 +159,30 @@ describe("PUT /api/settings/restaurant", () => {
 
     const gravado = JSON.parse(settingUpsert.mock.calls[0][0].update.value);
     expect(gravado).not.toHaveProperty("tenantId");
+  });
+});
+
+/**
+ * A tag era "restaurant_info" para todos os restaurantes: salvar o cadastro de
+ * um invalidava o cache de todos.
+ */
+describe("o cache do cadastro é por restaurante", () => {
+  it("a leitura grava com chave e tag do próprio tenant", async () => {
+    await GET(req());
+
+    const [, chave, opcoes] = unstableCache.mock.calls[0];
+    expect(chave).toEqual(["restaurant_info", TENANT]);
+    expect(opcoes).toMatchObject({ tags: [`restaurant_info:${TENANT}`] });
+  });
+
+  it("o PUT invalida só a tag do próprio tenant", async () => {
+    await PUT(putReq(CADASTRO_COMPLETO));
+    expect(revalidateTag).toHaveBeenCalledWith(`restaurant_info:${TENANT}`, "max");
+    expect(revalidateTag).not.toHaveBeenCalledWith("restaurant_info", expect.anything());
+  });
+
+  it("o PUT recusado não invalida nada", async () => {
+    await PUT(putReq({}));
+    expect(revalidateTag).not.toHaveBeenCalled();
   });
 });
