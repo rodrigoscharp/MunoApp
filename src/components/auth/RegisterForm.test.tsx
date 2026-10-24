@@ -19,6 +19,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+import { signIn } from "next-auth/react";
 import { RegisterForm } from "./RegisterForm";
 
 const RESTAURANTE = {
@@ -29,7 +30,7 @@ const RESTAURANTE = {
   floorPlanImageUrl: null,
 };
 
-async function cadastrar() {
+async function preencherEEnviar() {
   const { container } = render(<RegisterForm restaurantInfo={RESTAURANTE} />);
   const user = userEvent.setup();
   await user.type(screen.getByPlaceholderText("Seu nome completo"), "Cliente Novo");
@@ -37,6 +38,10 @@ async function cadastrar() {
   await user.type(screen.getByPlaceholderText("Mínimo 8 caracteres"), "senha-123");
   await user.type(screen.getByPlaceholderText("Repita a senha"), "senha-123");
   await user.click(container.querySelector('button[type="submit"]')!);
+}
+
+async function cadastrar() {
+  await preencherEEnviar();
   await waitFor(() => expect(nav.push).toHaveBeenCalled());
 }
 
@@ -81,5 +86,34 @@ describe("RegisterForm: para onde vai depois de criar a conta", () => {
 
     const hrefs = [...container.querySelectorAll("a")].map((a) => a.getAttribute("href"));
     expect(hrefs.some((h) => h?.includes("golpe.example"))).toBe(false);
+  });
+});
+
+describe("RegisterForm: quando o login automático falha", () => {
+  // A conta era criada, o signIn falhava em silêncio e o formulário seguia
+  // para o callbackUrl: no /checkout, o proxy devolvia a pessoa ao login sem
+  // explicação, e ela achava que o cadastro não tinha funcionado.
+  it("não segue adiante e diz que a conta existe e falta entrar", async () => {
+    vi.mocked(signIn).mockResolvedValueOnce({
+      error: "CredentialsSignin",
+      code: "credentials",
+      status: 401,
+      ok: false,
+      url: null,
+    });
+
+    await preencherEEnviar();
+
+    await screen.findByText(/sua conta foi criada, mas não conseguimos entrar/i);
+    expect(nav.push).not.toHaveBeenCalled();
+  });
+
+  it("signIn que lança também cai no aviso", async () => {
+    vi.mocked(signIn).mockRejectedValueOnce(new Error("rede"));
+
+    await preencherEEnviar();
+
+    await screen.findByText(/sua conta foi criada, mas não conseguimos entrar/i);
+    expect(nav.push).not.toHaveBeenCalled();
   });
 });
