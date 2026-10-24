@@ -38,9 +38,15 @@ export default function CartPage() {
 
       <div className="bg-white rounded-xl border border-neutral-200 divide-y divide-neutral-100 mb-4">
         {items.map((item) => (
-          <div key={item.id} className="flex items-start gap-3 px-5 py-4">
+          <div key={item.cartId} className="flex items-start gap-3 px-5 py-4">
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-neutral-900">{item.name}</p>
+              {/* O mesmo item com observações diferentes ocupa linhas próprias
+                  (o store indexa por cartId); sem a observação, as duas
+                  linhas pareceriam repetidas. */}
+              {item.notes && (
+                <p className="text-xs text-neutral-500 mt-0.5">{item.notes}</p>
+              )}
               <p className="text-xs text-neutral-400 mt-0.5">
                 {formatCurrency(item.price)} cada
               </p>
@@ -48,7 +54,7 @@ export default function CartPage() {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                onClick={() => updateQuantity(item.cartId, item.quantity - 1)}
                 className="w-7 h-7 rounded-full border border-neutral-200 flex items-center justify-center hover:bg-neutral-50 transition"
               >
                 {item.quantity === 1 ? (
@@ -61,7 +67,7 @@ export default function CartPage() {
                 {item.quantity}
               </span>
               <button
-                onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                onClick={() => updateQuantity(item.cartId, item.quantity + 1)}
                 className="w-7 h-7 rounded-full border border-neutral-200 flex items-center justify-center hover:bg-neutral-50 transition"
               >
                 <Plus size={12} />
