@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { sugerirSlug } from "@/lib/inscricao/sugerir-slug";
 
 /**
@@ -36,6 +37,16 @@ export function Comecar({
   const [preco, setPreco] = useState("");
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
+  const router = useRouter();
+
+  // Navegação do router, e não window.location: o refresh relê o servidor (o
+  // /adm decide de novo se o onboarding ainda vale) sem recarregar o app
+  // inteiro. Nada aqui depende de recarga: a dispensa e o que foi salvo já
+  // estão no banco quando a navegação sai.
+  function irParaOPainel() {
+    router.replace("/adm");
+    router.refresh();
+  }
 
   /** Traduz a recusa da rota em texto. Tela muda no meio do onboarding é a
    *  pior hora possível: a pessoa acabou de pagar e está montando a casa. */
@@ -69,7 +80,7 @@ export function Comecar({
 
     setSalvando(false);
     if (temItem) {
-      window.location.href = "/adm";
+      irParaOPainel();
       return;
     }
     setPasso(2);
@@ -108,14 +119,14 @@ export function Comecar({
     });
     if (await falhou(resItem)) return;
 
-    window.location.href = "/adm";
+    irParaOPainel();
   }
 
   async function deixarParaDepois() {
     // Grava a dispensa antes de sair, senão o painel devolve a pessoa para cá
     // no próximo carregamento e o botão vira um loop.
     await fetch("/api/settings/onboarding", { method: "POST" }).catch(() => {});
-    window.location.href = "/adm";
+    irParaOPainel();
   }
 
   const campo =
