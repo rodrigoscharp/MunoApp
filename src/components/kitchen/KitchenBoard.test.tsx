@@ -185,7 +185,8 @@ describe("quando o servidor recusa a mudança", () => {
 
   it("o pedido cancelado sem sucesso volta a aparecer", async () => {
     await montar([pedido({ status: "IN_PREPARATION" })]);
-    await userEvent.click(screen.getByRole("button", { name: /cancelar/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^cancelar$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /sim, cancelar/i }));
 
     await waitFor(() => expect(cartao()).not.toBeNull());
   });
@@ -206,17 +207,115 @@ describe("voltar uma fase", () => {
 });
 
 describe("cancelar", () => {
-  it("manda CANCELLED e tira do quadro", async () => {
+  it("manda CANCELLED e tira do quadro, depois de confirmar", async () => {
     await montar([pedido({ status: "IN_PREPARATION" })]);
-    await userEvent.click(screen.getByRole("button", { name: /cancelar/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^cancelar$/i }));
+    expect(patches).toEqual([]);
+    await userEvent.click(screen.getByRole("button", { name: /sim, cancelar/i }));
 
     await waitFor(() => expect(patches).toEqual([{ status: "CANCELLED" }]));
     await waitFor(() => expect(cartao()).toBeNull());
+  });
+
+  // Cancelar era um toque só, ao lado do "Avançar": um dedo escorregado no
+  // balcão jogava fora o pedido do cliente.
+  it("Manter desiste sem mandar nada", async () => {
+    await montar([pedido({ status: "IN_PREPARATION" })]);
+    await userEvent.click(screen.getByRole("button", { name: /^cancelar$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /manter/i }));
+
+    expect(patches).toEqual([]);
+    expect(cartao()).not.toBeNull();
+    expect(screen.getByRole("button", { name: /avançar/i })).toBeDefined();
   });
 
   it("não oferece cancelar um pedido já pronto", async () => {
     // Comida feita: cancelar aqui é prejuízo silencioso.
     await montar([pedido({ status: "READY" })]);
     expect(screen.queryByRole("button", { name: /cancelar/i })).toBeNull();
+  });
+});
+
+describe("toque duplo", () => {
+  it("o segundo toque com o PATCH em andamento não pula uma etapa", async () => {
+    let liberar: () => void = () => {};
+    servidorCom([pedido({ status: "PENDING" })]);
+    const padrao = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (init?.method === "PATCH") {
+        patches.push(JSON.parse(String(init.body)));
+        return new Promise((r) => {
+          liberar = () => r({ ok: true, json: async () => ({}) });
+        });
+      }
+      return padrao(url, init);
+    });
+    render(<KitchenBoard />);
+    await waitFor(() => expect(screen.queryByText(/carregando pedidos/i)).toBeNull());
+
+    const botao = screen.getByRole("button", { name: /avançar/i });
+    await userEvent.click(botao);
+    await userEvent.click(screen.getByRole("button", { name: /avançar/i }));
+
+    expect(patches).toEqual([{ status: "CONFIRMED" }]);
+    expect((screen.getByRole("button", { name: /avançar/i }) as HTMLButtonElement).disabled).toBe(true);
+
+    liberar();
+    await waitFor(() =>
+      expect((screen.getByRole("button", { name: /avançar/i }) as HTMLButtonElement).disabled).toBe(false)
+    );
+  });
+});
+
+describe("sem rede", () => {
+  it("o PATCH que nem chega ao servidor devolve o card ao lugar", async () => {
+    servidorCom([pedido({ status: "OUT_FOR_DELIVERY" })]);
+    const padrao = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((url: string, init?: RequestInit) =>
+      init?.method === "PATCH" ? Promise.reject(new Error("rede")) : padrao(url, init)
+    );
+    render(<KitchenBoard />);
+    await waitFor(() => expect(screen.queryByText(/carregando pedidos/i)).toBeNull());
+
+    await userEvent.click(screen.getByRole("button", { name: /entregue/i }));
+    await waitFor(() => expect(cartao()).not.toBeNull());
+  });
+});
+
+describe("pagamento no card", () => {
+  it.each([
+    [{ paymentMethod: "PIX", paymentStatus: "UNPAID" }, "PIX pendente"],
+    [{ paymentMethod: "PIX", paymentStatus: "PAID" }, "Pago"],
+    [{ paymentMethod: "CASH", paymentStatus: "UNPAID" }, "Dinheiro"],
+  ])("%o mostra %s", async (pagamento, texto) => {
+    await montar([pedido(pagamento)]);
+    expect(screen.getByText(texto)).toBeDefined();
+  });
+
+  it("sem os campos de pagamento, sem selo", async () => {
+    await montar([pedido()]);
+    expect(screen.queryByText(/pix pendente|cartão pendente|^pago$|^dinheiro$/i)).toBeNull();
+  });
+});
+
+describe("tempo real", () => {
+  it("sem tópico, o quadro avisa que está só no polling", async () => {
+    await montar([]);
+    expect(await screen.findByText(/sem tempo real/i)).toBeDefined();
+  });
+});
+
+describe("alarme de pedido novo", () => {
+  it("pedido pendente acende o aviso, e Ciente o apaga", async () => {
+    await montar([pedido({ status: "PENDING" })]);
+    expect(screen.getByRole("alert").textContent).toMatch(/1 pedido novo/);
+
+    await userEvent.click(screen.getByRole("button", { name: /ciente/i }));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("oferece ativar o som, que o navegador só libera com um toque", async () => {
+    await montar([]);
+    expect(screen.getByRole("button", { name: /ativar som/i })).toBeDefined();
   });
 });

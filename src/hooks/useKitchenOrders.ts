@@ -1,17 +1,32 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
-import { useTopicoRealtime } from "@/hooks/useTopicoRealtime";
-import { OrderWithItems } from "@/types";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useCanalRealtime } from "@/hooks/useTopicoRealtime";
+import { OrderStatus, OrderWithItems } from "@/types";
+import { aplicarAtualizacao, intervaloDaCozinha } from "@/lib/cozinha-eventos";
 
-const POLL_INTERVAL = 30_000; // fallback polling a cada 30s
+// Status que têm coluna no quadro. Pedido que sai deles (entregue, cancelado)
+// some da tela.
+const NO_QUADRO = new Set<OrderStatus>([
+  "PENDING",
+  "CONFIRMED",
+  "IN_PREPARATION",
+  "READY",
+  "OUT_FOR_DELIVERY",
+]);
+const noQuadro = (s: OrderStatus) => NO_QUADRO.has(s);
 
 export function useKitchenOrders() {
-  const topic = useTopicoRealtime("kitchen");
   const [orders, setOrders] = useState<OrderWithItems[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // A lista que o tratador do canal enxerga. Decidir "preciso buscar?" dentro
+  // do updater do setState não funciona: fora de um evento do React o updater
+  // só roda no próximo render, depois de a decisão já ter sido tomada.
+  const ordersRef = useRef<OrderWithItems[]>([]);
+  useEffect(() => {
+    ordersRef.current = orders;
+  }, [orders]);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -30,35 +45,58 @@ export function useKitchenOrders() {
     }
   }, []);
 
-  // Tenta Realtime — se falhar (ou o tópico não vier), o polling assume.
-  useEffect(() => {
-    if (!topic) return;
-    const channel = supabase
-      .channel(topic)
-      .on("broadcast", { event: "order-created" }, () => fetchOrders())
-      .on("broadcast", { event: "order-updated" }, () => fetchOrders())
-      .subscribe();
+  // Pedido novo precisa do GET: o aviso traz só o id. Mudança de pedido que já
+  // está na tela é remendada no lugar (ver aplicarAtualizacao).
+  const estado = useCanalRealtime("kitchen", null, {
+    "order-created": () => {
+      fetchOrders();
+    },
+    "order-updated": (payload) => {
+      const r = aplicarAtualizacao(ordersRef.current, payload, noQuadro);
+      ordersRef.current = r.pedidos;
+      setOrders(r.pedidos);
+      if (r.buscar) fetchOrders();
+    },
+  });
+  const conectado = estado === "conectado";
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [topic, fetchOrders]);
+  const fetchRef = useRef(fetchOrders);
+  useEffect(() => {
+    fetchRef.current = fetchOrders;
+  });
 
   useEffect(() => {
     fetchOrders();
-
-    // Polling de segurança: atualiza a cada 30s independente do Realtime.
-    // Um `realtimeActive` guardado em ref chegou a ser escrito aqui e nunca foi
-    // lido em lugar nenhum — a intenção de pular o polling com o Realtime de pé
-    // nunca saiu do papel, e o ref só sugeria uma condição que não existia.
-    const poll = setInterval(() => {
-      fetchOrders();
-    }, POLL_INTERVAL);
-
-    return () => {
-      clearInterval(poll);
-    };
   }, [fetchOrders]);
+
+  // Polling de reserva. O ritmo segue o tempo real: esparso com o canal de pé,
+  // apertado sem ele.
+  //
+  // Aba escondida só pausa com o canal conectado. A tela da cozinha é um
+  // tablet fixo no balcão (ver src/lib/polling-visivel.ts), e sem tempo real o
+  // polling é o único jeito de o pedido novo chegar e o alarme tocar; pausá-lo
+  // ali seria deixar o restaurante surdo justo quando o canal caiu.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (conectado && typeof document !== "undefined" && document.hidden) return;
+      fetchRef.current();
+    }, intervaloDaCozinha(conectado));
+    return () => clearInterval(timer);
+  }, [conectado]);
+
+  // Voltar para a aba ou para a rede: a tela pode estar velha, busca na hora.
+  useEffect(() => {
+    const aoVoltar = () => {
+      if (!document.hidden) fetchRef.current();
+    };
+    const aoReconectar = () => fetchRef.current();
+    document.addEventListener("visibilitychange", aoVoltar);
+    window.addEventListener("online", aoReconectar);
+    return () => {
+      document.removeEventListener("visibilitychange", aoVoltar);
+      window.removeEventListener("online", aoReconectar);
+    };
+  }, []);
 
   // Atualiza o status localmente de imediato (optimistic update)
   const updateOrderStatus = useCallback((orderId: string, newStatus: string) => {
@@ -74,5 +112,32 @@ export function useKitchenOrders() {
     setOrders((prev) => prev.filter((o) => o.id !== orderId));
   }, []);
 
-  return { orders, loading, error, refetch: fetchOrders, updateOrderStatus, removeOrder };
+  /**
+   * Devolve à lista o pedido como ele estava antes do passo otimista.
+   *
+   * Substitui a ressincronia por GET depois de um PATCH recusado: ela custava
+   * uma ida ao servidor a cada falha e, sem rede (o caso mais comum de falha),
+   * também falhava, e o card removido não voltava. O retrato guardado antes do
+   * clique é a verdade que o servidor manteve, porque ele recusou a mudança.
+   */
+  const restoreOrder = useCallback((order: OrderWithItems) => {
+    setOrders((prev) =>
+      prev.some((o) => o.id === order.id)
+        ? prev.map((o) => (o.id === order.id ? order : o))
+        : [...prev, order].sort(
+            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          )
+    );
+  }, []);
+
+  return {
+    orders,
+    loading,
+    error,
+    estado,
+    refetch: fetchOrders,
+    updateOrderStatus,
+    removeOrder,
+    restoreOrder,
+  };
 }

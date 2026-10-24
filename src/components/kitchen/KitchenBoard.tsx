@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { useKitchenOrders } from "@/hooks/useKitchenOrders";
 import { ORDER_STATUS_LABELS } from "@/lib/utils";
 import { OrderWithItems } from "@/types";
-import { RefreshCw, AlertTriangle } from "lucide-react";
+import { RefreshCw, AlertTriangle, WifiOff, Bell, BellOff, BellRing } from "lucide-react";
 import { toast } from "sonner";
 import type { PrinterConfig } from "@/app/api/settings/printer/route";
 import { KITCHEN_COLUMNS, STATUS_COLORS, BADGE_COLORS, HEADER_COLORS } from "./constants";
 import { proximoStatus, statusAnterior } from "@/lib/kitchen-flow";
 import { OrderCard } from "./OrderCard";
+import { useAlertaCozinha } from "@/hooks/useAlertaCozinha";
 
 // Um pedido some da tela quando o próximo status não tem coluna — ou seja,
 // quando ele terminou (entregue ou cancelado). "Em entrega" TEM coluna: o
@@ -17,7 +18,9 @@ import { OrderCard } from "./OrderCard";
 const STATUS_NO_QUADRO = new Set(KITCHEN_COLUMNS.map((c) => c.status));
 
 export function KitchenBoard() {
-  const { orders, loading, error, refetch, updateOrderStatus, removeOrder } = useKitchenOrders();
+  const { orders, loading, error, estado, refetch, updateOrderStatus, removeOrder, restoreOrder } =
+    useKitchenOrders();
+  const alerta = useAlertaCozinha(orders);
   const [printer, setPrinter] = useState<PrinterConfig>({ enabled: false, paperWidth: "80mm" });
 
   useEffect(() => {
@@ -27,7 +30,42 @@ export function KitchenBoard() {
       .catch(() => {});
   }, []);
 
+  // Pedidos com PATCH em andamento. O card trava os botões enquanto o id
+  // estiver aqui; o `if` no começo de cada ação cobre o toque que chega antes
+  // de o React repintar o botão desabilitado.
+  const [emAndamento, setEmAndamento] = useState<ReadonlySet<string>>(new Set());
+
+  /**
+   * Manda o status e devolve se o servidor aceitou. Erro de rede conta como
+   * recusa: antes o `fetch` que lançava deixava o card no passo otimista para
+   * sempre, sem aviso nenhum.
+   *
+   * Sem nova busca depois do sucesso: o passo otimista já pôs a tela no lugar,
+   * e o order-updated que o próprio PATCH publica corrige o resto.
+   */
+  async function enviarStatus(order: OrderWithItems, status: string): Promise<boolean> {
+    setEmAndamento((s) => new Set(s).add(order.id));
+    try {
+      const res = await fetch(`/api/orders/${order.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      setEmAndamento((s) => {
+        const n = new Set(s);
+        n.delete(order.id);
+        return n;
+      });
+    }
+  }
+
   async function advanceStatus(order: OrderWithItems) {
+    if (emAndamento.has(order.id)) return;
+    alerta.ciente([order.id]);
     const nextStatus = proximoStatus(order.status, order.deliveryType);
     if (!nextStatus) return;
 
@@ -38,61 +76,44 @@ export function KitchenBoard() {
       removeOrder(order.id);
     }
 
-    const res = await fetch(`/api/orders/${order.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: nextStatus }),
-    });
-
-    if (res.ok) {
+    if (await enviarStatus(order, nextStatus)) {
       toast.success(`#${order.id.slice(-6).toUpperCase()} → ${ORDER_STATUS_LABELS[nextStatus]}`);
     } else {
-      // Ressincroniza em vez de reverter na mão. Quando o passo otimista foi
-      // `removeOrder`, o pedido já não está na lista, e `updateOrderStatus`
-      // percorre com `map` sem encontrar nada para desfazer: o card sumia da
-      // cozinha e só voltava no polling de 30s, enquanto o aviso dizia que a
-      // operação tinha falhado. O servidor é a verdade; buscar de novo desfaz
-      // os dois casos.
-      await refetch();
+      // Devolve o retrato de antes do clique. `updateOrderStatus` não serve
+      // quando o passo otimista foi `removeOrder`: o pedido já não está na
+      // lista e o `map` não encontra nada para desfazer. Antes isto era um GET
+      // da fila inteira, que sem rede também falhava e deixava o card sumido.
+      restoreOrder(order);
       toast.error("Erro ao atualizar pedido");
     }
   }
 
   async function revertStatus(order: OrderWithItems) {
+    if (emAndamento.has(order.id)) return;
+    alerta.ciente([order.id]);
     const prevStatus = statusAnterior(order.status);
     if (!prevStatus) return;
 
     updateOrderStatus(order.id, prevStatus);
 
-    const res = await fetch(`/api/orders/${order.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: prevStatus }),
-    });
-
-    if (res.ok) {
+    if (await enviarStatus(order, prevStatus)) {
       toast.info(`#${order.id.slice(-6).toUpperCase()} ← ${ORDER_STATUS_LABELS[prevStatus]}`);
     } else {
-      updateOrderStatus(order.id, order.status);
+      restoreOrder(order);
       toast.error("Erro ao reverter pedido");
     }
   }
 
   async function cancelOrder(order: OrderWithItems) {
+    if (emAndamento.has(order.id)) return;
+    alerta.ciente([order.id]);
     // Optimistic: remove da lista imediatamente
     removeOrder(order.id);
 
-    const res = await fetch(`/api/orders/${order.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "CANCELLED" }),
-    });
-    if (res.ok) {
+    if (await enviarStatus(order, "CANCELLED")) {
       toast.error(`Pedido #${order.id.slice(-6).toUpperCase()} cancelado`);
     } else {
-      // Mesma razão do advanceStatus: o pedido já saiu da lista, então só uma
-      // nova busca o traz de volta.
-      await refetch();
+      restoreOrder(order);
       toast.error("Erro ao cancelar pedido");
     }
   }
@@ -108,6 +129,55 @@ export function KitchenBoard() {
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={alerta.alternarSom}
+          aria-pressed={alerta.somAtivo}
+          className={`flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1.5 border transition ${
+            alerta.somAtivo && !alerta.bloqueado
+              ? "border-green-500/40 bg-green-500/10 text-green-300"
+              : "border-amber-500/50 bg-amber-500/15 text-amber-200 hover:bg-amber-500/25"
+          }`}
+        >
+          {alerta.somAtivo ? <Bell size={13} /> : <BellOff size={13} />}
+          {!alerta.somAtivo
+            ? "Ativar som"
+            : alerta.bloqueado
+            ? "Som ligado · toque na tela para liberar"
+            : "Som ativo"}
+        </button>
+
+        {alerta.alertando.length > 0 && (
+          <div
+            role="alert"
+            className="flex items-center gap-2 text-sm font-semibold text-yellow-200 bg-yellow-500/15 border border-yellow-500/40 rounded-full pl-3 pr-1 py-1 animate-pulse"
+          >
+            <BellRing size={14} />
+            {alerta.alertando.length === 1
+              ? "1 pedido novo"
+              : `${alerta.alertando.length} pedidos novos`}
+            <button
+              onClick={() => alerta.ciente()}
+              className="text-xs bg-yellow-400 text-neutral-900 rounded-full px-3 py-1 hover:bg-yellow-300 transition"
+            >
+              Ciente
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Só depois de falhar: "conectando" no carregamento é o estado normal e
+          não merece aviso. O texto diz o que muda para quem está no balcão. */}
+      {estado === "sem-tempo-real" && (
+        <div
+          role="status"
+          className="self-start flex items-center gap-1.5 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-full px-3 py-1"
+        >
+          <WifiOff size={12} />
+          Sem tempo real · atualizando a cada 10s
+        </div>
+      )}
+
       {/* Error banner */}
       {error && (
         <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-lg px-4 py-2.5">
@@ -152,6 +222,7 @@ export function KitchenBoard() {
                     hasPrev={!!statusAnterior(order.status)}
                     printerEnabled={printer.enabled}
                     paperWidth={printer.paperWidth}
+                    ocupado={emAndamento.has(order.id)}
                   />
                 ))}
 

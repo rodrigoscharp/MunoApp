@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCanalRealtime } from "@/hooks/useTopicoRealtime";
+import { iniciarPollingVisivel } from "@/lib/polling-visivel";
 import {
   formatCurrency,
   formatDate,
@@ -56,9 +59,93 @@ const PAYMENT_COLORS: Record<PaymentStatus, string> = {
   REFUNDED: "text-neutral-500",
 };
 
-export function AdminOrdersTable({ orders }: { orders: Order[] }) {
-  const [selected, setSelected] = useState<Order | null>(null);
+const STATUS_VALIDOS = new Set(Object.keys(STATUS_COLORS));
+const SITUACOES_VALIDAS = new Set(Object.keys(PAYMENT_COLORS));
+const METODOS_VALIDOS = new Set(["PIX", "CREDIT_CARD", "CASH"]);
+
+/**
+ * O que um order-updated muda numa linha. Lido com desconfiança: o id chega
+ * como `orderId` ou `id`, e campo ausente ou desconhecido não sobrescreve nada.
+ */
+export function ajusteDoEvento(
+  payload: Record<string, unknown>
+): { id: string; ajuste: Partial<Order> } | null {
+  const id = payload.id ?? payload.orderId;
+  if (typeof id !== "string" || !id) return null;
+  const ajuste: Partial<Order> = {};
+  if (typeof payload.status === "string" && STATUS_VALIDOS.has(payload.status)) {
+    ajuste.status = payload.status as OrderStatus;
+  }
+  if (typeof payload.paymentStatus === "string" && SITUACOES_VALIDAS.has(payload.paymentStatus)) {
+    ajuste.paymentStatus = payload.paymentStatus as PaymentStatus;
+  }
+  if (typeof payload.paymentMethod === "string" && METODOS_VALIDOS.has(payload.paymentMethod)) {
+    ajuste.paymentMethod = payload.paymentMethod as PaymentMethod;
+  }
+  return { id, ajuste };
+}
+
+// Rajada de pedidos (hora do almoço) vira um refresh só.
+const ESPERA_DO_REFRESH_MS = 800;
+
+export function AdminOrdersTable({ orders: doServidor }: { orders: Order[] }) {
+  // Pelo id, não o objeto: o objeto guardado era um retrato do clique e não
+  // acompanhava as mudanças que chegam pelo canal.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<OrderStatus | "ALL">("ALL");
+  const router = useRouter();
+
+  // A lista era um retrato do carregamento: o dono via "Pendente" num pedido
+  // já entregue até recarregar a página. Agora a tela escuta o canal da
+  // cozinha. Mudança de pedido que já está na lista é remendada aqui; pedido
+  // novo (ou que a tela não conhece) pede um router.refresh, que traz a linha
+  // completa pelo servidor.
+  const [ajustes, setAjustes] = useState<Record<string, Partial<Order>>>({});
+  // Lista nova do servidor zera os remendos: ela já é mais nova que eles, e um
+  // remendo velho por cima esconderia uma mudança que o aviso não trouxe.
+  const [base, setBase] = useState(doServidor);
+  if (base !== doServidor) {
+    setBase(doServidor);
+    setAjustes({});
+  }
+  const orders = useMemo(
+    () => doServidor.map((o) => (ajustes[o.id] ? { ...o, ...ajustes[o.id] } : o)),
+    [doServidor, ajustes]
+  );
+  const selected = orders.find((o) => o.id === selectedId) ?? null;
+  const setSelected = (o: Order | null) => setSelectedId(o?.id ?? null);
+
+  const idsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    idsRef.current = new Set(doServidor.map((o) => o.id));
+  }, [doServidor]);
+
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const recarregarEmBreve = () => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => router.refresh(), ESPERA_DO_REFRESH_MS);
+  };
+
+  const estado = useCanalRealtime("kitchen", null, {
+    "order-created": () => recarregarEmBreve(),
+    "order-updated": (payload) => {
+      const evento = ajusteDoEvento(payload);
+      if (!evento || !idsRef.current.has(evento.id)) {
+        recarregarEmBreve();
+        return;
+      }
+      setAjustes((a) => ({ ...a, [evento.id]: { ...a[evento.id], ...evento.ajuste } }));
+    },
+  });
+
+  // Sem tempo real, a lista se renova sozinha a cada minuto com a aba visível.
+  // É histórico, não fila: um minuto de atraso não custa pedido.
+  const conectado = estado === "conectado";
+  useEffect(() => {
+    if (conectado) return;
+    return iniciarPollingVisivel(() => router.refresh(), 60_000);
+  }, [conectado, router]);
 
   const filtered = filter === "ALL" ? orders : orders.filter((o) => o.status === filter);
 

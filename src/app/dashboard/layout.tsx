@@ -13,7 +13,9 @@ export default async function KitchenLayout({
     !session ||
     (session.user.role !== "ADMIN" && session.user.role !== "KITCHEN")
   ) {
-    redirect("/login");
+    // Com o callbackUrl, quem entra pela tela de login volta ao quadro, e não
+    // ao destino padrão do papel.
+    redirect(`/login?callbackUrl=${encodeURIComponent("/dashboard")}`);
   }
 
   return (
