@@ -40,6 +40,8 @@ interface OrderEventSource {
   id: string;
   userId: string | null;
   status: string;
+  paymentStatus: string;
+  paymentMethod: string;
   deliveryType: string;
   updatedAt: Date;
   estimatedDeliveryAt: Date | null;
@@ -57,6 +59,11 @@ interface OrderEventSource {
  * /api/orders de 15 em 15 segundos.
  *
  * Pedido sem dono (mesa/legado) simplesmente não tem o terceiro envio.
+ *
+ * Todo envio leva `id`, `status`, `paymentStatus` e `paymentMethod`. O
+ * pagamento vai junto porque o pedido muda de dinheiro sem mudar de status (o
+ * PIX pago em pedido que a cozinha já confirmou): sem ele, a tela de
+ * acompanhamento não tinha como esconder o QR do PIX sem recarregar o pedido.
  */
 export async function broadcastOrderUpdate(
   tenantId: string,
@@ -64,9 +71,15 @@ export async function broadcastOrderUpdate(
 ): Promise<void> {
   const estimatedDeliveryAt = order.estimatedDeliveryAt?.toISOString() ?? null;
   const updatedAt = order.updatedAt.toISOString();
+  const pagamento = {
+    id: order.id,
+    paymentStatus: order.paymentStatus,
+    paymentMethod: order.paymentMethod,
+  };
 
   const envios = [
     broadcastTenantEvent(tenantId, orderChannel(order.id), "order-updated", {
+      ...pagamento,
       status: order.status,
       updatedAt,
       estimatedDeliveryAt,
@@ -76,6 +89,7 @@ export async function broadcastOrderUpdate(
     // virou READY/DELIVERY. A cozinha ignora o payload e recarrega de qualquer
     // forma, então incluir campos aqui não quebra nada.
     broadcastTenantEvent(tenantId, KITCHEN_CHANNEL, "order-updated", {
+      ...pagamento,
       orderId: order.id,
       status: order.status,
       deliveryType: order.deliveryType,
@@ -85,6 +99,7 @@ export async function broadcastOrderUpdate(
   if (order.userId) {
     envios.push(
       broadcastTenantEvent(tenantId, userChannel(order.userId), "order-updated", {
+        ...pagamento,
         orderId: order.id,
         status: order.status,
         deliveryType: order.deliveryType,

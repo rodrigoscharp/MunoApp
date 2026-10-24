@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { broadcastOrderUpdate } from "@/lib/realtime";
+import { depoisDaResposta } from "@/lib/depois-da-resposta";
 
 interface Params {
   params: Promise<{ orderId: string }>;
@@ -36,7 +37,7 @@ export async function POST(req: Request, { params }: Params) {
       data: { status: "DELIVERED" },
     });
 
-    await broadcastOrderUpdate(tenantId, updated);
+    depoisDaResposta(() => broadcastOrderUpdate(tenantId, updated));
 
     return NextResponse.json(updated);
   });

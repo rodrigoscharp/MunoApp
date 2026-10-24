@@ -62,7 +62,7 @@ vi.mock("@/lib/payments/factory", () => ({
   getEnabledPaymentMethods: (...a: unknown[]) => getEnabledPaymentMethods(...a),
 }));
 
-import { POST } from "./route";
+import { GET, POST } from "./route";
 
 type Corpo = Record<string, unknown>;
 
@@ -501,10 +501,55 @@ describe("itens", () => {
     const res = await POST(req(pedidoBase));
 
     expect(res.status).toBe(422);
+    // Sem o item na consulta (apagado, ou de outro restaurante) não há nome a
+    // dizer, mas o id volta para o carrinho saber o que tirar.
     expect(await res.json()).toEqual({
       error: "Um ou mais itens do carrinho não estão mais disponíveis.",
+      indisponiveis: ["item-1"],
     });
     expect(orderCreate).not.toHaveBeenCalled();
+  });
+
+  it("recusa item desativado pelo dono e diz o nome dele", async () => {
+    menuItemFindMany.mockResolvedValue([
+      { id: "item-1", name: "Coxinha", price: 10, available: false },
+      { id: "item-2", name: "Pastel", price: 8, available: false },
+      { id: "item-3", name: "Suco", price: 6, available: true },
+    ]);
+    const res = await POST(
+      req({
+        ...pedidoBase,
+        items: [
+          { menuItemId: "item-1", quantity: 1 },
+          { menuItemId: "item-2", quantity: 1 },
+          { menuItemId: "item-3", quantity: 1 },
+        ],
+      })
+    );
+
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({
+      error: "Coxinha e Pastel não estão mais disponíveis.",
+      indisponiveis: ["item-1", "item-2"],
+    });
+    expect(orderCreate).not.toHaveBeenCalled();
+  });
+
+  it("o mesmo item repetido no carrinho aparece uma vez só em indisponiveis", async () => {
+    menuItemFindMany.mockResolvedValue([{ id: "item-1", name: "Coxinha", price: 10, available: false }]);
+    const res = await POST(
+      req({
+        ...pedidoBase,
+        items: [
+          { menuItemId: "item-1", quantity: 1 },
+          { menuItemId: "item-1", quantity: 2, notes: "sem cebola" },
+        ],
+      })
+    );
+    expect(await res.json()).toEqual({
+      error: "Coxinha não está mais disponível.",
+      indisponiveis: ["item-1"],
+    });
   });
 
   it("recusa quando só parte do carrinho continua disponível", async () => {
@@ -521,10 +566,13 @@ describe("itens", () => {
     expect(res.status).toBe(422);
   });
 
-  it("busca apenas itens disponíveis, e o escopo de tenant faz o resto", async () => {
+  // `available` saiu do where para o item desativado voltar com nome; a recusa
+  // dele é coberta acima. O tenant continua vindo da extensão do Prisma.
+  it("busca só os itens do carrinho, com o que o preço e a recusa precisam", async () => {
     await POST(req(pedidoBase));
     expect(menuItemFindMany).toHaveBeenCalledWith({
-      where: { id: { in: ["item-1"] }, available: true },
+      where: { id: { in: ["item-1"] } },
+      select: { id: true, name: true, price: true, available: true },
     });
   });
 
@@ -722,6 +770,33 @@ describe("cupom", () => {
   });
 });
 
+describe("leituras em paralelo", () => {
+  it("dispara as leituras independentes antes de qualquer uma responder", async () => {
+    // Se as consultas ainda fossem em série, a segunda só sairia depois de a
+    // primeira resolver, e esta promessa presa travaria o resto.
+    let soltar: (v: unknown) => void = () => {};
+    menuItemFindMany.mockReturnValue(new Promise((r) => (soltar = r)));
+
+    const resposta = POST(req(pedidoBase));
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(getEnabledPaymentMethods).toHaveBeenCalled();
+    expect(orderFindMany).toHaveBeenCalled();
+    expect(settingFindUnique).toHaveBeenCalled();
+
+    soltar([{ id: "item-1", price: 10, available: true }]);
+    expect((await resposta).status).toBe(201);
+  });
+
+  it("recusa sem login antes de tocar no banco", async () => {
+    auth.mockResolvedValue(null);
+    await POST(req(pedidoBase));
+    expect(menuItemFindMany).not.toHaveBeenCalled();
+    expect(orderFindMany).not.toHaveBeenCalled();
+    expect(getEnabledPaymentMethods).not.toHaveBeenCalled();
+  });
+});
+
 describe("depois de criado", () => {
   it("usa o tempo estimado configurado pelo admin", async () => {
     settingFindUnique.mockResolvedValue({ value: "90" });
@@ -752,6 +827,12 @@ describe("depois de criado", () => {
     );
   });
 
+  it("não espera o Realtime para responder: o aviso sai depois da resposta", async () => {
+    broadcastTenantEvent.mockReturnValue(new Promise(() => {})); // nunca responde
+    const res = await POST(req(pedidoBase));
+    expect(res.status).toBe(201);
+  });
+
   it("responde 201 com o pedido criado", async () => {
     const res = await POST(req(pedidoBase));
     expect(res.status).toBe(201);
@@ -764,5 +845,43 @@ describe("depois de criado", () => {
 
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "Erro interno do servidor" });
+  });
+});
+
+describe("GET", () => {
+  function get(query = "") {
+    return new NextRequest(`http://localhost/api/orders${query}`, {
+      headers: { "x-tenant-id": TENANT },
+    });
+  }
+
+  it("fila da cozinha: menuItem só com nome, usuário só com nome, e o pagamento para o selo", async () => {
+    auth.mockResolvedValue({ user: { id: "k1", role: "KITCHEN" } });
+    await GET(get("?kitchen=true"));
+
+    const { select, include } = orderFindMany.mock.calls[0][0];
+    expect(include).toBeUndefined();
+    expect(select).toMatchObject({ paymentMethod: true, paymentStatus: true });
+    expect(select.items.select.menuItem).toEqual({ select: { name: true } });
+    expect(select.user).toEqual({ select: { name: true } });
+  });
+
+  it("?mine=1 devolve só os pedidos do próprio usuário, enxutos, mesmo para ADMIN", async () => {
+    auth.mockResolvedValue({ user: { id: "dono-1", role: "ADMIN" } });
+    await GET(get("?mine=1"));
+
+    expect(orderFindMany).toHaveBeenCalledWith({
+      where: { userId: "dono-1" },
+      select: { id: true, status: true, deliveryType: true, updatedAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+  });
+
+  it("?mine=1 sem sessão é 401, sem tocar no banco", async () => {
+    auth.mockResolvedValue(null);
+    const res = await GET(get("?mine=1"));
+    expect(res.status).toBe(401);
+    expect(orderFindMany).not.toHaveBeenCalled();
   });
 });

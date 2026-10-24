@@ -112,8 +112,18 @@ describe("o que o sino busca", () => {
     });
   });
 
-  it("entrega em ordem de chegada", async () => {
-    await GET(req());
-    expect(chatFindMany.mock.calls[0][0].orderBy).toEqual({ createdAt: "asc" });
+  // O banco entrega as mais recentes primeiro (desc + take: asc cortaria
+  // justamente as novas), e a rota devolve em ordem de chegada, que é o que o
+  // cursor do sino espera: ele avança para a última da lista.
+  it("lê as mais recentes com teto e entrega em ordem de chegada", async () => {
+    chatFindMany.mockResolvedValue([
+      { id: "m2", createdAt: "2" },
+      { id: "m1", createdAt: "1" },
+    ]);
+    const res = await GET(req());
+
+    expect(chatFindMany.mock.calls[0][0].orderBy).toEqual({ createdAt: "desc" });
+    expect(chatFindMany.mock.calls[0][0].take).toBe(50);
+    expect((await res.json()).map((m: { id: string }) => m.id)).toEqual(["m1", "m2"]);
   });
 });

@@ -177,6 +177,7 @@ model Order {
   @@index([tableId])
   @@index([couponId, userId]) // "já usei este cupom?" na validação do checkout
   @@index([createdAt]) // volume da plataforma inteira, na tela de saúde
+  @@index([tenantId, updatedAt]) // lista de conversas do admin (/adm/chats)
 }
 
 model Table {
@@ -208,7 +209,10 @@ model Payment {
   amount    Decimal       @db.Decimal(10, 2)
   createdAt DateTime      @default(now())
 
-  @@index([tenantId])
+  // [tenantId, createdAt] atende o filtro automático da extensão do Prisma
+  // e o relatório por período; o @@index solto em [tenantId] virou prefixo
+  // redundante e foi removido, como em Order.
+  @@index([tenantId, createdAt])
   @@index([tableId])
 }
 
@@ -356,8 +360,10 @@ model ChatMessage {
   content    String
   createdAt  DateTime @default(now())
 
-  @@index([orderId])
-  @@index([tenantId])
+  // Os dois começam pelas colunas dos índices antigos, [orderId] e [tenantId],
+  // que viraram prefixo redundante e foram removidos.
+  @@index([orderId, createdAt]) // a conversa de um pedido, e o ?since dela
+  @@index([tenantId, senderRole, createdAt]) // o sino: mensagens do restaurante desde o cursor
 }
 
 // Login da área administrativa da plataforma, separado dos usuários de restaurante (User)

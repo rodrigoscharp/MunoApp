@@ -6,6 +6,7 @@ import { runWithTenant } from "@/lib/tenant-context";
 import { getPaymentProvider } from "@/lib/payments/factory";
 import { InvalidWebhookSignatureError } from "@/lib/payments/types";
 import { broadcastOrderUpdate } from "@/lib/realtime";
+import { depoisDaResposta } from "@/lib/depois-da-resposta";
 import { extractErrorMessage } from "@/lib/error-message";
 
 export async function POST(
@@ -156,7 +157,9 @@ export async function POST(
               extra: { tenantId, orderId: order.id, paymentId: result.providerPaymentId },
             });
           }
-          await broadcastOrderUpdate(tenantId, order);
+          // Depois da resposta: o gateway tem prazo curto para o 200, e o
+          // aviso ao vivo não é motivo para estourá-lo.
+          depoisDaResposta(() => broadcastOrderUpdate(tenantId, order));
         }
       }
     });
