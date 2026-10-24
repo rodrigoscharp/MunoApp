@@ -5,13 +5,21 @@ import Image from "next/image";
 import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { useSession, signOut } from "next-auth/react";
 import { useCart } from "@/hooks/useCart";
-import { CartDrawer } from "@/components/cart/CartDrawer";
+import dynamic from "next/dynamic";
+import { NotificationBell } from "@/components/menu/NotificationBell";
 import { CartFlyAnimation } from "@/components/menu/CartFlyAnimation";
 import { useState } from "react";
 import { ShoppingCart, User, LogOut, Settings, ChefHat, Menu, X, ClipboardList } from "lucide-react";
 import type { RestaurantInfo } from "@/lib/restaurant";
-import { NotificationBell } from "@/components/menu/NotificationBell";
 import { useAnimacaoAoMudar } from "@/hooks/useAnimacaoAoMudar";
+
+// A gaveta do carrinho fica fora do bundle do cardápio: quase toda visita
+// olha o cardápio antes de abrir o carrinho, e ela só é montada quando o
+// cliente se aproxima do botão (ver `prepararCarrinho`).
+const CartDrawer = dynamic(
+  () => import("@/components/cart/CartDrawer").then((m) => m.CartDrawer),
+  { ssr: false }
+);
 
 interface HeaderProps {
   restaurantInfo: RestaurantInfo;
@@ -26,6 +34,10 @@ export function Header({ restaurantInfo }: HeaderProps) {
   );
 
   const [cartOpen, setCartOpen] = useState(false);
+  // Monta a gaveta (ainda fechada) no primeiro sinal de intenção, para o
+  // chunk já ter chegado no clique e a abertura manter a animação de entrada.
+  const [carrinhoMontado, setCarrinhoMontado] = useState(false);
+  const prepararCarrinho = () => setCarrinhoMontado(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   // Remontar o badge reinicia a animação do CSS. A duração já mora lá; não
@@ -76,7 +88,13 @@ export function Header({ restaurantInfo }: HeaderProps) {
             {/* Cart — id usado pela animação de partícula */}
             <button
               id="cart-btn"
-              onClick={() => setCartOpen(true)}
+              onPointerEnter={prepararCarrinho}
+              onPointerDown={prepararCarrinho}
+              onFocus={prepararCarrinho}
+              onClick={() => {
+                prepararCarrinho();
+                setCartOpen(true);
+              }}
               className="relative flex items-center justify-center w-10 h-10 rounded-full hover:bg-neutral-100 transition"
               aria-label="Abrir carrinho"
             >
@@ -176,7 +194,9 @@ export function Header({ restaurantInfo }: HeaderProps) {
         )}
       </header>
 
-      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+      {carrinhoMontado && (
+        <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+      )}
 
       {userMenuOpen && (
         <div className="fixed inset-0 z-30" onClick={() => setUserMenuOpen(false)} />

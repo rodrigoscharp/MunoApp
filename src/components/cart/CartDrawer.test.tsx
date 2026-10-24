@@ -15,8 +15,9 @@ import { useCart } from "@/hooks/useCart";
 import { CartDrawer } from "./CartDrawer";
 
 // O upsell tem fetch e Image do Next lá dentro; ele tem teste próprio.
+// Aqui ele só deixa uma marca, para dizer quando está montado.
 vi.mock("@/components/cart/CartUpsell", () => ({
-  CartUpsell: () => null,
+  CartUpsell: () => <div data-testid="upsell" />,
 }));
 
 const onClose = vi.fn();
@@ -193,5 +194,28 @@ describe("abrir e fechar", () => {
   it("não renderiza o fundo escuro quando está fechada", () => {
     const { container } = render(<CartDrawer open={false} onClose={onClose} />);
     expect(container.querySelector(".fixed.inset-0")).toBeNull();
+  });
+});
+
+// O upsell busca o cardápio inteiro ao montar. Montado com a gaveta fechada,
+// ele fazia essa busca em toda visita ao cardápio.
+describe("sugestões", () => {
+  it("não monta o upsell com a gaveta fechada", () => {
+    popular([{ id: "item-1", name: "X-Salada", price: 25, quantity: 1 }]);
+    render(<CartDrawer open={false} onClose={onClose} />);
+    expect(screen.queryByTestId("upsell")).toBeNull();
+  });
+
+  it("não monta o upsell com o carrinho vazio", () => {
+    render(<CartDrawer open onClose={onClose} />);
+    expect(screen.queryByTestId("upsell")).toBeNull();
+  });
+
+  it("monta ao abrir com item e continua montado depois de fechar, para não buscar de novo", () => {
+    popular([{ id: "item-1", name: "X-Salada", price: 25, quantity: 1 }]);
+    const { rerender } = render(<CartDrawer open onClose={onClose} />);
+    expect(screen.getByTestId("upsell")).toBeDefined();
+    rerender(<CartDrawer open={false} onClose={onClose} />);
+    expect(screen.getByTestId("upsell")).toBeDefined();
   });
 });
