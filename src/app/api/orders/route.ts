@@ -72,6 +72,34 @@ const orderSchema = z.object({
   { path: ["customerPhone"], message: "Telefone é obrigatório para entrega" }
 );
 
+// O que a resposta do POST leva de cada item. Os dois checkouts só leem o id do
+// pedido, e o menuItem inteiro (descrição, imagem, restrições) era peso de graça
+// em toda criação.
+const ITENS_DA_RESPOSTA = {
+  items: { include: { menuItem: { select: { id: true, name: true } } } },
+} satisfies Prisma.OrderInclude;
+
+/**
+ * A mensagem do 422 de carrinho com item fora do ar. Nomeia o que dá para
+ * nomear: item desativado volta da consulta com nome, mas id apagado ou de
+ * outro restaurante não volta, e para esse não há nome a dizer.
+ */
+function mensagemDeIndisponiveis(
+  encontrados: { id: string; name: string; available: boolean }[],
+  indisponiveis: string[]
+): string {
+  const nomes = encontrados
+    .filter((m) => !m.available && indisponiveis.includes(m.id))
+    .map((m) => m.name);
+  if (nomes.length === 0) return "Um ou mais itens do carrinho não estão mais disponíveis.";
+  const lista =
+    nomes.length === 1
+      ? `${nomes[0]} não está mais disponível.`
+      : `${nomes.slice(0, -1).join(", ")} e ${nomes[nomes.length - 1]} não estão mais disponíveis.`;
+  const semNome = indisponiveis.length - nomes.length;
+  return semNome > 0 ? `${lista} Outro item do carrinho também saiu do cardápio.` : lista;
+}
+
 type ItemComparavel = { menuItemId: string; quantity: number; notes?: string | null };
 
 /**
@@ -190,22 +218,9 @@ export async function POST(req: NextRequest) {
 
     const { items, paymentMethod, notes, customerName, customerPhone, deliveryType, deliveryAddress, deliveryZoneId, couponCode, tableId, idempotencyKey } = parsed.data;
 
-    // Mesma chave, mesmo pedido: devolve o que já foi criado em vez de criar de
-    // novo (reenvio por rede ruim, ou o segundo clique). Só vale para o dono: a
-    // chave de outra pessoa nunca devolve pedido alheio.
-    if (idempotencyKey) {
-      const jaCriado = await prisma.order.findFirst({
-        where: { idempotencyKey },
-        include: { items: { include: { menuItem: true } } },
-      });
-      if (jaCriado) {
-        if (jaCriado.userId && jaCriado.userId !== session?.user?.id) {
-          return NextResponse.json({ error: "Chave de pedido já utilizada." }, { status: 409 });
-        }
-        return NextResponse.json(jaCriado, { status: 200 });
-      }
-    }
-
+    // Portas que não dependem do banco vêm antes de qualquer consulta: recusar
+    // aqui não gasta ida ao Postgres nenhuma.
+    //
     // Defesa em profundidade: a tela de /mesa/[token] já não renderiza pra
     // quem não tem o plano, mas um checkout aberto no navegador antes de um
     // downgrade ainda conseguiria bater direto aqui.
@@ -222,16 +237,104 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // A tela já esconde o botão fora do horário, mas o endpoint é público.
-    // Na mesa não vale: o cliente já está no restaurante.
-    if (deliveryType !== "DINE_IN" && !checkIsOpen(await getBusinessHours(tenantId))) {
+    // Sem login, a mesa é a única prova de que a pessoa está no restaurante.
+    if (deliveryType === "DINE_IN" && !tableId && !session?.user?.id) {
+      return NextResponse.json({ error: "Mesa não informada." }, { status: 422 });
+    }
+
+    // Duplo clique: o mesmo cliente (ou a mesma mesa, quando não há login)
+    // mandando o mesmo pedido nos últimos segundos recebe o que acabou de ser
+    // gravado em vez de gerar um segundo na cozinha. Sem login a chave é o
+    // tableId como veio, para a consulta poder sair junto com as outras; o
+    // resultado só é usado depois que a mesa foi confirmada no banco, abaixo.
+    const chaveDoSolicitante = session?.user?.id
+      ? { userId: session.user.id }
+      : deliveryType === "DINE_IN" && tableId
+        ? { tableId }
+        : null;
+
+    // As leituras abaixo não dependem umas das outras e saem juntas. Em série
+    // eram até oito idas e voltas ao banco antes de gravar, cada uma pagando a
+    // latência inteira; juntas, pagam a da mais lenta. As respostas são
+    // conferidas depois, na mesma ordem de antes, então a precedência dos erros
+    // não mudou.
+    const [jaCriado, horario, metodos, menuItems, mesa, zona, recentes, timeSetting] =
+      await Promise.all([
+        // Mesma chave, mesmo pedido (reenvio por rede ruim, ou o segundo clique).
+        idempotencyKey
+          ? prisma.order.findFirst({ where: { idempotencyKey }, include: ITENS_DA_RESPOSTA })
+          : null,
+        // A tela já esconde o botão fora do horário, mas o endpoint é público.
+        // Na mesa não vale: o cliente já está no restaurante.
+        deliveryType !== "DINE_IN" ? getBusinessHours(tenantId) : null,
+        getEnabledPaymentMethods(tenantId),
+        // Sem `available` no where de propósito: o item desativado volta para a
+        // mensagem de erro poder dizer o nome dele, e a disponibilidade é
+        // conferida logo abaixo. A extensão do Prisma injeta tenantId, então id
+        // de outro restaurante continua não voltando.
+        prisma.menuItem.findMany({
+          where: { id: { in: items.map((i) => i.menuItemId) } },
+          select: { id: true, name: true, price: true, available: true },
+        }),
+        // A mesa é resolvida contra o banco, não aceita como veio. Sem isto o
+        // tableId era gravado direto: id de mesa inativa passava, e id de mesa
+        // de OUTRO restaurante também — a foreign key é global e não sabe de
+        // tenant. `prisma` já restringe a consulta ao tenant da request.
+        deliveryType === "DINE_IN" && tableId
+          ? prisma.table.findFirst({ where: { id: tableId, active: true }, select: { id: true } })
+          : null,
+        // O frete sai da zona cadastrada, não de um número enviado na
+        // requisição. `prisma` já restringe a busca ao tenant da request, então
+        // não dá para usar a zona barata de outro restaurante.
+        deliveryType === "DELIVERY" && deliveryZoneId
+          ? prisma.deliveryZone.findUnique({ where: { id: deliveryZoneId } })
+          : null,
+        // Só o que a comparação usa: o pedido completo só é lido se houver
+        // repetição, que é o caso raro.
+        chaveDoSolicitante
+          ? prisma.order.findMany({
+              where: {
+                ...chaveDoSolicitante,
+                createdAt: { gte: new Date(Date.now() - JANELA_DUPLICIDADE_MS) },
+                status: { not: "CANCELLED" },
+              },
+              select: {
+                id: true,
+                paymentMethod: true,
+                deliveryType: true,
+                notes: true,
+                customerName: true,
+                customerPhone: true,
+                deliveryAddress: true,
+                couponCode: true,
+                items: { select: { menuItemId: true, quantity: true, notes: true } },
+              },
+              orderBy: { createdAt: "desc" },
+              take: 5,
+            })
+          : [],
+        // O tempo estimado de entrega configurado pelo admin.
+        prisma.setting.findUnique({
+          where: { tenantId_key: { tenantId, key: "delivery_time_minutes" } },
+        }),
+      ]);
+
+    // Só vale para o dono: a chave de outra pessoa nunca devolve pedido alheio.
+    if (jaCriado) {
+      if (jaCriado.userId && jaCriado.userId !== session?.user?.id) {
+        return NextResponse.json({ error: "Chave de pedido já utilizada." }, { status: 409 });
+      }
+      return NextResponse.json(jaCriado, { status: 200 });
+    }
+
+    if (horario && !checkIsOpen(horario)) {
       return NextResponse.json({ error: "O restaurante está fechado no momento." }, { status: 422 });
     }
 
     // Endpoint público: a UI esconder o botão não impede ninguém de pedir
     // PIX num restaurante que não tem gateway conectado.
     try {
-      assertMethodAllowed(paymentMethod, await getEnabledPaymentMethods(tenantId));
+      assertMethodAllowed(paymentMethod, metodos);
     } catch (err) {
       if (err instanceof PaymentMethodNotAllowedError) {
         return NextResponse.json({ error: err.message }, { status: 422 });
@@ -239,76 +342,43 @@ export async function POST(req: NextRequest) {
       throw err;
     }
 
-    // `available: true` faz parte do filtro, e não só do que o cardápio mostra:
+    // Item desativado faz parte da recusa, e não só do que o cardápio mostra:
     // um carrinho aberto antes de o dono desativar o item continuaria pedindo
-    // comida que a cozinha não tem. O mesmo where cobre o tenant (a extensão do
-    // Prisma injeta tenantId), então id de outro restaurante também não passa.
-    const menuItems = await prisma.menuItem.findMany({
-      where: { id: { in: items.map((i) => i.menuItemId) }, available: true },
-    });
-
-    const porId = new Map(menuItems.map((m) => [m.id, m]));
+    // comida que a cozinha não tem.
+    const porId = new Map(menuItems.filter((m) => m.available).map((m) => [m.id, m]));
 
     // Antes daqui, item que não voltou da consulta era ignorado no subtotal e
     // depois desreferenciado com `!` na hora de montar o pedido — TypeError, 500
     // e nenhuma pista do que o cliente pediu de errado. Recusar explicitamente
-    // devolve 422 e diz o que saiu do ar.
-    const indisponiveis = items.filter((i) => !porId.has(i.menuItemId));
+    // devolve 422, e `indisponiveis` diz ao carrinho quais ids tirar.
+    const indisponiveis = [
+      ...new Set(items.map((i) => i.menuItemId).filter((id) => !porId.has(id))),
+    ];
     if (indisponiveis.length > 0) {
       return NextResponse.json(
-        { error: "Um ou mais itens do carrinho não estão mais disponíveis." },
+        { error: mensagemDeIndisponiveis(menuItems, indisponiveis), indisponiveis },
         { status: 422 }
       );
     }
 
-    // A mesa é resolvida contra o banco, não aceita como veio. Sem isto o
-    // tableId era gravado direto: id de mesa inativa passava, e id de mesa de
-    // OUTRO restaurante também — a foreign key é global e não sabe de tenant,
-    // então o pedido nascia apontando para a mesa de outra casa. `prisma` já
-    // restringe a consulta ao tenant da request.
     let mesaId: string | null = null;
-    // Sem login, a mesa é a única prova de que a pessoa está no restaurante.
-    if (deliveryType === "DINE_IN" && !tableId && !session?.user?.id) {
-      return NextResponse.json({ error: "Mesa não informada." }, { status: 422 });
-    }
     if (deliveryType === "DINE_IN" && tableId) {
-      const mesa = await prisma.table.findFirst({
-        where: { id: tableId, active: true },
-        select: { id: true },
-      });
       if (!mesa) {
         return NextResponse.json({ error: "Mesa não encontrada." }, { status: 422 });
       }
       mesaId = mesa.id;
     }
 
-    // Duplo clique: o mesmo cliente (ou a mesma mesa, quando não há login)
-    // mandando o mesmo pedido nos últimos segundos recebe o que acabou de ser
-    // gravado em vez de gerar um segundo na cozinha. Roda ANTES do cupom: com
-    // cupom de uso único, o segundo clique cairia em "você já usou" e o cliente
-    // veria erro mesmo com o pedido criado.
+    // A repetição é conferida ANTES do cupom: com cupom de uso único, o segundo
+    // clique cairia em "você já usou" e o cliente veria erro mesmo com o pedido
+    // criado.
     //
-    // "O mesmo pedido" é tudo que o cliente digita, e não só o carrinho: duas
+    // "O mesmo pedido" é tudo que o cliente preenche, e não só o carrinho: duas
     // pessoas da mesma mesa pedindo "1 Coca" com nomes diferentes, ou o mesmo
     // prato com e sem cebola, são pedidos distintos e não podem se fundir.
     // Sem chave de idempotência do cliente, é a heurística mais estreita que
     // ainda pega o clique duplo.
-    const chaveDoSolicitante = session?.user?.id
-      ? { userId: session.user.id }
-      : mesaId
-        ? { tableId: mesaId }
-        : null;
-    if (chaveDoSolicitante) {
-      const recentes = await prisma.order.findMany({
-        where: {
-          ...chaveDoSolicitante,
-          createdAt: { gte: new Date(Date.now() - JANELA_DUPLICIDADE_MS) },
-          status: { not: "CANCELLED" },
-        },
-        include: { items: { include: { menuItem: true } } },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-      });
+    if (recentes.length > 0) {
       const assinatura = assinaturaDoPedido({
         items,
         paymentMethod,
@@ -319,20 +389,15 @@ export async function POST(req: NextRequest) {
         deliveryAddress: deliveryType === "DELIVERY" ? deliveryAddress : undefined,
         couponCode: couponCode ? normalizeCouponCode(couponCode) : undefined,
       });
-      const repetido = recentes.find(
-        (r) =>
-          assinaturaDoPedido({
-            items: r.items,
-            paymentMethod: r.paymentMethod,
-            deliveryType: r.deliveryType,
-            notes: r.notes,
-            customerName: r.customerName,
-            customerPhone: r.customerPhone,
-            deliveryAddress: r.deliveryAddress,
-            couponCode: r.couponCode,
-          }) === assinatura
-      );
-      if (repetido) return NextResponse.json(repetido, { status: 200 });
+      const repetido = recentes.find((r) => assinaturaDoPedido(r) === assinatura);
+      if (repetido) {
+        const completo = await prisma.order.findFirst({
+          where: { id: repetido.id },
+          include: ITENS_DA_RESPOSTA,
+        });
+        // Quem chamou só precisa do id para seguir; o completo é cortesia.
+        return NextResponse.json(completo ?? repetido, { status: 200 });
+      }
     }
 
     // Dinheiro em centavos inteiros, arredondado uma vez só: somar 0,10 três
@@ -343,14 +408,6 @@ export async function POST(req: NextRequest) {
       0
     );
     const itemsTotal = itemsCentavos / 100;
-
-    // O frete sai da zona cadastrada, não de um número enviado na requisição.
-    // `prisma` já restringe a busca ao tenant da request, então não dá para
-    // usar a zona barata de outro restaurante.
-    const zona =
-      deliveryType === "DELIVERY" && deliveryZoneId
-        ? await prisma.deliveryZone.findUnique({ where: { id: deliveryZoneId } })
-        : null;
 
     let deliveryFee: number;
     try {
@@ -389,10 +446,6 @@ export async function POST(req: NextRequest) {
         itemsCentavos + Math.round(deliveryFee * 100) - Math.round(cupom.discount * 100)
       ) / 100;
 
-    // Lê o tempo estimado de entrega configurado pelo admin
-    const timeSetting = await prisma.setting.findUnique({
-      where: { tenantId_key: { tenantId, key: "delivery_time_minutes" } },
-    });
     const estimatedMinutes = timeSetting ? parseInt(timeSetting.value, 10) : 45;
     const estimatedDeliveryAt = new Date(Date.now() + estimatedMinutes * 60_000);
 
@@ -428,7 +481,7 @@ export async function POST(req: NextRequest) {
           })),
         },
       },
-      include: { items: { include: { menuItem: true } } },
+      include: ITENS_DA_RESPOSTA,
       });
     } catch (erro) {
       // Dois pedidos com a mesma chave chegaram juntos e o unique barrou o
@@ -440,7 +493,7 @@ export async function POST(req: NextRequest) {
       ) {
         const vencedor = await prisma.order.findFirst({
           where: { idempotencyKey },
-          include: { items: { include: { menuItem: true } } },
+          include: ITENS_DA_RESPOSTA,
         });
         if (vencedor) return NextResponse.json(vencedor, { status: 200 });
       }
