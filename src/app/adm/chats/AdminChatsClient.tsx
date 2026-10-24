@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { iniciarPollingVisivel } from "@/lib/polling-visivel";
 import { MessageSquare, ArrowLeft } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { ChatWindow } from "@/components/chat/ChatWindow";
@@ -33,6 +35,15 @@ export function AdminChatsClient({ orders, adminName }: Props) {
   );
 
   const selectedOrder = orders.find((o) => o.id === selectedId) ?? null;
+
+  // A lista era um retrato do carregamento: conversa nova ou última mensagem
+  // mudada só apareciam recarregando a página. Polling, e não o canal: o aviso
+  // de chat sai só nos canais do pedido e do cliente (ver
+  // src/app/api/orders/[id]/chat/route.ts), não no canal do restaurante, e
+  // assinar um canal por pedido da lista seria abrir até cem. A conversa aberta
+  // continua ao vivo pelo useChat da ChatWindow.
+  const router = useRouter();
+  useEffect(() => iniciarPollingVisivel(() => router.refresh(), 30_000), [router]);
 
   return (
     <div className="flex h-[calc(100dvh-theme(spacing.32))] lg:h-[calc(100dvh-theme(spacing.16))] gap-4">
