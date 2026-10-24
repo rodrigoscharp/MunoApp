@@ -42,7 +42,12 @@ vi.mock("@/lib/supabase", () => ({
           handlers[event] = cb;
           return canal;
         },
-        subscribe: () => canal,
+        // O canal "conecta" na hora: é o caso comum, e é o estado que deixa o
+        // polling de chat desligado.
+        subscribe: (cb?: (status: string) => void) => {
+          cb?.("SUBSCRIBED");
+          return canal;
+        },
       };
       return canal;
     },
@@ -51,6 +56,7 @@ vi.mock("@/lib/supabase", () => ({
 }));
 
 import { useOrderNotifications } from "./useOrderNotifications";
+import { _esquecerCanais } from "@/lib/canal-compartilhado";
 
 const fetchMock = vi.fn();
 
@@ -102,6 +108,7 @@ function disparar(evento: string, payload: Record<string, unknown>) {
 }
 
 beforeEach(() => {
+  _esquecerCanais();
   Object.keys(handlers).forEach((k) => delete handlers[k]);
   fetchMock.mockReset();
   toastInfo.mockClear();
