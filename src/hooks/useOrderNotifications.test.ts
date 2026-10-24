@@ -11,10 +11,14 @@
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { renderHook, act, waitFor, cleanup } from "@testing-library/react";
 
 const sessao = vi.fn();
 vi.mock("next-auth/react", () => ({ useSession: () => sessao() }));
+
+const push = vi.fn();
+const roteador = { push };
+vi.mock("next/navigation", () => ({ useRouter: () => roteador }));
 
 const toastInfo = vi.fn();
 const toastError = vi.fn();
@@ -77,10 +81,10 @@ function servidor({
   });
 }
 
-/** Monta o hook e espera o initStatuses terminar. */
+/** Monta o hook e espera a busca inicial de pedidos sair. */
 async function montar() {
   const r = renderHook(() => useOrderNotifications());
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/orders"));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/orders?mine=1"));
   // A assinatura do Broadcast só acontece depois que o servidor entrega o nome
   // secreto do canal.
   await waitFor(() => expect(handlers["order-updated"]).toBeDefined());
@@ -111,6 +115,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Desmonta os hooks do teste anterior: montados, eles continuam ouvindo
+  // visibilitychange e somariam consultas na conta do teste seguinte.
+  cleanup();
   vi.unstubAllGlobals();
 });
 
@@ -351,5 +358,47 @@ describe("limpeza ao desmontar", () => {
     unmount();
 
     expect(removeChannel).toHaveBeenCalled();
+  });
+});
+
+describe("quanto o sino consulta o servidor", () => {
+  const chamadas = (prefixo: string) =>
+    fetchMock.mock.calls.filter(([u]) => String(u).startsWith(prefixo)).length;
+
+  // A chegada do nome do canal reiniciava o efeito, e a busca inicial de
+  // pedidos saía duas vezes a cada cardápio aberto por cliente logado.
+  it("busca os pedidos uma vez ao montar, mesmo com o canal chegando depois", async () => {
+    await montar();
+    expect(chamadas("/api/orders")).toBe(1);
+  });
+
+  // Com o Broadcast de pé, o `chat-message` já dispara a busca. O polling de
+  // chat só existe para quando o canal não veio.
+  it("com o canal assinado, a volta para a aba consulta pedidos e não o chat", async () => {
+    await montar();
+    fetchMock.mockClear();
+    servidor();
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await waitFor(() => expect(chamadas("/api/orders")).toBe(1));
+    expect(chamadas("/api/chat/unread")).toBe(0);
+  });
+
+  it("sem o nome do canal, o chat volta a ser consultado pelo polling", async () => {
+    fetchMock.mockImplementation((url: string) => {
+      const u = String(url);
+      if (u.startsWith("/api/realtime/topic")) {
+        return Promise.resolve({ ok: false, json: async () => ({}) });
+      }
+      return Promise.resolve({ ok: true, json: async () => [] });
+    });
+    renderHook(() => useOrderNotifications());
+    await waitFor(() => expect(chamadas("/api/realtime/topic")).toBeGreaterThan(0));
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await waitFor(() => expect(chamadas("/api/chat/unread")).toBe(1));
+    expect(handlers["order-updated"]).toBeUndefined();
   });
 });
