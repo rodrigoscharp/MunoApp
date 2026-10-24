@@ -18,13 +18,19 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+// unstable_cache é transparente aqui: o teste quer a leitura, não o cache. Os
+// dois registram as chamadas para conferir a tag, que é por restaurante.
+const unstableCache = vi.fn(
+  <T extends (...args: never[]) => unknown>(fn: T, _chave: string[], _opcoes: unknown) => fn
+);
+const revalidateTag = vi.fn();
 vi.mock("next/cache", () => ({
-  unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
-  revalidateTag: vi.fn(),
+  unstable_cache: (...a: Parameters<typeof unstableCache>) => unstableCache(...a),
+  revalidateTag: (...a: unknown[]) => revalidateTag(...a),
 }));
 
 import { PUT } from "./route";
-import { DEFAULT_SCHEDULE } from "@/lib/business-hours";
+import { DEFAULT_SCHEDULE, getBusinessHours } from "@/lib/business-hours";
 
 function putReq(body: unknown) {
   return new NextRequest("http://localhost/api/settings/business-hours", {
@@ -88,5 +94,22 @@ describe("PUT /api/settings/business-hours", () => {
 
     expect(res.status).toBe(400);
     expect(settingUpsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("o cache do horário é por restaurante", () => {
+  it("a leitura grava com chave e tag do próprio tenant", async () => {
+    settingFindUnique.mockResolvedValue(null);
+    await getBusinessHours(TENANT);
+
+    const [, chave, opcoes] = unstableCache.mock.calls[0];
+    expect(chave).toEqual(["business_hours", TENANT]);
+    expect(opcoes).toMatchObject({ tags: [`business_hours:${TENANT}`] });
+  });
+
+  it("o PUT invalida só a tag do próprio tenant", async () => {
+    await PUT(putReq(DEFAULT_SCHEDULE));
+    expect(revalidateTag).toHaveBeenCalledWith(`business_hours:${TENANT}`, "max");
+    expect(revalidateTag).not.toHaveBeenCalledWith("business_hours", expect.anything());
   });
 });

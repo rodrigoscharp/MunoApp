@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidateTag } from "next/cache";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
-import { getRestaurantInfo, restaurantInfoSchema } from "@/lib/restaurant";
+import { getRestaurantInfo, restaurantInfoSchema, tagDoRestaurante } from "@/lib/restaurant";
 
 const KEY = "restaurant_info";
 
@@ -42,7 +42,7 @@ export async function PUT(req: NextRequest) {
       create: { tenantId, key: KEY, value },
     });
 
-    revalidateTag("restaurant_info", "max");
+    revalidateTag(tagDoRestaurante(tenantId), "max");
 
     return NextResponse.json({ ok: true });
   });

@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import { invalidarCardapio } from "@/lib/menu-cache";
 import { z } from "zod";
 
 const updateSchema = z.object({
@@ -75,6 +76,9 @@ export async function PUT(
         where: { id },
         data: parsed.data,
       });
+      // Inclui o liga/desliga de disponibilidade e a troca de foto: a URL da
+      // imagem nova só chega ao banco por aqui, o upload não grava item.
+      invalidarCardapio(tenantId);
       return NextResponse.json(item);
     } catch (err) {
       // P2025 = nenhuma linha casou o where. Com o escopo de tenant embutido,
@@ -129,6 +133,7 @@ export async function DELETE(
       throw err;
     }
 
+    invalidarCardapio(tenantId);
     return NextResponse.json({ success: true });
   });
 }

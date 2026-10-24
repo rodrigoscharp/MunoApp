@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidateTag } from "next/cache";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
-import { DEFAULT_SCHEDULE, WeekSchedule, weekScheduleSchema } from "@/lib/business-hours";
+import { DEFAULT_SCHEDULE, WeekSchedule, tagDoHorario, weekScheduleSchema } from "@/lib/business-hours";
 
 export type { WeekSchedule };
 
@@ -42,7 +42,7 @@ export async function PUT(req: NextRequest) {
       create: { tenantId, key: KEY, value },
     });
 
-    revalidateTag("business_hours", "max");
+    revalidateTag(tagDoHorario(tenantId), "max");
 
     return NextResponse.json({ ok: true });
   });
