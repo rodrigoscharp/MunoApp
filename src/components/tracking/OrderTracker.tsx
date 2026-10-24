@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { MessageSquare } from "lucide-react";
 import { useAnimacaoAoMudar } from "@/hooks/useAnimacaoAoMudar";
+import { PixPayment } from "@/components/tracking/PixPayment";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,12 @@ interface Props {
   initialStatus: OrderStatus;
   order: OrderSummary;
   canChat: boolean;
+  /**
+   * QR e copia-e-cola do Pix, quando o pedido acabou de ser criado. Mora aqui,
+   * e não na página, porque é o tracker que sabe quando o pagamento entrou:
+   * renderizado pelo servidor, o QR ficava na tela depois de pago.
+   */
+  pix?: { qrSrc: string | null; copyPaste: string } | null;
 }
 
 // ─── Configuração dos status ───────────────────────────────────────────────────
@@ -171,10 +178,15 @@ function EtaDisplay({
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 
-export function OrderTracker({ orderId, initialStatus, order, canChat }: Props) {
-  const { status: realtimeStatus, estimatedDeliveryAt: realtimeEta } =
-    useOrderRealtime(orderId);
+export function OrderTracker({ orderId, initialStatus, order, canChat, pix }: Props) {
+  const {
+    status: realtimeStatus,
+    paymentStatus: realtimePaymentStatus,
+    estimatedDeliveryAt: realtimeEta,
+  } = useOrderRealtime(orderId, { status: initialStatus });
   const currentStatus = realtimeStatus ?? initialStatus;
+  const paymentStatus = realtimePaymentStatus ?? order.paymentStatus;
+  const aguardandoPix = order.paymentMethod === "PIX" && paymentStatus !== "PAID";
 
   const estimatedDeliveryAt =
     realtimeEta ??
@@ -213,6 +225,20 @@ export function OrderTracker({ orderId, initialStatus, order, canChat }: Props) 
         .fade-in    { animation: fade-slide-up 0.4s ease both; }
         .dot-ping   { animation: dot-ping 1.5s ease-in-out infinite; }
       `}</style>
+
+      {pix && order.paymentMethod === "PIX" && !isCancelled && (
+        aguardandoPix ? (
+          <PixPayment qrSrc={pix.qrSrc} copyPaste={pix.copyPaste} />
+        ) : (
+          <div
+            role="status"
+            className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4 text-center"
+          >
+            <p className="text-green-700 font-semibold">Pagamento confirmado</p>
+            <p className="text-green-600 text-xs mt-0.5">Recebemos seu Pix. Agora é com a cozinha.</p>
+          </div>
+        )
+      )}
 
       <div className="tracker-root space-y-3">
 
@@ -444,7 +470,7 @@ export function OrderTracker({ orderId, initialStatus, order, canChat }: Props) 
               <span className="text-sm text-neutral-500">
                 {PAYMENT_METHOD_LABELS[order.paymentMethod]}
               </span>
-              {order.paymentStatus === "PAID" && (
+              {paymentStatus === "PAID" && (
                 <span className="text-xs bg-green-50 text-green-600 font-semibold px-2 py-0.5 rounded-full">
                   Pago ✓
                 </span>

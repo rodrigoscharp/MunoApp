@@ -174,6 +174,16 @@ export function useCanalRealtime(
       }
     });
 
+    // O cliente do Supabase devolve o canal que já existe para o mesmo tópico
+    // (a tela do pedido abre acompanhamento, chat e mapa no mesmo), e o
+    // subscribe de um canal já de pé não chama o callback. Sem esta leitura o
+    // estado ficaria em "conectando" para sempre nesse caso.
+    if ((channel as unknown as { state?: string }).state === "joined") {
+      queueMicrotask(() => {
+        if (ativo) setEstadoCanal({ topic, estado: "conectado" });
+      });
+    }
+
     return () => {
       ativo = false;
       clearTimeout(timer);
