@@ -141,6 +141,7 @@ export async function GET(req: NextRequest) {
     const session = await auth();
     const { searchParams } = new URL(req.url);
     const isKitchen = searchParams.get("kitchen") === "true";
+    const soOsMeus = searchParams.get("mine") === "1";
 
     if (isKitchen) {
       if (!session || (session.user.role !== "ADMIN" && session.user.role !== "KITCHEN")) {
@@ -151,9 +152,30 @@ export async function GET(req: NextRequest) {
           status: { notIn: ["DELIVERED", "CANCELLED"] },
           createdAt: { gte: new Date(Date.now() - KITCHEN_WINDOW_MS) },
         },
-        include: {
-          items: { include: { menuItem: true } },
-          user: { select: { id: true, name: true, email: true } },
+        // Só o que o quadro da cozinha (OrderCard) e a comanda impressa
+        // (printOrder) leem. Antes ia o menuItem inteiro de cada item, com
+        // descrição e imagem, e o e-mail do cliente, em toda resposta de um
+        // polling que cada tela de cozinha aberta faz a cada 30s.
+        // paymentMethod e paymentStatus vão para o selo de pagamento do card.
+        select: {
+          id: true,
+          status: true,
+          deliveryType: true,
+          paymentMethod: true,
+          paymentStatus: true,
+          createdAt: true,
+          updatedAt: true,
+          total: true,
+          deliveryFee: true,
+          discount: true,
+          couponCode: true,
+          notes: true,
+          customerName: true,
+          deliveryAddress: true,
+          items: {
+            select: { id: true, quantity: true, notes: true, menuItem: { select: { name: true } } },
+          },
+          user: { select: { name: true } },
           table: { select: { number: true, name: true } },
         },
         orderBy: { createdAt: "asc" },
@@ -164,7 +186,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(orders);
     }
 
-    if (session?.user.role === "ADMIN") {
+    if (session?.user.role === "ADMIN" && !soOsMeus) {
       const orders = await prisma.order.findMany({
         include: {
           items: { include: { menuItem: true } },
@@ -186,9 +208,14 @@ export async function GET(req: NextRequest) {
     // daqui saía o histórico inteiro do cliente com todos os itens e o menuItem
     // completo — descrição, imagem, preço — a cada ciclo de polling. Um cliente
     // fiel com 200 pedidos recebia os 200, de minuto em minuto.
+    //
+    // `?mine=1` traz o sino para cá qualquer que seja o papel: sem ele, o dono
+    // do restaurante navegando no próprio cardápio caía no ramo de ADMIN acima
+    // e recebia os 100 últimos pedidos da casa, completos, a cada ciclo, para
+    // um sino que só se importa com os pedidos dele.
     const orders = await prisma.order.findMany({
       where: { userId: session.user.id },
-      select: { id: true, status: true, deliveryType: true },
+      select: { id: true, status: true, deliveryType: true, updatedAt: true },
       orderBy: { createdAt: "desc" },
       take: CUSTOMER_ORDERS_LIMIT,
     });

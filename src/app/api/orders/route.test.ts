@@ -62,7 +62,7 @@ vi.mock("@/lib/payments/factory", () => ({
   getEnabledPaymentMethods: (...a: unknown[]) => getEnabledPaymentMethods(...a),
 }));
 
-import { POST } from "./route";
+import { GET, POST } from "./route";
 
 type Corpo = Record<string, unknown>;
 
@@ -845,5 +845,43 @@ describe("depois de criado", () => {
 
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "Erro interno do servidor" });
+  });
+});
+
+describe("GET", () => {
+  function get(query = "") {
+    return new NextRequest(`http://localhost/api/orders${query}`, {
+      headers: { "x-tenant-id": TENANT },
+    });
+  }
+
+  it("fila da cozinha: menuItem só com nome, usuário só com nome, e o pagamento para o selo", async () => {
+    auth.mockResolvedValue({ user: { id: "k1", role: "KITCHEN" } });
+    await GET(get("?kitchen=true"));
+
+    const { select, include } = orderFindMany.mock.calls[0][0];
+    expect(include).toBeUndefined();
+    expect(select).toMatchObject({ paymentMethod: true, paymentStatus: true });
+    expect(select.items.select.menuItem).toEqual({ select: { name: true } });
+    expect(select.user).toEqual({ select: { name: true } });
+  });
+
+  it("?mine=1 devolve só os pedidos do próprio usuário, enxutos, mesmo para ADMIN", async () => {
+    auth.mockResolvedValue({ user: { id: "dono-1", role: "ADMIN" } });
+    await GET(get("?mine=1"));
+
+    expect(orderFindMany).toHaveBeenCalledWith({
+      where: { userId: "dono-1" },
+      select: { id: true, status: true, deliveryType: true, updatedAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+  });
+
+  it("?mine=1 sem sessão é 401, sem tocar no banco", async () => {
+    auth.mockResolvedValue(null);
+    const res = await GET(get("?mine=1"));
+    expect(res.status).toBe(401);
+    expect(orderFindMany).not.toHaveBeenCalled();
   });
 });
