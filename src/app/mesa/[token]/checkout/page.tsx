@@ -36,15 +36,16 @@ export default function MesaCheckoutPage() {
   });
 
   useEffect(() => {
-    const ctx = getTable();
+    // getTable só devolve a mesa guardada se ela for a do token da URL. Mesa de
+    // outro QR lido antes nesta aba cai no fetch, e o token da URL decide.
+    const ctx = getTable(params.token);
     if (ctx) {
       setTableInfo({ tableId: ctx.tableId, tableNumber: ctx.tableNumber, tableName: ctx.tableName });
     } else {
-      // Fallback: fetch by token
       fetch(`/api/tables/token/${params.token}`)
-        .then((r) => r.json())
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
         .then((t) => setTableInfo({ tableId: t.id, tableNumber: t.number, tableName: t.name }))
-        .catch(() => {});
+        .catch(() => setError("Não conseguimos identificar a mesa. Leia o QR code de novo."));
     }
   }, [params.token, getTable]);
 
@@ -63,6 +64,12 @@ export default function MesaCheckoutPage() {
   const tableLabel = tableInfo?.tableName || `Mesa ${tableInfo?.tableNumber ?? ""}`;
 
   async function onSubmit(data: FormData) {
+    // Sem a mesa resolvida, o pedido iria sem tableId. Melhor não enviar do
+    // que deixar o servidor adivinhar a mesa.
+    if (!tableInfo) {
+      setError("Ainda identificando a mesa. Tente de novo em instantes.");
+      return;
+    }
     setLoading(true);
     setError("");
 
@@ -83,7 +90,7 @@ export default function MesaCheckoutPage() {
           deliveryType: "DINE_IN",
           deliveryFee: 0,
           idempotencyKey,
-          tableId: tableInfo?.tableId,
+          tableId: tableInfo.tableId,
         }),
       });
 
@@ -172,7 +179,7 @@ export default function MesaCheckoutPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !tableInfo}
             className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition"
           >
             {loading ? "Enviando pedido..." : "Confirmar Pedido"}
