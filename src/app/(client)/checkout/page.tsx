@@ -454,6 +454,7 @@ export default function CheckoutPage() {
                     <label className="block text-xs font-medium text-neutral-600 mb-1">Rua *</label>
                     <input
                       {...register("rua")}
+                      autoComplete="address-line1"
                       placeholder="Rua das Flores"
                       className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
                     />
@@ -463,6 +464,7 @@ export default function CheckoutPage() {
                     <label className="block text-xs font-medium text-neutral-600 mb-1">Número *</label>
                     <input
                       {...register("numero")}
+                      inputMode="numeric"
                       placeholder="123"
                       className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
                     />
@@ -473,6 +475,7 @@ export default function CheckoutPage() {
                   <label className="block text-xs font-medium text-neutral-600 mb-1">Complemento (opcional)</label>
                   <input
                     {...register("complemento")}
+                    autoComplete="address-line2"
                     placeholder="Apto 12, Bloco B"
                     className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
                   />
@@ -488,6 +491,7 @@ export default function CheckoutPage() {
               <label className="block text-sm font-medium text-neutral-700 mb-1">Nome *</label>
               <input
                 {...register("customerName")}
+                autoComplete="name"
                 placeholder="Seu nome"
                 className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
               />
@@ -499,6 +503,9 @@ export default function CheckoutPage() {
               </label>
               <input
                 {...register("customerPhone")}
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
                 placeholder="(11) 99999-9999"
                 className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
               />

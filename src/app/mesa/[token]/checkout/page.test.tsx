@@ -110,6 +110,16 @@ describe("a mesa do pedido", () => {
   });
 });
 
+describe("os campos no celular", () => {
+  it("nome e telefone pedem o teclado e o autocomplete certos", () => {
+    render(<MesaCheckoutPage />);
+    expect(screen.getByPlaceholderText("Seu nome").getAttribute("autocomplete")).toBe("name");
+    const telefone = screen.getByPlaceholderText("(11) 99999-9999");
+    expect(telefone.getAttribute("inputmode")).toBe("tel");
+    expect(telefone.getAttribute("autocomplete")).toBe("tel");
+  });
+});
+
 describe("quando o servidor recusa o pedido", () => {
   function recusar(corpo: unknown, status: number) {
     fetchMock.mockImplementation((url: string) => {

@@ -168,6 +168,25 @@ describe("a validação da entrega", () => {
   });
 });
 
+describe("os campos no celular", () => {
+  // Teclado certo e preenchimento automático: telefone abre o teclado de
+  // telefone, número abre o numérico, e o navegador oferece o endereço salvo.
+  it("cada campo pede o teclado e o autocomplete do que ele é", async () => {
+    render(<CheckoutPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /entrega/i }));
+    await screen.findByRole("option", { name: "Centro" });
+
+    const campo = (placeholder: string) => screen.getByPlaceholderText(placeholder);
+    expect(campo("Seu nome").getAttribute("autocomplete")).toBe("name");
+    expect(campo("(11) 99999-9999").getAttribute("inputmode")).toBe("tel");
+    expect(campo("(11) 99999-9999").getAttribute("autocomplete")).toBe("tel");
+    expect(campo("(11) 99999-9999").getAttribute("type")).toBe("tel");
+    expect(campo("123").getAttribute("inputmode")).toBe("numeric");
+    expect(campo("Rua das Flores").getAttribute("autocomplete")).toBe("address-line1");
+    expect(campo("Apto 12, Bloco B").getAttribute("autocomplete")).toBe("address-line2");
+  });
+});
+
 describe("quando o servidor recusa o pedido", () => {
   async function confirmarRetirada() {
     render(<CheckoutPage />);
