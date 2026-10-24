@@ -304,3 +304,18 @@ describe("tempo real", () => {
     expect(await screen.findByText(/sem tempo real/i)).toBeDefined();
   });
 });
+
+describe("alarme de pedido novo", () => {
+  it("pedido pendente acende o aviso, e Ciente o apaga", async () => {
+    await montar([pedido({ status: "PENDING" })]);
+    expect(screen.getByRole("alert").textContent).toMatch(/1 pedido novo/);
+
+    await userEvent.click(screen.getByRole("button", { name: /ciente/i }));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("oferece ativar o som, que o navegador só libera com um toque", async () => {
+    await montar([]);
+    expect(screen.getByRole("button", { name: /ativar som/i })).toBeDefined();
+  });
+});

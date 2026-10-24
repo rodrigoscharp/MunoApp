@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { useKitchenOrders } from "@/hooks/useKitchenOrders";
 import { ORDER_STATUS_LABELS } from "@/lib/utils";
 import { OrderWithItems } from "@/types";
-import { RefreshCw, AlertTriangle, WifiOff } from "lucide-react";
+import { RefreshCw, AlertTriangle, WifiOff, Bell, BellOff, BellRing } from "lucide-react";
 import { toast } from "sonner";
 import type { PrinterConfig } from "@/app/api/settings/printer/route";
 import { KITCHEN_COLUMNS, STATUS_COLORS, BADGE_COLORS, HEADER_COLORS } from "./constants";
 import { proximoStatus, statusAnterior } from "@/lib/kitchen-flow";
 import { OrderCard } from "./OrderCard";
+import { useAlertaCozinha } from "@/hooks/useAlertaCozinha";
 
 // Um pedido some da tela quando o próximo status não tem coluna — ou seja,
 // quando ele terminou (entregue ou cancelado). "Em entrega" TEM coluna: o
@@ -19,6 +20,7 @@ const STATUS_NO_QUADRO = new Set(KITCHEN_COLUMNS.map((c) => c.status));
 export function KitchenBoard() {
   const { orders, loading, error, estado, refetch, updateOrderStatus, removeOrder, restoreOrder } =
     useKitchenOrders();
+  const alerta = useAlertaCozinha(orders);
   const [printer, setPrinter] = useState<PrinterConfig>({ enabled: false, paperWidth: "80mm" });
 
   useEffect(() => {
@@ -63,6 +65,7 @@ export function KitchenBoard() {
 
   async function advanceStatus(order: OrderWithItems) {
     if (emAndamento.has(order.id)) return;
+    alerta.ciente([order.id]);
     const nextStatus = proximoStatus(order.status, order.deliveryType);
     if (!nextStatus) return;
 
@@ -87,6 +90,7 @@ export function KitchenBoard() {
 
   async function revertStatus(order: OrderWithItems) {
     if (emAndamento.has(order.id)) return;
+    alerta.ciente([order.id]);
     const prevStatus = statusAnterior(order.status);
     if (!prevStatus) return;
 
@@ -102,6 +106,7 @@ export function KitchenBoard() {
 
   async function cancelOrder(order: OrderWithItems) {
     if (emAndamento.has(order.id)) return;
+    alerta.ciente([order.id]);
     // Optimistic: remove da lista imediatamente
     removeOrder(order.id);
 
@@ -124,6 +129,43 @@ export function KitchenBoard() {
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={alerta.alternarSom}
+          aria-pressed={alerta.somAtivo}
+          className={`flex items-center gap-1.5 text-xs font-semibold rounded-full px-3 py-1.5 border transition ${
+            alerta.somAtivo && !alerta.bloqueado
+              ? "border-green-500/40 bg-green-500/10 text-green-300"
+              : "border-amber-500/50 bg-amber-500/15 text-amber-200 hover:bg-amber-500/25"
+          }`}
+        >
+          {alerta.somAtivo ? <Bell size={13} /> : <BellOff size={13} />}
+          {!alerta.somAtivo
+            ? "Ativar som"
+            : alerta.bloqueado
+            ? "Som ligado · toque na tela para liberar"
+            : "Som ativo"}
+        </button>
+
+        {alerta.alertando.length > 0 && (
+          <div
+            role="alert"
+            className="flex items-center gap-2 text-sm font-semibold text-yellow-200 bg-yellow-500/15 border border-yellow-500/40 rounded-full pl-3 pr-1 py-1 animate-pulse"
+          >
+            <BellRing size={14} />
+            {alerta.alertando.length === 1
+              ? "1 pedido novo"
+              : `${alerta.alertando.length} pedidos novos`}
+            <button
+              onClick={() => alerta.ciente()}
+              className="text-xs bg-yellow-400 text-neutral-900 rounded-full px-3 py-1 hover:bg-yellow-300 transition"
+            >
+              Ciente
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* Só depois de falhar: "conectando" no carregamento é o estado normal e
           não merece aviso. O texto diz o que muda para quem está no balcão. */}
       {estado === "sem-tempo-real" && (
