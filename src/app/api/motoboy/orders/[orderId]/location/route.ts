@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { broadcastTenantEvent } from "@/lib/realtime";
+import { depoisDaResposta } from "@/lib/depois-da-resposta";
 import { orderChannel } from "@/lib/realtime-channel";
 import { canViewOrder } from "@/lib/order-access";
 
@@ -121,19 +122,28 @@ export async function POST(req: Request, { params }: Params) {
     // chave anon — único jeito de funcionar, já que a tabela era a única sem
     // RLS. Publicando aqui, o mapa passa a viver no canal do tenant e a tabela
     // pode ser fechada.
-    await broadcastTenantEvent(tenantId, orderChannel(orderId), "tracking-updated", {
-      orderId,
-      lat,
-      lng,
-      updatedAt: tracking.updatedAt.toISOString(),
-    });
+    // Depois da resposta: o celular do motoboy manda posição de poucos em poucos
+    // segundos e não precisa esperar o Realtime (ver depois-da-resposta.ts).
+    const updatedAt = tracking.updatedAt.toISOString();
+    depoisDaResposta(() =>
+      broadcastTenantEvent(tenantId, orderChannel(orderId), "tracking-updated", {
+        orderId,
+        lat,
+        lng,
+        updatedAt,
+      })
+    );
 
     // Na primeira atualização, calcula a previsão pela rota real. O endereço já
     // veio na leitura da autorização acima — não há segunda ida ao banco.
     if (isFirstUpdate && pedido.deliveryAddress) {
-      // Geocodifica destino e calcula rota em paralelo com a resposta
-      // Usa Promise sem await para não bloquear a resposta ao motoboy
-      recalculateETA(tenantId, orderId, lat, lng, pedido.deliveryAddress).catch(() => {});
+      // Geocodifica destino e calcula rota depois da resposta. Antes era uma
+      // promessa solta, que na Vercel morre junto com a função assim que a
+      // resposta sai; o `after` mantém a função viva até terminar.
+      const endereco = pedido.deliveryAddress;
+      depoisDaResposta(() =>
+        recalculateETA(tenantId, orderId, lat, lng, endereco).catch(() => {})
+      );
     }
 
     return NextResponse.json(tracking);

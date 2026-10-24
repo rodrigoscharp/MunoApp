@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { broadcastOrderUpdate } from "@/lib/realtime";
+import { depoisDaResposta } from "@/lib/depois-da-resposta";
 import { canViewOrder } from "@/lib/order-access";
 import { transicaoPermitida } from "@/lib/kitchen-flow";
 import { reportarErro } from "@/lib/observabilidade";
@@ -167,7 +168,9 @@ export async function PATCH(
       return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
     }
 
-    await broadcastOrderUpdate(tenantId, order);
+    // O aviso sai depois da resposta: a cozinha não espera o Realtime para ver
+    // o botão que tocou responder (ver depois-da-resposta.ts).
+    depoisDaResposta(() => broadcastOrderUpdate(tenantId, order));
 
     return NextResponse.json(order);
   });

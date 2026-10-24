@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { apiError, getPlanoFromRequest, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { tenantTemMesaQr } from "@/lib/plans";
 import { broadcastTenantEvent } from "@/lib/realtime";
+import { depoisDaResposta } from "@/lib/depois-da-resposta";
 import { getEnabledPaymentMethods } from "@/lib/payments/factory";
 import { assertMethodAllowed, PaymentMethodNotAllowedError } from "@/lib/payments/method-guard";
 import { DeliveryFeeError, resolveDeliveryFee } from "@/lib/delivery-fee";
@@ -473,7 +474,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await broadcastTenantEvent(tenantId, "kitchen-orders", "order-created", { orderId: order.id });
+    // Depois da resposta: o cliente não espera o Realtime para ver o pedido
+    // confirmado (ver depois-da-resposta.ts).
+    const orderId = order.id;
+    depoisDaResposta(() =>
+      broadcastTenantEvent(tenantId, "kitchen-orders", "order-created", { orderId })
+    );
 
     return NextResponse.json(order, { status: 201 });
   });

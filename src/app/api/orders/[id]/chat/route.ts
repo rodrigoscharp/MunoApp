@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { broadcastTenantEvent } from "@/lib/realtime";
+import { depoisDaResposta } from "@/lib/depois-da-resposta";
 import { orderChannel, userChannel } from "@/lib/realtime-channel";
 import { z } from "zod";
 
@@ -107,7 +108,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       senderRole: message.senderRole,
     };
 
-    await Promise.all([
+    // Depois da resposta: quem mandou a mensagem não espera o Realtime para
+    // vê-la na própria tela (ver depois-da-resposta.ts).
+    depoisDaResposta(() => Promise.all([
       // Canal do pedido: a janela de chat aberta dos dois lados.
       broadcastTenantEvent(tenantId, orderChannel(id), "chat-message", aviso),
       // Canal do cliente: o sino, que não tem a conversa aberta. Só faz sentido
@@ -122,7 +125,7 @@ export async function POST(req: NextRequest, { params }: Params) {
             ),
           ]
         : []),
-    ]);
+    ]));
 
     return NextResponse.json(message, { status: 201 });
   });

@@ -752,6 +752,12 @@ describe("depois de criado", () => {
     );
   });
 
+  it("não espera o Realtime para responder: o aviso sai depois da resposta", async () => {
+    broadcastTenantEvent.mockReturnValue(new Promise(() => {})); // nunca responde
+    const res = await POST(req(pedidoBase));
+    expect(res.status).toBe(201);
+  });
+
   it("responde 201 com o pedido criado", async () => {
     const res = await POST(req(pedidoBase));
     expect(res.status).toBe(201);
