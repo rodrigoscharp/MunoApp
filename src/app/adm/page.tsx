@@ -9,7 +9,8 @@ import {
 } from "@/lib/onboarding";
 import { formatCurrency } from "@/lib/utils";
 import { FILTRO_DE_RECEITA, inicioDoDiaBRT, inicioDoMesBRT } from "@/lib/faturamento";
-import { AdminCharts } from "@/components/adm/AdminCharts";
+import { AdminChartsLazy } from "@/components/adm/AdminChartsLazy";
+import { graficosEmCache } from "@/lib/analytics";
 
 export default async function AdminDashboard() {
   const session = await auth();
@@ -17,7 +18,7 @@ export default async function AdminDashboard() {
   // aqui o proxy já garantiu um ADMIN de tenant antes de a página rodar.
   const tenantId = session!.user.tenantId!;
   // "Hoje" e "receita" vêm de src/lib/faturamento.ts, o mesmo módulo que
-  // /api/analytics usa: os cards e o gráfico logo abaixo deles precisam
+  // src/lib/analytics.ts usa: os cards e o gráfico logo abaixo deles precisam
   // responder a mesma pergunta do mesmo jeito.
   const agora = new Date();
   const todayBRT = inicioDoDiaBRT(agora);
@@ -50,7 +51,10 @@ export default async function AdminDashboard() {
   // meio do caminho. Aqui só pega quem chega na porta do painel.
   if (deveRedirecionar(onboarding)) redirect("/adm/comecar");
 
-  const [todayStats, monthStats, pendingOrders] = await Promise.all([
+  // Os gráficos saem junto dos cards, calculados aqui no servidor e guardados
+  // por um minuto por restaurante (src/lib/analytics.ts). O componente recebe
+  // pronto, em vez de montar vazio e buscar /api/analytics depois.
+  const [todayStats, monthStats, pendingOrders, graficos] = await Promise.all([
     prismaUnscoped.order.aggregate({
       where: { tenantId, createdAt: { gte: todayBRT }, ...FILTRO_DE_RECEITA },
       _sum: { total: true },
@@ -64,6 +68,7 @@ export default async function AdminDashboard() {
     prismaUnscoped.order.count({
       where: { tenantId, status: { in: ["PENDING", "CONFIRMED", "IN_PREPARATION"] } },
     }),
+    graficosEmCache(tenantId),
   ]);
 
   return (
@@ -127,7 +132,7 @@ export default async function AdminDashboard() {
 
       {/* Charts */}
       <div className="mb-8">
-        <AdminCharts />
+        <AdminChartsLazy data={graficos} />
       </div>
     </div>
   );
