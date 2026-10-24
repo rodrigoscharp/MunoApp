@@ -1,42 +1,12 @@
-import { unstable_cache } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { runWithTenant } from "@/lib/tenant-context";
+import { getCardapioOuVazio } from "@/lib/menu-cache";
 import { getRequestTenantId } from "@/lib/tenant-request";
 import { CategoryNav } from "@/components/menu/CategoryNav";
 import { ProductCard } from "@/components/menu/ProductCard";
 import { MenuItemWithCategory } from "@/types";
 
-const getMenuCached = unstable_cache(
-  async (tenantId: string) => {
-    try {
-      return await runWithTenant(tenantId, () =>
-        prisma.category.findMany({
-          orderBy: { position: "asc" },
-          include: {
-            items: { where: { available: true }, orderBy: { name: "asc" } },
-          },
-        })
-      );
-    } catch {
-      return [];
-    }
-  },
-  ["menu"],
-  { revalidate: 60 }
-);
-
-// runWithTenant precisa envolver a chamada por fora do unstable_cache: se
-// ficar só dentro do callback cacheado, o contexto do AsyncLocalStorage se
-// perde antes da extensão de tenant do Prisma rodar (getCurrentTenantId()
-// lança "Nenhum tenant no contexto da request"), e a query cai silenciosamente
-// no catch, retornando [].
-function getMenu(tenantId: string) {
-  return runWithTenant(tenantId, () => getMenuCached(tenantId));
-}
-
 export default async function MesaCardapioPage() {
   const tenantId = await getRequestTenantId();
-  const categories = await getMenu(tenantId);
+  const categories = await getCardapioOuVazio(tenantId);
   const nonEmpty = categories.filter((c) => c.items.length > 0);
 
   return (
