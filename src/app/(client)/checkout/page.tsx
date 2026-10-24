@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useCart, useCarrinhoHidratado, tirarDoCarrinho } from "@/hooks/useCart";
-import { avisoDeIndisponiveis, lerErroDoPedido } from "@/lib/erro-do-pedido";
+import { avisoDeIndisponiveis, lerErroDoPedido, mensagemDaCobrancaQueFalhou } from "@/lib/erro-do-pedido";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
@@ -72,8 +72,11 @@ export default function CheckoutPage() {
   const { items, total, clearCart } = useCart();
   const carrinhoHidratado = useCarrinhoHidratado();
   // Uma chave por tentativa de finalizar: reenvio ou segundo clique devolvem o
-  // mesmo pedido em vez de criar outro. Nova visita à página, nova chave.
-  const [idempotencyKey] = useState(() => crypto.randomUUID());
+  // mesmo pedido em vez de criar outro. Nova visita à página, nova chave. A
+  // cobrança que falha também troca a chave: o servidor cancela o pedido, e
+  // com a chave antiga o "tentar de novo" recebia o pedido cancelado de volta
+  // e esbarrava no 409 da cobrança até a pessoa recarregar a página.
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[] | null>(null);
   const [requiresPayerDocument, setRequiresPayerDocument] = useState(false);
@@ -340,7 +343,10 @@ export default function CheckoutPage() {
             ...(requiresPayerDocument ? { payerDocument: stripCpf(payerDocument) } : {}),
           }),
         });
-        if (!paymentRes.ok) throw new Error("Erro ao iniciar pagamento");
+        if (!paymentRes.ok) {
+          setIdempotencyKey(crypto.randomUUID());
+          throw new Error(mensagemDaCobrancaQueFalhou(await paymentRes.json().catch(() => null)));
+        }
         const payment = await paymentRes.json();
         clearCart();
         // Decide pelo que a cobrança devolveu, não pelo método: alguns

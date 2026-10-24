@@ -66,3 +66,20 @@ export function avisoDeIndisponiveis(nomes: string[]): string {
     ? `${lista} não está mais disponível e saiu do seu carrinho. Confira o pedido e confirme de novo.`
     : `${lista} não estão mais disponíveis e saíram do seu carrinho. Confira o pedido e confirme de novo.`;
 }
+
+/**
+ * O que dizer quando a cobrança não começa. O pedido já foi cancelado pelo
+ * servidor e o carrinho continua aqui, então a pessoa precisa saber as duas
+ * coisas: nada foi cobrado, e é só confirmar de novo.
+ */
+export function mensagemDaCobrancaQueFalhou(corpo: unknown): string {
+  const doServidor =
+    corpo && typeof corpo === "object" && typeof (corpo as { error?: unknown }).error === "string"
+      ? (corpo as { error: string }).error
+      : null;
+  // O 500 já diz que o pedido foi cancelado; os 409/422 dizem por que a forma
+  // de pagamento não serve, e aí trocar de forma é o caminho.
+  return doServidor
+    ? `${doServidor} Nada foi cobrado: confira os dados e confirme de novo.`
+    : "Não foi possível iniciar o pagamento e nada foi cobrado. Confira os dados e confirme de novo.";
+}

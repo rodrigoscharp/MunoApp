@@ -230,3 +230,43 @@ describe("quando o servidor recusa o pedido", () => {
     screen.getByText(/X-Salada não está mais disponível/);
   });
 });
+
+describe("quando a cobrança online não começa", () => {
+  // O servidor cancela o pedido cuja cobrança falhou. Com a chave de
+  // idempotência antiga, o "confirmar de novo" recebia o pedido cancelado de
+  // volta e a cobrança respondia 409 para sempre, até recarregar a página.
+  it("diz que nada foi cobrado e tenta de novo com outra chave", async () => {
+    const corpos: { idempotencyKey: string }[] = [];
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === "/api/payments/methods") {
+        return respostaJson({ methods: ["PIX", "CASH"], requiresPayerDocument: false });
+      }
+      if (url === "/api/delivery-zones") return zonas();
+      if (url === "/api/orders") {
+        corpos.push(JSON.parse(String(init?.body)));
+        return respostaJson({ id: `pedido-${corpos.length}` }, 201);
+      }
+      if (url === "/api/payments/charge") {
+        return respostaJson(
+          { error: "Não foi possível iniciar o pagamento. O pedido foi cancelado." },
+          500
+        );
+      }
+      return respostaJson({}, 404);
+    });
+
+    render(<CheckoutPage />);
+    // Com PIX disponível ele vem escolhido, e o botão vira "Ir para Pagamento".
+    await screen.findByRole("button", { name: /ir para pagamento/i });
+    const confirmar = () => fireEvent.click(screen.getByRole("button", { name: /ir para pagamento/i }));
+
+    confirmar();
+    await screen.findByText(/O pedido foi cancelado\. Nada foi cobrado/);
+    expect(useCart.getState().items).toHaveLength(1);
+    expect(nav.push).not.toHaveBeenCalled();
+
+    confirmar();
+    await vi.waitFor(() => expect(corpos).toHaveLength(2));
+    expect(corpos[1].idempotencyKey).not.toBe(corpos[0].idempotencyKey);
+  });
+});
