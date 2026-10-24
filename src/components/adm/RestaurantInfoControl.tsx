@@ -6,6 +6,7 @@ import { Store, Check, Upload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { RestaurantInfo } from "@/lib/restaurant";
 import { uploadLogo } from "@/lib/upload-logo";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 
 interface Props {
   initial: RestaurantInfo;
@@ -70,7 +71,7 @@ export function RestaurantInfoControl({ initial }: Props) {
             alt="Logo"
             fill
             className="object-contain p-2"
-            unoptimized={info.logoUrl.startsWith("http")}
+            unoptimized={!imagemOtimizavel(info.logoUrl)}
           />
         </div>
         <div className="flex-1">

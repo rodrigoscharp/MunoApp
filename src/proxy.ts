@@ -99,6 +99,16 @@ function semHeadersDeTenant(req: NextRequest) {
   return { request: { headers } };
 }
 
+/**
+ * O login que devolve para onde a pessoa ia. Sem isso, o dono que abria um
+ * link de /adm/pedidos com a sessão vencida entrava e caía no cardápio, e a
+ * cozinha que recarregava o tablet perdia o /dashboard. O destino é conferido
+ * do outro lado, por destinoSeguro() no LoginForm, então aqui ele só viaja.
+ */
+function loginDevolvendoPara(nextUrl: { pathname: string; search: string }): string {
+  return `/login?callbackUrl=${encodeURIComponent(nextUrl.pathname + nextUrl.search)}`;
+}
+
 export default auth(async (req) => {
   const { nextUrl } = req;
   const session = req.auth;
@@ -442,7 +452,7 @@ export default auth(async (req) => {
   // Admin routes: require ADMIN role
   if (isAdminRoute) {
     if (!session) {
-      return NextResponse.redirect(urlNoHost("/login"));
+      return NextResponse.redirect(urlNoHost(loginDevolvendoPara(nextUrl)));
     }
     if (session.user.role !== "ADMIN") {
       return NextResponse.redirect(urlNoHost("/"));
@@ -478,7 +488,7 @@ export default auth(async (req) => {
   // Kitchen routes: require ADMIN or KITCHEN role
   if (isKitchenRoute) {
     if (!session) {
-      return NextResponse.redirect(urlNoHost("/login"));
+      return NextResponse.redirect(urlNoHost(loginDevolvendoPara(nextUrl)));
     }
     if (session.user.role !== "ADMIN" && session.user.role !== "KITCHEN") {
       return NextResponse.redirect(urlNoHost("/"));

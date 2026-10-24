@@ -58,9 +58,9 @@ const nextConfig = {
           // Só observa (Report-Only): lista no console do navegador o que uma CSP
           // bloquearia, sem bloquear nada. Passar a aplicar (Content-Security-Policy)
           // exige abrir o app inteiro com o console aberto e ajustar o que
-          // aparecer: Supabase (REST e wss), tiles do OpenStreetMap e ícones do
-          // Leaflet (unpkg), Google Fonts, imagens https (logo e QR do gateway)
-          // e os scripts inline do Next, que mudam a cada resposta. A landing
+          // aparecer: Supabase (REST e wss), tiles do OpenStreetMap, Google
+          // Fonts, imagens https (logo e QR do gateway) e os scripts inline do
+          // Next, que mudam a cada resposta. A landing
           // (public/vendas) usa Tailwind CDN, jsdelivr e unpkg e vai relatar
           // bastante enquanto não ganhar a própria política.
           {

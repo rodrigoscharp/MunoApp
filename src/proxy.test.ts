@@ -886,3 +886,19 @@ describe("proxy: restrição do console por IP (PLATFORM_ALLOWED_IPS)", () => {
     expect(res.status).not.toBe(404);
   });
 });
+
+describe("proxy: login sem sessão devolve para onde a pessoa ia", () => {
+  it.each(["/adm/orders?status=PENDING", "/dashboard"])(
+    "%s sem sessão vai ao login com callbackUrl",
+    async (caminho) => {
+      comAssinatura(null);
+
+      const res = await proxy(requisicao(caminho, null));
+
+      expect(res.status).toBe(307);
+      const url = new URL(destino(res)!);
+      expect(url.pathname).toBe("/login");
+      expect(url.searchParams.get("callbackUrl")).toBe(caminho);
+    }
+  );
+});
