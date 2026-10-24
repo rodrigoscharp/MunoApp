@@ -178,8 +178,13 @@ async function recalculateETA(
     data: { estimatedDeliveryAt },
   });
 
+  // Mesmo formato de broadcastOrderUpdate no canal do pedido: quem escuta
+  // order-updated conta com id e pagamento em todo envio.
   await broadcastTenantEvent(tenantId, orderChannel(orderId), "order-updated", {
+    id: updated.id,
     status: updated.status,
+    paymentStatus: updated.paymentStatus,
+    paymentMethod: updated.paymentMethod,
     updatedAt: updated.updatedAt.toISOString(),
     estimatedDeliveryAt: updated.estimatedDeliveryAt?.toISOString() ?? null,
   });

@@ -36,6 +36,11 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+const broadcastOrderUpdate = vi.fn();
+vi.mock("@/lib/realtime", () => ({
+  broadcastOrderUpdate: (...a: unknown[]) => broadcastOrderUpdate(...a),
+}));
+
 import { POST } from "./route";
 
 const params = { params: Promise.resolve({ id: MESA_ID }) };
@@ -168,7 +173,7 @@ describe("a soma precisa cobrir o que está em aberto", () => {
     await POST(req(contaDe100), params);
     expect(orderFindMany).toHaveBeenCalledWith({
       where: { tableId: MESA_ID, paymentStatus: "UNPAID", status: { not: "CANCELLED" } },
-      select: { id: true, total: true },
+      select: expect.objectContaining({ id: true, total: true }),
     });
   });
 });
@@ -231,6 +236,26 @@ describe("a gravação", () => {
         { tenantId: TENANT, tableId: MESA_ID, method: "PIX", amount: 40 },
       ],
     });
+  });
+
+  it("avisa cada pedido quitado, com o pagamento novo, para a tela da mesa", async () => {
+    orderFindMany.mockResolvedValue([
+      { id: "o1", total: 60, userId: null, status: "DELIVERED", paymentMethod: "CASH", deliveryType: "DINE_IN", estimatedDeliveryAt: null },
+      { id: "o2", total: 40, userId: "c1", status: "READY", paymentMethod: "PIX", deliveryType: "DINE_IN", estimatedDeliveryAt: null },
+    ]);
+    await POST(req(contaDe100), params);
+
+    expect(broadcastOrderUpdate).toHaveBeenCalledTimes(2);
+    expect(broadcastOrderUpdate).toHaveBeenCalledWith(
+      TENANT,
+      expect.objectContaining({ id: "o2", status: "READY", paymentStatus: "PAID", paymentMethod: "PIX" })
+    );
+  });
+
+  it("não avisa ninguém quando a conta mudou no meio", async () => {
+    orderUpdateMany.mockResolvedValue({ count: 1 });
+    await POST(req(contaDe100), params);
+    expect(broadcastOrderUpdate).not.toHaveBeenCalled();
   });
 
   it("devolve quantos pedidos foram fechados", async () => {
