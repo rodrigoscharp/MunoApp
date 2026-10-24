@@ -2,6 +2,7 @@ import { z } from "zod";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { runWithTenant } from "@/lib/tenant-context";
+import { reportarErro } from "@/lib/observabilidade";
 
 export interface DaySchedule {
   open: boolean;
@@ -104,11 +105,16 @@ export function tagDoHorario(tenantId: string): string {
 }
 
 async function lerBusinessHours(tenantId: string): Promise<WeekSchedule> {
+  // Falha de banco propaga: dentro do unstable_cache, o horário padrão seria
+  // guardado por 60s e a casa apareceria aberta ou fechada pelo padrão um
+  // minuto depois de o banco voltar. Quem degrada é getBusinessHours, fora do
+  // cache. JSON corrompido é dado, não falha passageira, e pode ficar em cache.
+  const setting = await runWithTenant(tenantId, () =>
+    prisma.setting.findUnique({ where: { tenantId_key: { tenantId, key: "business_hours" } } })
+  );
+  if (!setting) return DEFAULT_SCHEDULE;
   try {
-    const setting = await runWithTenant(tenantId, () =>
-      prisma.setting.findUnique({ where: { tenantId_key: { tenantId, key: "business_hours" } } })
-    );
-    return setting ? { ...DEFAULT_SCHEDULE, ...JSON.parse(setting.value) } : DEFAULT_SCHEDULE;
+    return { ...DEFAULT_SCHEDULE, ...JSON.parse(setting.value) };
   } catch {
     return DEFAULT_SCHEDULE;
   }
@@ -127,5 +133,8 @@ export function getBusinessHours(tenantId: string): Promise<WeekSchedule> {
     revalidate: 60,
     tags: [tagDoHorario(tenantId)],
   });
-  return runWithTenant(tenantId, emCache);
+  return runWithTenant(tenantId, emCache).catch(async (erro) => {
+    await reportarErro({ origem: "horario/leitura", erro, extra: { tenantId } });
+    return DEFAULT_SCHEDULE;
+  });
 }

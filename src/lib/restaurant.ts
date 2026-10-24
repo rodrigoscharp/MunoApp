@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { runWithTenant } from "@/lib/tenant-context";
+import { reportarErro } from "@/lib/observabilidade";
 
 /**
  * O que o PUT aceita gravar.
@@ -64,16 +65,17 @@ export function tagDoRestaurante(tenantId: string): string {
 async function lerRestaurantInfo(tenantId: string): Promise<RestaurantInfo> {
   // Tenant não é model escopado por tenant (ver tenant-scoped-models.ts), por
   // isso a consulta é direta pelo id.
+  //
+  // Falha de banco propaga de propósito: dentro do unstable_cache, um `.catch`
+  // que devolvesse o cadastro vazio o guardava por 60s, e o cabeçalho ficava
+  // sem nome e sem logo um minuto inteiro depois de o banco já ter voltado.
+  // Quem degrada é getRestaurantInfo, fora do cache.
   const [tenant, setting] = await Promise.all([
-    prisma.tenant
-      .findUnique({ where: { id: tenantId }, select: { nome: true } })
-      .catch(() => null),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { nome: true } }),
     runWithTenant(tenantId, () =>
-      prisma.setting
-        .findUnique({
-          where: { tenantId_key: { tenantId, key: "restaurant_info" } },
-        })
-        .catch(() => null)
+      prisma.setting.findUnique({
+        where: { tenantId_key: { tenantId, key: "restaurant_info" } },
+      })
     ),
   ]);
 
@@ -104,5 +106,8 @@ export function getRestaurantInfo(tenantId: string): Promise<RestaurantInfo> {
     revalidate: 60,
     tags: [tagDoRestaurante(tenantId)],
   });
-  return runWithTenant(tenantId, emCache);
+  return runWithTenant(tenantId, emCache).catch(async (erro) => {
+    await reportarErro({ origem: "restaurante/leitura", erro, extra: { tenantId } });
+    return { ...SEM_CADASTRO, name: "" };
+  });
 }
