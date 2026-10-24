@@ -33,10 +33,12 @@ vi.mock("@/lib/supabase", () => ({
 }));
 
 import { useTopicoRealtime, useCanalRealtime, esperaDaTentativa } from "./useTopicoRealtime";
+import { _esquecerCanais } from "@/lib/canal-compartilhado";
 
 const fetchMock = vi.fn();
 
 beforeEach(() => {
+  _esquecerCanais();
   canais.status.length = 0;
   canais.eventos.length = 0;
   canais.removidos = 0;

@@ -20,6 +20,8 @@ vi.mock("@/lib/supabase", () => {
 });
 
 import { ChatWindow } from "./ChatWindow";
+import { _esquecerChats } from "@/hooks/useChat";
+import { _esquecerCanais } from "@/lib/canal-compartilhado";
 
 const ORDER_ID = "pedido-abc123";
 const fetchMock = vi.fn();
@@ -78,6 +80,8 @@ async function escrever(texto: string) {
 const botaoEnviar = () => screen.getByRole("button", { name: "" }) as HTMLButtonElement;
 
 beforeEach(() => {
+  _esquecerChats();
+  _esquecerCanais();
   historico = [];
   postOk = true;
   contadorPost = 0;

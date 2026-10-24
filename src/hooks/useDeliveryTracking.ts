@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { useTopicoRealtime } from "@/hooks/useTopicoRealtime";
+import { useCanalRealtime } from "@/hooks/useTopicoRealtime";
 import { DeliveryTracking } from "@/types";
 
 /**
@@ -16,7 +15,6 @@ import { DeliveryTracking } from "@/types";
  */
 export function useDeliveryTracking(orderId: string) {
   const [tracking, setTracking] = useState<DeliveryTracking | null>(null);
-  const topic = useTopicoRealtime("order", orderId);
 
   // Posição inicial: o GET já é protegido por canViewOrder.
   useEffect(() => {
@@ -34,27 +32,19 @@ export function useDeliveryTracking(orderId: string) {
     };
   }, [orderId]);
 
-  useEffect(() => {
-    if (!topic) return;
-    const channel = supabase
-      .channel(topic)
-      .on("broadcast", { event: "tracking-updated" }, ({ payload }) => {
-        const lat = payload.lat as number;
-        const lng = payload.lng as number;
-        if (typeof lat !== "number" || typeof lng !== "number") return;
+  useCanalRealtime("order", orderId, {
+    "tracking-updated": (payload) => {
+      const lat = payload.lat as number;
+      const lng = payload.lng as number;
+      if (typeof lat !== "number" || typeof lng !== "number") return;
 
-        setTracking((anterior) =>
-          anterior
-            ? { ...anterior, lat, lng }
-            : ({ orderId, lat, lng } as DeliveryTracking)
-        );
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [topic, orderId]);
+      setTracking((anterior) =>
+        anterior
+          ? { ...anterior, lat, lng }
+          : ({ orderId, lat, lng } as DeliveryTracking)
+      );
+    },
+  });
 
   return tracking;
 }

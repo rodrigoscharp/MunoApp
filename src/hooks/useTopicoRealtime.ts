@@ -1,20 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { entrarNoCanal, esperaDaTentativa, reabrirCanal } from "@/lib/canal-compartilhado";
 
 type Canal = "kitchen" | "order" | "user";
 
-/**
- * Espera antes da tentativa `n` (0, 1, 2…): 2s, 4s, 8s… até 60s.
- *
- * Sem teto, uma cozinha que ficou uma hora sem rede passaria o resto do turno
- * esperando minutos entre tentativas; sem crescer, um servidor fora do ar
- * levaria uma chamada a cada 2s de cada tablet aberto.
- */
-export function esperaDaTentativa(n: number): number {
-  return Math.min(2_000 * 2 ** n, 60_000);
-}
+export { esperaDaTentativa };
 
 interface Guardado {
   chave: string;
@@ -133,71 +124,35 @@ export function useCanalRealtime(
   });
 
   const eventos = Object.keys(tratadores).sort().join(",");
+
   const [estadoCanal, setEstadoCanal] = useState<{ topic: string; estado: EstadoRealtime } | null>(
     null
   );
-  const [reabrir, setReabrir] = useState(0);
 
+  // O canal é dividido com os outros ouvintes do mesmo tópico (ver
+  // src/lib/canal-compartilhado.ts): sair daqui não derruba o chat ou o mapa
+  // que continuam abertos na mesma tela.
   useEffect(() => {
     if (!topic) return;
-    let ativo = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
-    let channel = supabase.channel(topic);
-    for (const evento of eventos.split(",").filter(Boolean)) {
-      channel = channel.on("broadcast", { event: evento }, ({ payload }) => {
-        ref.current[evento]?.((payload ?? {}) as Record<string, unknown>);
-      });
-    }
-
-    channel.subscribe((status: string) => {
-      // O removeChannel do cleanup dispara CLOSED; isso é a gente saindo, não
-      // o canal caindo.
-      if (!ativo) return;
-      if (status === "SUBSCRIBED") {
-        tentativasCanal.set(topic, 0);
-        clearTimeout(timer);
-        setEstadoCanal({ topic, estado: "conectado" });
-        return;
-      }
-      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-        setEstadoCanal({ topic, estado: "sem-tempo-real" });
-        // A biblioteca tenta reentrar sozinha depois de erro, mas não depois de
-        // CLOSED vindo do servidor. Reabrir do zero cobre os dois: se ela já
-        // tiver voltado quando o timer vencer, o SUBSCRIBED cancela o timer.
-        clearTimeout(timer);
-        const n = tentativasCanal.get(topic) ?? 0;
-        tentativasCanal.set(topic, n + 1);
-        timer = setTimeout(() => {
-          if (ativo) setReabrir((r) => r + 1);
-        }, esperaDaTentativa(n));
-      }
+    return entrarNoCanal(topic, eventos.split(",").filter(Boolean), {
+      tratadores: () => ref.current,
+      aoMudarStatus: (status) =>
+        setEstadoCanal({
+          topic,
+          estado:
+            status === "conectado"
+              ? "conectado"
+              : status === "caiu"
+                ? "sem-tempo-real"
+                : "conectando",
+        }),
     });
-
-    // O cliente do Supabase devolve o canal que já existe para o mesmo tópico
-    // (a tela do pedido abre acompanhamento, chat e mapa no mesmo), e o
-    // subscribe de um canal já de pé não chama o callback. Sem esta leitura o
-    // estado ficaria em "conectando" para sempre nesse caso.
-    if ((channel as unknown as { state?: string }).state === "joined") {
-      queueMicrotask(() => {
-        if (ativo) setEstadoCanal({ topic, estado: "conectado" });
-      });
-    }
-
-    return () => {
-      ativo = false;
-      clearTimeout(timer);
-      supabase.removeChannel(channel);
-    };
-  }, [topic, eventos, reabrir]);
+  }, [topic, eventos]);
 
   // Rede que volta: não espera o timer da próxima tentativa.
   useEffect(() => {
     if (!topic || typeof window === "undefined") return;
-    const aoVoltar = () => {
-      tentativasCanal.set(topic, 0);
-      setReabrir((r) => r + 1);
-    };
+    const aoVoltar = () => reabrirCanal(topic, true);
     window.addEventListener("online", aoVoltar);
     return () => window.removeEventListener("online", aoVoltar);
   }, [topic]);
@@ -208,7 +163,3 @@ export function useCanalRealtime(
   if (estadoCanal?.topic !== topic) return "conectando";
   return estadoCanal.estado;
 }
-
-// Fora do estado do React de propósito: a contagem precisa sobreviver ao
-// remount do effect que ela mesma provoca.
-const tentativasCanal = new Map<string, number>();
