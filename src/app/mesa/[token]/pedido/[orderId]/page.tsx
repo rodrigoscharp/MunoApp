@@ -2,6 +2,7 @@
 
 import { iniciarPollingVisivel } from "@/lib/polling-visivel";
 import { useEffect, useState } from "react";
+import { useOrderRealtime } from "@/hooks/useOrderRealtime";
 import { useParams } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { CheckCircle, UtensilsCrossed, ArrowRight } from "lucide-react";
@@ -32,27 +33,42 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "Cancelado",
 };
 
+async function buscarPedido(orderId: string): Promise<Order | null> {
+  try {
+    const res = await fetch(`/api/orders/${orderId}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return { ...data, total: Number(data.total) };
+  } catch {
+    // Falha passageira: a próxima volta do polling tenta de novo.
+    return null;
+  }
+}
+
 export default function MesaOrderConfirmationPage() {
   const params = useParams<{ token: string; orderId: string }>();
   const [order, setOrder] = useState<Order | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(`/api/orders/${params.orderId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setOrder({ ...data, total: Number(data.total) });
-        }
-      } catch {
-        // ignore
-      }
-    }
-    load();
+  // Pedido de mesa sem conta não tem dono, e canViewOrder libera o canal do
+  // pedido para quem tem o link: o aviso chega na hora pelo tempo real.
+  const { updatedAt } = useOrderRealtime(params.orderId);
 
-    // Poll for status updates every 10s
-    return iniciarPollingVisivel(load, 10000);
+  useEffect(() => {
+    const load = () => {
+      buscarPedido(params.orderId).then((o) => o && setOrder(o));
+    };
+    load();
+    // Reserva para quando o canal de tempo real não vier (tópico recusado,
+    // Supabase fora do ar). Com o aviso instantâneo, 30s basta.
+    return iniciarPollingVisivel(load, 30000);
   }, [params.orderId]);
+
+  // O aviso traz só o status; o pedido inteiro vem da rota, que é a fonte
+  // de verdade (itens, total) e não depende do formato do broadcast.
+  useEffect(() => {
+    if (!updatedAt) return;
+    buscarPedido(params.orderId).then((o) => o && setOrder(o));
+  }, [updatedAt, params.orderId]);
 
   return (
     <div className="max-w-lg mx-auto px-4 py-12 flex flex-col items-center gap-6 text-center">
