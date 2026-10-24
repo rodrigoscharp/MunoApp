@@ -13,7 +13,12 @@ export default async function AdminLayout({
   children: React.ReactNode;
 }) {
   const session = await auth();
-  if (!session || session.user.role !== "ADMIN") redirect("/login");
+  // O layout não conhece o caminho pedido; /adm é o ponto de entrada da
+  // gestão e é para lá que o login devolve. O LoginForm passa o callbackUrl
+  // por destinoSeguro().
+  if (!session || session.user.role !== "ADMIN") {
+    redirect(`/login?callbackUrl=${encodeURIComponent("/adm")}`);
+  }
 
   // A faixa mora no layout para aparecer em toda tela de gestão, e não só na
   // que o dono resolveu abrir. Ela olha a cobrança em aberto mais antiga, não

@@ -80,6 +80,32 @@ describe("LoginForm: para onde vai depois de entrar", () => {
     expect(nav.push).toHaveBeenCalledWith("/adm");
   });
 
+  it("cozinha vai para o quadro, não para a vitrine", async () => {
+    nav.papel = "KITCHEN";
+
+    await entrar();
+
+    expect(nav.push).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("cozinha barrada numa página volta para ela", async () => {
+    nav.papel = "KITCHEN";
+    nav.busca = new URLSearchParams({ callbackUrl: "/dashboard" });
+
+    await entrar();
+
+    expect(nav.push).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("callbackUrl externo não tira a cozinha do quadro", async () => {
+    nav.papel = "KITCHEN";
+    nav.busca = new URLSearchParams({ callbackUrl: "//golpe.example" });
+
+    await entrar();
+
+    expect(nav.push).toHaveBeenCalledWith("/dashboard");
+  });
+
   it("callbackUrl interno continua valendo", async () => {
     nav.busca = new URLSearchParams({ callbackUrl: "/checkout" });
 

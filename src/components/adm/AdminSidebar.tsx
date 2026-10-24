@@ -20,6 +20,7 @@ import {
   CreditCard,
   Receipt,
   ExternalLink,
+  ChefHat,
 } from "lucide-react";
 
 // Função pura (não um valor fixo) porque "Mesas (QR)" só entra no grupo
@@ -30,6 +31,9 @@ function buildNavGroups(temMesaQr: boolean) {
     {
       label: "Resultados",
       items: [
+        // O quadro da cozinha mora fora de /adm, e o dono que também opera o
+        // balcão não tinha como chegar nele pelo painel.
+        { href: "/dashboard",  label: "Cozinha",   icon: ChefHat,         exact: false },
         { href: "/adm",        label: "Dashboard", icon: BarChart2,       exact: true  },
         { href: "/adm/orders", label: "Pedidos",   icon: ShoppingBag,     exact: false },
         { href: "/adm/chats",  label: "Chats",     icon: MessageSquare,   exact: false },
