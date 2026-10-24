@@ -36,17 +36,34 @@ interface AppliedCoupon {
   freeShipping: boolean;
 }
 
-const schema = z.object({
-  customerName: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
-  customerPhone: z.string().min(8, "Telefone inválido").optional().or(z.literal("")),
-  notes: z.string().optional(),
-  rua: z.string().optional(),
-  numero: z.string().optional(),
-  complemento: z.string().optional(),
-});
+// O jeito de receber e o bairro moram no formulário, e não em estado solto,
+// para que o schema possa exigir endereço e telefone só na entrega. Antes essa
+// conferência era feita à mão no submit, e o erro aparecia num bloco no fim da
+// página, longe do campo que faltava.
+const schema = z
+  .object({
+    deliveryType: z.enum(["PICKUP", "DELIVERY"]),
+    zonaId: z.string().optional(),
+    customerName: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
+    customerPhone: z.string().min(8, "Telefone inválido").optional().or(z.literal("")),
+    notes: z.string().optional(),
+    rua: z.string().optional(),
+    numero: z.string().optional(),
+    complemento: z.string().optional(),
+  })
+  .superRefine((dados, ctx) => {
+    if (dados.deliveryType !== "DELIVERY") return;
+    const falta = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
+    if (!dados.zonaId) falta("zonaId", "Selecione o bairro de entrega.");
+    if (!dados.rua?.trim()) falta("rua", "Informe a rua.");
+    if (!dados.numero?.trim()) falta("numero", "Informe o número.");
+    if (!dados.customerPhone?.trim()) {
+      falta("customerPhone", "Informe um telefone para contato na entrega.");
+    }
+  });
 
 type FormData = z.infer<typeof schema>;
-type DeliveryType = "PICKUP" | "DELIVERY";
+type DeliveryType = FormData["deliveryType"];
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -60,8 +77,6 @@ export default function CheckoutPage() {
   const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[] | null>(null);
   const [requiresPayerDocument, setRequiresPayerDocument] = useState(false);
   const [payerDocument, setPayerDocument] = useState("");
-  const [deliveryType, setDeliveryType] = useState<DeliveryType>("PICKUP");
-  const [selectedZone, setSelectedZone] = useState<DeliveryZone | null>(null);
   const [estadoDasZonas, setEstadoDasZonas] = useState<EstadoDasZonas>({ estado: "carregando" });
   const zones = estadoDasZonas.estado === "pronto" ? estadoDasZonas.zonas : [];
   const semEntrega = estadoDasZonas.estado === "pronto" && zones.length === 0;
@@ -72,9 +87,22 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const { register, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, setValue, watch, formState: { errors, isSubmitted } } = useForm<FormData>({
     resolver: zodResolver(schema),
+    defaultValues: { deliveryType: "PICKUP", zonaId: "" },
   });
+  const deliveryType = watch("deliveryType");
+  const zonaId = watch("zonaId");
+  const selectedZone = zones.find((z) => z.id === zonaId) ?? null;
+  // Revalida na troca depois do primeiro envio, para o erro de entrega sumir
+  // quando o cliente muda para retirada.
+  const setDeliveryType = useCallback(
+    (tipo: DeliveryType) => {
+      setValue("deliveryType", tipo, { shouldValidate: isSubmitted });
+      setValue("zonaId", "", { shouldValidate: isSubmitted });
+    },
+    [setValue, isSubmitted]
+  );
 
   // A sessão chega de forma assíncrona, então o prefill é feito por efeito em vez
   // de defaultValues. O ref garante que isso rode uma única vez: o next-auth
@@ -131,7 +159,7 @@ export default function CheckoutPage() {
   // estava escolhida quando a lista chegou vazia, volta para retirada.
   useEffect(() => {
     if (semEntrega) setDeliveryType("PICKUP");
-  }, [semEntrega]);
+  }, [semEntrega, setDeliveryType]);
 
   // Trocar entrega por retirada derruba um cupom de frete grátis, e mexer no
   // carrinho pode derrubar o pedido mínimo. Em vez de adivinhar qual regra caiu,
@@ -212,13 +240,11 @@ export default function CheckoutPage() {
   }
 
   async function onSubmit(data: FormData) {
-    if (deliveryType === "DELIVERY") {
-      if (!selectedZone) { setError("Selecione o bairro de entrega."); return; }
-      if (!data.rua || !data.numero) { setError("Preencha rua e número."); return; }
-      if (!data.customerPhone || data.customerPhone.trim().length < 8) {
-        setError("Informe um telefone para contato na entrega.");
-        return;
-      }
+    // Endereço e telefone da entrega já passaram pelo schema. O bairro também,
+    // mas a lista pode ter sido recarregada sem ele.
+    if (data.deliveryType === "DELIVERY" && !selectedZone) {
+      setError("Selecione o bairro de entrega.");
+      return;
     }
 
     // Só bloqueia quando o gateway do restaurante realmente precisa do CPF
@@ -341,7 +367,7 @@ export default function CheckoutPage() {
                   key={type}
                   type="button"
                   disabled={type === "DELIVERY" && semEntrega}
-                  onClick={() => { setDeliveryType(type); setSelectedZone(null); }}
+                  onClick={() => setDeliveryType(type)}
                   className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition disabled:opacity-40 disabled:cursor-not-allowed ${
                     deliveryType === type
                       ? "border-brand bg-brand-light text-brand"
@@ -388,11 +414,7 @@ export default function CheckoutPage() {
                     </div>
                   ) : (
                     <select
-                      value={selectedZone?.id ?? ""}
-                      onChange={(e) => {
-                        const zone = zones.find((z) => z.id === e.target.value) ?? null;
-                        setSelectedZone(zone);
-                      }}
+                      {...register("zonaId")}
                       className="w-full px-3 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm text-neutral-700 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
                     >
                       <option value="">Selecione seu bairro</option>
@@ -401,6 +423,7 @@ export default function CheckoutPage() {
                       ))}
                     </select>
                   )}
+                  {errors.zonaId && <p className="text-brand text-xs mt-1">{errors.zonaId.message}</p>}
                 </div>
 
                 {/* Endereço */}
@@ -412,6 +435,7 @@ export default function CheckoutPage() {
                       placeholder="Rua das Flores"
                       className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
                     />
+                    {errors.rua && <p className="text-brand text-xs mt-1">{errors.rua.message}</p>}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-neutral-600 mb-1">Número *</label>
@@ -420,6 +444,7 @@ export default function CheckoutPage() {
                       placeholder="123"
                       className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
                     />
+                    {errors.numero && <p className="text-brand text-xs mt-1">{errors.numero.message}</p>}
                   </div>
                 </div>
                 <div>

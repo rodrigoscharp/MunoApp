@@ -133,3 +133,37 @@ describe("os bairros de entrega", () => {
     await screen.findByRole("option", { name: "Centro" });
   });
 });
+
+describe("a validação da entrega", () => {
+  // Bairro, rua, número e telefone eram conferidos só no submit, e o erro
+  // aparecia num bloco no fim da página, longe do campo. Agora é o schema que
+  // decide, e cada erro aparece ao lado do seu campo.
+  async function entregaSemDados() {
+    render(<CheckoutPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /entrega/i }));
+    await screen.findByRole("option", { name: "Centro" });
+    fireEvent.change(screen.getByPlaceholderText("(11) 99999-9999"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: /confirmar pedido/i }));
+  }
+
+  it("aponta cada campo que falta, ao lado dele", async () => {
+    await entregaSemDados();
+
+    await screen.findByText("Selecione o bairro de entrega.");
+    screen.getByText("Informe a rua.");
+    screen.getByText("Informe o número.");
+    screen.getByText("Informe um telefone para contato na entrega.");
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/orders", expect.anything());
+  });
+
+  it("retirada não pede endereço nem telefone", async () => {
+    render(<CheckoutPage />);
+    await screen.findByText("Finalizar Pedido");
+    fireEvent.click(screen.getByRole("button", { name: /confirmar pedido/i }));
+
+    await vi.waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith("/api/orders", expect.anything())
+    );
+    expect(screen.queryByText("Informe a rua.")).toBeNull();
+  });
+});
