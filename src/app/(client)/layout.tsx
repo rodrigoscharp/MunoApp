@@ -9,6 +9,7 @@ import { getRequestTenantId } from "@/lib/tenant-request";
 import { ConviteDeInstalacao } from "@/components/pwa/ConviteDeInstalacao";
 import { origemDoLogo } from "@/lib/pwa/logo-do-tenant";
 import { versaoDoLogo } from "@/lib/pwa/manifest";
+import { auth } from "@/lib/auth";
 
 /**
  * A identidade do restaurante nas tags que o manifest não alcança.
@@ -53,17 +54,25 @@ export default async function ClientLayout({
   children: React.ReactNode;
 }) {
   const tenantId = await getRequestTenantId();
-  const [info, schedule] = await Promise.all([
+  const [info, schedule, session] = await Promise.all([
     getRestaurantInfo(tenantId),
     getBusinessHours(tenantId),
+    auth(),
   ]);
 
   // O SessionProvider fica aqui, e não no layout raiz: este é o único ramo
   // com useSession (Header, checkout e as notificações de pedido). Na raiz ele
   // cobria também o subdomínio da plataforma, onde /api/auth/session não
   // existe e o fetch voltava com HTML.
+  //
+  // A sessão já vem do servidor. Sem ela, o provider nascia "carregando",
+  // buscava /api/auth/session depois da hidratação, e o Header pulava de
+  // "Entrar" para o menu do usuário na frente do cliente. O layout já é
+  // dinâmico (o tenant sai dos headers), então ler o cookie aqui não tira
+  // nenhuma página do cache. `null` também conta como resposta: o provider
+  // não busca de novo, e o login e o logout atualizam pelo próprio next-auth.
   return (
-    <SessionProvider>
+    <SessionProvider session={session}>
       <BusinessHours schedule={schedule} />
       <Header restaurantInfo={info} />
       <main className="flex-1">{children}</main>

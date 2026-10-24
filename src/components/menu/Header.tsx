@@ -2,15 +2,31 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { useSession, signOut } from "next-auth/react";
 import { useCart } from "@/hooks/useCart";
-import { CartDrawer } from "@/components/cart/CartDrawer";
+import dynamic from "next/dynamic";
 import { CartFlyAnimation } from "@/components/menu/CartFlyAnimation";
 import { useState } from "react";
 import { ShoppingCart, User, LogOut, Settings, ChefHat, Menu, X, ClipboardList } from "lucide-react";
 import type { RestaurantInfo } from "@/lib/restaurant";
-import { NotificationBell } from "@/components/menu/NotificationBell";
 import { useAnimacaoAoMudar } from "@/hooks/useAnimacaoAoMudar";
+
+// A gaveta do carrinho fica fora do bundle do cardápio: quase toda visita
+// olha o cardápio antes de abrir o carrinho, e ela só é montada quando o
+// cliente se aproxima do botão (ver `prepararCarrinho`).
+const CartDrawer = dynamic(
+  () => import("@/components/cart/CartDrawer").then((m) => m.CartDrawer),
+  { ssr: false }
+);
+
+// O sino só aparece com sessão, e ele traz o supabase-js junto
+// (useOrderNotifications importa o cliente do Realtime). Importado direto, o
+// visitante anônimo, que é a maioria, baixava a biblioteca sem usar.
+const NotificationBell = dynamic(
+  () => import("@/components/menu/NotificationBell").then((m) => m.NotificationBell),
+  { ssr: false }
+);
 
 interface HeaderProps {
   restaurantInfo: RestaurantInfo;
@@ -25,6 +41,10 @@ export function Header({ restaurantInfo }: HeaderProps) {
   );
 
   const [cartOpen, setCartOpen] = useState(false);
+  // Monta a gaveta (ainda fechada) no primeiro sinal de intenção, para o
+  // chunk já ter chegado no clique e a abertura manter a animação de entrada.
+  const [carrinhoMontado, setCarrinhoMontado] = useState(false);
+  const prepararCarrinho = () => setCarrinhoMontado(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   // Remontar o badge reinicia a animação do CSS. A duração já mora lá; não
@@ -39,7 +59,7 @@ export function Header({ restaurantInfo }: HeaderProps) {
       <header className="sticky top-8 z-40 bg-white border-b border-neutral-200 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
           <Link href="/" className="shrink-0 flex items-center gap-3">
-            <Image src={restaurantInfo.logoUrl} alt={restaurantInfo.name} width={180} height={68} className="h-10 sm:h-16 w-auto object-contain" loading="eager" fetchPriority="high" unoptimized={restaurantInfo.logoUrl.startsWith("http")} />
+            <Image src={restaurantInfo.logoUrl} alt={restaurantInfo.name} width={180} height={68} className="h-10 sm:h-16 w-auto object-contain" loading="eager" fetchPriority="high" unoptimized={!imagemOtimizavel(restaurantInfo.logoUrl)} />
             <div className="flex flex-col justify-center leading-tight">
               <span className="text-sm sm:text-base font-bold text-neutral-900 tracking-tight">{restaurantInfo.name}</span>
               {/* Sem endereço cadastrado não se mostra o pino sozinho — e desde
@@ -75,7 +95,13 @@ export function Header({ restaurantInfo }: HeaderProps) {
             {/* Cart — id usado pela animação de partícula */}
             <button
               id="cart-btn"
-              onClick={() => setCartOpen(true)}
+              onPointerEnter={prepararCarrinho}
+              onPointerDown={prepararCarrinho}
+              onFocus={prepararCarrinho}
+              onClick={() => {
+                prepararCarrinho();
+                setCartOpen(true);
+              }}
               className="relative flex items-center justify-center w-10 h-10 rounded-full hover:bg-neutral-100 transition"
               aria-label="Abrir carrinho"
             >
@@ -175,7 +201,9 @@ export function Header({ restaurantInfo }: HeaderProps) {
         )}
       </header>
 
-      <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+      {carrinhoMontado && (
+        <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+      )}
 
       {userMenuOpen && (
         <div className="fixed inset-0 z-30" onClick={() => setUserMenuOpen(false)} />

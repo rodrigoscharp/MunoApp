@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useCart } from "@/hooks/useCart";
 import { formatCurrency } from "@/lib/utils";
 import { X, Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
@@ -13,6 +14,12 @@ interface CartDrawerProps {
 
 export function CartDrawer({ open, onClose }: CartDrawerProps) {
   const { items, updateQuantity, total } = useCart();
+  // O upsell busca o cardápio inteiro em /api/menu ao montar. Montado sempre,
+  // ele fazia essa busca em toda visita, inclusive de quem nunca abriu o
+  // carrinho. Agora nasce na primeira abertura com item e fica montado: fechar
+  // e reabrir não busca de novo (ele mesmo some quando o carrinho esvazia).
+  const [upsellAtivo, setUpsellAtivo] = useState(false);
+  if (open && items.length > 0 && !upsellAtivo) setUpsellAtivo(true);
 
   return (
     <>
@@ -96,7 +103,7 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
           )}
         </div>
 
-        <CartUpsell />
+        {upsellAtivo && <CartUpsell />}
 
         {/* Footer */}
         {items.length > 0 && (

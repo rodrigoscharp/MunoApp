@@ -4,13 +4,20 @@ import { useEffect } from "react";
 import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import marcador from "leaflet/dist/images/marker-icon.png";
+import marcador2x from "leaflet/dist/images/marker-icon-2x.png";
+import sombraDoMarcador from "leaflet/dist/images/marker-shadow.png";
 
 // Corrige ícone padrão do Leaflet no Next.js
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
+// Os PNGs do próprio pacote, empacotados pelo build: mesma origem, com hash
+// no nome e cache longo. Antes vinham do unpkg, uma origem a mais para o
+// celular resolver no meio do mapa e uma versão fixa que não acompanhava a
+// do leaflet instalado.
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconRetinaUrl: marcador2x.src,
+  iconUrl: marcador.src,
+  shadowUrl: sombraDoMarcador.src,
 });
 
 const motoboyIcon = L.divIcon({

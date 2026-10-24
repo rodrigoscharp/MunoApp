@@ -3,6 +3,7 @@
 import { iniciarPollingVisivel } from "@/lib/polling-visivel";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useTopicoRealtime } from "@/hooks/useTopicoRealtime";
@@ -134,6 +135,7 @@ type OrderResumo = { id: string } & OrderMeta;
 
 export function useOrderNotifications() {
   const { data: session } = useSession();
+  const router = useRouter();
   const [notifications, setNotifications] = useState<OrderNotification[]>(loadFromStorage);
   const userId = session?.user?.id;
   // Nome secreto do canal do próprio usuário, entregue pelo servidor.
@@ -202,12 +204,48 @@ export function useOrderNotifications() {
         duration: 7000,
         action: {
           label: "Ver chat",
-          onClick: () => { window.location.href = `/pedidos/${orderId}/chat`; },
+          // Pelo router, e não por location.href: navegação interna recarregava
+          // o app inteiro, e o sino com ele, para abrir uma tela do mesmo app.
+          onClick: () => router.push(`/pedidos/${orderId}/chat`),
         },
       });
     },
-    []
+    [router]
   );
+
+  // Pedidos: uma busca inicial e o polling de reserva. Depende só do usuário,
+  // e não do tópico: antes, a chegada do nome do canal (logo depois de montar)
+  // reiniciava o efeito e repetia a busca inicial. A primeira rodada de
+  // fetchAndCompare só registra (pedido desconhecido não notifica), então ela
+  // mesma faz o papel do antigo initStatuses, que era uma segunda cópia dela.
+  useEffect(() => {
+    if (!userId) return;
+
+    async function fetchAndCompare() {
+      try {
+        // `mine=1` pede a versão enxuta da rota (id, status, deliveryType e
+        // updatedAt dos pedidos do próprio usuário). A resposta continua uma
+        // lista de pedidos, então a rota antiga, que ignora o parâmetro, serve.
+        const res = await fetch("/api/orders?mine=1");
+        if (!res.ok) return;
+        const orders: OrderResumo[] = await res.json();
+
+        for (const order of orders) {
+          const prev = knownOrders.current.get(order.id);
+          if (prev !== undefined && prev.status !== order.status) {
+            addNotification(order.id, order.status, order.deliveryType);
+          }
+          knownOrders.current.set(order.id, {
+            status: order.status,
+            deliveryType: order.deliveryType,
+          });
+        }
+      } catch {}
+    }
+
+    fetchAndCompare();
+    return iniciarPollingVisivel(fetchAndCompare, POLL_INTERVAL);
+  }, [userId, addNotification]);
 
   useEffect(() => {
     if (!userId) return;
@@ -246,49 +284,17 @@ export function useOrderNotifications() {
       return filaDeChat;
     }
 
-    async function fetchAndCompare() {
-      try {
-        const res = await fetch("/api/orders");
-        if (!res.ok) return;
-        const orders: OrderResumo[] = await res.json();
-
-        for (const order of orders) {
-          const prev = knownOrders.current.get(order.id);
-          if (prev !== undefined && prev.status !== order.status) {
-            addNotification(order.id, order.status, order.deliveryType);
-          }
-          knownOrders.current.set(order.id, {
-            status: order.status,
-            deliveryType: order.deliveryType,
-          });
-        }
-      } catch {}
-    }
-
-    async function initStatuses() {
-      try {
-        const res = await fetch("/api/orders");
-        if (!res.ok) return;
-        const orders: OrderResumo[] = await res.json();
-        orders.forEach((o) =>
-          knownOrders.current.set(o.id, {
-            status: o.status,
-            deliveryType: o.deliveryType,
-          })
-        );
-      } catch {}
-    }
-
-    initStatuses();
+    // Sem o nome do canal, o polling é a única fonte de chat. Com ele, o
+    // `chat-message` do Broadcast já dispara a busca na hora, e o polling a
+    // cada 60s seria uma consulta por cliente que nunca traz nada novo.
+    if (!topic) return iniciarPollingVisivel(agendarBuscaDeChat, POLL_INTERVAL);
 
     // Canal do próprio cliente. A versão anterior assinava postgres_changes na
     // tabela Order inteira e filtrava no navegador — o que, além do fan-out,
     // nunca chegou a disparar: Order tem RLS e a policy bloqueia a role anon
     // por inteiro (app.current_tenant não é definido). Na prática o sino vivia
     // só do polling. Agora o servidor publica direto em user:<id>.
-    const channel = !topic
-      ? null
-      : supabase
+    const channel = supabase
       .channel(topic)
       .on("broadcast", { event: "order-updated" }, ({ payload }) => {
         const orderId = payload.orderId as string;
@@ -317,13 +323,8 @@ export function useOrderNotifications() {
       })
       .subscribe();
 
-    const pararPoll = iniciarPollingVisivel(fetchAndCompare, POLL_INTERVAL);
-    const pararChatPoll = iniciarPollingVisivel(agendarBuscaDeChat, POLL_INTERVAL);
-
     return () => {
-      if (channel) supabase.removeChannel(channel);
-      pararPoll();
-      pararChatPoll();
+      supabase.removeChannel(channel);
     };
   }, [userId, topic, addNotification, addChatNotification]);
 

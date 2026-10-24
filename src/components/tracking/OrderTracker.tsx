@@ -192,9 +192,11 @@ export function OrderTracker({ orderId, initialStatus, order, canChat }: Props) 
 
   return (
     <>
+      {/* A fonte é a do app (Geist, variável, cobre do 400 ao 900). O @import
+          do Outfit aqui dentro baixava seis pesos do Google Fonts no meio da
+          tela de acompanhamento, sem preload, e a página trocava de fonte
+          depois de pintada. */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
-        .tracker-root { font-family: 'Outfit', sans-serif; }
         @keyframes status-pop {
           0%   { transform: scale(1); }
           40%  { transform: scale(1.18); }
@@ -214,7 +216,7 @@ export function OrderTracker({ orderId, initialStatus, order, canChat }: Props) 
         .dot-ping   { animation: dot-ping 1.5s ease-in-out infinite; }
       `}</style>
 
-      <div className="tracker-root space-y-3">
+      <div className="space-y-3">
 
         {/* ── Hero do status ─────────────────────────────────────────────── */}
         <div
