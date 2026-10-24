@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useCart, useCarrinhoHidratado } from "@/hooks/useCart";
+import { useCart, useCarrinhoHidratado, tirarDoCarrinho } from "@/hooks/useCart";
+import { avisoDeIndisponiveis, lerErroDoPedido } from "@/lib/erro-do-pedido";
 import { useTable } from "@/hooks/useTable";
 import { useRouter, useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -32,7 +33,7 @@ export default function MesaCheckoutPage() {
   const [error, setError] = useState("");
   const [tableInfo, setTableInfo] = useState<{ tableId: string; tableNumber: number; tableName: string | null } | null>(null);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, setError: setErroNoCampo, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
 
@@ -62,6 +63,9 @@ export default function MesaCheckoutPage() {
   if (items.length === 0) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        {/* O carrinho pode ter esvaziado agora, pelo 422 de item fora do ar:
+            o aviso de quais itens saíram continua aqui. */}
+        {error && <p className="text-brand-dark text-sm mb-4">{error}</p>}
         <p className="text-neutral-500 mb-4">Seu carrinho está vazio.</p>
         <Link href={`/mesa/${params.token}/cardapio`} className="text-brand font-medium hover:underline">
           Ver cardápio
@@ -105,8 +109,22 @@ export default function MesaCheckoutPage() {
       });
 
       if (!orderRes.ok) {
-        const errBody = await orderRes.json().catch(() => ({}));
-        throw new Error(errBody?.error ? JSON.stringify(errBody.error) : "Erro ao criar pedido");
+        const erro = lerErroDoPedido(await orderRes.json().catch(() => null));
+        // Item que saiu do ar sai do carrinho, e o cliente fica sabendo qual.
+        // Reenviar o mesmo carrinho só devolveria o mesmo 422.
+        const removidos = tirarDoCarrinho(erro.indisponiveis);
+        if (removidos.length > 0) {
+          setError(avisoDeIndisponiveis(removidos));
+          setLoading(false);
+          return;
+        }
+        // A mesa só mostra nome, telefone e observações; o resto fica na
+        // mensagem geral.
+        for (const campo of ["customerName", "customerPhone", "notes"] as const) {
+          const mensagem = erro.campos[campo];
+          if (mensagem) setErroNoCampo(campo, { message: mensagem });
+        }
+        throw new Error(erro.mensagem);
       }
 
       const order = await orderRes.json();
@@ -169,6 +187,7 @@ export default function MesaCheckoutPage() {
                 placeholder="(11) 99999-9999"
                 className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
               />
+              {errors.customerPhone && <p className="text-brand text-xs mt-1">{errors.customerPhone.message}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">Observações (opcional)</label>
@@ -178,6 +197,7 @@ export default function MesaCheckoutPage() {
                 rows={2}
                 className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition resize-none"
               />
+              {errors.notes && <p className="text-brand text-xs mt-1">{errors.notes.message}</p>}
             </div>
           </div>
 

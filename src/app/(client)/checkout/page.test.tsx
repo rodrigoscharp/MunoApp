@@ -167,3 +167,47 @@ describe("a validação da entrega", () => {
     expect(screen.queryByText("Informe a rua.")).toBeNull();
   });
 });
+
+describe("quando o servidor recusa o pedido", () => {
+  async function confirmarRetirada() {
+    render(<CheckoutPage />);
+    await screen.findByText("Finalizar Pedido");
+    fireEvent.click(screen.getByRole("button", { name: /confirmar pedido/i }));
+  }
+
+  it("issue do zod vira erro no campo, e nada de JSON na tela", async () => {
+    pedido = () =>
+      respostaJson(
+        { error: [{ code: "too_big", path: ["customerPhone"], message: "Too big: expected string" }] },
+        400
+      );
+    await confirmarRetirada();
+
+    await screen.findByText("Confira o telefone.");
+    screen.getByText("Confira os campos destacados.");
+    expect(document.body.textContent).not.toMatch(/too_big|Too big|\[\{/);
+  });
+
+  it("item indisponível sai do carrinho e o cliente fica sabendo qual", async () => {
+    useCart.getState().addItem({ id: "item-2", name: "Suco", price: 8, imageUrl: null }, 1);
+    pedido = () =>
+      respostaJson(
+        { error: "Um ou mais itens do carrinho não estão mais disponíveis.", indisponiveis: ["item-1"] },
+        422
+      );
+    await confirmarRetirada();
+
+    await screen.findByText(/X-Salada não está mais disponível e saiu do seu carrinho/);
+    expect(useCart.getState().items.map((i) => i.id)).toEqual(["item-2"]);
+    expect(nav.push).not.toHaveBeenCalled();
+  });
+
+  it("se o carrinho esvaziar, o aviso continua na tela", async () => {
+    pedido = () =>
+      respostaJson({ error: "Um ou mais itens...", indisponiveis: ["item-1"] }, 422);
+    await confirmarRetirada();
+
+    await screen.findByText(/seu carrinho está vazio/i);
+    screen.getByText(/X-Salada não está mais disponível/);
+  });
+});

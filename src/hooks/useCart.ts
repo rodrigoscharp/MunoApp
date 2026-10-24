@@ -122,6 +122,21 @@ export function trocarContextoDoCarrinho(contexto: ContextoDoCarrinho) {
 }
 
 /**
+ * Tira do carrinho todas as linhas dos itens apontados (o 422 de item fora do
+ * ar devolve ids de menuItem) e devolve os nomes, sem repetir, para o checkout
+ * dizer ao cliente o que saiu. Sem isso, o cliente reenviava o mesmo carrinho
+ * e levava o mesmo 422 sem saber qual item tirar.
+ */
+export function tirarDoCarrinho(menuItemIds: string[]): string[] {
+  const fora = new Set(menuItemIds);
+  const { items } = useCart.getState();
+  const saem = items.filter((i) => fora.has(i.id));
+  if (saem.length === 0) return [];
+  useCart.setState({ items: items.filter((i) => !fora.has(i.id)) });
+  return [...new Set(saem.map((i) => i.name))];
+}
+
+/**
  * Se o carrinho guardado no navegador já foi lido.
  *
  * O HTML do servidor nasce com o carrinho vazio, porque o servidor não vê o

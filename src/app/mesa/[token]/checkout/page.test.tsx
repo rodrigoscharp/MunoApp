@@ -109,3 +109,34 @@ describe("a mesa do pedido", () => {
     expect(pedidoEnviado()).toBeUndefined();
   });
 });
+
+describe("quando o servidor recusa o pedido", () => {
+  function recusar(corpo: unknown, status: number) {
+    fetchMock.mockImplementation((url: string) => {
+      if (url === "/api/tables/token/token-8") {
+        return respostaJson({ id: "id-8", number: 8, name: null, token: "token-8" });
+      }
+      return respostaJson(corpo, status);
+    });
+  }
+
+  it("issue do zod vira erro no campo, e nada de JSON na tela", async () => {
+    recusar({ error: [{ code: "too_big", path: ["customerName"], message: "Too big" }] }, 400);
+    render(<MesaCheckoutPage />);
+    await confirmar();
+
+    await screen.findByText("Confira o nome.");
+    expect(document.body.textContent).not.toMatch(/too_big|Too big|\[\{/);
+  });
+
+  it("item indisponível sai do carrinho e o cliente fica sabendo qual", async () => {
+    useCart.getState().addItem({ id: "item-2", name: "Suco", price: 8, imageUrl: null }, 1);
+    recusar({ error: "Um ou mais itens...", indisponiveis: ["item-1"] }, 422);
+    render(<MesaCheckoutPage />);
+    await confirmar();
+
+    await screen.findByText(/X-Salada não está mais disponível e saiu do seu carrinho/);
+    expect(useCart.getState().items.map((i) => i.id)).toEqual(["item-2"]);
+    expect(nav.push).not.toHaveBeenCalled();
+  });
+});

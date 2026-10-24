@@ -17,6 +17,7 @@ import {
   chaveDoCarrinho,
   contextoPeloCaminho,
   trocarContextoDoCarrinho,
+  tirarDoCarrinho,
 } from "@/hooks/useCart";
 
 const item = (over: Partial<{ id: string; name: string; price: number; notes: string }> = {}) => ({
@@ -191,6 +192,23 @@ describe("o carrinho sobrevive ao refresh", () => {
     carrinho().clearCart();
 
     expect(JSON.parse(localStorage.getItem("muno-cart")!).state.items).toEqual([]);
+  });
+});
+
+describe("tirar do carrinho o que saiu do ar", () => {
+  it("remove todas as linhas dos itens apontados e devolve os nomes, sem repetir", () => {
+    carrinho().addItem(item({ id: "a", name: "X-Salada", notes: "sem cebola" }));
+    carrinho().addItem(item({ id: "a", name: "X-Salada" }));
+    carrinho().addItem(item({ id: "b", name: "Suco" }));
+
+    expect(tirarDoCarrinho(["a", "inexistente"])).toEqual(["X-Salada"]);
+    expect(carrinho().items.map((i) => i.id)).toEqual(["b"]);
+  });
+
+  it("lista vazia não mexe em nada", () => {
+    carrinho().addItem(item());
+    expect(tirarDoCarrinho([])).toEqual([]);
+    expect(carrinho().items).toHaveLength(1);
   });
 });
 
