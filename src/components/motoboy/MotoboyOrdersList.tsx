@@ -1,12 +1,20 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { MapPin, Clock, Package, ChevronRight, Bike, RefreshCw, Banknote, CreditCard, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
-import { useTopicoRealtime } from "@/hooks/useTopicoRealtime";
+import { useCanalRealtime } from "@/hooks/useTopicoRealtime";
+import { iniciarPollingVisivel } from "@/lib/polling-visivel";
+import { reacaoDoMotoboy, idsNovos } from "@/lib/motoboy-fila";
+
+// Rajada de avisos (cozinha avançando vários pedidos de uma vez) vira um
+// refresh só. Curto o bastante para o pedido novo aparecer sem demora.
+const ESPERA_DO_REFRESH_MS = 400;
+// Polling de reserva só sem tempo real: com o canal de pé, todo pedido que
+// interessa à fila chega como aviso.
+const POLL_SEM_TEMPO_REAL_MS = 20_000;
 
 interface OrderItem {
   name: string;
@@ -37,40 +45,69 @@ interface Props {
 }
 
 export function MotoboyOrdersList({ availableOrders, activeDelivery }: Props) {
-  const topic = useTopicoRealtime("kitchen");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [newOrderAlert, setNewOrderAlert] = useState(false);
+  const timerRefresh = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const idsNaLista = availableOrders.map((o) => o.id);
+  const idsRef = useRef(idsNaLista);
+  useEffect(() => {
+    idsRef.current = idsNaLista;
+  });
+
+  function recarregarEmBreve() {
+    clearTimeout(timerRefresh.current);
+    timerRefresh.current = setTimeout(() => {
+      startTransition(() => router.refresh());
+    }, ESPERA_DO_REFRESH_MS);
+  }
+  useEffect(() => () => clearTimeout(timerRefresh.current), []);
 
   // Escuta a fila do restaurante. Antes era postgres_changes na tabela Order,
   // que nunca disparou (RLS em Order bloqueia a role anon) — na prática o
-  // motoboy só via pedido novo ao recarregar a página na mão.
+  // motoboy só via pedido novo ao recarregar a página na mão. Só reage ao que
+  // muda esta lista (ver reacaoDoMotoboy); o resto do movimento da cozinha
+  // não custa um refresh da página.
+  const estado = useCanalRealtime("kitchen", null, {
+    "order-updated": (payload) => {
+      const reacao = reacaoDoMotoboy(payload, idsRef.current);
+      if (!reacao) return;
+      if (reacao === "novo") {
+        setNewOrderAlert(true);
+        toast.info("Novo pedido disponível para entrega!", { duration: 5000 });
+      }
+      recarregarEmBreve();
+    },
+  });
+  const conectado = estado === "conectado";
+
   useEffect(() => {
-    if (!topic) return;
-    const channel = supabase
-      .channel(topic)
-      .on("broadcast", { event: "order-updated" }, ({ payload }) => {
-        const status = payload.status as string | undefined;
-        const deliveryType = payload.deliveryType as string | undefined;
+    if (conectado) return;
+    return iniciarPollingVisivel(() => {
+      startTransition(() => router.refresh());
+    }, POLL_SEM_TEMPO_REAL_MS);
+  }, [conectado, router]);
 
-        if (status === "READY" && deliveryType === "DELIVERY") {
-          setNewOrderAlert(true);
-          toast.info("Novo pedido disponível para entrega!", { duration: 5000 });
-          startTransition(() => router.refresh());
-        }
-
-        // Recarrega se algum pedido for aceito por outro motoboy
-        if (status === "OUT_FOR_DELIVERY") {
-          startTransition(() => router.refresh());
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [router, topic]);
+  // Vibra quando entra corrida nova na lista, venha ela do aviso ou do
+  // polling. O celular está no bolso ou no suporte da moto; o toast sozinho
+  // ninguém vê.
+  const anteriores = useRef<string[] | null>(null);
+  const chaveDosIds = idsNaLista.join(",");
+  useEffect(() => {
+    const atuais = chaveDosIds ? chaveDosIds.split(",") : [];
+    const antes = anteriores.current;
+    anteriores.current = atuais;
+    if (antes === null || idsNovos(antes, atuais).length === 0) return;
+    if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+      try {
+        navigator.vibrate([200, 100, 200]);
+      } catch {
+        // Alguns navegadores lançam sem gesto recente; vibrar é bônus.
+      }
+    }
+  }, [chaveDosIds]);
 
   async function acceptOrder(orderId: string) {
     setAcceptingId(orderId);

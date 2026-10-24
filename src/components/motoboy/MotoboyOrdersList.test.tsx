@@ -261,4 +261,50 @@ describe("o aviso de pedido novo", async () => {
     expect(refresh).not.toHaveBeenCalled();
     expect(toastInfo).not.toHaveBeenCalled();
   });
+
+  it("pedido da lista cancelado pela cozinha sai da tela", async () => {
+    montar([corrida()]);
+    await waitFor(() => expect(aoReceber).not.toBeNull());
+    aoReceber?.({ payload: { orderId: "pedido-abc123", status: "CANCELLED" } });
+
+    await waitFor(() => expect(refresh).toHaveBeenCalled());
+  });
+
+  it("rajada de avisos vira um refresh só", async () => {
+    montar([]);
+    await waitFor(() => expect(aoReceber).not.toBeNull());
+    for (const id of ["a", "b", "c"]) {
+      aoReceber?.({ payload: { id, status: "READY", deliveryType: "DELIVERY" } });
+    }
+
+    await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 500));
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("vibração", () => {
+  it("vibra quando entra corrida nova na lista, e não na primeira pintura", () => {
+    const vibrate = vi.fn();
+    Object.defineProperty(navigator, "vibrate", { value: vibrate, configurable: true });
+
+    const { rerender } = montar([corrida()]);
+    expect(vibrate).not.toHaveBeenCalled();
+
+    rerender(
+      <MotoboyOrdersList
+        availableOrders={[corrida(), corrida({ id: "pedido-novo999" })] as never}
+        activeDelivery={null}
+      />
+    );
+    expect(vibrate).toHaveBeenCalledTimes(1);
+
+    delete (navigator as unknown as Record<string, unknown>).vibrate;
+  });
+
+  it("sem suporte a vibração, nada quebra", () => {
+    const { rerender } = montar([]);
+    rerender(<MotoboyOrdersList availableOrders={[corrida()] as never} activeDelivery={null} />);
+    expect(screen.getByText("#ABC123")).toBeDefined();
+  });
 });
