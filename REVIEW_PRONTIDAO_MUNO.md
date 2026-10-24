@@ -206,7 +206,7 @@ Atualizado depois dos PRs #7, #8 e do que vem na branch `fix/revisao-itens-resta
 | A2 | Feito | Cancelamento pelo gateway grava `encerraEm` (fim do período pago) e o proxy fecha a gestão; `CANCELADA` fica só como decisão do operador. Corte por atraso em 10 dias úteis. |
 | A3 | Feito, falta configurar | Falhas de venda, pagamento sem inscrição, faxina, pagamento duplicado e estorno passam por `reportarErro`. Falta definir `ERROR_WEBHOOK_URL` (o build avisa se faltar) e o monitor em `/api/health`. |
 | A4 | Parcial | Alerta e checagem de idade do backup existem. Falta contratar PITR, ensaiar o restore, copiar o bucket de imagens e trocar o dump para streaming (hoje cabe com folga). |
-| A5 | Feito | Cache de 30s do restaurante no proxy e um pool de conexões só. Falta `connection_limit` na `DATABASE_URL` (Vercel). |
+| A5 | Feito | Cache de 30s do restaurante no proxy e um pool de conexões só. Falta `connection_limit=5&pool_timeout=10` na `DATABASE_URL` (Vercel), no pooler em modo transação (porta 6543, `pgbouncer=true`); `connection_limit=1` serializaria todo `Promise.all`. |
 | M1 | Parcial | Limite por IP no login (restaurante e console), bcrypt falso, senha nova de 8 caracteres. Falta o limitador compartilhado (Upstash/KV ou Firewall). |
 | M2 | Parcial | `PLATFORM_ALLOWED_IPS` restringe o console por IP. Falta o segundo fator. |
 | M3 | Feito | Chave de idempotência (unique no banco), horário validado no servidor, 60 pedidos/10 min por IP e restaurante, soma em centavos. |
@@ -225,4 +225,4 @@ Atualizado depois dos PRs #7, #8 e do que vem na branch `fix/revisao-itens-resta
 | B3, B4, B5, B7, B13 | Feito | Reset atômico, bcrypt falso, cota de 500 imagens por restaurante, nome e observações fora da leitura anônima, centavos, `tsx` em `devDependencies`. |
 | B1, B9, B10, B11, B12, I2 | Falta | Canal privado com RLS, dia 29 a 31, retry do checkout, valor do webhook da assinatura, heartbeat do cron, atualização de dependências. |
 
-**Para vender:** (1) preencher os termos, (2) validar Asaas no sandbox, (3) variáveis na Vercel (`ERROR_WEBHOOK_URL`, `RESEND_FROM_EMAIL`, `AUTH_SECRET`, `connection_limit=1`, `PLATFORM_ALLOWED_IPS`), (4) uma compra de ponta a ponta.
+**Para vender:** (1) preencher os termos, (2) validar Asaas no sandbox, (3) variáveis na Vercel (`ERROR_WEBHOOK_URL`, `RESEND_FROM_EMAIL`, `AUTH_SECRET`, `connection_limit=5&pool_timeout=10` no pooler 6543, `PLATFORM_ALLOWED_IPS`), (4) uma compra de ponta a ponta.
