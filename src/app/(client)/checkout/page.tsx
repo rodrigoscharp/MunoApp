@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useCart, useCarrinhoHidratado } from "@/hooks/useCart";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -19,6 +19,14 @@ interface DeliveryZone {
   name: string;
   price: number;
 }
+
+// Os três estados da lista de bairros. Antes era só a lista, e lista vazia
+// queria dizer ao mesmo tempo "carregando", "a busca falhou" e "o restaurante
+// não cadastrou bairro": o cliente via "Carregando bairros..." para sempre.
+type EstadoDasZonas =
+  | { estado: "carregando" }
+  | { estado: "erro" }
+  | { estado: "pronto"; zonas: DeliveryZone[] };
 
 // O que /api/coupons/validate devolve. É prévia: quem decide o desconto de
 // verdade é o POST /api/orders, que revalida tudo antes de gravar o total.
@@ -54,7 +62,9 @@ export default function CheckoutPage() {
   const [payerDocument, setPayerDocument] = useState("");
   const [deliveryType, setDeliveryType] = useState<DeliveryType>("PICKUP");
   const [selectedZone, setSelectedZone] = useState<DeliveryZone | null>(null);
-  const [zones, setZones] = useState<DeliveryZone[]>([]);
+  const [estadoDasZonas, setEstadoDasZonas] = useState<EstadoDasZonas>({ estado: "carregando" });
+  const zones = estadoDasZonas.estado === "pronto" ? estadoDasZonas.zonas : [];
+  const semEntrega = estadoDasZonas.estado === "pronto" && zones.length === 0;
   const [couponCode, setCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
   const [couponError, setCouponError] = useState("");
@@ -100,12 +110,28 @@ export default function CheckoutPage() {
       .catch(() => setEnabledMethods(["CASH"]));
   }, []);
 
-  useEffect(() => {
+  const carregarZonas = useCallback(() => {
+    setEstadoDasZonas({ estado: "carregando" });
     fetch("/api/delivery-zones")
-      .then((r) => r.json())
-      .then((data: DeliveryZone[]) => setZones(data.map((z) => ({ ...z, price: Number(z.price) }))))
-      .catch(() => {});
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((data: DeliveryZone[]) =>
+        setEstadoDasZonas({
+          estado: "pronto",
+          zonas: data.map((z) => ({ ...z, price: Number(z.price) })),
+        })
+      )
+      .catch(() => setEstadoDasZonas({ estado: "erro" }));
   }, []);
+
+  useEffect(() => {
+    carregarZonas();
+  }, [carregarZonas]);
+
+  // Restaurante sem bairro cadastrado não entrega pelo app: se a entrega
+  // estava escolhida quando a lista chegou vazia, volta para retirada.
+  useEffect(() => {
+    if (semEntrega) setDeliveryType("PICKUP");
+  }, [semEntrega]);
 
   // Trocar entrega por retirada derruba um cupom de frete grátis, e mexer no
   // carrinho pode derrubar o pedido mínimo. Em vez de adivinhar qual regra caiu,
@@ -314,8 +340,9 @@ export default function CheckoutPage() {
                 <button
                   key={type}
                   type="button"
+                  disabled={type === "DELIVERY" && semEntrega}
                   onClick={() => { setDeliveryType(type); setSelectedZone(null); }}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition ${
+                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition disabled:opacity-40 disabled:cursor-not-allowed ${
                     deliveryType === type
                       ? "border-brand bg-brand-light text-brand"
                       : "border-neutral-200 text-neutral-500 hover:border-neutral-300"
@@ -329,6 +356,13 @@ export default function CheckoutPage() {
               ))}
             </div>
 
+            {semEntrega && (
+              <p className="text-xs text-neutral-500">
+                Este restaurante não está fazendo entregas pelo app no momento. Você pode retirar
+                no local.
+              </p>
+            )}
+
             {deliveryType === "DELIVERY" && (
               <div className="space-y-3 pt-1">
 
@@ -337,8 +371,21 @@ export default function CheckoutPage() {
                   <label className="block text-xs font-medium text-neutral-600 mb-2 flex items-center gap-1">
                     <MapPin size={11} /> Selecione seu bairro *
                   </label>
-                  {zones.length === 0 ? (
+                  {estadoDasZonas.estado === "carregando" ? (
                     <p className="text-xs text-neutral-400 italic py-2">Carregando bairros disponíveis...</p>
+                  ) : estadoDasZonas.estado === "erro" ? (
+                    <div className="flex items-center justify-between gap-3 py-2">
+                      <p className="text-xs text-brand-dark">
+                        Não conseguimos carregar os bairros de entrega.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={carregarZonas}
+                        className="text-xs font-semibold text-brand hover:underline shrink-0"
+                      >
+                        Tentar de novo
+                      </button>
+                    </div>
                   ) : (
                     <select
                       value={selectedZone?.id ?? ""}

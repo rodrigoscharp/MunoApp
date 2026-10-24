@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, act } from "@testing-library/react";
+import { render, screen, cleanup, act, fireEvent } from "@testing-library/react";
 import { useCart } from "@/hooks/useCart";
 
 const nav = vi.hoisted(() => ({ push: vi.fn() }));
@@ -93,5 +93,43 @@ describe("antes de o carrinho ser lido do navegador", () => {
     useCart.setState({ items: [] });
     render(<CheckoutPage />);
     await screen.findByText(/seu carrinho está vazio/i);
+  });
+});
+
+describe("os bairros de entrega", () => {
+  it("falha ao buscar vira aviso com nova tentativa, não carregamento eterno", async () => {
+    zonas = () => respostaJson({ error: "x" }, 500);
+    render(<CheckoutPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /entrega/i }));
+    await screen.findByText(/não conseguimos carregar os bairros/i);
+    expect(screen.queryByText(/carregando bairros/i)).toBeNull();
+
+    zonas = () => respostaJson([{ id: "z1", name: "Centro", price: "5" }]);
+    fireEvent.click(screen.getByRole("button", { name: /tentar de novo/i }));
+    await screen.findByRole("option", { name: "Centro" });
+  });
+
+  it("rede caída também vira aviso", async () => {
+    zonas = () => Promise.reject(new TypeError("Failed to fetch"));
+    render(<CheckoutPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /entrega/i }));
+    await screen.findByText(/não conseguimos carregar os bairros/i);
+  });
+
+  it("sem bairro cadastrado, a entrega fica desligada e diz por quê", async () => {
+    zonas = () => respostaJson([]);
+    render(<CheckoutPage />);
+
+    await screen.findByText(/não está fazendo entregas pelo app/i);
+    const entrega = screen.getByRole("button", { name: /entrega/i }) as HTMLButtonElement;
+    expect(entrega.disabled).toBe(true);
+  });
+
+  it("com bairros, lista para escolher", async () => {
+    render(<CheckoutPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /entrega/i }));
+    await screen.findByRole("option", { name: "Centro" });
   });
 });
