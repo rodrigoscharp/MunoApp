@@ -17,7 +17,7 @@ import { OrderCard } from "./OrderCard";
 const STATUS_NO_QUADRO = new Set(KITCHEN_COLUMNS.map((c) => c.status));
 
 export function KitchenBoard() {
-  const { orders, loading, error, estado, refetch, updateOrderStatus, removeOrder } =
+  const { orders, loading, error, estado, refetch, updateOrderStatus, removeOrder, restoreOrder } =
     useKitchenOrders();
   const [printer, setPrinter] = useState<PrinterConfig>({ enabled: false, paperWidth: "80mm" });
 
@@ -28,7 +28,41 @@ export function KitchenBoard() {
       .catch(() => {});
   }, []);
 
+  // Pedidos com PATCH em andamento. O card trava os botões enquanto o id
+  // estiver aqui; o `if` no começo de cada ação cobre o toque que chega antes
+  // de o React repintar o botão desabilitado.
+  const [emAndamento, setEmAndamento] = useState<ReadonlySet<string>>(new Set());
+
+  /**
+   * Manda o status e devolve se o servidor aceitou. Erro de rede conta como
+   * recusa: antes o `fetch` que lançava deixava o card no passo otimista para
+   * sempre, sem aviso nenhum.
+   *
+   * Sem nova busca depois do sucesso: o passo otimista já pôs a tela no lugar,
+   * e o order-updated que o próprio PATCH publica corrige o resto.
+   */
+  async function enviarStatus(order: OrderWithItems, status: string): Promise<boolean> {
+    setEmAndamento((s) => new Set(s).add(order.id));
+    try {
+      const res = await fetch(`/api/orders/${order.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      setEmAndamento((s) => {
+        const n = new Set(s);
+        n.delete(order.id);
+        return n;
+      });
+    }
+  }
+
   async function advanceStatus(order: OrderWithItems) {
+    if (emAndamento.has(order.id)) return;
     const nextStatus = proximoStatus(order.status, order.deliveryType);
     if (!nextStatus) return;
 
@@ -39,61 +73,42 @@ export function KitchenBoard() {
       removeOrder(order.id);
     }
 
-    const res = await fetch(`/api/orders/${order.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: nextStatus }),
-    });
-
-    if (res.ok) {
+    if (await enviarStatus(order, nextStatus)) {
       toast.success(`#${order.id.slice(-6).toUpperCase()} → ${ORDER_STATUS_LABELS[nextStatus]}`);
     } else {
-      // Ressincroniza em vez de reverter na mão. Quando o passo otimista foi
-      // `removeOrder`, o pedido já não está na lista, e `updateOrderStatus`
-      // percorre com `map` sem encontrar nada para desfazer: o card sumia da
-      // cozinha e só voltava no polling de 30s, enquanto o aviso dizia que a
-      // operação tinha falhado. O servidor é a verdade; buscar de novo desfaz
-      // os dois casos.
-      await refetch();
+      // Devolve o retrato de antes do clique. `updateOrderStatus` não serve
+      // quando o passo otimista foi `removeOrder`: o pedido já não está na
+      // lista e o `map` não encontra nada para desfazer. Antes isto era um GET
+      // da fila inteira, que sem rede também falhava e deixava o card sumido.
+      restoreOrder(order);
       toast.error("Erro ao atualizar pedido");
     }
   }
 
   async function revertStatus(order: OrderWithItems) {
+    if (emAndamento.has(order.id)) return;
     const prevStatus = statusAnterior(order.status);
     if (!prevStatus) return;
 
     updateOrderStatus(order.id, prevStatus);
 
-    const res = await fetch(`/api/orders/${order.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: prevStatus }),
-    });
-
-    if (res.ok) {
+    if (await enviarStatus(order, prevStatus)) {
       toast.info(`#${order.id.slice(-6).toUpperCase()} ← ${ORDER_STATUS_LABELS[prevStatus]}`);
     } else {
-      updateOrderStatus(order.id, order.status);
+      restoreOrder(order);
       toast.error("Erro ao reverter pedido");
     }
   }
 
   async function cancelOrder(order: OrderWithItems) {
+    if (emAndamento.has(order.id)) return;
     // Optimistic: remove da lista imediatamente
     removeOrder(order.id);
 
-    const res = await fetch(`/api/orders/${order.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "CANCELLED" }),
-    });
-    if (res.ok) {
+    if (await enviarStatus(order, "CANCELLED")) {
       toast.error(`Pedido #${order.id.slice(-6).toUpperCase()} cancelado`);
     } else {
-      // Mesma razão do advanceStatus: o pedido já saiu da lista, então só uma
-      // nova busca o traz de volta.
-      await refetch();
+      restoreOrder(order);
       toast.error("Erro ao cancelar pedido");
     }
   }
@@ -165,6 +180,7 @@ export function KitchenBoard() {
                     hasPrev={!!statusAnterior(order.status)}
                     printerEnabled={printer.enabled}
                     paperWidth={printer.paperWidth}
+                    ocupado={emAndamento.has(order.id)}
                   />
                 ))}
 
