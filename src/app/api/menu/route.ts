@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
+import { invalidarCardapio } from "@/lib/menu-cache";
 import { z } from "zod";
 
 export async function GET(req: NextRequest) {
@@ -65,6 +66,9 @@ export async function POST(req: NextRequest) {
     }
 
     const item = await prisma.menuItem.create({ data: { ...parsed.data, tenantId } });
+    // Sem isto o item novo só apareceria na vitrine quando o cache de 1h
+    // vencesse. Mesmo motivo nas outras escritas de MenuItem e Category.
+    invalidarCardapio(tenantId);
     return NextResponse.json(item, { status: 201 });
   });
 }

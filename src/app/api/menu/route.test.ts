@@ -29,6 +29,15 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+
+// O revalidateTag de verdade exige o contexto de request do Next. O que importa
+// aqui é QUAL tag a rota invalida, e quando.
+const revalidateTag = vi.fn();
+vi.mock("next/cache", () => ({
+  unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
+  revalidateTag: (...a: unknown[]) => revalidateTag(...a),
+}));
+
 import { GET, POST } from "./route";
 
 function reqGet(comTenant = true) {
@@ -201,5 +210,18 @@ describe("POST: informações alimentares", () => {
 
     expect(res.status).toBe(400);
     expect(menuItemCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST — o cache da vitrine", () => {
+  it("invalida o cardápio do restaurante ao criar item", async () => {
+    await POST(reqPost(itemValido));
+    expect(revalidateTag).toHaveBeenCalledWith(`menu:${TENANT}`, { expire: 0 });
+  });
+
+  it("não invalida quando nada foi gravado", async () => {
+    categoryFindUnique.mockResolvedValue(null);
+    await POST(reqPost(itemValido));
+    expect(revalidateTag).not.toHaveBeenCalled();
   });
 });
