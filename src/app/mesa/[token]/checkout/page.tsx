@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useCart } from "@/hooks/useCart";
+import { useCart, useCarrinhoHidratado } from "@/hooks/useCart";
 import { useTable } from "@/hooks/useTable";
 import { useRouter, useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -23,6 +23,7 @@ export default function MesaCheckoutPage() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
   const { items, total, clearCart } = useCart();
+  const carrinhoHidratado = useCarrinhoHidratado();
   const { getTable } = useTable();
   // Uma chave por tentativa de finalizar: reenvio ou segundo clique devolvem o
   // mesmo pedido em vez de criar outro. Nova visita à página, nova chave.
@@ -48,6 +49,15 @@ export default function MesaCheckoutPage() {
         .catch(() => setError("Não conseguimos identificar a mesa. Leia o QR code de novo."));
     }
   }, [params.token, getTable]);
+
+  // Antes de ler o localStorage o carrinho parece vazio para todo mundo.
+  if (!carrinhoHidratado) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <p className="text-neutral-400 text-sm">Carregando seu pedido...</p>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (

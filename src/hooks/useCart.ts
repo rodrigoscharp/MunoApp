@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { CartItem } from "@/types";
@@ -118,4 +119,21 @@ export function trocarContextoDoCarrinho(contexto: ContextoDoCarrinho) {
   if (useCart.persist.getOptions().name === chave) return;
   useCart.persist.setOptions({ name: chave });
   void useCart.persist.rehydrate();
+}
+
+/**
+ * Se o carrinho guardado no navegador já foi lido.
+ *
+ * O HTML do servidor nasce com o carrinho vazio, porque o servidor não vê o
+ * localStorage. Tela que decide algo por "carrinho vazio" (o checkout manda
+ * de volta ao cardápio) precisa esperar isto, senão pisca "seu carrinho está
+ * vazio" para quem tem itens. No servidor e na hidratação do React a resposta
+ * é sempre `false`, o que mantém o HTML igual dos dois lados.
+ */
+export function useCarrinhoHidratado(): boolean {
+  return useSyncExternalStore(
+    (avisar) => useCart.persist?.onFinishHydration(() => avisar()) ?? (() => {}),
+    () => useCart.persist?.hasHydrated() ?? false,
+    () => false
+  );
 }

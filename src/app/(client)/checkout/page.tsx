@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useCart } from "@/hooks/useCart";
+import { useCart, useCarrinhoHidratado } from "@/hooks/useCart";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
@@ -44,6 +44,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const { items, total, clearCart } = useCart();
+  const carrinhoHidratado = useCarrinhoHidratado();
   // Uma chave por tentativa de finalizar: reenvio ou segundo clique devolvem o
   // mesmo pedido em vez de criar outro. Nova visita à página, nova chave.
   const [idempotencyKey] = useState(() => crypto.randomUUID());
@@ -114,6 +115,15 @@ export default function CheckoutPage() {
     setAppliedCoupon(null);
     setCouponError("");
   }, [items, deliveryType]);
+
+  // Antes de ler o localStorage o carrinho parece vazio para todo mundo.
+  if (!carrinhoHidratado) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <p className="text-neutral-400 text-sm">Carregando seu pedido...</p>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (
