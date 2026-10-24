@@ -132,6 +132,52 @@ export async function getCardapioOuVazio(tenantId: string): Promise<CategoriaDoC
 }
 
 /**
+ * O que o ProductCard (e o AddToCartModal que ele abre) lê de um item. Cada
+ * card vira props de Client Component, e cada prop vai serializada no payload
+ * RSC da página: categoryId e as declarações alimentares não são lidos ali.
+ */
+export type ItemDoCard = Pick<
+  ItemDoCardapio,
+  "id" | "name" | "description" | "price" | "imageUrl" | "available"
+>;
+
+export function itemParaCard(item: ItemDoCardapio): ItemDoCard {
+  return {
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    price: item.price,
+    imageUrl: item.imageUrl,
+    available: item.available,
+  };
+}
+
+/** O que o FiltroDeRestricoes lê de um item (ver `ItemDoFiltro` lá). */
+export function itemParaFiltro(item: ItemDoCardapio, categoria: { name: string }) {
+  return {
+    id: item.id,
+    name: item.name,
+    price: item.price,
+    imageUrl: item.imageUrl,
+    containsGluten: item.containsGluten,
+    containsLactose: item.containsLactose,
+    isVegan: item.isVegan,
+    category: { name: categoria.name },
+  };
+}
+
+/**
+ * Quantos cards do topo da vitrine carregam a imagem com prioridade: os da
+ * primeira categoria que cabem na primeira dobra (4 colunas no desktop). Mais
+ * que isso disputaria banda com a imagem que de fato é o LCP.
+ */
+export const CARDS_COM_PRIORIDADE = 4;
+
+export function cardTemPrioridade(indiceCategoria: number, indiceItem: number): boolean {
+  return indiceCategoria === 0 && indiceItem < CARDS_COM_PRIORIDADE;
+}
+
+/**
  * Chamar depois de toda escrita em MenuItem ou Category.
  *
  * `{ expire: 0 }`, e não o perfil "max" das telas de configuração: com "max" a

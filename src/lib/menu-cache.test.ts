@@ -30,6 +30,9 @@ vi.mock("next/cache", () => ({
 }));
 
 import {
+  cardTemPrioridade,
+  itemParaCard,
+  itemParaFiltro,
   getCardapio,
   getCardapioOuVazio,
   invalidarCardapio,
@@ -153,5 +156,59 @@ describe("invalidarCardapio", () => {
 
   it("a tag é a mesma que a leitura grava", () => {
     expect(tagDoCardapio("restaurante-a")).toBe("menu:restaurante-a");
+  });
+});
+
+/**
+ * O payload da vitrine. Cada card é prop de Client Component, serializada no
+ * HTML; a página mandava a linha inteira do Prisma duas vezes por item.
+ */
+describe("o que vai para o navegador", () => {
+  const ITEM = {
+    id: "item-1",
+    name: "X-Salada",
+    description: "Pão, carne e salada",
+    price: 25.9,
+    imageUrl: "https://exemplo/x.jpg",
+    available: true,
+    categoryId: "cat-1",
+    containsGluten: true,
+    containsLactose: false,
+    isVegan: null,
+  };
+
+  it("o card leva só o que o card e o modal mostram", () => {
+    expect(itemParaCard(ITEM)).toEqual({
+      id: "item-1",
+      name: "X-Salada",
+      description: "Pão, carne e salada",
+      price: 25.9,
+      imageUrl: "https://exemplo/x.jpg",
+      available: true,
+    });
+  });
+
+  it("o filtro leva as declarações e o nome da categoria, sem a descrição", () => {
+    expect(itemParaFiltro(ITEM, { name: "Lanches" })).toEqual({
+      id: "item-1",
+      name: "X-Salada",
+      price: 25.9,
+      imageUrl: "https://exemplo/x.jpg",
+      containsGluten: true,
+      containsLactose: false,
+      isVegan: null,
+      category: { name: "Lanches" },
+    });
+  });
+
+  it("prioridade só para os quatro primeiros da primeira categoria", () => {
+    expect([0, 1, 2, 3, 4].map((i) => cardTemPrioridade(0, i))).toEqual([
+      true,
+      true,
+      true,
+      true,
+      false,
+    ]);
+    expect(cardTemPrioridade(1, 0)).toBe(false);
   });
 });

@@ -18,8 +18,18 @@ import { MenuItemWithCategory } from "@/types";
 // não fechou este card, e herdar o estado esconderia o filtro de quem nunca o viu.
 const CHAVE_DISPENSA = "muno-filtro-dispensado";
 
+/**
+ * Só o que o card do filtro mostra e o que o filtro lê. A lista inteira do
+ * cardápio vai no payload da página uma segunda vez para este componente, e
+ * descrição, slug e ids de categoria pesariam ali sem ninguém usar.
+ */
+export type ItemDoFiltro = Pick<
+  MenuItemWithCategory,
+  "id" | "name" | "price" | "imageUrl" | "containsGluten" | "containsLactose" | "isVegan"
+> & { category: Pick<MenuItemWithCategory["category"], "name"> };
+
 interface FiltroDeRestricoesProps {
-  menuItems: MenuItemWithCategory[];
+  menuItems: ItemDoFiltro[];
   restaurantOpen: boolean;
 }
 
@@ -61,7 +71,7 @@ function gravarDispensa(dispensar: boolean) {
   ouvintes.forEach((aviso) => aviso());
 }
 
-function ItemCard({ item, restaurantOpen }: { item: MenuItemWithCategory; restaurantOpen: boolean }) {
+function ItemCard({ item, restaurantOpen }: { item: ItemDoFiltro; restaurantOpen: boolean }) {
   const addItem = useCart((s) => s.addItem);
   const btnRef = useRef<HTMLButtonElement>(null);
 
@@ -111,7 +121,7 @@ export function FiltroDeRestricoes({ menuItems, restaurantOpen }: FiltroDeRestri
 
   const disponiveis = useMemo(() => restricoesDisponiveis(menuItems), [menuItems]);
 
-  // O cardápio vem de um cache de 60s e pode mudar com o card aberto. Um filtro
+  // O cardápio vem de cache e pode mudar com o card aberto. Um filtro
   // ligado NUNCA é descartado por baixo do cliente: ele continua visível,
   // pressionado e valendo. Descartar alargaria a lista em silêncio, e quem pediu
   // "sem lactose" passaria a ver item sem essa declaração. Sem item que o
