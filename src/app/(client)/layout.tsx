@@ -9,6 +9,7 @@ import { getRequestTenantId } from "@/lib/tenant-request";
 import { ConviteDeInstalacao } from "@/components/pwa/ConviteDeInstalacao";
 import { origemDoLogo } from "@/lib/pwa/logo-do-tenant";
 import { versaoDoLogo } from "@/lib/pwa/manifest";
+import { ContextoDoCarrinho } from "@/components/cart/ContextoDoCarrinho";
 
 /**
  * A identidade do restaurante nas tags que o manifest não alcança.
@@ -64,6 +65,7 @@ export default async function ClientLayout({
   // existe e o fetch voltava com HTML.
   return (
     <SessionProvider>
+      <ContextoDoCarrinho contexto="delivery" />
       <BusinessHours schedule={schedule} />
       <Header restaurantInfo={info} />
       <main className="flex-1">{children}</main>

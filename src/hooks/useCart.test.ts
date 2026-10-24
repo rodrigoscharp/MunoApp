@@ -11,8 +11,13 @@
  * jsdom é pedido no topo porque o `persist` precisa de localStorage.
  */
 
-import { describe, expect, it, beforeEach } from "vitest";
-import { useCart } from "@/hooks/useCart";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import {
+  useCart,
+  chaveDoCarrinho,
+  contextoPeloCaminho,
+  trocarContextoDoCarrinho,
+} from "@/hooks/useCart";
 
 const item = (over: Partial<{ id: string; name: string; price: number; notes: string }> = {}) => ({
   id: "item-1",
@@ -186,5 +191,65 @@ describe("o carrinho sobrevive ao refresh", () => {
     carrinho().clearCart();
 
     expect(JSON.parse(localStorage.getItem("muno-cart")!).state.items).toEqual([]);
+  });
+});
+
+describe("um carrinho por contexto", () => {
+  // O carrinho do delivery e o da mesa viviam na mesma chave: o que o cliente
+  // separou em casa aparecia no pedido da mesa, e vice-versa. Cada mesa tem o
+  // seu, e o delivery continua na chave antiga, que é a migração: quem já
+  // tinha carrinho guardado o encontra no mesmo lugar.
+  afterEach(() => trocarContextoDoCarrinho("delivery"));
+
+  it("o caminho decide o contexto", () => {
+    expect(contextoPeloCaminho("/")).toBe("delivery");
+    expect(contextoPeloCaminho("/checkout")).toBe("delivery");
+    expect(contextoPeloCaminho("/mesa/abc")).toBe("mesa:abc");
+    expect(contextoPeloCaminho("/mesa/abc/cardapio")).toBe("mesa:abc");
+  });
+
+  it("o delivery fica na chave antiga e cada mesa na sua", () => {
+    expect(chaveDoCarrinho("delivery")).toBe("muno-cart");
+    expect(chaveDoCarrinho("mesa:abc")).toBe("muno-cart:mesa:abc");
+  });
+
+  it("encontra o carrinho que já estava guardado na chave antiga", () => {
+    trocarContextoDoCarrinho("mesa:abc");
+    localStorage.setItem(
+      "muno-cart",
+      JSON.stringify({ state: { items: [{ ...item(), cartId: "item-1::", quantity: 2 }] }, version: 0 })
+    );
+
+    trocarContextoDoCarrinho("delivery");
+    expect(carrinho().items).toHaveLength(1);
+    expect(carrinho().items[0].quantity).toBe(2);
+  });
+
+  it("a mesa começa vazia e não leva o carrinho do delivery", () => {
+    carrinho().addItem(item({ id: "de-casa" }));
+
+    trocarContextoDoCarrinho("mesa:abc");
+    expect(carrinho().items).toEqual([]);
+
+    carrinho().addItem(item({ id: "da-mesa" }));
+    expect(JSON.parse(localStorage.getItem("muno-cart:mesa:abc")!).state.items[0].id).toBe("da-mesa");
+    expect(JSON.parse(localStorage.getItem("muno-cart")!).state.items[0].id).toBe("de-casa");
+  });
+
+  it("voltar ao delivery devolve o carrinho de antes", () => {
+    carrinho().addItem(item({ id: "de-casa" }));
+    trocarContextoDoCarrinho("mesa:abc");
+    carrinho().addItem(item({ id: "da-mesa" }));
+
+    trocarContextoDoCarrinho("delivery");
+    expect(carrinho().items.map((i) => i.id)).toEqual(["de-casa"]);
+  });
+
+  it("duas mesas não se misturam", () => {
+    trocarContextoDoCarrinho("mesa:abc");
+    carrinho().addItem(item({ id: "mesa-abc" }));
+
+    trocarContextoDoCarrinho("mesa:xyz");
+    expect(carrinho().items).toEqual([]);
   });
 });
