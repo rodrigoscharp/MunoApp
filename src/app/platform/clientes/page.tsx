@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { prismaUnscoped } from "@/lib/prisma";
 import { authPlatform } from "@/lib/auth-platform";
 import { calcularMrr } from "@/lib/platform-metrics";
@@ -8,13 +9,9 @@ import { CLASSE_DO_TOM, situacaoDoCliente } from "@/lib/assinatura/situacao";
 import { MensalidadeInline } from "@/components/platform/MensalidadeInline";
 import { DarBaixa } from "@/components/platform/DarBaixa";
 
-export default async function ClientesPage() {
-  const session = await authPlatform();
-  if (!session?.user) return null;
-
-  const tenants = await prismaUnscoped.tenant.findMany({
+function lerClientes() {
+  return prismaUnscoped.tenant.findMany({
     include: {
-      _count: { select: { orders: true } },
       assinatura: {
         include: {
           // Só o que está em aberto, do mais antigo para o mais novo: é a
@@ -31,6 +28,40 @@ export default async function ClientesPage() {
     },
     orderBy: { createdAt: "desc" },
   });
+}
+
+/**
+ * Pedidos de todos os tempos por restaurante, guardados por dez minutos.
+ *
+ * O `_count.orders` dentro do findMany era uma contagem sobre a tabela inteira
+ * de pedidos a cada abertura da lista, para um número que só informa o porte
+ * do cliente. O resto da linha (cobrança, mensalidade, status) continua ao
+ * vivo, porque é ali que o operador dá baixa e espera ver a baixa refletida.
+ * Inclui os cancelados, como o `_count` incluía. Devolve pares, e não um Map,
+ * porque o resultado passa por JSON no cache.
+ */
+const contarPedidosPorRestaurante = unstable_cache(
+  async () => {
+    const linhas = await prismaUnscoped.order.groupBy({
+      by: ["tenantId"],
+      _count: { _all: true },
+    });
+    return linhas.map((l) => [l.tenantId, l._count._all] as const);
+  },
+  ["console:clientes:pedidos"],
+  { revalidate: 600, tags: ["console:clientes"] }
+);
+
+export default async function ClientesPage() {
+  const session = await authPlatform();
+  if (!session?.user) return null;
+
+  const [tenants, pedidosPorRestaurante] = await Promise.all([
+    lerClientes(),
+    contarPedidosPorRestaurante(),
+  ]);
+  const pedidos = new Map(pedidosPorRestaurante);
+  const pedidosDe = (tenantId: string) => pedidos.get(tenantId) ?? 0;
 
   const agora = new Date();
 
@@ -113,7 +144,7 @@ export default async function ClientesPage() {
                 {/* No celular pedidos e desde não cabem como coluna, mas cabem
                     como linha de apoio embaixo do nome. */}
                 <p className="sm:hidden text-[12px] text-console-mudo mt-1 tabular">
-                  {t._count.orders} {t._count.orders === 1 ? "pedido" : "pedidos"}
+                  {pedidosDe(t.id)} {pedidosDe(t.id) === 1 ? "pedido" : "pedidos"}
                   {" · desde "}
                   {t.createdAt.toLocaleDateString("pt-BR")}
                 </p>
@@ -121,7 +152,7 @@ export default async function ClientesPage() {
 
               <div className="flex flex-wrap items-center justify-between sm:justify-end gap-x-4 gap-y-3 sm:gap-6 sm:shrink-0">
                 <div className="text-right hidden sm:block">
-                  <p className="tabular text-sm">{t._count.orders}</p>
+                  <p className="tabular text-sm">{pedidosDe(t.id)}</p>
                   <p className="text-[11px] text-console-mudo">pedidos</p>
                 </div>
                 <div className="text-right hidden sm:block">

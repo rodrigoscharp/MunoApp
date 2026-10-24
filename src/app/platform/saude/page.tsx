@@ -1,6 +1,6 @@
 import { authPlatform } from "@/lib/auth-platform";
 import { avaliarSaude } from "@/lib/saude/avaliar";
-import { coletarDadosDeSaude, coletarPedidosPorHora, listarEventos } from "@/lib/saude/coletar";
+import { coletarPedidosPorHora, coletarSaudeDaRequisicao, listarEventos } from "@/lib/saude/coletar";
 import { lerFiltros } from "@/lib/saude/filtros";
 import { Painel } from "@/components/platform/Painel";
 import { GraficoBarras } from "@/components/platform/GraficoBarras";
@@ -38,11 +38,14 @@ export default async function SaudePage({
   const session = await authPlatform();
   if (!session?.user) return null;
 
-  const agora = new Date();
   const filtros = lerFiltros(await searchParams);
-  const [dados, porHora, eventos] = await Promise.all([
-    coletarDadosDeSaude(agora),
-    coletarPedidosPorHora(agora).catch((erro) => leituraFalhou("pedidos por hora", erro)),
+  // A leitura da saúde é a mesma que o layout fez para o ponto do menu, uma
+  // por requisição e nunca guardada entre requisições: esta tela se atualiza
+  // a cada minuto e precisa de banco ao vivo. O `agora` vem com ela, para a
+  // grade medir o tempo com o mesmo relógio que a regra usou.
+  const [{ agora, dados }, porHora, eventos] = await Promise.all([
+    coletarSaudeDaRequisicao(),
+    coletarPedidosPorHora(new Date()).catch((erro) => leituraFalhou("pedidos por hora", erro)),
     listarEventos(filtros).catch((erro) => leituraFalhou("feed de eventos", erro)),
   ]);
   const saude = avaliarSaude(dados, agora);

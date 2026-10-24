@@ -15,15 +15,23 @@ vi.mock("@/lib/auth-platform", () => ({
 }));
 
 vi.mock("@/lib/saude/coletar", () => ({
-  coletarDadosDeSaude: vi.fn().mockResolvedValue({ banco: { ok: false, ms: null }, leitura: null }),
+  coletarSaudeDaRequisicao: vi
+    .fn()
+    .mockResolvedValue({ agora: new Date(), dados: { banco: { ok: false, ms: null }, leitura: null } }),
+}));
+
+// Fora do Next não há cache incremental: o wrapper vira a própria função, e o
+// teste exercita a consulta e o `.catch` que ficam em volta dele.
+vi.mock("next/cache", () => ({
+  unstable_cache: <T extends (...args: never[]) => unknown>(fn: T) => fn,
 }));
 
 const leadCount = vi.fn();
-const cobrancaFindMany = vi.fn();
+const cobrancaCount = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prismaUnscoped: {
     lead: { count: (...a: unknown[]) => leadCount(...a) },
-    cobranca: { findMany: (...a: unknown[]) => cobrancaFindMany(...a) },
+    cobranca: { count: (...a: unknown[]) => cobrancaCount(...a) },
   },
 }));
 
@@ -66,7 +74,7 @@ afterEach(() => {
 describe("PlatformLayout", () => {
   it("com o banco fora do ar, as contagens do menu viram zero e o layout ainda abre", async () => {
     leadCount.mockRejectedValue(new ErroDoPrisma());
-    cobrancaFindMany.mockRejectedValue(new ErroDoPrisma());
+    cobrancaCount.mockRejectedValue(new ErroDoPrisma());
 
     const tela = await PlatformLayout({ children: null });
 
@@ -78,12 +86,35 @@ describe("PlatformLayout", () => {
   });
 
   it("com o banco no ar, conta e não escreve nada no log", async () => {
-    leadCount.mockResolvedValueOnce(4).mockResolvedValueOnce(2);
-    cobrancaFindMany.mockResolvedValue([{ vencimento: new Date("2020-01-01T00:00:00Z") }]);
+    leadCount.mockImplementation(({ where }: { where: { status: string } }) =>
+      Promise.resolve(where.status === "NOVO" ? 4 : 2)
+    );
+    cobrancaCount.mockResolvedValue(1);
 
     const tela = await PlatformLayout({ children: null });
 
     expect(propsDe(tela, MenuLateral)?.contagens).toEqual({ novos: 4, negociando: 2, atrasadas: 1 });
     expect(erro).not.toHaveBeenCalled();
+  });
+
+  it("conta atrasadas no banco, com o mesmo limite de dia que diasDeAtraso usa", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-24T13:30:00Z"), toFake: ["Date"] });
+    leadCount.mockResolvedValue(0);
+    cobrancaCount.mockResolvedValue(0);
+
+    try {
+      await PlatformLayout({ children: null });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    // Contagem, e não as linhas: trazer cada cobrança em aberto para contar
+    // no JavaScript era o que este teste existe para não deixar voltar.
+    expect(cobrancaCount).toHaveBeenCalledWith({
+      where: {
+        status: { in: ["PENDENTE", "VENCIDA"] },
+        vencimento: { lt: new Date("2026-10-24T00:00:00.000Z") },
+      },
+    });
   });
 });
