@@ -6,7 +6,6 @@ import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { useSession, signOut } from "next-auth/react";
 import { useCart } from "@/hooks/useCart";
 import dynamic from "next/dynamic";
-import { NotificationBell } from "@/components/menu/NotificationBell";
 import { CartFlyAnimation } from "@/components/menu/CartFlyAnimation";
 import { useState } from "react";
 import { ShoppingCart, User, LogOut, Settings, ChefHat, Menu, X, ClipboardList } from "lucide-react";
@@ -18,6 +17,14 @@ import { useAnimacaoAoMudar } from "@/hooks/useAnimacaoAoMudar";
 // cliente se aproxima do botão (ver `prepararCarrinho`).
 const CartDrawer = dynamic(
   () => import("@/components/cart/CartDrawer").then((m) => m.CartDrawer),
+  { ssr: false }
+);
+
+// O sino só aparece com sessão, e ele traz o supabase-js junto
+// (useOrderNotifications importa o cliente do Realtime). Importado direto, o
+// visitante anônimo, que é a maioria, baixava a biblioteca sem usar.
+const NotificationBell = dynamic(
+  () => import("@/components/menu/NotificationBell").then((m) => m.NotificationBell),
   { ssr: false }
 );
 
