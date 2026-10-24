@@ -568,6 +568,13 @@ traz a versão corrigida, só o `8.1.0-dev`. O uso é o `deepmerge` simples, que
 `deepmerge-ts` 8**, conferindo com `npm view @prisma/config@<versão>
 dependencies`.
 
+O segundo override força o `zod` de `@vercel/cli-config` para `^4.6.6`. Ele
+trava a 4.1.11, vulnerável a esgotar memória validando coleção grande
+(GHSA-mrhx-c7xc-m3w5), e chega pelo `@vercel/blob` via `@vercel/oidc`. Dentro
+da 4 a troca é compatível; o `npm audit fix --force` sugeria rebaixar o
+`@vercel/blob`. **Remova quando `@vercel/cli-config` depender de zod 4.6.6 ou
+mais**, conferindo com `npm view @vercel/cli-config dependencies`.
+
 
 # Tempo real, alarme e documentos legais
 

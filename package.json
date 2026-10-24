@@ -48,7 +48,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^1.7.0",
     "mercadopago": "^2.12.0",
-    "next": "16.3.8",
+    "next": "16.4.3",
     "next-auth": "^5.0.0-beta.32",
     "qrcode.react": "^4.2.0",
     "react": "19.2.4",
@@ -82,6 +82,9 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "deepmerge-ts": "^8.0.2"
+    "deepmerge-ts": "^8.0.2",
+    "@vercel/cli-config": {
+      "zod": "^4.6.6"
+    }
   }
 }
