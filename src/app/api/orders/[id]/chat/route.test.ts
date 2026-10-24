@@ -55,10 +55,19 @@ function req(method: string, body?: unknown, comTenant = true) {
   });
 }
 
+/** A parte da consulta do GET que lê as mensagens, aninhada na do pedido. */
+function consultaDasMensagens() {
+  return orderFindUnique.mock.calls[0][0].select.chatMessages;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   auth.mockResolvedValue({ user: { id: DONO, name: "Ana", role: "CUSTOMER" } });
-  orderFindUnique.mockResolvedValue({ id: ORDER_ID, userId: DONO });
+  orderFindUnique.mockResolvedValue({
+    id: ORDER_ID,
+    userId: DONO,
+    chatMessages: [{ id: "msg-1", content: "oi" }],
+  });
   chatFindMany.mockResolvedValue([{ id: "msg-1", content: "oi" }]);
   chatCreate.mockResolvedValue({ id: "msg-nova", senderRole: "CUSTOMER" });
 });
@@ -85,13 +94,32 @@ describe("GET — quem pode ler a conversa", () => {
     const res = await GET(req("GET"), params);
 
     expect(res.status).toBe(403);
-    expect(chatFindMany).not.toHaveBeenCalled();
+    expect(JSON.stringify(await res.json())).not.toContain("oi");
   });
 
-  it("recusa visitante sem sessão", async () => {
+  // Pedido e mensagens saem na mesma consulta, então a recusa não pode
+  // depender de não ter lido: para quem não é admin, o próprio where das
+  // mensagens exige que o pedido seja de quem pede.
+  it("para cliente, só pede ao banco mensagens de pedido que é dele", async () => {
+    auth.mockResolvedValue({ user: { id: "intruso", role: "CUSTOMER" } });
+    await GET(req("GET"), params);
+    expect(consultaDasMensagens().where).toMatchObject({
+      tenantId: TENANT,
+      order: { userId: "intruso" },
+    });
+  });
+
+  it("para o ADMIN, as mensagens do pedido sem filtro de dono", async () => {
+    auth.mockResolvedValue({ user: { id: "admin-1", role: "ADMIN" } });
+    await GET(req("GET"), params);
+    expect(consultaDasMensagens().where).toEqual({ tenantId: TENANT });
+  });
+
+  it("recusa visitante sem sessão, sem tocar no banco", async () => {
     auth.mockResolvedValue(null);
     const res = await GET(req("GET"), params);
     expect(res.status).toBe(403);
+    expect(orderFindUnique).not.toHaveBeenCalled();
   });
 
   it("404 para pedido de outro restaurante ou inexistente", async () => {
@@ -99,22 +127,48 @@ describe("GET — quem pode ler a conversa", () => {
     const res = await GET(req("GET"), params);
 
     expect(res.status).toBe(404);
-    expect(chatFindMany).not.toHaveBeenCalled();
+  });
+
+  it("?since devolve só o que chegou depois", async () => {
+    await GET(
+      new NextRequest(
+        `http://localhost/api/orders/${ORDER_ID}/chat?since=2026-10-24T12:00:00.000Z`,
+        { headers: { "x-tenant-id": TENANT } }
+      ),
+      params
+    );
+    expect(consultaDasMensagens().where.createdAt).toEqual({
+      gt: new Date("2026-10-24T12:00:00.000Z"),
+    });
+  });
+
+  it("?since que não é data é 400, sem tocar no banco", async () => {
+    const res = await GET(
+      new NextRequest(`http://localhost/api/orders/${ORDER_ID}/chat?since=ontem`, {
+        headers: { "x-tenant-id": TENANT },
+      }),
+      params
+    );
+    expect(res.status).toBe(400);
+    expect(orderFindUnique).not.toHaveBeenCalled();
   });
 
   // O banco entrega as 200 mais recentes (desc + take: asc cortaria justamente
   // as novas), e a rota devolve em ordem cronológica.
   it("devolve as mensagens em ordem de chegada, mesmo lendo as mais recentes primeiro", async () => {
-    chatFindMany.mockResolvedValue([
-      { id: "m3", createdAt: "3" },
-      { id: "m2", createdAt: "2" },
-      { id: "m1", createdAt: "1" },
-    ]);
+    orderFindUnique.mockResolvedValue({
+      id: ORDER_ID,
+      userId: DONO,
+      chatMessages: [
+        { id: "m3", createdAt: "3" },
+        { id: "m2", createdAt: "2" },
+        { id: "m1", createdAt: "1" },
+      ],
+    });
 
     const res = await GET(req("GET"), params);
 
-    expect(chatFindMany).toHaveBeenCalledWith({
-      where: { orderId: ORDER_ID },
+    expect(consultaDasMensagens()).toMatchObject({
       orderBy: { createdAt: "desc" },
       take: 200,
     });

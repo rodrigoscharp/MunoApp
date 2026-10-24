@@ -16,40 +16,52 @@ export async function GET(
   return withTenant(tenantId, async () => {
     const { token } = await params;
 
-    const table = await prisma.table.findFirst({
-      where: { token, active: true },
-      select: { id: true, number: true, name: true },
-    });
-
-    if (!table) {
-      return NextResponse.json({ error: "Mesa não encontrada" }, { status: 404 });
-    }
-
+    // Mesa e pedidos numa consulta só: a página da mesa consulta esta rota em
+    // polling, e eram duas idas ao banco em série a cada ciclo. A mesa no topo
+    // é escopada pela extensão do Prisma; os pedidos aninhados não passam por
+    // ela, e por isso o tenantId vai explícito no where deles. A foreign key de
+    // tableId é global, e pedido antigo de outra casa apontando para esta mesa
+    // (o bug que o POST de pedidos fechou) não pode entrar na conta.
+    //
     // `select` fechado, e não `include`. Esta rota é PÚBLICA — quem tem o QR da
     // mesa tem a conta, que é o desejado — mas `include` devolvia a linha
     // inteira de Order: telefone do cliente, endereço de entrega, observações,
     // userId, id de pagamento no gateway. Tudo isso para qualquer pessoa que
     // fotografasse o QR de uma mesa, sobre todos os pedidos abertos dela. A
     // conta precisa de nome, itens e valor; o resto nunca foi assunto dela.
-    const orders = await prisma.order.findMany({
-      where: { tableId: table.id, paymentStatus: "UNPAID", status: { not: "CANCELLED" } },
+    const table = await prisma.table.findFirst({
+      where: { token, active: true },
       select: {
-        id: true,
-        total: true,
-        customerName: true,
-        items: {
+        number: true,
+        name: true,
+        orders: {
+          where: { tenantId, paymentStatus: "UNPAID", status: { not: "CANCELLED" } },
           select: {
             id: true,
-            quantity: true,
-            unitPrice: true,
-            notes: true,
-            menuItem: { select: { name: true } },
+            total: true,
+            customerName: true,
+            items: {
+              select: {
+                id: true,
+                quantity: true,
+                unitPrice: true,
+                notes: true,
+                menuItem: { select: { name: true } },
+              },
+            },
           },
+          orderBy: { createdAt: "asc" },
         },
       },
-      orderBy: { createdAt: "asc" },
     });
 
-    return NextResponse.json({ table: { number: table.number, name: table.name }, orders });
+    if (!table) {
+      return NextResponse.json({ error: "Mesa não encontrada" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      table: { number: table.number, name: table.name },
+      orders: table.orders,
+    });
   });
 }

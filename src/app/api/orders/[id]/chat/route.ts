@@ -21,9 +21,45 @@ export async function GET(req: NextRequest, { params }: Params) {
     const { id } = await params;
     const session = await auth();
 
+    // Sem sessão não há dono nem admin: recusa antes de ir ao banco.
+    if (!session) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
+    }
+    const isAdmin = session.user.role === "ADMIN";
+
+    // `?since=<ISO>` devolve só o que chegou depois: a janela de chat aberta
+    // recebe o ping do tempo real e vinha buscar as 200 mensagens de novo a
+    // cada mensagem nova. Estritamente depois (gt): o cliente manda o createdAt
+    // da última que já tem.
+    const sinceParam = req.nextUrl.searchParams.get("since");
+    const since = sinceParam ? new Date(sinceParam) : null;
+    if (since && Number.isNaN(since.getTime())) {
+      return NextResponse.json({ error: "Parâmetro since inválido" }, { status: 400 });
+    }
+
+    // Pedido e mensagens numa consulta só. O pedido no topo é escopado pela
+    // extensão do Prisma; as mensagens aninhadas não passam por ela, e por isso
+    // levam o tenantId explícito. Para quem não é admin, o filtro pelo dono vai
+    // no where das próprias mensagens: a conversa de outra pessoa nem sai do
+    // banco, mesmo que o 403 abaixo já fosse barrá-la.
+    //
+    // As 200 mais recentes (desc + take), devolvidas em ordem cronológica.
+    // asc + take cortaria justamente as mensagens novas.
     const order = await prisma.order.findUnique({
       where: { id },
-      select: { id: true, userId: true },
+      select: {
+        id: true,
+        userId: true,
+        chatMessages: {
+          where: {
+            tenantId,
+            ...(isAdmin ? {} : { order: { userId: session.user.id } }),
+            ...(since ? { createdAt: { gt: since } } : {}),
+          },
+          orderBy: { createdAt: "desc" },
+          take: 200,
+        },
+      },
     });
 
     if (!order) {
@@ -31,21 +67,11 @@ export async function GET(req: NextRequest, { params }: Params) {
     }
 
     // Apenas o dono do pedido ou um admin podem ler o chat
-    const isAdmin = session?.user.role === "ADMIN";
-    const isOwner = session?.user.id === order.userId;
-
-    if (!isAdmin && !isOwner) {
+    if (!isAdmin && session.user.id !== order.userId) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 403 });
     }
 
-    // As 200 mais recentes (desc + take), devolvidas em ordem cronológica.
-    // asc + take cortaria justamente as mensagens novas.
-    const recentes = await prisma.chatMessage.findMany({
-      where: { orderId: id },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-    });
-    const messages = recentes.reverse();
+    const messages = order.chatMessages.reverse();
 
     return NextResponse.json(messages);
   });

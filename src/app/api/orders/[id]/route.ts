@@ -9,6 +9,14 @@ import { transicaoPermitida } from "@/lib/kitchen-flow";
 import { reportarErro } from "@/lib/observabilidade";
 import type { DeliveryType, OrderStatus } from "@/types";
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
+
+// O que cada item leva do prato: a tela da mesa e o acompanhamento mostram nome
+// e foto. A página da mesa consulta esta rota em polling, e o menuItem inteiro
+// (descrição, preço atual, restrições) ia junto em cada item, a cada ciclo.
+const ITENS = {
+  items: { include: { menuItem: { select: { id: true, name: true, imageUrl: true } } } },
+} satisfies Prisma.OrderInclude;
 
 export async function GET(
   req: NextRequest,
@@ -24,7 +32,7 @@ export async function GET(
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
-        items: { include: { menuItem: true } },
+        ...ITENS,
         user: { select: { id: true, name: true, email: true } },
       },
     });
@@ -162,7 +170,7 @@ export async function PATCH(
 
     const order = await prisma.order.findFirst({
       where: { id },
-      include: { items: { include: { menuItem: true } } },
+      include: ITENS,
     });
     if (!order) {
       return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
