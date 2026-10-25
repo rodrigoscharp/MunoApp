@@ -13,6 +13,7 @@ import { MontadorDaSacola } from "@/components/loja/MontadorDaSacola";
 import { ItensDaConta } from "@/components/loja/ItensDaConta";
 import { ALVO_DA_SACOLA, useSacola } from "@/components/loja/sacola";
 import { botaoBrasa } from "@/components/loja/estilos";
+import { cn } from "@/lib/utils";
 import { MarcaDoRestaurante } from "@/components/loja/MarcaDoRestaurante";
 
 // O sino só aparece com sessão, e ele traz o supabase-js junto
@@ -126,7 +127,10 @@ export function Header({ restaurantInfo, aberto, tempoDeEntrega }: HeaderProps) 
               onFocus={prepararSacola}
               onClick={abrirSacola}
               aria-label={itemCount > 0 ? `Abrir sacola, ${itemCount} ${itemCount === 1 ? "item" : "itens"}` : "Abrir sacola"}
-              className={`${botaoBrasa} relative hidden h-11 px-4 text-sm md:inline-flex`}
+              // cn, e não template string: botaoBrasa traz inline-flex, e no CSS do
+              // Tailwind ele vence o `hidden`. O botão aparecia no celular junto
+              // com o da barra de baixo.
+              className={cn(botaoBrasa, "relative hidden h-11 px-4 text-sm md:inline-flex")}
             >
               <ShoppingBag size={18} aria-hidden="true" />
               Sacola

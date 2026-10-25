@@ -49,7 +49,9 @@ export function MesaHeader({ restaurantInfo, tableNumber, tableName, token }: Me
             className="flex min-w-0 items-center gap-3"
           >
             <MarcaDoRestaurante info={restaurantInfo} tamanho="pequena" prioridade />
-            <span className="hidden truncate text-[10.5px] font-extrabold uppercase tracking-[0.2em] text-forest-dark min-[400px]:block">
+            {/* Só com folga de largura: ao lado de um nome de duas linhas a
+                frase virava "CARDÁPIO …" cortado no celular. */}
+            <span className="hidden truncate text-[10.5px] font-extrabold uppercase tracking-[0.2em] text-forest-dark md:block">
               {restaurantInfo.slogan || "Cardápio digital"}
             </span>
           </Link>

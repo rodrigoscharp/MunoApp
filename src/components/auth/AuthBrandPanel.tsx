@@ -38,8 +38,11 @@ export function AuthBrandPanel({
   const logo = restaurantInfo.logoUrl?.trim();
   const temLogo = Boolean(logo) && logo !== LOGO_PADRAO;
 
+  // Só a partir do lg. Abaixo disso o cabeçalho da loja já mostra o nome e a
+  // frase logo acima, e o painel repetia o mesmo nome duas vezes na tela do
+  // celular antes de o formulário começar.
   return (
-    <div className="relative overflow-hidden rounded-b-[28px] bg-loja-pessego px-6 pb-6 pt-7 lg:flex lg:w-1/2 lg:flex-col lg:items-center lg:justify-center lg:rounded-none lg:p-12">
+    <div className="relative hidden overflow-hidden bg-loja-pessego lg:flex lg:w-1/2 lg:flex-col lg:items-center lg:justify-center lg:rounded-none lg:p-12">
       <Raminho className="pointer-events-none absolute -right-6 -top-6 h-32 w-32 text-[#C9A685] lg:-right-10 lg:top-10 lg:h-72 lg:w-72" />
       <Raminho className="pointer-events-none absolute -bottom-16 -left-12 hidden h-64 w-64 rotate-180 text-[#C9A685] opacity-70 lg:block" />
 
