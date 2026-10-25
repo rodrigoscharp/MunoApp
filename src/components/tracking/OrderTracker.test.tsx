@@ -395,3 +395,31 @@ describe("o bloco do Pix", () => {
     expect(screen.queryByAltText("QR Code Pix")).toBeNull();
   });
 });
+
+describe("o convite para avaliar no Google", () => {
+  const avaliacao = { url: "https://g.page/r/abc/review", restaurante: "Brasa Burger" };
+
+  it("aparece quando o pedido foi entregue e o restaurante cadastrou o link", () => {
+    montar({ status: "DELIVERED" }, { avaliacao });
+    const link = screen.getByRole("link", { name: /avaliar no google/i });
+    expect(link.getAttribute("href")).toBe("https://g.page/r/abc/review");
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toContain("noopener");
+    expect(screen.getByText(/ajuda brasa burger a ser encontrado/i)).toBeTruthy();
+  });
+
+  it("não aparece antes da entrega", () => {
+    montar({ status: "OUT_FOR_DELIVERY" }, { avaliacao });
+    expect(screen.queryByRole("link", { name: /avaliar no google/i })).toBeNull();
+  });
+
+  it("não aparece sem link cadastrado", () => {
+    montar({ status: "DELIVERED" }, { avaliacao: null });
+    expect(screen.queryByRole("link", { name: /avaliar no google/i })).toBeNull();
+  });
+
+  it("não vira botão se o link gravado não for do Google", () => {
+    montar({ status: "DELIVERED" }, { avaliacao: { url: "https://golpe.net", restaurante: "X" } });
+    expect(screen.queryByRole("link", { name: /avaliar no google/i })).toBeNull();
+  });
+});

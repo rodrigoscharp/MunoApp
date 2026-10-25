@@ -53,4 +53,31 @@ describe("MesaContaPage", () => {
     await screen.findAllByText(/mesa 8/i);
     expect(estado.intervalo).toBe(20_000);
   });
+
+  it("mostra o convite para avaliar no Google quando há conta e link", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              table: { number: 8, name: null },
+              orders: [{ id: "o1", total: "30", customerName: "Ana", items: [] }],
+              avaliacao: { url: "https://g.page/r/abc/review", restaurante: "Brasa Burger" },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          )
+        )
+      )
+    );
+    render(<MesaContaPage />);
+    const link = await screen.findByRole("link", { name: /avaliar no google/i });
+    expect(link.getAttribute("href")).toBe("https://g.page/r/abc/review");
+  });
+
+  it("sem pedido na mesa, não convida", async () => {
+    render(<MesaContaPage />);
+    await screen.findByText(/nenhum pedido em aberto/i);
+    expect(screen.queryByRole("link", { name: /avaliar no google/i })).toBeNull();
+  });
 });

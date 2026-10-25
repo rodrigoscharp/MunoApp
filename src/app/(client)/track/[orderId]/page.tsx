@@ -5,6 +5,7 @@ import { getRequestTenantId } from "@/lib/tenant-request";
 import { canViewOrder } from "@/lib/order-access";
 import { OrderTracker } from "@/components/tracking/OrderTracker";
 import { toQrImageSrc } from "@/lib/pix-qr";
+import { getRestaurantInfo } from "@/lib/restaurant";
 
 interface Props {
   params: Promise<{ orderId: string }>;
@@ -17,13 +18,18 @@ export default async function TrackPage({ params, searchParams }: Props) {
   const session = await auth();
 
   const tenantId = await getRequestTenantId();
-  const order = await prismaUnscoped.order.findUnique({
-    where: { id: orderId, tenantId },
-    include: {
-      items: { include: { menuItem: true } },
-      deliveryTracking: true,
-    },
-  });
+  // O cadastro sai do cache do restaurante (60s): é a mesma leitura do
+  // cabeçalho, e o link de avaliação vem junto sem consulta nova.
+  const [order, restaurante] = await Promise.all([
+    prismaUnscoped.order.findUnique({
+      where: { id: orderId, tenantId },
+      include: {
+        items: { include: { menuItem: true } },
+        deliveryTracking: true,
+      },
+    }),
+    getRestaurantInfo(tenantId),
+  ]);
 
   if (!order || !canViewOrder(order, session?.user ?? null)) notFound();
 
@@ -48,6 +54,11 @@ export default async function TrackPage({ params, searchParams }: Props) {
         orderId={orderId}
         initialStatus={order.status}
         canChat={!!order.userId && order.userId === session?.user?.id}
+        avaliacao={
+          restaurante.avaliacaoGoogleUrl
+            ? { url: restaurante.avaliacaoGoogleUrl, restaurante: restaurante.name }
+            : null
+        }
         // O bloco do Pix vai para o tracker, que troca o QR por "Pagamento
         // confirmado" quando o pagamento entra (tempo real ou polling). Pedido
         // que já chega pago não recebe o QR.

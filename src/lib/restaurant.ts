@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { runWithTenant } from "@/lib/tenant-context";
 import { reportarErro } from "@/lib/observabilidade";
+import { MENSAGEM_LINK_INVALIDO, normalizarLinkDeAvaliacao } from "@/lib/avaliacao-google";
 
 /**
  * O que o PUT aceita gravar.
@@ -25,6 +26,20 @@ export const restaurantInfoSchema = z.object({
   // A frase embaixo do nome no topo do cardápio ("Hambúrguer de chapa").
   // Curta porque divide a linha com o sino no celular.
   slogan: z.string().trim().max(60, "Use até 60 caracteres").default(""),
+  // O link do Google para o cliente avaliar a casa, mostrado depois da
+  // entrega e na conta da mesa. Vazio esconde o botão.
+  avaliacaoGoogleUrl: z
+    .string()
+    .default("")
+    .transform((v, ctx) => {
+      if (!v.trim()) return "";
+      const link = normalizarLinkDeAvaliacao(v);
+      if (!link) {
+        ctx.addIssue({ code: "custom", message: MENSAGEM_LINK_INVALIDO });
+        return z.NEVER;
+      }
+      return link;
+    }),
 });
 
 export interface RestaurantInfo {
@@ -34,6 +49,7 @@ export interface RestaurantInfo {
   logoUrl: string;
   floorPlanImageUrl: string | null;
   slogan: string;
+  avaliacaoGoogleUrl: string;
 }
 
 /**
@@ -56,6 +72,7 @@ export const SEM_CADASTRO: Omit<RestaurantInfo, "name"> = {
   logoUrl: "/munowbg.png",
   floorPlanImageUrl: null,
   slogan: "",
+  avaliacaoGoogleUrl: "",
 };
 
 /**

@@ -9,6 +9,8 @@ import { uploadLogo } from "@/lib/upload-logo";
 import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { cn } from "@/lib/utils";
 import { botaoBrasa, botaoContorno, campo, cartaoPainel } from "@/components/painel/estilos";
+import { LogoDoGoogle } from "@/components/loja/AvaliarNoGoogle";
+import { normalizarLinkDeAvaliacao } from "@/lib/avaliacao-google";
 
 interface Props {
   initial: RestaurantInfo;
@@ -51,12 +53,17 @@ export function RestaurantInfoControl({ initial }: Props) {
         setSaved(true);
         toast.success("Informações do restaurante salvas");
       } else {
-        toast.error("Erro ao salvar");
+        // A rota devolve os problemas do zod; o primeiro já diz o que corrigir
+        // (nome vazio, frase longa, link de avaliação que não é do Google).
+        const corpo = await res.json().catch(() => null);
+        const motivo = Array.isArray(corpo?.error) ? corpo.error[0]?.message : null;
+        toast.error(motivo ?? "Erro ao salvar");
       }
     });
   }
 
   const campoId = (nome: string) => `restaurante-${nome}`;
+  const linkInvalido = !!info.avaliacaoGoogleUrl?.trim() && !normalizarLinkDeAvaliacao(info.avaliacaoGoogleUrl);
   const rotuloDoCampo = "mb-1.5 block text-[13px] font-bold text-loja-tinta";
 
   return (
@@ -155,11 +162,38 @@ export function RestaurantInfoControl({ initial }: Props) {
             />
           </div>
 
+          {/* Avaliação no Google */}
+          <div className="sm:col-span-2">
+            <label htmlFor="restaurante-avaliacao" className={`${rotuloDoCampo} flex items-center gap-1.5`}>
+              <LogoDoGoogle className="h-4 w-4" />
+              Link de avaliação no Google <span className="font-medium text-loja-tinta-2">(opcional)</span>
+            </label>
+            <input
+              id="restaurante-avaliacao"
+              type="url"
+              inputMode="url"
+              value={info.avaliacaoGoogleUrl ?? ""}
+              onChange={(e) => change("avaliacaoGoogleUrl", e.target.value)}
+              aria-describedby="restaurante-avaliacao-ajuda"
+              aria-invalid={linkInvalido || undefined}
+              className={campo}
+              placeholder="https://g.page/r/.../review"
+            />
+            <p
+              id="restaurante-avaliacao-ajuda"
+              className={cn("mt-1.5 text-[12px]", linkInvalido ? "font-bold text-loja-preco" : "text-loja-tinta-2")}
+            >
+              {linkInvalido
+                ? "Esse endereço não é do Google. Cole o link do botão “Pedir avaliações”."
+                : "No Perfil da Empresa no Google, toque em “Pedir avaliações” e copie o link. O botão aparece para o cliente quando o pedido é entregue e na conta da mesa."}
+            </p>
+          </div>
+
           <div className="sm:col-span-2 flex justify-end">
             <button
               type="button"
               onClick={save}
-              disabled={pending || saved || uploading}
+              disabled={pending || saved || uploading || linkInvalido}
               className={`${botaoBrasa} h-12 w-full text-[14px] sm:w-auto`}
             >
               {saved ? <><Check size={16} aria-hidden /> Salvo</> : pending ? "Salvando..." : "Salvar informações"}

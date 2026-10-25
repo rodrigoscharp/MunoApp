@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiError, getPlanoFromRequest, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { tenantTemMesaQr } from "@/lib/plans";
+import { getRestaurantInfo } from "@/lib/restaurant";
 
 export async function GET(
   req: NextRequest,
@@ -29,31 +30,34 @@ export async function GET(
     // userId, id de pagamento no gateway. Tudo isso para qualquer pessoa que
     // fotografasse o QR de uma mesa, sobre todos os pedidos abertos dela. A
     // conta precisa de nome, itens e valor; o resto nunca foi assunto dela.
-    const table = await prisma.table.findFirst({
-      where: { token, active: true },
-      select: {
-        number: true,
-        name: true,
-        orders: {
-          where: { tenantId, paymentStatus: "UNPAID", status: { not: "CANCELLED" } },
-          select: {
-            id: true,
-            total: true,
-            customerName: true,
-            items: {
-              select: {
-                id: true,
-                quantity: true,
-                unitPrice: true,
-                notes: true,
-                menuItem: { select: { name: true } },
+    const [table, restaurante] = await Promise.all([
+      prisma.table.findFirst({
+        where: { token, active: true },
+        select: {
+          number: true,
+          name: true,
+          orders: {
+            where: { tenantId, paymentStatus: "UNPAID", status: { not: "CANCELLED" } },
+            select: {
+              id: true,
+              total: true,
+              customerName: true,
+              items: {
+                select: {
+                  id: true,
+                  quantity: true,
+                  unitPrice: true,
+                  notes: true,
+                  menuItem: { select: { name: true } },
+                },
               },
             },
+            orderBy: { createdAt: "asc" },
           },
-          orderBy: { createdAt: "asc" },
         },
-      },
-    });
+      }),
+      getRestaurantInfo(tenantId),
+    ]);
 
     if (!table) {
       return NextResponse.json({ error: "Mesa não encontrada" }, { status: 404 });
@@ -62,6 +66,11 @@ export async function GET(
     return NextResponse.json({
       table: { number: table.number, name: table.name },
       orders: table.orders,
+      // Público como o resto da conta: é o mesmo link que o restaurante
+      // divulga, e é para o cliente da mesa que ele existe.
+      avaliacao: restaurante.avaliacaoGoogleUrl
+        ? { url: restaurante.avaliacaoGoogleUrl, restaurante: restaurante.name }
+        : null,
     });
   });
 }

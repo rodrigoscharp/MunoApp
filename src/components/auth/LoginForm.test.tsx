@@ -41,6 +41,7 @@ const RESTAURANTE = {
   logoUrl: "",
   floorPlanImageUrl: null,
   slogan: "",
+  avaliacaoGoogleUrl: "",
 };
 
 async function entrar() {

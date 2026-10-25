@@ -11,6 +11,7 @@ import { useAnimacaoAoMudar } from "@/hooks/useAnimacaoAoMudar";
 import { PixPayment } from "@/components/tracking/PixPayment";
 import { Raminho } from "@/components/loja/Raminho";
 import { botaoFloresta, cartao, kicker } from "@/components/loja/estilos";
+import { AvaliarNoGoogle } from "@/components/loja/AvaliarNoGoogle";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,8 @@ interface Props {
    * renderizado pelo servidor, o QR ficava na tela depois de pago.
    */
   pix?: { qrSrc: string | null; copyPaste: string } | null;
+  /** O link de avaliação do Google do restaurante, mostrado depois da entrega. */
+  avaliacao?: { url: string; restaurante: string } | null;
 }
 
 // ─── Configuração dos status ───────────────────────────────────────────────────
@@ -227,7 +230,7 @@ function EtaDisplay({
 
 // ─── Componente principal ──────────────────────────────────────────────────────
 
-export function OrderTracker({ orderId, initialStatus, order, canChat, pix }: Props) {
+export function OrderTracker({ orderId, initialStatus, order, canChat, pix, avaliacao }: Props) {
   const {
     status: realtimeStatus,
     paymentStatus: realtimePaymentStatus,
@@ -549,6 +552,9 @@ export function OrderTracker({ orderId, initialStatus, order, canChat, pix }: Pr
               Obrigado por pedir no Muno. Volte sempre!
             </p>
           </div>
+        )}
+        {isDelivered && avaliacao && (
+          <AvaliarNoGoogle url={avaliacao.url} restaurante={avaliacao.restaurante} />
         )}
 
         {/* ── Chat com o restaurante ─────────────────────────────────────── */}
