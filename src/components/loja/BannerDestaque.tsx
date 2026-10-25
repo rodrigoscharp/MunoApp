@@ -9,15 +9,25 @@ import { useFolhaDoProduto } from "@/components/loja/FolhaDoProduto";
 import type { ItemDaVitrine } from "@/components/loja/tipos";
 
 /**
- * O banner do topo: o item mais pedido da casa, com "Pedir agora" abrindo a
- * folha do produto. Não há campo de banner no cadastro; ele sai do que o
- * restaurante já vende (ver src/lib/loja/vitrine.ts).
+ * O banner do topo: o item mais pedido da casa, ou o que o dono escolheu no
+ * painel, com "Pedir agora" abrindo a folha do produto. Qual item e qual
+ * chamada é decisão de src/lib/loja/banner.ts; aqui é só o desenho.
  *
- * A foto fica numa moldura arredondada, e não solta com mistura "multiplicar"
- * como no mockup: o mockup usava foto de fundo branco, e foto de restaurante
- * chega com fundo de qualquer cor, que a mistura tingiria.
+ * Com foto sem fundo (`recorte`), o lanche "sai" do banner, grande e sem
+ * moldura, como no mockup. Sem ela, a foto comum vai numa moldura
+ * arredondada: mistura "multiplicar" sobre foto com fundo de cor tingiria o
+ * banner inteiro.
  */
-export function BannerDestaque({ item, kickerTexto = "O mais pedido" }: { item: ItemDaVitrine; kickerTexto?: string }) {
+export function BannerDestaque({
+  item,
+  recorte = null,
+  kickerTexto = "O mais pedido",
+}: {
+  item: ItemDaVitrine;
+  /** A foto do item sem fundo (MenuItem.imagemRecortadaUrl). */
+  recorte?: string | null;
+  kickerTexto?: string;
+}) {
   const folha = useFolhaDoProduto();
   const aberto = folha?.restaurantOpen ?? true;
 
@@ -28,7 +38,21 @@ export function BannerDestaque({ item, kickerTexto = "O mais pedido" }: { item: 
     >
       <Raminho className="absolute -top-4 left-[38%] h-32 w-32 text-[#C9A685] opacity-80" />
 
-      {item.imageUrl && (
+      {recorte ? (
+        <div className="pointer-events-none absolute -right-8 top-1/2 h-[210px] w-[210px] -translate-y-1/2 sm:right-0 sm:h-[250px] sm:w-[250px]">
+          <Image
+            src={recorte}
+            alt={item.name}
+            fill
+            sizes="250px"
+            loading="eager"
+            fetchPriority="high"
+            // Sombra que segue o contorno do lanche, e não uma caixa: é ela
+            // que faz a foto recortada parecer apoiada no banner.
+            className="object-contain drop-shadow-[0_18px_22px_rgba(74,48,28,0.35)]"
+          />
+        </div>
+      ) : item.imageUrl && (
         <div className="absolute -right-3 top-1/2 h-[150px] w-[150px] -translate-y-1/2 rotate-[4deg] overflow-hidden rounded-[26px] bg-loja-pessego-claro shadow-loja-alta sm:right-6 sm:h-[176px] sm:w-[176px]">
           <Image
             src={item.imageUrl}
@@ -43,7 +67,7 @@ export function BannerDestaque({ item, kickerTexto = "O mais pedido" }: { item: 
         </div>
       )}
 
-      <div className={`relative flex flex-col gap-2 p-[18px] sm:p-6 ${item.imageUrl ? "max-w-[58%]" : ""}`}>
+      <div className={`relative flex flex-col gap-2 p-[18px] sm:p-6 ${recorte || item.imageUrl ? "max-w-[58%]" : ""}`}>
         <span className={`${kicker} text-[#6A3A1E]`}>{kickerTexto}</span>
         <h2 className="manchete text-[2.1rem] text-forest-dark sm:text-[2.6rem]">
           <span className="line-clamp-2">{item.name}</span>

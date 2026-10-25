@@ -6,6 +6,8 @@ import { RestaurantInfoControl } from "@/components/adm/RestaurantInfoControl";
 import { DeliveryZonesControl } from "@/components/adm/DeliveryZonesControl";
 import { CouponsControl } from "@/components/adm/CouponsControl";
 import { PrinterControl } from "@/components/adm/PrinterControl";
+import { BannerControl } from "@/components/adm/BannerControl";
+import { BANNER_PADRAO, bannerSchema, CHAVE_DO_BANNER } from "@/lib/loja/banner";
 import { getRestaurantInfo } from "@/lib/restaurant";
 import type { PrinterConfig } from "@/app/api/settings/printer/route";
 
@@ -25,7 +27,7 @@ export default async function RestauranteAdminPage() {
   // aqui o proxy já garantiu sessão de restaurante com papel ADMIN.
   const tenantId = session!.user.tenantId!;
 
-  const [deliveryTimeSetting, businessHoursSetting, restaurantInfo, deliveryZones, printerSetting, coupons] = await Promise.all([
+  const [deliveryTimeSetting, businessHoursSetting, restaurantInfo, deliveryZones, printerSetting, coupons, bannerSetting, itensDoCardapio] = await Promise.all([
     prismaUnscoped.setting.findUnique({ where: { tenantId_key: { tenantId, key: "delivery_time_minutes" } } }),
     prismaUnscoped.setting.findUnique({ where: { tenantId_key: { tenantId, key: "business_hours" } } }),
     getRestaurantInfo(tenantId),
@@ -36,7 +38,21 @@ export default async function RestauranteAdminPage() {
       orderBy: { createdAt: "desc" },
       include: { _count: { select: { orders: true } } },
     }),
+    prismaUnscoped.setting.findUnique({ where: { tenantId_key: { tenantId, key: CHAVE_DO_BANNER } } }),
+    prismaUnscoped.menuItem.findMany({
+      where: { tenantId, available: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, price: true, imageUrl: true, imagemRecortadaUrl: true },
+    }),
   ]);
+
+  let banner = BANNER_PADRAO;
+  try {
+    const lido = bannerSetting ? bannerSchema.safeParse(JSON.parse(bannerSetting.value)) : null;
+    if (lido?.success) banner = lido.data;
+  } catch {
+    // configuração ilegível: o controle abre no padrão
+  }
 
   const printerConfig: PrinterConfig = printerSetting
     ? { enabled: false, paperWidth: "80mm", ...JSON.parse(printerSetting.value) }
@@ -59,6 +75,10 @@ export default async function RestauranteAdminPage() {
         <div className="lg:col-span-1 space-y-6">
           <DeliveryTimeControl initialMinutes={deliveryMinutes} />
           <RestaurantInfoControl initial={restaurantInfo} />
+          <BannerControl
+            initial={banner}
+            itens={itensDoCardapio.map((i) => ({ ...i, price: Number(i.price) }))}
+          />
           <PrinterControl initial={printerConfig} />
         </div>
         <div className="lg:col-span-3 space-y-6">

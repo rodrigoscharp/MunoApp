@@ -1,5 +1,6 @@
 import { CategoryNav } from "@/components/menu/CategoryNav";
 import { escolherMaisPedidos } from "@/lib/loja/vitrine";
+import { BANNER_PADRAO, chamadaDoBanner, escolherItemDoBanner, type ConfigDoBanner } from "@/lib/loja/banner";
 import { itemParaCard, type CategoriaDoCardapio } from "@/lib/menu-cache";
 import type { CupomDaVitrine } from "@/lib/loja/vitrine";
 import { ProvedorDaFolha } from "@/components/loja/FolhaDoProduto";
@@ -20,6 +21,7 @@ import { SecoesDoCardapio } from "@/components/loja/SecoesDoCardapio";
 export function Vitrine({
   categorias,
   idsMaisPedidos,
+  banner = BANNER_PADRAO,
   cupom = null,
   restaurantOpen,
   navClassName,
@@ -27,21 +29,33 @@ export function Vitrine({
 }: {
   categorias: CategoriaDoCardapio[];
   idsMaisPedidos: string[];
+  /** Mais vendido (padrão) ou o item que o dono escolheu no painel. */
+  banner?: ConfigDoBanner;
   cupom?: CupomDaVitrine | null;
   restaurantOpen: boolean;
   navClassName?: string;
   /** O que entra entre o topo da vitrine e as seções (filtro, convite do app). */
   antesDasSecoes?: React.ReactNode;
 }) {
-  const maisPedidos = escolherMaisPedidos(categorias, idsMaisPedidos).map(itemParaCard);
-  const [destaque] = maisPedidos;
+  const vendidos = escolherMaisPedidos(categorias, idsMaisPedidos);
+  const maisPedidos = vendidos.map(itemParaCard);
+  // O dia sai da hora desta requisição: a página é dinâmica (o tenant vem dos
+  // headers), então o "SEXTA" do banner vira "SÁBADO" sozinho à meia-noite.
+  const doBanner = escolherItemDoBanner(banner, categorias, vendidos);
+  const chamada = doBanner ? chamadaDoBanner(banner, doBanner.modo, new Date()) : "";
   const todos = categorias.flatMap((c) => c.items.map(itemParaCard));
 
   return (
     <ProvedorDaFolha restaurantOpen={restaurantOpen} maisPedidos={maisPedidos}>
       <div className="mx-auto max-w-5xl space-y-4 px-4 pb-2 pt-3">
         <BuscaNoCardapio itens={todos} restaurantOpen={restaurantOpen} />
-        {destaque && <BannerDestaque item={destaque} />}
+        {doBanner && (
+          <BannerDestaque
+            item={itemParaCard(doBanner.item)}
+            recorte={doBanner.item.imagemRecortadaUrl}
+            kickerTexto={chamada}
+          />
+        )}
       </div>
 
       {/* Sem invólucro: sticky só gruda dentro do pai, e o pai da navegação

@@ -130,6 +130,30 @@ describe("POST /api/upload: o conteúdo é verificado e reprocessado", () => {
     expect(meta.width).toBe(1280);
   });
 
+  it("foto já recortada (fundo transparente) volta marcada como sem fundo, e o WebP guarda a transparência", async () => {
+    auth.mockResolvedValue({ user: { id: "u1", role: "ADMIN", tenantId: "rest-a" } });
+    // Metade da imagem transparente, como um lanche recortado num fundo vazio.
+    const recortado = await sharp({
+      create: { width: 40, height: 20, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite([{ input: pngReal.subarray(0), left: 0, top: 0, blend: "over" }])
+      .extend({ right: 40, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toBuffer();
+
+    const res = await POST(requisicao(arquivo("lanche.png", "image/png", recortado)));
+    expect((await res.json()).semFundo).toBe(true);
+    expect((await sharp(upload.mock.calls[0][1]).metadata()).hasAlpha).toBe(true);
+  });
+
+  it("foto comum, ou PNG com canal alfa todo opaco, não conta como sem fundo", async () => {
+    auth.mockResolvedValue({ user: { id: "u1", role: "ADMIN", tenantId: "rest-a" } });
+    const opacoComAlfa = await sharp(pngReal).ensureAlpha().png().toBuffer();
+
+    expect((await (await POST(requisicao(arquivo()))).json()).semFundo).toBe(false);
+    expect((await (await POST(requisicao(arquivo("x.png", "image/png", opacoComAlfa)))).json()).semFundo).toBe(false);
+  });
+
   it("não amplia imagem pequena", async () => {
     await POST(requisicao(arquivo()));
 

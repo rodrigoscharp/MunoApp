@@ -46,6 +46,7 @@ function pedido(): Parameters<typeof serializarPedidosDoAdmin>[0][number] {
           description: "Pão brioche",
           price: new Prisma.Decimal("22.90"),
           imageUrl: null,
+          imagemRecortadaUrl: null,
           available: true,
           containsGluten: null,
           containsLactose: null,

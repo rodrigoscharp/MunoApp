@@ -25,6 +25,7 @@ const item = (id: string, imageUrl: string | null = null, available = true) => (
   description: null,
   price: 10,
   imageUrl,
+  imagemRecortadaUrl: null,
   available,
   categoryId: "c",
   containsGluten: null,

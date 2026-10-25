@@ -76,8 +76,11 @@ export async function POST(req: NextRequest) {
   // nada que o cliente tenha embutido. Nome e extensão saem do resultado, não
   // do que foi enviado.
   let buffer: Buffer;
+  let semFundo = false;
   try {
-    buffer = await sharp(Buffer.from(await file.arrayBuffer()), {
+    const original = Buffer.from(await file.arrayBuffer());
+    semFundo = await temTransparencia(original);
+    buffer = await sharp(original, {
       limitInputPixels: PIXELS_MAXIMOS,
       animated: file.type === "image/gif",
     })
@@ -104,5 +107,25 @@ export async function POST(req: NextRequest) {
     .from("product-images")
     .getPublicUrl(filename);
 
-  return NextResponse.json({ url: data.publicUrl });
+  // `semFundo` avisa o painel que a foto já chegou recortada: ela vira também
+  // a foto do banner, sem o dono precisar clicar em "Remover fundo". O WebP
+  // gerado acima preserva o canal alfa.
+  return NextResponse.json({ url: data.publicUrl, semFundo });
+}
+
+/**
+ * A foto tem fundo transparente de verdade? Ter canal alfa não basta: muito
+ * PNG exportado tem o canal e nenhum pixel transparente. Conta como sem fundo
+ * quando algum pixel é quase todo transparente.
+ */
+async function temTransparencia(imagem: Buffer): Promise<boolean> {
+  try {
+    const { hasAlpha } = await sharp(imagem, { limitInputPixels: PIXELS_MAXIMOS }).metadata();
+    if (!hasAlpha) return false;
+    const { channels } = await sharp(imagem, { limitInputPixels: PIXELS_MAXIMOS }).stats();
+    const alfa = channels[3];
+    return !!alfa && alfa.min < 16;
+  } catch {
+    return false;
+  }
 }

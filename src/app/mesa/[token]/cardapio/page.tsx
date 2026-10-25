@@ -1,14 +1,16 @@
 import { getCardapioOuVazio } from "@/lib/menu-cache";
 import { getRequestTenantId } from "@/lib/tenant-request";
 import { getMaisPedidosOuVazio } from "@/lib/loja/vitrine";
+import { getBannerOuPadrao } from "@/lib/loja/banner";
 import { Vitrine } from "@/components/loja/Vitrine";
 import { CardapioEmBreve } from "@/components/loja/SecoesDoCardapio";
 
 export default async function MesaCardapioPage() {
   const tenantId = await getRequestTenantId();
-  const [categories, idsMaisPedidos] = await Promise.all([
+  const [categories, idsMaisPedidos, banner] = await Promise.all([
     getCardapioOuVazio(tenantId),
     getMaisPedidosOuVazio(tenantId),
+    getBannerOuPadrao(tenantId),
   ]);
   const nonEmpty = categories.filter((c) => c.items.length > 0);
 
@@ -22,6 +24,7 @@ export default async function MesaCardapioPage() {
         <Vitrine
           categorias={nonEmpty}
           idsMaisPedidos={idsMaisPedidos}
+          banner={banner}
           restaurantOpen={true}
           navClassName="top-[92px]"
         />

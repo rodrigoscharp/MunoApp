@@ -3,6 +3,7 @@ import { getCardapioOuVazio, itemParaFiltro } from "@/lib/menu-cache";
 import { getRequestTenantId } from "@/lib/tenant-request";
 import { getBusinessHours, checkIsOpen } from "@/lib/business-hours";
 import { getMaisPedidosOuVazio, getCupomEmDestaqueOuNada } from "@/lib/loja/vitrine";
+import { getBannerOuPadrao } from "@/lib/loja/banner";
 import { FiltroDeRestricoes } from "@/components/menu/FiltroDeRestricoes";
 import { FaixaDeInstalacao } from "@/components/pwa/FaixaDeInstalacao";
 import { Vitrine } from "@/components/loja/Vitrine";
@@ -12,11 +13,12 @@ export default async function MenuPage() {
   const tenantId = await getRequestTenantId();
   // O tempo de entrega da linha "Aberto · entrega em X min" é lido pelo
   // layout, que é quem monta o cabeçalho.
-  const [categories, schedule, idsMaisPedidos, cupom] = await Promise.all([
+  const [categories, schedule, idsMaisPedidos, cupom, banner] = await Promise.all([
     getCardapioOuVazio(tenantId),
     getBusinessHours(tenantId),
     getMaisPedidosOuVazio(tenantId),
     getCupomEmDestaqueOuNada(tenantId),
+    getBannerOuPadrao(tenantId),
   ]);
   const isOpen = checkIsOpen(schedule);
   const nonEmpty = categories.filter((c) => c.items.length > 0);
@@ -43,6 +45,7 @@ export default async function MenuPage() {
         <Vitrine
           categorias={nonEmpty}
           idsMaisPedidos={idsMaisPedidos}
+          banner={banner}
           cupom={cupom}
           restaurantOpen={isOpen}
           antesDasSecoes={

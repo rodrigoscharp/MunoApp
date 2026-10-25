@@ -11,6 +11,8 @@ const updateSchema = z.object({
   description: z.string().optional().nullable(),
   price: z.number().positive().optional(),
   imageUrl: z.string().url().optional().nullable(),
+  // A foto sem fundo, para o banner. null tira o recorte; ausente não mexe.
+  imagemRecortadaUrl: z.string().url().optional().nullable(),
   available: z.boolean().optional(),
   categoryId: z.string().optional(),
   containsGluten: z.boolean().nullable().optional(),
