@@ -144,7 +144,7 @@ function ConteudoDoMenu({
   return (
     <>
       <div className="flex items-center gap-2.5 px-2">
-        <Image src="/munowbg.png" alt="Muno" width={80} height={30} className="h-[26px] w-auto object-contain" />
+        <Image src="/munowbg.png" alt="Muno" width={80} height={30} className="h-8 w-auto object-contain" />
         <span className={cn(kicker, "text-loja-tinta-2")}>Painel</span>
       </div>
 
