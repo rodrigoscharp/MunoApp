@@ -1,10 +1,24 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
-
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MUNOFOOD — Do Cardápio ao Caixa</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Muno — Cardápio digital, delivery e pedido na mesa para restaurantes</title>
+  <meta name="description" content="Cardápio digital com a cara do seu restaurante: delivery, retirada e pedido na mesa com QR Code. O pedido cai na cozinha com alarme, o cliente acompanha a entrega e o painel mostra o que vende. Sem taxa por pedido." />
+  <link rel="canonical" href="https://munoapp.com.br/" />
+  <meta name="theme-color" content="#F4EBDF" />
+
+  <!-- A prévia que aparece quando o link é colado no WhatsApp e no Instagram. -->
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:site_name" content="Muno" />
+  <meta property="og:url" content="https://munoapp.com.br/" />
+  <meta property="og:title" content="Muno — Seu restaurante, do pedido ao caixa" />
+  <meta property="og:description" content="Delivery, retirada e mesa com QR no mesmo cardápio. Pedido na cozinha com alarme, rastreio do motoboy e painel com o que vende." />
+  <meta property="og:image" content="https://munoapp.com.br/vendas/img/og.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
 
   <!-- O navegador restaura a posição de scroll da última visita (ou mantém
        um #hash de clique anterior) e pode abrir a página já rolada pra
@@ -18,63 +32,17 @@
     window.addEventListener('pageshow', e => { if (e.persisted) window.scrollTo(0, 0); });
   </script>
 
-  <!--
-    Favicon: os MESMOS arquivos do app, e não uma peça própria.
-
-    A landing é servida pelo domínio raiz deste projeto desde 26/08/2026, então
-    /icon.png e /apple-icon.png são mesma origem e resolvem daqui. Até
-    02/09/2026 havia um favicon.svg só dela, com um "M" desenhado à mão sobre
-    verde #1F3F34: letra que não existe no logotipo e cor que não é a da marca
-    (#2B5240). A aba da página de vendas mostrava uma identidade que o produto
-    não tem em lugar nenhum.
-
-    Os dois saem de scripts/gerar-icones-pwa.ts, derivados do logotipo.
-  -->
+  <!-- Favicon: os MESMOS arquivos do app (ver AGENTS.md, "A landing é
+       estática"), gerados por scripts/gerar-icones-pwa.ts. -->
   <link rel="icon" type="image/png" href="/icon.png" />
   <link rel="apple-touch-icon" href="/apple-icon.png" />
 
-  <!--
-    Fontes: servidas por este projeto, em public/vendas/fonts/. O porquê, e por
-    que só o subconjunto latin, está no topo de css/styles.css.
-
-    Os três pesos que a primeira dobra pinta vão de preload: 400 do corpo, 700
-    do <strong> e da navbar, 900 da manchete. crossorigin é obrigatório mesmo
-    na mesma origem, porque fonte é sempre buscada em modo CORS, e sem ele o
-    navegador baixa o arquivo duas vezes.
-  -->
-  <link rel="preload" href="/vendas/fonts/poppins-400.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="preload" href="/vendas/fonts/poppins-700.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="preload" href="/vendas/fonts/poppins-900.woff2" as="font" type="font/woff2" crossorigin />
-
-  <!-- Tailwind (Play CDN) servido daqui, e não do CDN: um terceiro comprometido
-       executaria script no mesmo domínio do /assinar, onde se digita CPF/CNPJ.
-       Deve vir ANTES do config. -->
-  <script src="/vendas/js/vendor/tailwind-play-cdn.js"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            terracota: '#C6562A',
-            gastrogreen: '#1F3F34',
-            cream: '#F4F2EF',
-            graphite: '#3E3E3E',
-            sage: '#6A8F7A',
-          },
-          fontFamily: { sans: ['Poppins', 'sans-serif'] },
-        },
-      },
-    };
-  </script>
-
-  <!-- Lucide Icons -->
-  <script src="/vendas/js/vendor/lucide-1.50.0.min.js"></script>
-
-  <!-- GSAP (entrada do hero) -->
-  <script src="/vendas/js/vendor/gsap-3.13.0.min.js"></script>
-
-  <!-- Estilos customizados -->
-  <link rel="stylesheet" href="/vendas/css/styles.css" />
+  <!-- As duas faces que a primeira dobra pinta. crossorigin é obrigatório
+       mesmo na mesma origem: fonte é sempre buscada em modo CORS, e sem ele o
+       navegador baixa o arquivo duas vezes. -->
+  <link rel="preload" href="/vendas/fonts/barlow-condensed-800.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/vendas/fonts/plus-jakarta-sans-variavel.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/vendas/css/landing.css" />
 
   <!--
     Decide a abertura da página antes da primeira pintura, como o script de
@@ -83,11 +51,15 @@
 
     A marca fica na sessão, não no localStorage: quem volta do /assinar não
     paga o pedágio de novo, e quem abre a Muno amanhã vê a abertura outra vez.
+
+    data-hero segura a entrada do hero escondida até alguém dar a partida
+    (intro.js, ou o viagem.js quando não há abertura).
   -->
   <script>
     (function () {
       try {
         if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        document.documentElement.setAttribute('data-hero', '');
         if (sessionStorage.getItem('muno_intro_visto')) return;
         document.documentElement.setAttribute('data-intro', '');
       } catch (e) {
@@ -95,44 +67,76 @@
         return;
       }
 
-      /* Resgate: se o intro.js não carregar (404, erro de sintaxe, CDN do
-         GSAP fora), ninguém tira o painel e a landing fica trancada atrás
-         dele. Este timeout derruba o painel sozinho.
+      /* Resgate: se o intro.js não carregar (404, erro de sintaxe), ninguém
+         tira o painel e a landing fica trancada atrás dele. Este timeout
+         derruba o painel sozinho.
 
          É setTimeout e não animação CSS de propósito: aba em segundo plano
          congela animação CSS junto com o requestAnimationFrame, e o painel
          sobrevivia aos 4 segundos. Timer o navegador atrasa, não suspende.
 
          O intro.js limpa este timer no fim da sua própria inicialização, ou
-         seja, só depois de a timeline existir: se ele estourar no meio do
-         setup, o resgate continua de pé. */
+         seja, só depois de a timeline existir. */
       window.__munoIntroResgate = setTimeout(function () {
         document.documentElement.removeAttribute('data-intro');
         if (window.munoHero) window.munoHero.iniciar({ pularMarca: true });
+        else document.documentElement.removeAttribute('data-hero');
       }, 4000);
     })();
   </script>
-
-  <!-- Sem JS, a entrada do hero nunca dispara — mostra tudo direto -->
   <noscript>
     <style>
-      .hero-anim, .hl-line, .tr-unit, .hero-marca { opacity: 1 !important; transform: none !important; }
       .intro { display: none !important; }
+      .hero-anim, .hl-linha, #cel, .flutua { opacity: 1 !important; }
     </style>
   </noscript>
+
+  <!-- Dados estruturados: o que o Google lê para entender que isto é um
+       software para restaurantes, com preço e perguntas frequentes. Os preços
+       saem de PRECOS em src/lib/plans.ts, como os do texto. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://munoapp.com.br/#muno",
+        "name": "Muno",
+        "url": "https://munoapp.com.br/",
+        "logo": "https://munoapp.com.br/vendas/img/logo.png"
+      },
+      {
+        "@type": "SoftwareApplication",
+        "name": "Muno",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "description": "Cardápio digital para restaurantes, com delivery, retirada, pedido na mesa por QR Code, tela da cozinha, rastreio do motoboy e painel de vendas.",
+        "publisher": { "@id": "https://munoapp.com.br/#muno" },
+        "offers": [
+          { "@type": "Offer", "name": "Membro MUNO", "price": "119.99", "priceCurrency": "BRL", "url": "https://munoapp.com.br/assinar?plano=MEMBRO&ciclo=MENSAL" },
+          { "@type": "Offer", "name": "Membro + Mesas QR", "price": "149.99", "priceCurrency": "BRL", "url": "https://munoapp.com.br/assinar?plano=MEMBRO_MESA_QR&ciclo=MENSAL" }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "Preciso ter conhecimento técnico para usar?", "acceptedAnswer": { "@type": "Answer", "text": "Não. O sistema já vem funcionando: você preenche os dados do restaurante e cadastra os itens por telas simples. Se travar em qualquer ponto, é só chamar no WhatsApp." } },
+          { "@type": "Question", "name": "Existe taxa sobre cada venda realizada?", "acceptedAnswer": { "@type": "Answer", "text": "Não. Você paga só a mensalidade do plano, e a Muno não fica com nada das vendas. A taxa do Pix ou do cartão é a do seu gateway de pagamento." } },
+          { "@type": "Question", "name": "Quanto tempo para meu cardápio ficar no ar?", "acceptedAnswer": { "@type": "Answer", "text": "O endereço fica no ar assim que o pagamento é confirmado, em minutos. Depois, o tempo é o de cadastrar os itens: um cardápio enxuto leva menos de uma hora." } },
+          { "@type": "Question", "name": "Posso cancelar quando quiser?", "acceptedAnswer": { "@type": "Answer", "text": "Sim. Sem fidelidade e sem multa. E nos primeiros 7 dias, se não gostar, devolvemos o valor." } },
+          { "@type": "Question", "name": "Funciona junto com marketplaces de delivery?", "acceptedAnswer": { "@type": "Answer", "text": "Sim. A Muno funciona ao lado de qualquer marketplace. Muitos restaurantes usam os dois e levam aos poucos os clientes que já conhecem a casa para o canal próprio." } },
+          { "@type": "Question", "name": "O sistema funciona no final de semana?", "acceptedAnswer": { "@type": "Answer", "text": "O sistema funciona 24 horas, todos os dias. O suporte humano atende de segunda a sábado, das 8h às 22h." } }
+        ]
+      }
+    ]
+  }
+  </script>
 </head>
 
-<body class="text-graphite antialiased">
+<body>
 
-  <!--
-    Abertura da página. Porte da MunoIntro do Remotion; a coreografia mora
-    em js/intro.js e o desenho em css/styles.css, com a conversão de frames
-    anotada nos dois.
-
-    O ícone real e os dois fantasmas do split cromático são irmãos, não
-    filhos: cada um precisa do seu próprio transform e filter, e aninhá-los
-    faria o scale do punch multiplicar duas vezes.
-  -->
+  <!-- Abertura. Porte da MunoIntro do Remotion; a coreografia mora em
+       js/intro.js e o desenho no fim de css/landing.css. -->
   <div class="intro" aria-hidden="true">
     <div class="intro__palco">
       <div class="intro__glow"></div>
@@ -144,1001 +148,365 @@
     <div class="intro__flash"></div>
   </div>
 
-
-  <!--
-    A seta pontilhada do @beui/expanding-arrow-button. Ela aparece 18 vezes
-    (seis por botão, três botões), então mora aqui uma vez só e o resto é
-    <use>. Inline em cada lugar eram 4KB de HTML repetido.
-  -->
-  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
-    <symbol id="seta-pontilhada" viewBox="0 0 20 28" fill="none">
-      <circle cx="4" cy="4" r="2" fill="currentColor"/>
-      <circle cx="10" cy="9" r="2" fill="currentColor"/>
-      <circle cx="16" cy="14" r="2" fill="currentColor"/>
-      <circle cx="10" cy="19" r="2" fill="currentColor"/>
-      <circle cx="4" cy="24" r="2" fill="currentColor"/>
-    </symbol>
-  </svg>
-
-  <!-- Barra de progresso de scroll -->
-  <div id="scrollProgress"></div>
-
-  <!-- ======================================================
-       ANNOUNCEMENT BAR
-       ====================================================== -->
-  <!--
-    A faixa dizia "Gestão completa do seu restaurante por R$ 119,99/mês ·
-    Cancele quando quiser": duas promessas, um emoji e um separador, em duas
-    linhas no celular. Faixa de topo é lida de relance ou não é lida, e a que
-    pede duas linhas não é lida.
-
-    Ficou o preço, escondido atrás de "??". A faixa deixa de informar e passa
-    a perguntar, e a resposta está a um clique, na seção de planos. "Sem taxa"
-    e "cancele quando quiser" seguem logo abaixo, nas provas do hero.
-
-    O valor de verdade não sai daqui por acaso: quem manda no preço é PRECOS em
-    src/lib/plans.ts, e src/lib/plans.test.ts confere que os quatro valores de
-    tabela aparecem na página. Eles continuam aparecendo, nos cards de plano e
-    no popup de saída. Não escreva 119,99 aqui de novo: seriam dois lugares
-    para trocar no dia do reajuste, que é exatamente a divergência que o teste
-    existe para pegar.
-  -->
-  <div class="announcement-bar content-layer text-center">
-    <a href="#planos" class="announcement-link">
-      Tudo por <strong>R$ ??/mês</strong>
-    </a>
-  </div>
-
-  <!-- ======================================================
-       NAVBAR
-       ====================================================== -->
-  <!--
-    Sem logo aqui. A marca da primeira dobra é a do hero, logo abaixo, e duas
-    logos a 150px uma da outra disputavam o mesmo olhar. Consequência aceita:
-    quando a nav vira sticky (js/main.js) ela carrega só os links, sem marca.
-
-    justify-end, e não justify-between: com um filho só, o justify-between
-    empurraria os links para a esquerda.
-  -->
-  <nav class="content-layer w-full py-4 px-4 md:px-12 flex justify-end items-center max-w-7xl mx-auto">
-    <div class="hidden md:flex gap-6 items-center">
-      <a href="#beneficios" class="text-gastrogreen font-medium hover:text-terracota transition text-sm">Benefícios</a>
-      <a href="#como-funciona" class="text-gastrogreen font-medium hover:text-terracota transition text-sm">Como
-        Funciona</a>
-      <a href="#planos" class="text-gastrogreen font-medium hover:text-terracota transition text-sm">Planos</a>
-      <a href="#planos" class="btn-primary px-5 py-2 rounded-full text-sm">
-        Começar Agora
-      </a>
-    </div>
-  </nav>
-
-  <!-- ======================================================
-       HERO
-       ====================================================== -->
-  <header class="content-layer px-4 pt-8 pb-16 md:pt-12 md:pb-20">
-    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-6 lg:gap-16 items-center">
-
-      <!-- Coluna de texto -->
-      <div class="hero-col text-center lg:text-left">
-        <div class="hero-col-texto">
-        <!--
-          A única marca da primeira dobra, agora que a nav não tem logo.
-
-          mx-auto é obrigatório, não decorativo: o preflight do Tailwind faz
-          `img { display: block }`, e o text-center do pai não centraliza
-          bloco.
-        -->
-        <img src="/vendas/img/logo.png" alt="MUNOFOOD"
-             class="hero-marca h-7 w-auto mb-8 mx-auto lg:mx-0" />
-
-        <h1 class="text-4xl md:text-5xl lg:text-[3.35rem] font-black leading-[1.1] text-gastrogreen">
-          <span class="hl-line">Do Cardápio ao Caixa,</span>
-          <span class="hl-line text-terracota">Tudo no Seu Controle</span>
-        </h1>
-
-        <p class="hero-anim mt-6 text-base md:text-lg text-gray-600 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-          Cardápio, pedidos e pagamentos num só lugar, no ar em <strong class="text-gastrogreen">minutos</strong>.
-        </p>
-
-        <ul class="hero-anim mt-7 flex flex-wrap justify-center lg:justify-start gap-x-6 gap-y-2 text-sm text-gray-600">
-          <li class="flex items-center gap-1.5">
-            <i data-lucide="check-circle" class="w-4 h-4 text-sage flex-shrink-0"></i> Sem taxa por pedido
-          </li>
-          <li class="flex items-center gap-1.5">
-            <i data-lucide="check-circle" class="w-4 h-4 text-sage flex-shrink-0"></i> No ar em minutos
-          </li>
-          <li class="flex items-center gap-1.5">
-            <i data-lucide="check-circle" class="w-4 h-4 text-sage flex-shrink-0"></i> Cancele quando quiser
-          </li>
-        </ul>
-        </div>
-
-        <!--
-          No lugar dos dois CTAs que ficavam aqui.
-
-          Botão de largura cheia empilhado no celular vira bloco, e dois deles
-          empurravam as provas e o mockup para fora da primeira dobra. O convite
-          para rolar ocupa 40px e diz a mesma coisa que o segundo botão dizia.
-
-          Só no celular. No desktop o hero inteiro cabe na tela, com o mockup ao
-          lado dizendo que a página continua, e aí o convite vira enfeite.
-
-          Quem quer assinar agora tem o CTA da navbar, que é sticky, e no celular
-          a barra fixa que sobe depois de 80px de rolagem.
-        -->
-        <a href="#beneficios" class="hero-anim hero-scroll lg:hidden mt-6" aria-label="Rolar para os benefícios">
-          <i data-lucide="chevron-down"></i>
-        </a>
+  <header class="nav" id="nav">
+    <div class="wrap nav__in">
+      <a href="/" aria-label="Muno, início"><img class="nav__logo" src="/vendas/img/logo.png" alt="Muno" width="160" height="40" /></a>
+      <div class="regua" id="regua" aria-hidden="true">
+        <span data-r="0" class="agora"><i></i>Pedido</span><em></em>
+        <span data-r="1"><i></i>Cozinha</span><em></em>
+        <span data-r="2"><i></i>Entrega</span><em></em>
+        <span data-r="3"><i></i>Caixa</span><em></em>
+        <span data-r="4"><i></i>Volta</span><em></em>
+        <span data-r="5"><i></i>Seu plano</span>
       </div>
-
-      <!--
-        Mockup do produto, desenhado em HTML/CSS.
-
-        Até 18/09/2026 este espaço era uma cena Three.js (js/scene.js) com um
-        hambúrguer e uma pizza flutuando atrás da página inteira. Ela
-        rasterizava num canvas de tamanho fixo e aparecia serrilhada, além de
-        custar WebGL e ~600KB de CDN em toda visita. O substituto é vetorial:
-        escala em qualquer densidade de tela, e mostra o produto em vez de
-        comida genérica.
-
-        aria-hidden porque é ilustração: tudo que ela diz já está no texto ao
-        lado.
-
-        Os R$ daqui são prato de restaurante fictício, não mensalidade. Os
-        marcadores inicio:ilustracao/fim:ilustracao existem para que
-        src/lib/plans.test.ts saiba disso: dentro deles ele exige o oposto do
-        resto da página, que nenhum preço de plano apareça. Ver o teste.
-      -->
-      <!-- inicio:ilustracao -->
-      <div class="hero-mock hero-anim" aria-hidden="true">
-        <div class="mock-glow"></div>
-
-        <div class="mock-phone">
-          <div class="mock-screen">
-            <div class="mock-topbar">
-              <span class="mock-avatar"><i data-lucide="utensils-crossed"></i></span>
-              <span class="mock-ident">
-                <b>Cantina da Esquina</b>
-                <i><span class="mock-dot"></span> Aberto agora</i>
-              </span>
-            </div>
-
-            <div class="mock-item">
-              <span class="mock-thumb mock-thumb-a"><i data-lucide="sandwich"></i></span>
-              <span class="mock-item-text">
-                <b>Burger da Casa</b>
-                <i>Blend 180g, cheddar</i>
-              </span>
-              <span class="mock-price">R$ 32,00</span>
-            </div>
-
-            <div class="mock-item">
-              <span class="mock-thumb mock-thumb-b"><i data-lucide="pizza"></i></span>
-              <span class="mock-item-text">
-                <b>Pizza Margherita</b>
-                <i>Manjericão fresco</i>
-              </span>
-              <span class="mock-price">R$ 48,00</span>
-            </div>
-
-            <div class="mock-cta">Fazer pedido · R$ 80,00</div>
-          </div>
-        </div>
-
-        <div class="mock-float mock-float-venda">
-          <span class="mock-float-label">Faturamento hoje</span>
-          <span class="mock-float-value">R$ 1.240</span>
-          <span class="mock-bars">
-            <i style="height:34%"></i><i style="height:58%"></i><i style="height:42%"></i><i
-              style="height:74%"></i><i style="height:60%"></i><i style="height:95%"></i>
-          </span>
-        </div>
-
-        <div class="mock-float mock-float-pedido">
-          <span class="mock-check"><i data-lucide="check"></i></span>
-          <span class="mock-float-text">
-            <b>Pedido #184</b>
-            <i>pago no Pix</i>
-          </span>
-        </div>
+      <div class="nav__cta">
+        <a class="entrar" href="#planos">Planos</a>
+        <a class="btn btn-brasa" href="/assinar?plano=MEMBRO&amp;ciclo=MENSAL">Começar agora</a>
       </div>
-      <!-- fim:ilustracao -->
-
     </div>
   </header>
 
-  <!-- ======================================================
-       BENEFÍCIOS
-       ====================================================== -->
-  <section id="beneficios" class="content-layer py-20 px-4">
-    <div class="max-w-7xl mx-auto">
-      <div class="text-center mb-12 reveal">
-        <span class="text-terracota font-bold tracking-wider text-sm uppercase">Por que nos escolher</span>
-        <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">
-          <span class="cromatico" data-palavras="caixa|cozinha|delivery">Gestão completa, do cardápio ao<span class="cromatico__palco"
-            ><span class="cromatico__medida" aria-hidden="true">&nbsp;cozinha</span
-            ><span class="cromatico__medida" aria-hidden="true">&nbsp;delivery</span
-            ><span class="cromatico__ativa">&nbsp;caixa</span></span></span>
-        </h2>
-        <p class="text-gray-500 mt-2 max-w-xl mx-auto text-sm">Muito além de um cardápio digital, com filtro de
-          restrições alimentares a partir do que o próprio restaurante informa.</p>
+  <!-- O trilho e o pedido que corre nele: decoração, por isso aria-hidden.
+       Tudo o que eles contam está escrito nos capítulos. -->
+  <div id="trilho" aria-hidden="true"><svg id="trilhoSvg"><path id="trilhoBase"/><path id="trilhoFeito"/></svg></div>
+
+  <!-- inicio:ilustracao -->
+  <!-- Ilustrações do produto: preços de pratos e números de um restaurante de
+       exemplo. Nenhum é preço de plano; ver src/lib/plans.test.ts. -->
+  <div id="viajante" data-modo="pedido" aria-hidden="true">
+    <div class="via">
+      <div class="via__pedido">
+        <div class="via__topo"><span class="via__num">#1042</span><span>PIX PAGO</span></div>
+        <div class="via__itens">2× Smash duplo · entrega</div>
+        <div class="via__status"><i></i><span id="viaStatus">Pedido feito no celular</span></div>
       </div>
-
-      <!-- Destaque: filtro de restrições alimentares, card largo -->
-      <div class="mb-6 reveal">
-        <div
-          class="glass-card p-7 rounded-2xl bg-gradient-to-r from-gastrogreen/5 to-terracota/5 border border-terracota/15 relative overflow-hidden">
-          <div class="flex flex-col md:flex-row md:items-center gap-6">
-            <div class="bg-gastrogreen w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0 text-white">
-              <i data-lucide="leaf" class="w-8 h-8"></i>
-            </div>
-            <div class="flex-1">
-              <h3 class="text-xl font-bold text-gastrogreen mb-1">Filtro de restrições alimentares</h3>
-              <p class="text-gray-600 text-sm leading-relaxed">
-                Ao cadastrar cada prato, o dono informa se tem glúten, se tem lactose e se é vegano. No cardápio, o
-                cliente toca em Vegano, Sem glúten ou Sem lactose e vê só o que o restaurante marcou.
-                Quem tem restrição encontra o que pode pedir em um toque.
-              </p>
-            </div>
-            <div class="flex flex-wrap gap-2 md:flex-col md:gap-2 flex-shrink-0">
-              <span
-                class="bg-white border border-gray-200 rounded-full px-3 py-1 text-xs font-semibold text-gray-600">🌱
-                Vegano</span>
-              <span
-                class="bg-white border border-gray-200 rounded-full px-3 py-1 text-xs font-semibold text-gray-600">🌾
-                Sem glúten</span>
-              <span
-                class="bg-white border border-gray-200 rounded-full px-3 py-1 text-xs font-semibold text-gray-600">🥛
-                Sem lactose</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-        <div class="glass-card p-7 rounded-2xl hover:bg-white transition duration-300 group reveal">
-          <div
-            class="bg-terracota/10 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-terracota group-hover:bg-terracota group-hover:text-white transition duration-300">
-            <i data-lucide="map-pin" class="w-7 h-7"></i>
-          </div>
-          <h3 class="text-xl font-bold text-gastrogreen mb-2">Rastreio ao Vivo da Entrega</h3>
-          <p class="text-gray-600 text-sm leading-relaxed">Cliente acompanha o motoboy no mapa em tempo real, do
-            preparo até a porta. Sem ligar perguntando onde está o pedido.</p>
-          <div class="mt-4 text-xs text-sage font-semibold flex items-center gap-1">
-            <i data-lucide="check-circle" class="w-4 h-4"></i> Localização atualizada em tempo real
-          </div>
-        </div>
-
-        <div class="glass-card p-7 rounded-2xl hover:bg-white transition duration-300 group reveal reveal-delay-1">
-          <div
-            class="bg-sage/20 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-gastrogreen group-hover:bg-gastrogreen group-hover:text-white transition duration-300">
-            <i data-lucide="smartphone" class="w-7 h-7"></i>
-          </div>
-          <h3 class="text-xl font-bold text-gastrogreen mb-2">Cardápio que Converte</h3>
-          <p class="text-gray-600 text-sm leading-relaxed">Layout otimizado para despertar fome e aumentar o ticket
-            médio. Fotos que vendem sozinhas em qualquer celular.</p>
-          <div class="mt-4 text-xs text-sage font-semibold flex items-center gap-1">
-            <i data-lucide="check-circle" class="w-4 h-4"></i> Pensado para aumentar o ticket médio
-          </div>
-        </div>
-
-        <div class="glass-card p-7 rounded-2xl hover:bg-white transition duration-300 group reveal reveal-delay-2">
-          <div
-            class="bg-gastrogreen/10 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-gastrogreen group-hover:bg-gastrogreen group-hover:text-white transition duration-300">
-            <i data-lucide="bar-chart-3" class="w-7 h-7"></i>
-          </div>
-          <h3 class="text-xl font-bold text-gastrogreen mb-2">Painel de Controle</h3>
-          <p class="text-gray-600 text-sm leading-relaxed">Altere preços, pause esgotados e veja relatórios de venda em
-            tempo real. Tudo no celular.</p>
-          <div class="mt-4 text-xs text-sage font-semibold flex items-center gap-1">
-            <i data-lucide="check-circle" class="w-4 h-4"></i> Dados atualizados em segundos
-          </div>
-        </div>
-
-        <div class="glass-card p-7 rounded-2xl hover:bg-white transition duration-300 group reveal">
-          <div
-            class="bg-terracota/10 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-terracota group-hover:bg-terracota group-hover:text-white transition duration-300">
-            <i data-lucide="qr-code" class="w-7 h-7"></i>
-          </div>
-          <h3 class="text-xl font-bold text-gastrogreen mb-2">QR Code de Mesa</h3>
-          <p class="text-gray-600 text-sm leading-relaxed">Cliente escaneia, pede e paga diretamente da mesa. Sem
-            garçom, sem fila, sem erro de anotação.</p>
-          <div class="mt-4 text-xs text-sage font-semibold flex items-center gap-1">
-            <i data-lucide="check-circle" class="w-4 h-4"></i> Incluso no Membro MUNO
-          </div>
-        </div>
-
-        <div class="glass-card p-7 rounded-2xl hover:bg-white transition duration-300 group reveal reveal-delay-1">
-          <div
-            class="bg-sage/20 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-gastrogreen group-hover:bg-gastrogreen group-hover:text-white transition duration-300">
-            <i data-lucide="credit-card" class="w-7 h-7"></i>
-          </div>
-          <h3 class="text-xl font-bold text-gastrogreen mb-2">Pagamento Integrado</h3>
-          <p class="text-gray-600 text-sm leading-relaxed">Pix, cartão de crédito e débito direto pelo cardápio.
-            Dinheiro cai na sua conta, não na nossa.</p>
-          <div class="mt-4 text-xs text-sage font-semibold flex items-center gap-1">
-            <i data-lucide="check-circle" class="w-4 h-4"></i> Sem taxa sobre vendas
-          </div>
-        </div>
-
-        <div class="glass-card p-7 rounded-2xl hover:bg-white transition duration-300 group reveal reveal-delay-2">
-          <div
-            class="bg-gastrogreen/10 w-14 h-14 rounded-2xl flex items-center justify-center mb-5 text-gastrogreen group-hover:bg-gastrogreen group-hover:text-white transition duration-300">
-            <i data-lucide="headphones" class="w-7 h-7"></i>
-          </div>
-          <h3 class="text-xl font-bold text-gastrogreen mb-2">Suporte Humanizado</h3>
-          <p class="text-gray-600 text-sm leading-relaxed">Equipe real via WhatsApp. Nada de bot, nada de email que
-            ninguém responde. Sua dúvida resolvida hoje.</p>
-          <div class="mt-4 text-xs text-sage font-semibold flex items-center gap-1">
-            <i data-lucide="check-circle" class="w-4 h-4"></i> Atendimento humano, sem fila de bot
-          </div>
-        </div>
-
-      </div>
+      <div class="via__moto"><small id="viaEta">chega em 18 min</small><svg width="34" height="34" viewBox="0 0 34 34" fill="none"><circle cx="8" cy="23" r="5" stroke="#F6DCC6" stroke-width="2.5"/><circle cx="26" cy="23" r="5" stroke="#F6DCC6" stroke-width="2.5"/><path d="M8 23h9l4-8h-6M21 15l5 8M19 11h5" stroke="#F6DCC6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="via__moeda"><div><small>NO CAIXA</small>R$ 69,80</div></div>
+      <div class="via__aval"><div class="via__estrelas">↺ CLIENTE DE VOLTA</div><b>Ana fez o 2º pedido</b><p>#1077 · Shake de Ninho + Batata</p></div>
     </div>
-  </section>
+  </div>
 
-  <!-- ======================================================
-       COMO FUNCIONA
-       ====================================================== -->
-  <section id="como-funciona" class="content-layer section-alt py-20 px-4">
-    <div class="max-w-5xl mx-auto">
-      <div class="text-center mb-12 reveal">
-        <span class="text-terracota font-bold tracking-wider text-sm uppercase">Sem complicação</span>
-        <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">Do zero à gestão completa em 3 passos</h2>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-        <!-- Linha conectora (desktop) -->
-        <div
-          class="hidden md:block absolute top-8 left-[calc(16.7%+32px)] right-[calc(16.7%+32px)] h-0.5 bg-gradient-to-r from-terracota via-sage to-terracota opacity-30 z-0">
+  <main>
+    <!-- 1 · o pedido nasce -->
+    <section class="hero" id="topo">
+      <div class="hero__fundo"><div class="bolha bolha--a"></div><div class="bolha bolha--b"></div></div>
+      <div class="wrap hero__grid camada">
+        <div class="hero__txt">
+          <span class="selo hero-anim"><b>7 DIAS</b> Teste com garantia: não gostou, devolvemos o valor</span>
+          <h1 class="man" id="titulo"><span class="hl-linha">Seu restaurante.</span><span class="hl-linha quente">Do pedido ao caixa.</span></h1>
+          <p class="sub hero-anim">Delivery, retirada e mesa com QR no mesmo cardápio, com a cara da sua casa. O pedido cai na cozinha com alarme, o cliente acompanha a entrega e o painel mostra o que vende. Role e siga um pedido do começo ao fim.</p>
+          <div class="hero__acoes hero-anim">
+            <a class="btn btn-brasa ima" href="/assinar?plano=MEMBRO&amp;ciclo=MENSAL">Começar agora <span class="seta">→</span></a>
+            <a class="btn btn-contorno" href="#cozinha">Ver o pedido andar ↓</a>
+          </div>
+          <div class="garantias hero-anim">
+            <span><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="9" fill="#2B5240"/><path d="M5 9.3l2.6 2.6L13 6.5" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>No ar em minutos</span>
+            <span><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="9" fill="#2B5240"/><path d="M5 9.3l2.6 2.6L13 6.5" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>Delivery, retirada e mesa</span>
+            <span><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="9" fill="#2B5240"/><path d="M5 9.3l2.6 2.6L13 6.5" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>Sem taxa por pedido</span>
+          </div>
         </div>
 
-        <div class="text-center reveal">
-          <div
-            class="relative z-10 w-16 h-16 rounded-full bg-terracota text-white text-2xl font-black flex items-center justify-center mx-auto mb-5 shadow-lg shadow-terracota/30">
-            1</div>
-          <h3 class="text-lg font-bold text-gastrogreen mb-2">Escolha seu plano</h3>
-          <p class="text-gray-600 text-sm leading-relaxed">Assine em dois minutos, direto pelo site. Sem reunião, sem espera, sem proposta comercial.</p>
-        </div>
-
-        <div class="text-center reveal reveal-delay-1">
-          <div
-            class="relative z-10 w-16 h-16 rounded-full bg-gastrogreen text-white text-2xl font-black flex items-center justify-center mx-auto mb-5 shadow-lg shadow-gastrogreen/30">
-            2</div>
-          <h3 class="text-lg font-bold text-gastrogreen mb-2">Seu sistema nasce no ar</h3>
-          <p class="text-gray-600 text-sm leading-relaxed">Assim que o pagamento confirma, seurestaurante.munoapp.com.br já responde, com painel, cozinha e caixa prontos para usar.</p>
-        </div>
-
-        <div class="text-center reveal reveal-delay-2">
-          <div
-            class="relative z-10 w-16 h-16 rounded-full bg-sage text-white text-2xl font-black flex items-center justify-center mx-auto mb-5 shadow-lg shadow-sage/30">
-            3</div>
-          <h3 class="text-lg font-bold text-gastrogreen mb-2">Suba seu cardápio e venda</h3>
-          <p class="text-gray-600 text-sm leading-relaxed">Você cadastra seus itens e preços no painel, porque ninguém conhece seu cardápio melhor que você. Travou em algo? Chama no WhatsApp.</p>
-        </div>
-      </div>
-
-      <div class="text-center mt-12 reveal">
-        <a href="#planos" class="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl text-lg">
-          Quero Começar Agora <i data-lucide="arrow-right" class="w-5 h-5"></i>
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- ======================================================
-       GARANTIAS
-       ====================================================== -->
-  <section class="content-layer py-20 px-4">
-    <div class="max-w-md mx-auto text-center mb-12 reveal">
-      <span class="text-terracota font-bold tracking-wider text-sm uppercase">Sem pegadinha</span>
-      <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">As garantias que a gente assina embaixo</h2>
-      <p class="text-gray-500 mt-2 text-sm">Nada de depoimento fabricado. Só o que a gente cumpre, por escrito.</p>
-    </div>
-
-    <div class="recibo-caixa max-w-sm mx-auto">
-      <div class="receipt">
-        <div class="receipt-head">
-          <div class="receipt-logo">MUNOFOOD</div>
-          <div class="receipt-meta">Nota de garantia · Nº 0001</div>
-        </div>
-        <div class="receipt-barcode" aria-hidden="true"></div>
-
-        <ul class="receipt-items">
-          <li>
-            <i data-lucide="shield-check" class="w-4 h-4 text-sage flex-shrink-0"></i>
-            <span class="label">Garantia de 7 dias</span>
-            <span class="leader" aria-hidden="true"></span>
-            <b>✓ garantido</b>
-          </li>
-          <li>
-            <i data-lucide="lock" class="w-4 h-4 text-sage flex-shrink-0"></i>
-            <span class="label">Seus dados, 100% seus</span>
-            <span class="leader" aria-hidden="true"></span>
-            <b>✓ garantido</b>
-          </li>
-          <li>
-            <i data-lucide="headphones" class="w-4 h-4 text-sage flex-shrink-0"></i>
-            <span class="label">Suporte humano, sem bot</span>
-            <span class="leader" aria-hidden="true"></span>
-            <b>✓ garantido</b>
-          </li>
-          <li>
-            <i data-lucide="unlock" class="w-4 h-4 text-sage flex-shrink-0"></i>
-            <span class="label">Cancele quando quiser</span>
-            <span class="leader" aria-hidden="true"></span>
-            <b>✓ garantido</b>
-          </li>
-          <li>
-            <i data-lucide="percent" class="w-4 h-4 text-sage flex-shrink-0"></i>
-            <span class="label">Zero taxa sobre vendas</span>
-            <span class="leader" aria-hidden="true"></span>
-            <b>✓ garantido</b>
-          </li>
-        </ul>
-
-        <div class="receipt-divider"></div>
-        <div class="receipt-total">
-          <span>Assinado</span>
-          <span>MUNOFOOD</span>
-        </div>
-
-        <div class="receipt-stamp">100% honesto</div>
-      </div>
-    </div>
-
-    <div class="text-center mt-10 reveal reveal-delay-2">
-      <a href="#planos" class="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl">
-        Quero essas garantias <i data-lucide="arrow-right" class="w-5 h-5"></i>
-      </a>
-    </div>
-  </section>
-
-  <!-- ======================================================
-       COMPARAÇÃO
-       ====================================================== -->
-  <section class="content-layer section-alt py-20 px-4">
-    <div class="max-w-4xl mx-auto">
-      <div class="text-center mb-12 reveal">
-        <span class="text-terracota font-bold tracking-wider text-sm uppercase">Por que MUNOFOOD</span>
-        <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">Nós vs. os outros</h2>
-        <p class="text-gray-500 mt-2 max-w-lg mx-auto text-sm">Compare e veja por que restaurantes estão trocando de
-          sistema para o MUNOFOOD.</p>
-      </div>
-
-      <div class="glass-card rounded-3xl overflow-hidden reveal">
-        <table class="compare-table w-full">
-          <thead>
-            <tr class="bg-gastrogreen/6">
-              <th class="text-left text-gastrogreen">Funcionalidade</th>
-              <th class="compare-col-highlight text-gastrogreen">
-                <div class="flex flex-col items-center gap-1">
-                  <span class="bg-terracota text-white text-xs px-2 py-0.5 rounded-full">Melhor escolha</span>
-                  MUNOFOOD
+        <!-- A loja de um restaurante de exemplo, num celular. O dedo, o voo do
+             lanche e a sacola são o js/viagem.js. -->
+        <div class="cena" id="cena" aria-hidden="true">
+          <svg class="ramo" width="130" height="130" viewBox="0 0 120 120"><path d="M18 112 C40 72 70 40 112 18" stroke="#2B5240" stroke-width="3" fill="none"/><ellipse cx="55" cy="72" rx="15" ry="6" transform="rotate(-40 55 72)" fill="#2B5240"/><ellipse cx="82" cy="45" rx="15" ry="6" transform="rotate(-40 82 45)" fill="#2B5240"/><ellipse cx="44" cy="54" rx="12" ry="5" transform="rotate(32 44 54)" fill="#3E6B55"/><ellipse cx="72" cy="30" rx="11" ry="5" transform="rotate(32 72 30)" fill="#3E6B55"/></svg>
+          <div class="onda" id="onda"></div>
+          <span id="saida" data-parada="0" style="position: absolute; left: 50%; bottom: -34px; width: 2px; height: 2px"></span>
+          <div class="cel" id="cel">
+            <div class="cel__tela" id="tela">
+              <div class="cel__ilha"></div>
+              <div class="loja">
+                <div class="loja__topo">
+                  <div><div class="loja__nome">Brasa Burger</div><div class="loja__aberto">● Aberto · entrega em 35 min</div></div>
+                  <div class="loja__sino"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 10V6.5a3.5 3.5 0 017 0V10l1 1H2.5l1-1zM5.8 12.5h2.4" stroke="#2B5240" stroke-width="1.6" stroke-linecap="round"/></svg></div>
                 </div>
-              </th>
-              <th class="text-gray-400">Marketplaces</th>
-              <th class="text-gray-400 hidden md:table-cell">Outros sistemas</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td class="text-left text-gray-700 font-medium">Sem taxa por pedido</td>
-              <td class="compare-col-highlight compare-yes">✓ Zero</td>
-              <td class="compare-no">✗ 12–30%</td>
-              <td class="compare-partial hidden md:table-cell">⚠ Variável</td>
-            </tr>
-            <tr>
-              <td class="text-left text-gray-700 font-medium">Sistema no ar</td>
-              <td class="compare-col-highlight compare-yes">✓ Em minutos</td>
-              <td class="compare-no">✗ 5–15 dias</td>
-              <td class="compare-partial hidden md:table-cell">⚠ 2–7 dias</td>
-            </tr>
-            <tr>
-              <td class="text-left text-gray-700 font-medium">Suporte via WhatsApp</td>
-              <td class="compare-col-highlight compare-yes">✓ Humano, sem bot</td>
-              <td class="compare-no">✗ Chat bot</td>
-              <td class="compare-partial hidden md:table-cell">⚠ E-mail</td>
-            </tr>
-            <tr>
-              <td class="text-left text-gray-700 font-medium">QR Code de mesa</td>
-              <td class="compare-col-highlight compare-yes">✓ Incluído</td>
-              <td class="compare-no">✗ Não disponível</td>
-              <td class="compare-partial hidden md:table-cell">⚠ Pago à parte</td>
-            </tr>
-            <tr>
-              <td class="text-left text-gray-700 font-medium">Pagamento integrado</td>
-              <td class="compare-col-highlight compare-yes">✓ Pix + cartão</td>
-              <td class="compare-no">✗ Plataforma deles</td>
-              <td class="compare-partial hidden md:table-cell">⚠ Depende</td>
-            </tr>
-            <tr>
-              <td class="text-left text-gray-700 font-medium">Você é dono dos dados</td>
-              <td class="compare-col-highlight compare-yes">✓ 100% seus</td>
-              <td class="compare-no">✗ Da plataforma</td>
-              <td class="compare-partial hidden md:table-cell">⚠ Limitado</td>
-            </tr>
-            <tr>
-              <td class="text-left text-gray-700 font-medium">Cancelamento livre</td>
-              <td class="compare-col-highlight compare-yes">✓ A qualquer hora</td>
-              <td class="compare-no">✗ Contrato mínimo</td>
-              <td class="compare-partial hidden md:table-cell">⚠ Fidelidade</td>
-            </tr>
-          </tbody>
-        </table>
+                <div class="banner" id="banner">
+                  <div class="pontos"><i class="ativo"></i><i></i><i></i></div>
+                  <div class="slide ativo"><div class="kick" id="diaKick">SEXTA · O MAIS PEDIDO</div><div class="man">Smash duplo</div><div class="slide__preco">R$ 34,90</div><span class="slide__btn">Pedir agora</span><img src="/vendas/img/burger.webp" alt="" width="156" height="156" /></div>
+                  <div class="slide"><div class="kick">PARA ACOMPANHAR</div><div class="man">Shake de Ninho</div><div class="slide__preco">R$ 19,90</div><span class="slide__btn">Pedir agora</span><img src="/vendas/img/shake.webp" alt="" width="156" height="156" loading="lazy" /></div>
+                  <div class="slide"><div class="kick">DESTAQUE DA CASA</div><div class="man">Brownie quente</div><div class="slide__preco">R$ 16,00</div><span class="slide__btn">Pedir agora</span><img src="/vendas/img/brownie.webp" alt="" width="156" height="156" loading="lazy" /></div>
+                </div>
+                <div class="cats"><span>Lanches</span><span>Combos</span><span>Porções</span><span>Bebidas</span></div>
+                <div class="loja__h">Mais pedidos</div>
+                <div class="itens">
+                  <div class="item"><img src="/vendas/img/burger.webp" alt="" width="48" height="48" /><div><b>Smash duplo</b><small>R$ 34,90</small></div><span class="mais" id="maisA">+</span></div>
+                  <div class="item"><img src="/vendas/img/shake.webp" alt="" width="48" height="48" /><div><b>Shake de Ninho</b><small>R$ 19,90</small></div><span class="mais">+</span></div>
+                  <div class="item"><img src="/vendas/img/batata.webp" alt="" width="48" height="48" /><div><b>Batata rústica</b><small>R$ 18,00</small></div><span class="mais">+</span></div>
+                </div>
+              </div>
+              <div class="barra" id="barra">
+                <span id="barraTxt">Sacola vazia</span>
+                <span class="barra__sacola" id="sacola"><svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 6h10l-1 9H5L4 6zM6.5 6V5a2.5 2.5 0 015 0v1" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/></svg><span class="barra__conta" id="conta">0</span></span>
+              </div>
+              <div class="dedo" id="dedo"></div>
+            </div>
+          </div>
+          <div class="flutua flutua--fat"><small>Faturamento hoje</small><div class="man">R$ 1.240</div><em>↑ 18% sobre a última sexta</em></div>
+          <div class="flutua flutua--av"><div class="chat"><p class="chat__cli">Dá para mandar sem cebola?</p><p class="chat__loja">Claro, já avisei a cozinha!</p><small>Chat do pedido #1042</small></div></div>
+        </div>
       </div>
+    </section>
 
-      <div class="text-center mt-8 reveal">
-        <a href="#planos" class="btn-primary inline-flex items-center gap-2 px-8 py-4 rounded-xl">
-          Quero mudar para o MUNOFOOD <i data-lucide="arrow-right" class="w-5 h-5"></i>
-        </a>
+    <div class="faixa" role="img" aria-label="Feito para hamburgueria, pizzaria, açaiteria, marmitaria, lanchonete e bar com mesa">
+      <div class="faixa__trilha" aria-hidden="true">
+        <span>Hamburgueria</span><span>Pizzaria</span><span>Açaiteria</span><span>Marmitaria</span><span>Lanchonete</span><span>Bar com mesa</span>
+        <span>Hamburgueria</span><span>Pizzaria</span><span>Açaiteria</span><span>Marmitaria</span><span>Lanchonete</span><span>Bar com mesa</span>
       </div>
     </div>
-  </section>
 
-  <!-- ======================================================
-       PLANOS
-       ====================================================== -->
-  <section id="planos" class="content-layer py-20 px-4">
-    <div class="max-w-7xl mx-auto">
-      <div class="text-center mb-12 reveal">
-        <span class="text-sage font-bold tracking-wider text-sm uppercase">Investimento</span>
-        <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">Seja Membro MUNO</h2>
-        <p class="text-gray-600 mt-2">Sem taxa sobre vendas. Você fica com <strong>100% do lucro</strong>.</p>
-      </div>
-
-      <!-- Toggle mensal/anual: reescreve os preços marcados com data-mensal/
-           data-anual e o ciclo no link dos CTAs. Ver public/vendas/js/main.js. -->
-      <div class="flex items-center justify-center gap-3 mb-8">
-        <span id="labelMensal" class="text-sm font-semibold">Mensal</span>
-        <button id="toggleCiclo" type="button" role="switch" aria-checked="false"
-                aria-label="Alternar entre cobrança mensal e anual"
-                class="relative w-14 h-7 rounded-full bg-gray-300 transition">
-          <span id="toggleBolinha"
-                class="absolute top-1 left-1 w-5 h-5 rounded-full bg-white transition"></span>
-        </button>
-        <span id="labelAnual" class="text-sm font-semibold text-gray-400">
-          Anual <span class="text-terracota">· 1 mês grátis</span>
-        </span>
-      </div>
-
-      <div class="planos-grade grid grid-cols-1 md:grid-cols-3 gap-8 items-start max-w-6xl mx-auto"
-           role="group" aria-label="Planos da Muno" tabindex="0">
-
-        <!-- Membro MUNO -->
-        <div class="plano-cartao glass-card p-8 rounded-3xl relative reveal" data-tilt>
-          <h3 class="text-xl font-bold text-gastrogreen">Membro MUNO</h3>
-          <div class="my-5">
-            <div class="preco-linha flex items-end gap-2">
-              <span class="preco text-5xl font-black text-gastrogreen"
-                    data-mensal="R$ 119,99" data-anual="R$ 1.319,89">R$ 119,99</span>
-              <span class="periodo text-gray-500 mb-2" data-mensal="/mês" data-anual="/ano">/mês</span>
-            </div>
-            <div class="text-gray-500 text-sm mt-2">Cancele quando quiser sem fidelidade</div>
-            <!-- Vazio no mensal, preenchido no anual: o main.js troca o
-                 textContent de qualquer elemento com data-mensal/data-anual,
-                 entao esta linha nao precisa de JS proprio. Ate 30/08/2026 o
-                 "1 mes gratis" so existia no rotulo do switch, longe do preco
-                 que ele justifica. -->
-            <div class="text-terracota text-sm font-semibold mt-1"
-                 data-mensal="" data-anual="Equivale a 11 mensalidades. Um mês grátis."></div>
-          </div>
-          <ul class="space-y-3 mb-8 text-sm text-gray-700">
-            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Produtos
-              ilimitados</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Painel
-              financeiro completo</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Suporte
-              prioritário via WhatsApp</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Relatórios de
-              venda em tempo real</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Link
-              personalizado</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Pedidos
-              ilimitados</li>
+    <!-- 2 · a cozinha -->
+    <section class="cap cap--cozinha" id="cozinha">
+      <div class="wrap cap__grid">
+        <div class="cap__txt">
+          <span class="kick"><b>2</b>Na cozinha</span>
+          <h2 class="man">Caiu, tocou.<br>Ninguém perde pedido.</h2>
+          <p class="sub">O pedido aparece na tela da cozinha com alarme, no tablet, no computador ou no celular. Ele toca até alguém marcar “Ciente”.</p>
+          <ul class="lista">
+            <li>Sem copiar pedido do WhatsApp para o papel.</li>
+            <li>Colunas de novo, em preparo e pronto, com o tempo de cada um.</li>
+            <li>O cliente vê a mudança de status no celular dele, na hora.</li>
           </ul>
-          <a class="cta-plano btn-seta w-full"
-             data-plano="MEMBRO" href="/assinar?plano=MEMBRO&ciclo=MENSAL">
-            <span class="btn-seta__placa" aria-hidden="true">
-              <span class="btn-seta__seta"><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-              <span class="btn-seta__trilha">
-                <span><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-                <span><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-                <span><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-                <span><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-                <span><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-              </span>
-            </span>
-            <span class="btn-seta__rotulo">Quero Ser Membro MUNO</span>
-          </a>
         </div>
-
-        <!-- Membro + Mesas QR -->
-        <div class="plano-cartao glass-card-highlight p-8 rounded-3xl relative shadow-2xl plan-glow reveal reveal-delay-1" data-tilt>
-          <div
-            class="absolute top-0 right-0 bg-terracota text-white text-xs font-black px-4 py-1.5 rounded-bl-xl rounded-tr-2xl tracking-wide flex items-center gap-1.5">
-            <i data-lucide="flame" class="w-3.5 h-3.5 flame-anim"></i> MAIS ESCOLHIDO
-          </div>
-          <h3 class="text-xl font-bold text-white">Membro + Mesas QR</h3>
-          <div class="my-5">
-            <div class="preco-linha flex items-end gap-2">
-              <span class="preco text-5xl font-black text-white"
-                    data-mensal="R$ 149,99" data-anual="R$ 1.649,89">R$ 149,99</span>
-              <span class="periodo text-gray-300 mb-2" data-mensal="/mês" data-anual="/ano">/mês</span>
+        <div class="cozinha" id="cozinhaTela" aria-hidden="true">
+          <div class="cozinha__topo"><span>COZINHA · BRASA BURGER</span><span class="vivo"><i></i>AO VIVO</span></div>
+          <div class="alarme" id="alarme"><span>Novo pedido #1042</span><span class="alarme__ok">Ciente</span></div>
+          <div class="colunas">
+            <div class="col" id="colNovos"><h4><span>NOVOS</span><span>1</span></h4>
+              <div class="vaga" data-parada="1">#1042 chegando…</div>
             </div>
-            <div class="text-gray-300 text-sm mt-2">Cancele quando quiser sem fidelidade</div>
-            <!-- Vazio no mensal, preenchido no anual: o main.js troca o
-                 textContent de qualquer elemento com data-mensal/data-anual,
-                 entao esta linha nao precisa de JS proprio. Ate 30/08/2026 o
-                 "1 mes gratis" so existia no rotulo do switch, longe do preco
-                 que ele justifica. -->
-            <div class="text-white text-sm font-semibold mt-1"
-                 data-mensal="" data-anual="Equivale a 11 mensalidades. Um mês grátis."></div>
+            <div class="col" id="colPreparo"><h4><span>EM PREPARO</span><span>2</span></h4>
+              <div class="tk"><b>#1041 <span data-relogio="372">6:12</span></b><p>1× Smash duplo<br>1× Batata rústica</p></div>
+              <div class="tk"><b>#1040 <span data-relogio="545">9:05</span></b><p>3× Shake de Ninho</p></div>
+            </div>
+            <div class="col col--prontos" id="colProntos"><h4><span>PRONTOS</span><span>1</span></h4>
+              <div class="tk tk--pronto"><b>#1039 <span>pronto</span></b><p>2× Brownie quente</p></div>
+            </div>
           </div>
-          <ul class="space-y-3 mb-8 text-sm text-gray-100">
-            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Tudo do
-              Membro MUNO</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>QR Code de
-              mesa</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Cliente
-              pede e paga direto da mesa</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-terracota w-5 h-5 flex-shrink-0"></i>Sem
-              garçom, sem fila, sem erro de anotação</li>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 · a rua -->
+    <section class="cap rua" id="entrega">
+      <div class="wrap rua__grid">
+        <div class="mapa" id="mapa" aria-hidden="true">
+          <div class="mapa__parque" style="left: 62%; top: 8%; width: 26%; height: 22%"></div>
+          <div class="mapa__quadra" style="left: 8%; top: 40%; width: 18%; height: 14%"></div>
+          <div class="mapa__quadra" style="left: 40%; top: 62%; width: 14%; height: 18%"></div>
+          <div class="mapa__parque" style="left: 12%; top: 76%; width: 20%; height: 14%"></div>
+          <div class="pino pino--loja" style="left: 22%; top: 14%"><span>Brasa Burger</span><i data-parada="2"></i></div>
+          <div class="pino pino--cliente" style="left: 74%; top: 90%"><span>Casa da Ana</span><i data-parada="3"></i></div>
+        </div>
+        <div class="cap__txt">
+          <span class="kick"><b>3</b>Na rua</span>
+          <h2 class="man">O cliente acompanha. Você não atende ligação.</h2>
+          <p class="sub">O motoboy aparece no mapa e a previsão se atualiza sozinha. Acaba o “moço, meu pedido já saiu?”.</p>
+          <div class="rastreio" aria-hidden="true">
+            <small>Pedido #1042 · tela do cliente</small>
+            <div class="man" id="eta">18 min</div>
+            <div class="rastreio__barra"><i id="etaBarra"></i></div>
+            <div class="etapas"><span class="on">Confirmado</span><span class="on">Preparado</span><span id="etapaRua">A caminho</span><span id="etapaFim">Entregue</span></div>
+            <div class="moto-info"><i><svg width="20" height="20" viewBox="0 0 34 34" fill="none"><circle cx="8" cy="23" r="5" stroke="#F6DCC6" stroke-width="3"/><circle cx="26" cy="23" r="5" stroke="#F6DCC6" stroke-width="3"/><path d="M8 23h9l4-8h-6M21 15l5 8" stroke="#F6DCC6" stroke-width="3" stroke-linecap="round"/></svg></i><div><b>Diego</b> está levando seu pedido<br><span style="color: var(--tinta-2)">Honda CG · placa final 42</span></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 · o caixa -->
+    <section class="cap" id="caixa">
+      <div class="wrap cap__grid">
+        <div class="cap__txt">
+          <span class="kick"><b>4</b>No caixa</span>
+          <h2 class="man">Cada pedido vira número.</h2>
+          <p class="sub">Pix e cartão caem na sua conta do gateway, e o pedido entra no painel na hora. As perguntas que você fazia de cabeça têm resposta.</p>
+          <div class="respostas" id="respostas" aria-hidden="true">
+            <div class="resp"><span>Quanto entrou hoje?</span><b id="rFat">R$ 1.170,20</b></div>
+            <div class="resp"><span>Que horas a casa enche?</span><b>Sexta, das 20h às 21h</b></div>
+            <div class="resp"><span>O que mais vende?</span><b>Smash duplo</b></div>
+            <div class="resp"><span>Quantos clientes são novos?</span><b id="rNovos">5 de 23</b></div>
+            <div class="resp"><span>O cupom trouxe venda?</span><b>VOLTA10 · 9 usos</b></div>
+          </div>
+          <ul class="lista">
+            <li>Faturamento, ticket médio e comparação com o período anterior.</li>
+            <li>Horário de pico, mais vendidos com foto, clientes novos e cupons.</li>
           </ul>
-          <a class="cta-plano btn-seta w-full"
-             data-plano="MEMBRO_MESA_QR" href="/assinar?plano=MEMBRO_MESA_QR&ciclo=MENSAL">
-            <span class="btn-seta__placa" aria-hidden="true">
-              <span class="btn-seta__seta"><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-              <span class="btn-seta__trilha">
-                <span><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-                <span><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-                <span><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-                <span><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-                <span><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-              </span>
-            </span>
-            <span class="btn-seta__rotulo">Quero Membro + Mesas QR</span>
-          </a>
         </div>
-
-        <!-- Enterprise -->
-        <div class="plano-cartao glass-card p-8 rounded-3xl reveal reveal-delay-2 relative" data-tilt>
-          <h3 class="text-xl font-bold text-gastrogreen">Enterprise</h3>
-          <div class="my-5">
-            <span class="text-4xl font-black text-terracota">Sob Consulta</span>
+        <div class="painel" id="painel" aria-hidden="true">
+          <span data-parada="4" style="position: absolute; left: 30%; top: -54px; width: 2px; height: 2px"></span>
+          <div class="painel__linha">
+            <div class="card" id="cardFat"><small>Faturamento hoje</small><div class="man" id="fat">R$ 1.170,20</div><em id="fatSelo">↑ 12% sobre a última sexta</em></div>
+            <div class="card"><small>Pedidos hoje</small><div class="man" id="ped">23</div><em>ticket R$ 50,88</em></div>
           </div>
-          <p class="text-gray-500 text-sm mb-6">Para redes de restaurantes e franquias.</p>
-          <ul class="space-y-3 mb-8 text-sm text-gray-700">
-            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Multi-lojas</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>API de integração
-            </li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>Gerente de conta
-              dedicado</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>White label</li>
-            <li class="flex gap-2"><i data-lucide="check" class="text-sage w-5 h-5 flex-shrink-0"></i>SLA garantido</li>
+          <div class="card">
+            <small>Últimos 7 dias</small>
+            <div class="barras" id="barras"><i style="height: 42%"></i><i style="height: 58%"></i><i style="height: 36%"></i><i style="height: 64%"></i><i style="height: 71%"></i><i style="height: 88%"></i><i class="hoje" id="barraHoje" style="height: 80%"></i></div>
+            <div class="dias"><span>sáb</span><span>dom</span><span>seg</span><span>ter</span><span>qua</span><span>qui</span><span>hoje</span></div>
+          </div>
+          <div class="card">
+            <small>Mais vendidos no mês</small>
+            <div class="top">
+              <div><img src="/vendas/img/burger.webp" alt="" width="34" height="34" loading="lazy" />Smash duplo<span id="topA">142</span></div>
+              <div><img src="/vendas/img/shake.webp" alt="" width="34" height="34" loading="lazy" />Shake de Ninho<span id="topB">97</span></div>
+              <div><img src="/vendas/img/batata.webp" alt="" width="34" height="34" loading="lazy" />Batata rústica<span>81</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 · o cliente volta -->
+    <section class="cap rua" id="volta">
+      <div class="wrap cap__grid">
+        <div class="volta" aria-hidden="true">
+          <div class="mp">
+            <div class="mp__topo"><b>Meus pedidos</b><span>Ana · cliente desde ontem</span></div>
+            <div class="mp__linha" id="mpNovo"><img src="/vendas/img/shake.webp" alt="" width="46" height="46" loading="lazy" /><div><b>#1077 · Shake de Ninho + Batata</b><small>hoje, 19:42</small></div><span class="mp__selo mp__selo--vivo">Em preparo</span></div>
+            <div class="mp__linha"><img src="/vendas/img/burger.webp" alt="" width="46" height="46" loading="lazy" /><div><b>#1042 · 2× Smash duplo</b><small>ontem, 20:18</small></div><span class="mp__selo">Entregue</span></div>
+          </div>
+          <div class="cupom" id="cupom"><span data-parada="5" class="cupom__alvo"></span>
+            <div><small>CUPOM EM DESTAQUE NO CARDÁPIO</small><b>VOLTA10</b><span>10% no próximo pedido</span></div>
+            <div class="cupom__corte"></div>
+            <div class="cupom__fim">usado<br>pela Ana</div>
+          </div>
+        </div>
+        <div class="cap__txt">
+          <span class="kick"><b>5</b>O cliente volta</span>
+          <h2 class="man">Quem pediu uma vez pede de novo.</h2>
+          <p class="sub">O cliente tem conta, vê os pedidos dele e fala com o restaurante pelo chat do pedido. Você chama de volta com cupom e banner, sem depender de ninguém.</p>
+          <ul class="lista">
+            <li>Conta do cliente, com o histórico em “Meus pedidos”.</li>
+            <li>Cupom em destaque no topo do cardápio.</li>
+            <li>Banner que se monta sozinho com o mais pedido do dia.</li>
+            <li>Chat do pedido, direto entre cliente e restaurante.</li>
           </ul>
-          <a href="#contato" class="btn-seta w-full">
-            <span class="btn-seta__placa" aria-hidden="true">
-              <span class="btn-seta__seta"><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-              <span class="btn-seta__trilha">
-                <span><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-                <span><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-                <span><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-                <span><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-                <span><svg class="w-5 h-7" aria-hidden="true"><use href="#seta-pontilhada"/></svg></span>
-              </span>
-            </span>
-            <span class="btn-seta__rotulo">Falar com Consultor</span>
-          </a>
-        </div>
-
-      </div>
-
-      <!-- Garantia -->
-      <div class="max-w-xl mx-auto mt-10 reveal">
-        <div class="guarantee-badge p-5 text-center">
-          <div class="flex items-center justify-center gap-2 text-terracota font-bold mb-1">
-            <i data-lucide="shield-check" class="w-5 h-5"></i> Garantia de 7 dias
-          </div>
-          <p class="text-sm text-gray-600">Se em 7 dias você não ficar satisfeito, devolvemos 100% do seu dinheiro. Sem
-            perguntas.</p>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
+    <!-- fim:ilustracao -->
 
-  <!-- ======================================================
-       FAQ
-       ====================================================== -->
-  <section class="content-layer section-alt py-20 px-4">
-    <div class="max-w-3xl mx-auto">
-      <div class="text-center mb-12 reveal">
-        <span class="text-terracota font-bold tracking-wider text-sm uppercase">Dúvidas frequentes</span>
-        <h2 class="text-3xl md:text-4xl font-black text-gastrogreen mt-2">Tudo que você quer saber</h2>
-      </div>
-
-      <div class="space-y-3 reveal">
-
-        <details class="faq-item glass-card rounded-2xl overflow-hidden">
-          <summary class="flex justify-between items-center p-5 font-semibold text-gastrogreen text-sm md:text-base">
-            Preciso ter conhecimento técnico para usar?
-            <i data-lucide="plus" class="faq-icon w-5 h-5 text-terracota flex-shrink-0 ml-3"></i>
-          </summary>
-          <div class="faq-clip">
-            <div class="faq-answer px-5 pb-5 text-sm text-gray-600 leading-relaxed">
-              Não. O sistema já vem funcionando: você preenche os dados do seu restaurante e cadastra seus itens por telas simples, sem nada técnico. Se travar em qualquer ponto, é só chamar no WhatsApp.
-            </div>
+    <!-- 6 · o seu plano -->
+    <section class="cap planos" id="planos">
+      <div class="wrap">
+        <div class="planos__topo">
+          <span class="kick"><b>6</b>Agora é com você</span>
+          <h2 class="man" style="font-size: clamp(52px, 6.4vw, 88px); color: var(--floresta-2)">Tudo isso num plano só.</h2>
+          <p class="sub" style="text-align: center">Cardápio, cozinha, rastreio, painel, cupons e chat. Preço fixo por mês, sem taxa por pedido.</p>
+          <div class="ciclo" id="ciclo" role="group" aria-label="Ciclo de cobrança">
+            <span class="ciclo__bola" id="cicloBola"></span>
+            <button type="button" data-ciclo="MENSAL" aria-pressed="true">Mensal</button>
+            <button type="button" data-ciclo="ANUAL" aria-pressed="false">Anual <em>· 1 mês grátis</em></button>
           </div>
-        </details>
-
-        <details class="faq-item glass-card rounded-2xl overflow-hidden">
-          <summary class="flex justify-between items-center p-5 font-semibold text-gastrogreen text-sm md:text-base">
-            Existe taxa sobre cada venda realizada?
-            <i data-lucide="plus" class="faq-icon w-5 h-5 text-terracota flex-shrink-0 ml-3"></i>
-          </summary>
-          <div class="faq-clip">
-            <div class="faq-answer px-5 pb-5 text-sm text-gray-600 leading-relaxed">
-              Zero. Você paga apenas a mensalidade do plano. Todo o valor das vendas vai 100% para você. Sem surpresas no
-              boleto do mês.
-            </div>
-          </div>
-        </details>
-
-        <details class="faq-item glass-card rounded-2xl overflow-hidden">
-          <summary class="flex justify-between items-center p-5 font-semibold text-gastrogreen text-sm md:text-base">
-            Quanto tempo para meu cardápio ficar no ar?
-            <i data-lucide="plus" class="faq-icon w-5 h-5 text-terracota flex-shrink-0 ml-3"></i>
-          </summary>
-          <div class="faq-clip">
-            <div class="faq-answer px-5 pb-5 text-sm text-gray-600 leading-relaxed">
-              Seu endereço fica no ar assim que o pagamento é confirmado, questão de minutos. Depois disso, o tempo é o que você levar para cadastrar seus itens. Um cardápio enxuto leva menos de uma hora.
-            </div>
-          </div>
-        </details>
-
-        <details class="faq-item glass-card rounded-2xl overflow-hidden">
-          <summary class="flex justify-between items-center p-5 font-semibold text-gastrogreen text-sm md:text-base">
-            Posso cancelar quando quiser?
-            <i data-lucide="plus" class="faq-icon w-5 h-5 text-terracota flex-shrink-0 ml-3"></i>
-          </summary>
-          <div class="faq-clip">
-            <div class="faq-answer px-5 pb-5 text-sm text-gray-600 leading-relaxed">
-              Sim. Sem fidelidade, sem multa. Você cancela com um clique ou nos manda mensagem. Mas a maioria não cancela
-              porque os resultados falam por si mesmos.
-            </div>
-          </div>
-        </details>
-
-        <details class="faq-item glass-card rounded-2xl overflow-hidden">
-          <summary class="flex justify-between items-center p-5 font-semibold text-gastrogreen text-sm md:text-base">
-            Funciona junto com marketplaces de delivery?
-            <i data-lucide="plus" class="faq-icon w-5 h-5 text-terracota flex-shrink-0 ml-3"></i>
-          </summary>
-          <div class="faq-clip">
-            <div class="faq-answer px-5 pb-5 text-sm text-gray-600 leading-relaxed">
-              Sim. O MUNOFOOD funciona de forma complementar a qualquer marketplace. Muitos clientes usam os dois e migram
-              gradualmente para o canal direto, economizando até 30% em taxas de intermediação.
-            </div>
-          </div>
-        </details>
-
-        <details class="faq-item glass-card rounded-2xl overflow-hidden">
-          <summary class="flex justify-between items-center p-5 font-semibold text-gastrogreen text-sm md:text-base">
-            O sistema funciona no final de semana?
-            <i data-lucide="plus" class="faq-icon w-5 h-5 text-terracota flex-shrink-0 ml-3"></i>
-          </summary>
-          <div class="faq-clip">
-            <div class="faq-answer px-5 pb-5 text-sm text-gray-600 leading-relaxed">
-              O sistema funciona 24/7, 365 dias por ano. O suporte humano atende de segunda a sábado das 8h às 22h.
-            </div>
-          </div>
-        </details>
-
-      </div>
-    </div>
-  </section>
-
-  <!-- ======================================================
-       FORMULÁRIO DE CAPTURA
-       ====================================================== -->
-  <section id="contato" class="content-layer py-20 px-4 relative overflow-hidden">
-    <div class="absolute inset-0 bg-gastrogreen/4 pointer-events-none"></div>
-
-    <div
-      class="max-w-4xl mx-auto relative z-10 bg-white/97 backdrop-blur rounded-3xl shadow-2xl overflow-hidden grid grid-cols-1 md:grid-cols-2 border border-white/50 reveal">
-
-      <div class="p-8 md:p-12 flex flex-col justify-center">
-        <div
-          class="inline-flex items-center gap-2 bg-terracota/10 text-terracota text-xs font-bold px-3 py-1 rounded-full mb-4 w-fit">
-          <span class="w-2 h-2 rounded-full bg-terracota animate-pulse"></span> Fale com um humano, não um bot
         </div>
-        <h2 class="text-2xl md:text-3xl font-black text-terracota mb-2">Prefere falar com a gente antes?</h2>
-        <p class="text-gray-600 mb-6 text-sm">Tire suas dúvidas com um especialista pelo WhatsApp antes de assinar. Sem compromisso.</p>
-
-        <form id="leadForm" class="space-y-4">
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-1" for="restaurantName">Nome do
-              Estabelecimento</label>
-            <input type="text" id="restaurantName" required
-              class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 input-focus transition text-sm"
-              placeholder="Ex: Burguer Artesanal da Esquina" />
+        <div class="planos__grid">
+          <div class="plano" data-tilt>
+            <div><h3>Membro MUNO</h3><p>Delivery e retirada</p></div>
+            <div>
+              <div class="preco"><span class="man" data-mensal="R$ 119,99" data-anual="R$ 1.319,89">R$ 119,99</span><span data-sufixo>/mês</span></div>
+              <div class="preco__alt" data-alt-mensal="ou R$ 1.319,89 no plano anual" data-alt-anual="ou R$ 119,99 no plano mensal">ou R$ 1.319,89 no plano anual</div>
+            </div>
+            <ul>
+              <li>Link personalizado</li>
+              <li>Produtos ilimitados</li>
+              <li>Pedidos ilimitados</li>
+              <li>Cozinha ao vivo com alarme</li>
+              <li>Painel financeiro completo</li>
+              <li>Relatórios de venda em tempo real</li>
+              <li>Pix, cartão e rastreio do motoboy</li>
+              <li>Suporte prioritário via WhatsApp</li>
+            </ul>
+            <a class="btn btn-contorno cta-plano" data-plano="MEMBRO" href="/assinar?plano=MEMBRO&amp;ciclo=MENSAL">Assinar o Membro <span class="seta">→</span></a>
           </div>
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-1" for="whatsappNumber">Seu
-              WhatsApp</label>
-            <input type="tel" id="whatsappNumber" required
-              class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 input-focus transition text-sm"
-              placeholder="(11) 99999-9999" />
+          <div class="plano plano--top" data-tilt>
+            <span id="alvoPlano" data-parada="6"></span>
+            <span class="plano__tag">MAIS ESCOLHIDO</span>
+            <div><h3>Membro + Mesas QR</h3><p>Delivery, retirada e salão</p></div>
+            <div>
+              <div class="preco"><span class="man" data-mensal="R$ 149,99" data-anual="R$ 1.649,89">R$ 149,99</span><span data-sufixo>/mês</span></div>
+              <div class="preco__alt" data-alt-mensal="ou R$ 1.649,89 no plano anual" data-alt-anual="ou R$ 149,99 no plano mensal">ou R$ 1.649,89 no plano anual</div>
+            </div>
+            <ul>
+              <li>Tudo do Membro MUNO</li>
+              <li>QR Code de mesa</li>
+              <li>Cliente pede e paga direto da mesa</li>
+              <li>Sem garçom, sem fila, sem erro de anotação</li>
+            </ul>
+            <a class="btn btn-brasa ima cta-plano" data-plano="MEMBRO_MESA_QR" href="/assinar?plano=MEMBRO_MESA_QR&amp;ciclo=MENSAL">Assinar com mesas <span class="seta">→</span></a>
           </div>
-          <div>
-            <label class="block text-xs font-bold text-gray-500 uppercase mb-1" for="planInterest">Plano de
-              Interesse</label>
-            <select id="planInterest"
-              class="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 input-focus transition text-sm">
-              <option value="Membro MUNO">⭐ Membro MUNO — R$ 119,99/mês</option>
-              <option value="Membro + Mesas QR">⭐ Membro + Mesas QR — R$ 149,99/mês</option>
-              <option value="Enterprise">Enterprise — Sob consulta</option>
-            </select>
-          </div>
-          <!-- Honeypot: humano não vê, bot de formulário preenche. Escondido
-               fora da tela em vez de display:none, que parte dos bots detecta
-               e pula. aria-hidden e tabindex="-1" mantêm o campo fora do
-               leitor de tela e da navegação por teclado, para quem usa um dos
-               dois não cair numa armadilha feita para robô. -->
-          <div class="absolute left-[-9999px] w-px h-px overflow-hidden" aria-hidden="true">
-            <label for="website">Não preencha este campo</label>
-            <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
-          </div>
-          <button type="submit"
-            class="btn-secondary w-full py-4 rounded-xl flex items-center justify-center gap-2 mt-2 text-base">
-            <i data-lucide="message-circle" class="w-5 h-5"></i> Falar com Especialista Agora
-          </button>
-          <p class="text-center text-xs text-gray-400">
-            <i data-lucide="lock" class="w-3 h-3 inline"></i> Seus dados estão seguros. Não fazemos spam.
-          </p>
-        </form>
+        </div>
+        <div class="extra"><span><b>Rede ou franquia?</b> <span style="color: var(--tinta-2)">O Enterprise é sob consulta.</span></span><a href="#contato" style="font-weight: 700; color: var(--floresta-2)">Falar com a gente →</a></div>
+        <p class="garantia">7 dias de garantia: não gostou, devolvemos o valor. Cancele quando quiser, sem multa.</p>
       </div>
+    </section>
 
-      <div
-        class="bg-gastrogreen hidden md:flex flex-col items-center justify-center relative overflow-hidden p-8 text-center text-white">
-        <div class="relative z-10 space-y-6">
-          <div class="bg-white/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto backdrop-blur-md">
-            <i data-lucide="phone-call" class="w-10 h-10"></i>
-          </div>
-          <div>
-            <h3 class="text-2xl font-bold mb-2">Pronto para decolar?</h3>
-            <p class="text-gray-300 text-sm leading-relaxed">Nosso time te ajuda a escolher o plano, tirar dúvidas e começar com o pé direito.</p>
-          </div>
-          <div class="space-y-3 text-sm text-left">
-            <div class="flex items-center gap-3 bg-white/10 rounded-xl p-3">
-              <i data-lucide="clock" class="w-5 h-5 text-terracota flex-shrink-0"></i>
-              <span class="text-gray-200">Retorno rápido pelo WhatsApp</span>
-            </div>
-            <div class="flex items-center gap-3 bg-white/10 rounded-xl p-3">
-              <i data-lucide="settings" class="w-5 h-5 text-terracota flex-shrink-0"></i>
-              <span class="text-gray-200">Configuração do sistema com o nosso time</span>
-            </div>
-            <div class="flex items-center gap-3 bg-white/10 rounded-xl p-3">
-              <i data-lucide="shield-check" class="w-5 h-5 text-terracota flex-shrink-0"></i>
-              <span class="text-gray-200">7 dias de garantia total</span>
-            </div>
-          </div>
-          <div class="text-xs text-gray-400">Atendimento Seg a Sáb, 08h às 22h</div>
+    <section class="cap faq" id="duvidas">
+      <div class="wrap faq__grid">
+        <div class="cap__txt">
+          <span class="kick">Dúvidas</span>
+          <h2 class="man" style="font-size: clamp(48px, 5.6vw, 72px)">Perguntas de quem vai assinar</h2>
+          <p class="sub" style="font-size: 16px">Ficou alguma? Chame no WhatsApp. Quem responde é gente.</p>
         </div>
-        <div
-          class="absolute -bottom-20 -right-20 w-64 h-64 bg-terracota rounded-full mix-blend-multiply filter blur-3xl opacity-40">
-        </div>
-        <div
-          class="absolute -top-20 -left-20 w-64 h-64 bg-sage rounded-full mix-blend-overlay filter blur-3xl opacity-25">
+        <div>
+          <details open><summary>Preciso ter conhecimento técnico para usar?<i aria-hidden="true">+</i></summary><div class="faq__resp"><p>Não. O sistema já vem funcionando: você preenche os dados do restaurante e cadastra os itens por telas simples. Se travar em qualquer ponto, é só chamar no WhatsApp.</p></div></details>
+          <details><summary>Existe taxa sobre cada venda realizada?<i aria-hidden="true">+</i></summary><div class="faq__resp"><p>Não. Você paga só a mensalidade do plano, e a Muno não fica com nada das vendas. A taxa do Pix ou do cartão é a do seu gateway de pagamento.</p></div></details>
+          <details><summary>Quanto tempo para meu cardápio ficar no ar?<i aria-hidden="true">+</i></summary><div class="faq__resp"><p>O endereço fica no ar assim que o pagamento é confirmado, em minutos. Depois, o tempo é o de cadastrar os itens: um cardápio enxuto leva menos de uma hora.</p></div></details>
+          <details><summary>Posso cancelar quando quiser?<i aria-hidden="true">+</i></summary><div class="faq__resp"><p>Sim. Sem fidelidade e sem multa. E nos primeiros 7 dias, se não gostar, devolvemos o valor.</p></div></details>
+          <details><summary>Funciona junto com marketplaces de delivery?<i aria-hidden="true">+</i></summary><div class="faq__resp"><p>Sim. A Muno funciona ao lado de qualquer marketplace. Muitos restaurantes usam os dois e levam aos poucos os clientes que já conhecem a casa para o canal próprio.</p></div></details>
+          <details><summary>O sistema funciona no final de semana?<i aria-hidden="true">+</i></summary><div class="faq__resp"><p>O sistema funciona 24 horas, todos os dias. O suporte humano atende de segunda a sábado, das 8h às 22h.</p></div></details>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ======================================================
-       FOOTER
-       ====================================================== -->
-  <footer class="content-layer bg-graphite text-white py-8 border-t border-gray-700">
-    <div
-      class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
-      <div>
-        <div class="flex items-center justify-center md:justify-start">
-          <img src="/vendas/img/logo.png" alt="MUNOFOOD" class="h-8 w-auto brightness-0 invert" />
+    <section class="final" id="contato">
+      <div class="wrap">
+        <div class="final__caixa">
+          <img class="final__logo" src="/vendas/img/muno-icon.png" alt="" width="340" height="340" loading="lazy" />
+          <div style="display: flex; flex-direction: column; gap: 24px; position: relative; z-index: 1">
+            <span class="kick" style="color: var(--pessego)">Comece hoje</span>
+            <h2 class="man">Seu próximo pedido <span>começa hoje.</span></h2>
+            <div><a class="btn btn-brasa ima" href="/assinar?plano=MEMBRO&amp;ciclo=MENSAL">Assinar por R$ 119,99/mês <span class="seta">→</span></a></div>
+            <div style="font-size: 14px; color: rgba(255,255,255,.7)">7 dias de garantia · cancele quando quiser</div>
+          </div>
+          <form class="lead" id="leadForm" novalidate>
+            <h3>Prefere conversar antes?</h3>
+            <p>Fale com a gente no WhatsApp. Sem compromisso.</p>
+            <label for="restaurantName">Nome do estabelecimento<input id="restaurantName" name="restaurante" required autocomplete="organization" placeholder="Ex.: Brasa Burger" /></label>
+            <label for="whatsappNumber">WhatsApp<input id="whatsappNumber" name="telefone" type="tel" required inputmode="tel" autocomplete="tel" placeholder="(11) 99999-9999" /></label>
+            <label for="planInterest">Plano de interesse
+              <select id="planInterest" name="plano">
+                <option value="Membro MUNO">Membro MUNO — R$ 119,99/mês</option>
+                <option value="Membro + Mesas QR" selected>Membro + Mesas QR — R$ 149,99/mês</option>
+                <option value="Enterprise">Enterprise — sob consulta</option>
+              </select>
+            </label>
+            <!-- Honeypot: humano não vê, bot de formulário preenche. Escondido
+                 fora da tela em vez de display:none, que parte dos bots detecta
+                 e pula. aria-hidden e tabindex="-1" mantêm o campo fora do
+                 leitor de tela e da navegação por teclado. -->
+            <div class="honeypot" aria-hidden="true">
+              <label for="website">Não preencha este campo</label>
+              <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
+            </div>
+            <button class="btn" type="submit">Chamar no WhatsApp</button>
+            <div class="lead__ok" id="leadOk" role="status"></div>
+          </form>
         </div>
-        <p class="text-gray-500 text-xs mt-1">Feito para quem tem fome de crescer.</p>
-        <p class="text-xs text-gray-400 mt-2">
-          Usamos um identificador anônimo para saber de onde vêm as visitas. Nenhum dado
-          pessoal, e nada é enviado para terceiros.
-        </p>
       </div>
-      <div class="flex gap-6 text-gray-400 text-xs">
-        <a href="#beneficios" class="hover:text-white transition">Benefícios</a>
-        <a href="#planos" class="hover:text-white transition">Planos</a>
-        <a href="#contato" class="hover:text-white transition">Contato</a>
-        <a href="/termos" class="hover:text-white transition">Termos</a>
-        <a href="/privacidade" class="hover:text-white transition">Privacidade</a>
-      </div>
-      <div class="text-gray-500 text-xs">&copy; 2025 Muno Food. Todos os direitos reservados.</div>
+    </section>
+  </main>
+
+  <footer class="rodape">
+    <div class="wrap rodape__in">
+      <img src="/vendas/img/logo.png" alt="Muno" width="96" height="24" style="height: 24px; width: auto" loading="lazy" />
+      <nav aria-label="Rodapé"><a href="/termos">Termos</a><a href="/privacidade">Privacidade</a><a href="https://wa.me/5512996419003" target="_blank" rel="noopener">WhatsApp</a></nav>
+      <span>© 2026 Muno</span>
     </div>
   </footer>
 
-  <!-- ======================================================
-       EXIT INTENT POPUP
-       ====================================================== -->
-  <div id="exitPopup" role="dialog" aria-modal="true">
-    <div class="popup-box">
-      <div class="bg-gastrogreen p-6 text-center relative overflow-hidden">
-        <div class="absolute -top-8 -left-8 w-32 h-32 bg-terracota rounded-full opacity-20 blur-2xl"></div>
-        <div class="absolute -bottom-8 -right-8 w-32 h-32 bg-sage rounded-full opacity-20 blur-2xl"></div>
-        <div class="relative z-10">
-          <img src="/vendas/img/logo.png" alt="MUNOFOOD" class="h-9 w-auto mx-auto mb-3 brightness-0 invert" />
-          <h3 class="text-xl font-black text-white">Espera! Antes de sair...</h3>
-          <p class="text-gray-300 text-sm mt-1">Temos uma oferta especial só para você</p>
-        </div>
-      </div>
-      <div class="p-6 text-center">
-        <div class="bg-terracota/8 border border-terracota/20 rounded-2xl p-4 mb-5">
-          <div class="text-4xl font-black text-terracota">R$ 119,99</div>
-          <div class="text-sm text-gray-600">por mês — <strong>Membro MUNO</strong></div>
-        </div>
-        <p class="text-gray-600 text-sm mb-5 leading-relaxed">
-          Gestão completa do seu restaurante no ar em <strong>minutos</strong>, sem taxa por pedido e com suporte humano.
-        </p>
-        <a href="/assinar?plano=MEMBRO&ciclo=MENSAL" id="exitPopupCTA" class="btn-primary block w-full py-4 rounded-xl mb-3">
-          Quero ser Membro MUNO
-        </a>
-        <button id="closeExitPopup" class="text-gray-400 text-xs hover:text-gray-600 transition underline">
-          Não, prefiro continuar perdendo vendas
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ======================================================
-       FLOATING WHATSAPP
-       ====================================================== -->
-  <a href="https://wa.me/5512996419003?text=Ol%C3%A1!%20Vim%20pelo%20site%20e%20quero%20saber%20mais%20sobre%20o%20MUNOFOOD."
-    target="_blank" rel="noopener"
-    class="whatsapp-float w-16 h-16 rounded-full flex items-center justify-center shadow-2xl" style="background:#25D366"
-    title="Falar no WhatsApp">
-    <svg width="30" height="30" viewBox="0 0 24 24" fill="white">
-      <path
-        d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
-    </svg>
-  </a>
-
-  <!-- ======================================================
-       MOBILE STICKY CTA BAR
-       ====================================================== -->
-  <div class="mobile-cta-bar">
-    <a href="#planos" class="flex-1 btn-primary py-3 rounded-xl text-center text-sm">
-      Começar Agora
-    </a>
-    <a href="https://wa.me/5512996419003" target="_blank" rel="noopener"
-      class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background:#25D366">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-        <path
-          d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
-      </svg>
-    </a>
-  </div>
-
-  <!-- ======================================================
-       SCRIPTS (ao final do body, após o DOM)
-       ====================================================== -->
+  <script src="/vendas/js/vendor/gsap-3.13.0.min.js"></script>
   <script src="/vendas/js/main.js"></script>
-  <script src="/vendas/js/hero-motion.js"></script>
-  <!-- Depois do hero-motion.js: é ele que define window.munoHero, e o
-       intro.js dá a partida no hero quando o painel começa a subir. -->
+  <script src="/vendas/js/viagem.js"></script>
+  <!-- Por último: intro.js dá a partida no hero (window.munoHero, do
+       viagem.js) quando o painel começa a subir. -->
   <script src="/vendas/js/intro.js"></script>
-  <script src="/vendas/js/faq.js"></script>
-  <script src="/vendas/js/precos.js"></script>
-  <script src="/vendas/js/tilt.js"></script>
-  <script src="/vendas/js/cromatico.js"></script>
-  <script src="/vendas/js/recibo.js"></script>
-
 </body>
-
 </html>

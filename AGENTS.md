@@ -245,11 +245,31 @@ página do App Router, por dois motivos:
 
 * `src/app/(client)/page.tsx` já resolve `/`. Dois route groups não podem
   produzir o mesmo caminho — o Next recusa o build.
-* O app é Tailwind v4; a landing é Tailwind v3 por CDN. Como página React ela
-  herdaria o `globals.css` pelo layout raiz e carregaria os dois preflights
-  juntos, com as duas versões gerando as mesmas classes (`.text-sm`,
-  `.shadow-sm`) com valores diferentes. Não quebra o build: entorta a página em
-  silêncio.
+* Ela tem CSS próprio (`css/landing.css`), sem Tailwind. Como página React ela
+  herdaria o `globals.css` pelo layout raiz, com o preflight e os tokens do
+  app por cima dos dela. Até 25/10/2026 a landing era Tailwind v3 por CDN, e o
+  risco era pior: as duas versões gerando as mesmas classes (`.text-sm`,
+  `.shadow-sm`) com valores diferentes.
+
+**A landing é a viagem de um pedido** desde 25/10/2026: um trilho desce pela
+página e o pedido corre nele com a rolagem, de celular a cozinha, rua, caixa,
+cliente que volta e plano (`js/viagem.js`, comentado no topo). As paradas são
+os elementos com `data-parada`, em ordem, e o trilho se remonta sozinho quando
+a altura da página muda. Três regras para quem mexer:
+
+* **Paradas só crescem para baixo.** O trilho acha o ponto pelo `y`, e uma
+  parada acima da anterior dobra a curva para trás.
+* **A ilustração fica entre `inicio:ilustracao` e `fim:ilustracao`**, um bloco
+  só, do pedido viajante ao cliente que volta. Os preços de prato e os números
+  do restaurante de exemplo moram ali; os de plano, fora. `plans.test.ts` exige
+  que planos, chamada final e formulário fiquem fora do bloco.
+* **Só o GSAP do `js/vendor/`.** Não há ScrollTrigger: o parallax e as cenas
+  saem do mesmo laço de quadro do trilho. Script de CDN não entra (ver
+  `src/security/landing.test.ts`).
+
+A paleta e as fontes são as da loja (Barlow Condensed e Plus Jakarta Sans,
+servidas de `fonts/`). A abertura continua o `js/intro.js` de sempre, e é ele
+quem chama `window.munoHero.iniciar()` quando o painel sobe.
 
 Os arquivos vieram de `~/Dev/MunoSellPage` sem alteração, exceto por três
 pontos: as referências de asset viraram absolutas (`/vendas/css/...`), porque a

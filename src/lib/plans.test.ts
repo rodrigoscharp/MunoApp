@@ -92,9 +92,17 @@ describe("o preço anunciado na landing e o preço do código não podem divergi
   // inteira volta a ser cobrada como anúncio de preço: a trava aperta, não
   // afrouxa. Este teste é o aviso de que foi isso que aconteceu, para o erro
   // não ser lido como divergência de preço.
+  //
+  // Desde 25/10/2026 a ilustração é a viagem do pedido, que ocupa a página do
+  // hero ao cliente que volta, e por isso ela deixou de ser uma fração pequena
+  // do arquivo. A trava da proporção virou a trava que importa: os planos, a
+  // chamada final e o formulário, onde mora todo preço de plano, ficam FORA
+  // dela. Um "fim" arrastado para baixo engoliria os planos e quebra aqui.
   it("os marcadores da ilustração continuam de pé", () => {
     expect(ilustracoes).toHaveLength(1);
-    expect(foraDaIlustracao.length).toBeGreaterThan(landing.length * 0.8);
+    for (const ancora of ['id="planos"', 'id="contato"', 'id="planInterest"']) {
+      expect(foraDaIlustracao).toContain(ancora);
+    }
   });
 
   it("a ilustração não anuncia preço de plano nenhum", () => {

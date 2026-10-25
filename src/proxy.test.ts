@@ -554,8 +554,8 @@ describe("proxy: o domínio raiz serve a landing, nunca um restaurante", () => {
   // seguir para o filesystem. Sem isto a página abre sem CSS, sem a cena 3D e
   // sem os ícones — de pé, e visivelmente quebrada.
   it.each([
-    "/vendas/css/styles.css",
-    "/vendas/js/scene.js",
+    "/vendas/css/landing.css",
+    "/vendas/js/viagem.js",
     "/vendas/img/logo.png",
   ])("%s segue para o filesystem, sem rewrite", async (caminho) => {
     const res = await proxy(requisicaoRaiz(caminho));
@@ -644,7 +644,7 @@ describe("proxy: o domínio raiz serve a landing, nunca um restaurante", () => {
   // O espelho da guarda: a landing existe em public/, que responde em
   // qualquer host. Sem isto, a página de vendas da Muno abre dentro do
   // domínio do cliente e o Google a indexa em quantos subdomínios existirem.
-  it.each(["/vendas/index.html", "/vendas/css/styles.css"])(
+  it.each(["/vendas/index.html", "/vendas/css/landing.css"])(
     "%s em host de restaurante responde 404",
     async (caminho) => {
       const res = await proxy(requisicao(caminho));
