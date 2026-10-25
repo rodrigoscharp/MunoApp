@@ -45,16 +45,21 @@ export async function POST(req: NextRequest) {
     const { code, ...rest } = parsed.data;
 
     try {
-      // Um destaque por restaurante: o card da loja mostra um cupom só, então
-      // marcar este desmarca os outros. Sem transação de propósito: se a
-      // criação falhar depois, o pior é nenhum cupom em destaque, que é o
-      // estado de quem nunca marcou nenhum.
-      if (rest.destaque) {
-        await prisma.coupon.updateMany({ where: { destaque: true }, data: { destaque: false } });
-      }
       const coupon = await prisma.coupon.create({
         data: { ...rest, code: normalizeCouponCode(code), tenantId },
       });
+      // Um destaque por restaurante: o card da loja mostra um cupom só, então
+      // marcar este desmarca os outros. Depois de criar, e não antes: um
+      // código repetido (P2002) já tinha apagado o destaque que estava no ar,
+      // e o card sumia da loja por causa de um cupom que nem nasceu. Entre as
+      // duas escritas há dois marcados por um instante, e a loja mostra um
+      // deles; é melhor que nenhum.
+      if (rest.destaque) {
+        await prisma.coupon.updateMany({
+          where: { destaque: true, id: { not: coupon.id } },
+          data: { destaque: false },
+        });
+      }
       invalidarCupomEmDestaque(tenantId);
       return NextResponse.json({ ...coupon, _count: { orders: 0 } }, { status: 201 });
     } catch (err) {

@@ -145,16 +145,25 @@ describe("POST — o cupom criado", () => {
 describe("POST — cupom em destaque", () => {
   // O card do cardápio mostra um cupom só. Dois marcados fariam a loja
   // anunciar um deles ao acaso.
-  it("marcar um novo como destaque desmarca os outros antes de criar", async () => {
+  it("marcar um novo como destaque desmarca os outros depois de criar", async () => {
     const res = await POST(req("POST", { ...cupomValido, destaque: true }));
     expect(res.status).toBe(201);
     expect(couponUpdateMany).toHaveBeenCalledWith({
-      where: { destaque: true },
+      where: { destaque: true, id: { not: "cupom-novo" } },
       data: { destaque: false },
     });
-    expect(couponUpdateMany.mock.invocationCallOrder[0]).toBeLessThan(
-      couponCreate.mock.invocationCallOrder[0]
+    expect(couponCreate.mock.invocationCallOrder[0]).toBeLessThan(
+      couponUpdateMany.mock.invocationCallOrder[0]
     );
+  });
+
+  // O código repetido recusava o cupom novo, mas o destaque que estava no ar
+  // já tinha sido desmarcado: o card sumia da loja.
+  it("código repetido com destaque não desmarca o destaque atual", async () => {
+    couponCreate.mockRejectedValue({ code: "P2002" });
+    const res = await POST(req("POST", { ...cupomValido, destaque: true }));
+    expect(res.status).toBe(409);
+    expect(couponUpdateMany).not.toHaveBeenCalled();
   });
 
   it("sem destaque, não mexe nos outros", async () => {

@@ -542,7 +542,8 @@ manchetes e Plus Jakarta Sans no resto. Os mockups aprovados estão em
 * **A vitrine não tem cadastro próprio** (`src/lib/loja/vitrine.ts`): o banner e
   "Mais pedidos" saem dos pedidos dos últimos 30 dias, e o card de cupom do
   cupom com `destaque`. Um destaque por restaurante: as rotas de
-  `/api/coupons` desmarcam os outros ao marcar um.
+  `/api/coupons` desmarcam os outros ao marcar um, e só depois que a
+  gravação deu certo: antes, um código repetido apagava o destaque no ar.
 * **O ícone da categoria sai do nome** (`iconeDaCategoria`). Não há campo de
   ícone; categoria que não casar com nada recebe o genérico.
 * **O banner é automático, e o dono só o empurra** (`src/lib/loja/banner.ts`,
