@@ -1,5 +1,5 @@
 import { ProductCard } from "@/components/menu/ProductCard";
-import { cardTemPrioridade, itemParaCard, type CategoriaDoCardapio } from "@/lib/menu-cache";
+import { cardTemPrioridade, itemParaCard, type CategoriaDoCardapio, type ItemDoCard } from "@/lib/menu-cache";
 import { idDaSecao } from "@/lib/loja/ancoras";
 
 /**
@@ -9,9 +9,15 @@ import { idDaSecao } from "@/lib/loja/ancoras";
  */
 export function SecoesDoCardapio({
   categorias,
+  cards,
   restaurantOpen,
 }: {
   categorias: CategoriaDoCardapio[];
+  /**
+   * Os cards já montados pela Vitrine. Passar o mesmo objeto que a busca e a
+   * fileira recebem deixa o RSC mandar cada item uma vez só.
+   */
+  cards?: Map<string, ItemDoCard>;
   restaurantOpen: boolean;
 }) {
   return (
@@ -31,7 +37,7 @@ export function SecoesDoCardapio({
             {category.items.map((item, indiceItem) => (
               <li key={item.id}>
                 <ProductCard
-                  item={itemParaCard(item)}
+                  item={cards?.get(item.id) ?? itemParaCard(item)}
                   restaurantOpen={restaurantOpen}
                   prioridade={cardTemPrioridade(indiceCategoria, indiceItem)}
                 />

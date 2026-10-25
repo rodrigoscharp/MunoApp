@@ -571,6 +571,10 @@ manchetes e Plus Jakarta Sans no resto. Os mockups aprovados estão em
   implementa uma operação do ormbg; a tentativa que falha ainda prende o
   runtime e derruba a volta para o processador. A biblioteca vem da CDN por
   import com `webpackIgnore`, versão fixada, e nunca entra no bundle da loja.
+* **Um objeto de card por item na Vitrine.** O RSC serializa cada objeto uma
+  vez e referencia as repetições; busca, banner, fileira e seções recebem o
+  mesmo card do mapa montado na Vitrine. Um `itemParaCard` novo em cada ponto
+  mandava o cardápio três vezes no payload.
 * **Toda `<Image>` com foto de item passa `unoptimized={!imagemOtimizavel(src)}`.**
   O dono pode colar URL de qualquer site no campo da foto, e um host fora do
   `remotePatterns` não some só da imagem: derruba a página inteira no erro do
