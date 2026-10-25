@@ -87,6 +87,13 @@ describe("o status em destaque", () => {
     expect(screen.getByRole("heading", { name: titulo })).toBeDefined();
   });
 
+  it("a manchete acompanha o status, sem tomar o lugar do cabeçalho", () => {
+    montar({ status: "IN_PREPARATION" });
+    expect(screen.getByText("Seu pedido tá na chapa.")).toBeDefined();
+    // O título continua sendo o cabeçalho; a manchete é texto.
+    expect(screen.queryByRole("heading", { name: /na chapa/i })).toBeNull();
+  });
+
   it("mostra os últimos seis caracteres do id, em maiúsculas", () => {
     montar();
     expect(screen.getByText("Pedido #123456")).toBeDefined();
@@ -118,31 +125,43 @@ describe("a linha do tempo", () => {
     expect(screen.queryByText("Status atual")).toBeNull();
   });
 
+  // O estado de cada passo é dito pela marcação, não pela cor: `aria-current`
+  // no atual, e o "concluído" escondido para leitor de tela nos vencidos. A
+  // classe de cor pode mudar com o visual; isto é o que o cliente percebe.
+  const passo = (rotulo: string) => screen.getByText(rotulo).closest("li")!;
+
   it("aponta o passo atual", () => {
     montar({ status: "IN_PREPARATION" });
 
     expect(screen.getByText("Status atual")).toBeDefined();
-    expect(screen.getByText("Preparando").className).toMatch(/text-neutral-900/);
+    expect(passo("Preparando").getAttribute("aria-current")).toBe("step");
+    expect(passo("Preparando").dataset.estado).toBe("atual");
+    expect(document.querySelectorAll('[aria-current="step"]')).toHaveLength(1);
   });
 
-  it("risca os passos já vencidos", () => {
+  it("marca os passos já vencidos", () => {
     montar({ status: "READY" });
 
-    expect(screen.getByText("Recebido").className).toMatch(/line-through/);
-    expect(screen.getByText("Confirmado").className).toMatch(/line-through/);
+    for (const rotulo of ["Recebido", "Confirmado", "Preparando"]) {
+      expect(passo(rotulo).dataset.estado).toBe("concluido");
+      expect(passo(rotulo).textContent).toMatch(/concluído/);
+      expect(passo(rotulo).getAttribute("aria-current")).toBeNull();
+    }
   });
 
-  it("deixa os passos futuros apagados e sem risco", () => {
+  it("deixa os passos futuros sem marca de vencido nem de atual", () => {
     montar({ status: "CONFIRMED" });
 
-    const futuro = screen.getByText("Entregue");
-    expect(futuro.className).toMatch(/text-neutral-300/);
-    expect(futuro.className).not.toMatch(/line-through/);
+    const futuro = passo("Entregue");
+    expect(futuro.dataset.estado).toBe("futuro");
+    expect(futuro.textContent).not.toMatch(/concluído/);
+    expect(futuro.getAttribute("aria-current")).toBeNull();
   });
 
   it("no primeiro passo nada está vencido", () => {
     montar({ status: "PENDING" });
-    expect(screen.getByText("Recebido").className).not.toMatch(/line-through/);
+    expect(passo("Recebido").dataset.estado).toBe("atual");
+    expect(screen.queryByText("concluído")).toBeNull();
   });
 });
 
