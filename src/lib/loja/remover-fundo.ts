@@ -19,8 +19,11 @@
  * for MaxPool"), e a tentativa que falha deixa o runtime preso a ela, a ponto
  * de a volta para o processador também falhar na mesma página.
  *
- * Devolve um PNG com o fundo transparente, já cortado em volta do produto
- * (com folga), para o lanche ocupar o banner em vez de nadar num quadro vazio.
+ * Devolve um WebP com o fundo transparente (PNG no navegador que não gera
+ * WebP), já cortado em volta do produto (com folga), para o lanche ocupar o
+ * banner em vez de nadar num quadro vazio, e com no máximo 1280 px no lado
+ * maior. Um PNG do tamanho que o modelo devolve passava fácil dos 5 MB do
+ * /api/upload, e o dono via "não deu para enviar" depois de esperar o recorte.
  */
 
 const BIBLIOTECA =
@@ -79,21 +82,61 @@ export async function removerFundo(
     for (let i = 0; i < alfa.length; i++) alfa[i] = saida.data[4 * i + 3];
     const caixa = caixaDoProduto(alfa, saida.width, saida.height);
 
-    const final = document.createElement("canvas");
-    final.width = caixa.largura;
-    final.height = caixa.altura;
-    final
-      .getContext("2d")!
-      .drawImage(recortada as CanvasImageSource, caixa.x, caixa.y, caixa.largura, caixa.altura, 0, 0, caixa.largura, caixa.altura);
-
-    return await new Promise<Blob>((resolve, reject) =>
-      final.toBlob((b) => (b ? resolve(b) : reject(new Error("Não foi possível gerar o recorte"))), "image/png")
-    );
+    return await codificar(recortada as CanvasImageSource, caixa);
   } finally {
     if (typeof origem !== "string") URL.revokeObjectURL(url);
   }
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** O lado maior do recorte gravado: o mesmo teto do /api/upload. */
+export const LADO_MAXIMO_DO_RECORTE = 1280;
+/** O limite do /api/upload, com folga para o cabeçalho do multipart. */
+const LIMITE_DO_UPLOAD = 5 * 1024 * 1024 - 64 * 1024;
+
+/** O tamanho final, sem ampliar, com o lado maior em `lado` no máximo. */
+export function tamanhoDoRecorte(largura: number, altura: number, lado = LADO_MAXIMO_DO_RECORTE) {
+  const escala = Math.min(1, lado / Math.max(largura, altura));
+  return {
+    largura: Math.max(1, Math.round(largura * escala)),
+    altura: Math.max(1, Math.round(altura * escala)),
+  };
+}
+
+/** O nome do arquivo enviado, pela extensão do que o navegador gerou de fato. */
+export function nomeDoRecorte(blob: Blob): string {
+  return blob.type === "image/webp" ? "recorte.webp" : "recorte.png";
+}
+
+function paraBlob(canvas: HTMLCanvasElement, tipo: string, qualidade?: number): Promise<Blob | null> {
+  return new Promise((resolve) => canvas.toBlob(resolve, tipo, qualidade));
+}
+
+async function codificar(
+  origem: CanvasImageSource,
+  caixa: { x: number; y: number; largura: number; altura: number }
+): Promise<Blob> {
+  // Lados decrescentes: se nem o WebP nem o PNG couberem no limite (PNG de
+  // foto grande no Safari antigo, que não gera WebP), tenta menor.
+  for (const lado of [LADO_MAXIMO_DO_RECORTE, 960, 640]) {
+    const alvo = tamanhoDoRecorte(caixa.largura, caixa.altura, lado);
+    const final = document.createElement("canvas");
+    final.width = alvo.largura;
+    final.height = alvo.altura;
+    const ctx = final.getContext("2d")!;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(origem, caixa.x, caixa.y, caixa.largura, caixa.altura, 0, 0, alvo.largura, alvo.altura);
+
+    // O navegador que não sabe gerar WebP devolve PNG (ou null) em silêncio:
+    // o tipo do blob é o que vale, não o que foi pedido.
+    let blob = await paraBlob(final, "image/webp", 0.9);
+    if (!blob || (blob.type !== "image/webp" && blob.type !== "image/png")) {
+      blob = await paraBlob(final, "image/png");
+    }
+    if (blob && blob.size <= LIMITE_DO_UPLOAD) return blob;
+  }
+  throw new Error("Não foi possível gerar o recorte");
+}
 
 /**
  * O retângulo que contém o produto (alfa acima de um limiar), com 4% de

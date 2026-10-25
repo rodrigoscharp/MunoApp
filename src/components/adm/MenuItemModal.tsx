@@ -145,11 +145,12 @@ export function MenuItemModal({ open, onClose, item, categories, onSaved }: Prop
     if (!imageUrlValue) return;
     try {
       // Import dinâmico: o modelo e a biblioteca só existem para quem clicar.
-      const { removerFundo } = await import("@/lib/loja/remover-fundo");
-      const png = await removerFundo(imageUrlValue, (etapa, porcento) => setRecortando({ etapa, porcento }));
+      const { removerFundo, nomeDoRecorte } = await import("@/lib/loja/remover-fundo");
+      const recorte = await removerFundo(imageUrlValue, (etapa, porcento) => setRecortando({ etapa, porcento }));
       setRecortando(null);
       setUploading(true);
-      const enviado = await enviar(png, "recorte.png");
+      // WebP, ou PNG no navegador que não gera WebP: o nome segue o que veio.
+      const enviado = await enviar(recorte, nomeDoRecorte(recorte));
       setUploading(false);
       if (!enviado) return toast.error("Recorte pronto, mas não deu para enviar. Tente de novo.");
       setValue("imagemRecortadaUrl", enviado.url);

@@ -542,17 +542,26 @@ manchetes e Plus Jakarta Sans no resto. Os mockups aprovados estão em
 * **A vitrine não tem cadastro próprio** (`src/lib/loja/vitrine.ts`): o banner e
   "Mais pedidos" saem dos pedidos dos últimos 30 dias, e o card de cupom do
   cupom com `destaque`. Um destaque por restaurante: as rotas de
-  `/api/coupons` desmarcam os outros ao marcar um.
+  `/api/coupons` desmarcam os outros ao marcar um, e só depois que a
+  gravação deu certo: antes, um código repetido apagava o destaque no ar.
+* **A seção da categoria é `cat-<slug>`, não o slug cru** (`src/lib/loja/ancoras.ts`).
+  O slug é texto livre, e "mais-pedidos" ou "cardapio" repetiam o id das
+  âncoras fixas. Link antigo com o slug cru ainda chega à seção.
 * **O ícone da categoria sai do nome** (`iconeDaCategoria`). Não há campo de
   ícone; categoria que não casar com nada recebe o genérico.
 * **O banner é automático, e o dono só o empurra** (`src/lib/loja/banner.ts`,
   tela "Banner do cardápio" em `/adm/restaurante`). Padrão: o mais vendido dos
-  30 dias, com "DIA · O MAIS PEDIDO", o nome e o preço. No modo "item" vai o
+  30 dias, com "DIA · O MAIS PEDIDO", o nome e o preço. Sem venda no mês, um
+  item da casa com "DIA · DESTAQUE DA CASA": a fileira de "Mais pedidos" é
+  completada com itens que não venderam, e só os `vendidos` primeiros dela
+  podem ser anunciados como mais pedidos (banner e selo da folha). No modo "item" vai o
   escolhido, com a chamada do dono; esgotado ou apagado, volta sozinho ao mais
   vendido. O dia sai do fuso de Brasília: em UTC, quinta 22h já é sexta.
 * **A foto do banner é `MenuItem.imagemRecortadaUrl`, sem fundo.** Nasce de
-  dois jeitos: o `/api/upload` devolve `semFundo` quando a imagem tem pixels
-  transparentes de verdade (o WebP gerado mantém o alfa), e o painel usa a
+  dois jeitos: o `/api/upload` devolve `semFundo` quando a imagem tem fundo
+  transparente de verdade (`src/lib/fundo-transparente.ts`: 8% da imagem e 30%
+  da borda vazios, para cantos arredondados não contarem; o WebP gerado mantém
+  o alfa), e o painel usa a
   mesma foto como recorte; ou o dono clica em "Remover fundo da foto", que
   roda no navegador dele (`src/lib/loja/remover-fundo.ts`). Trocar a foto por
   uma com fundo limpa o recorte da antiga.
@@ -562,6 +571,18 @@ manchetes e Plus Jakarta Sans no resto. Os mockups aprovados estão em
   implementa uma operação do ormbg; a tentativa que falha ainda prende o
   runtime e derruba a volta para o processador. A biblioteca vem da CDN por
   import com `webpackIgnore`, versão fixada, e nunca entra no bundle da loja.
+* **A CSP de hoje é só Report-Only** (`next.config.js`), e o "Remover fundo"
+  depende disso. No dia em que ela passar a `Content-Security-Policy`, o
+  painel precisa de `https://cdn.jsdelivr.net` em `script-src` (a
+  biblioteca), `https://huggingface.co https://cdn-lfs.huggingface.co
+  https://*.hf.co` em `connect-src` (o modelo), `'wasm-unsafe-eval'` em
+  `script-src` (o runtime em wasm) e `blob:` em `worker-src` (o worker do
+  ONNX). Sem eles o botão falha com "não deu para remover o fundo", sem dizer
+  por quê.
+* **Um objeto de card por item na Vitrine.** O RSC serializa cada objeto uma
+  vez e referencia as repetições; busca, banner, fileira e seções recebem o
+  mesmo card do mapa montado na Vitrine. Um `itemParaCard` novo em cada ponto
+  mandava o cardápio três vezes no payload.
 * **Toda `<Image>` com foto de item passa `unoptimized={!imagemOtimizavel(src)}`.**
   O dono pode colar URL de qualquer site no campo da foto, e um host fora do
   `remotePatterns` não some só da imagem: derruba a página inteira no erro do

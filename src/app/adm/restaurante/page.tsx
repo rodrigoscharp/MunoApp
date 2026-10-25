@@ -53,6 +53,15 @@ export default async function RestauranteAdminPage() {
   } catch {
     // configuração ilegível: o controle abre no padrão
   }
+  // O item gravado esgotou? A lista acima só tem os disponíveis; o nome vem à
+  // parte para o painel dizer qual item saiu do banner. Apagado, fica sem nome.
+  const itemSalvoEsgotado =
+    banner.modo === "item" && banner.itemId && !itensDoCardapio.some((i) => i.id === banner.itemId)
+      ? await prismaUnscoped.menuItem.findFirst({
+          where: { id: banner.itemId, tenantId },
+          select: { name: true },
+        })
+      : null;
 
   const printerConfig: PrinterConfig = printerSetting
     ? { enabled: false, paperWidth: "80mm", ...JSON.parse(printerSetting.value) }
@@ -78,6 +87,7 @@ export default async function RestauranteAdminPage() {
           <BannerControl
             initial={banner}
             itens={itensDoCardapio.map((i) => ({ ...i, price: Number(i.price) }))}
+            nomeDoItemSalvo={itemSalvoEsgotado?.name ?? null}
           />
           <PrinterControl initial={printerConfig} />
         </div>

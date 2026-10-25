@@ -1,8 +1,6 @@
 import { ProductCard } from "@/components/menu/ProductCard";
 import type { ItemDaVitrine } from "@/components/loja/tipos";
-
-/** A âncora da fileira, usada pelo bloco "Top" da navegação de categorias. */
-export const ANCORA_DOS_MAIS_PEDIDOS = "mais-pedidos";
+import { ANCORA_DOS_MAIS_PEDIDOS } from "@/lib/loja/ancoras";
 
 /**
  * A fileira horizontal de "Mais pedidos". No celular ela rola de lado e

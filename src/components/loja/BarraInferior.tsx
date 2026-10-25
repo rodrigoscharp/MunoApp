@@ -8,6 +8,7 @@ import { useCart } from "@/hooks/useCart";
 import { useAnimacaoAoMudar } from "@/hooks/useAnimacaoAoMudar";
 import { ALVO_DA_SACOLA, useSacola } from "@/components/loja/sacola";
 import { ItensDaConta } from "@/components/loja/ItensDaConta";
+import { ANCORA_DO_CARDAPIO } from "@/lib/loja/ancoras";
 
 /**
  * A barra de baixo do celular: Início, Cardápio, a Sacola elevada no meio,
@@ -17,9 +18,6 @@ import { ItensDaConta } from "@/components/loja/ItensDaConta";
  * rodapé: duas barras fixas brigariam pelo mesmo canto da tela.
  */
 const SEM_BARRA = ["/checkout", "/cart"];
-
-/** O id da âncora das categorias (ver CategoryNav). */
-export const ANCORA_DO_CARDAPIO = "cardapio";
 
 function rolarAte(id: string): boolean {
   const el = document.getElementById(id);

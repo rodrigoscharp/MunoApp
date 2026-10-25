@@ -1,7 +1,7 @@
 import { CategoryNav } from "@/components/menu/CategoryNav";
 import { escolherMaisPedidos } from "@/lib/loja/vitrine";
 import { BANNER_PADRAO, chamadaDoBanner, escolherItemDoBanner, type ConfigDoBanner } from "@/lib/loja/banner";
-import { itemParaCard, type CategoriaDoCardapio } from "@/lib/menu-cache";
+import { itemParaCard, type CategoriaDoCardapio, type ItemDoCardapio } from "@/lib/menu-cache";
 import type { CupomDaVitrine } from "@/lib/loja/vitrine";
 import { ProvedorDaFolha } from "@/components/loja/FolhaDoProduto";
 import { BuscaNoCardapio } from "@/components/loja/BuscaNoCardapio";
@@ -37,21 +37,29 @@ export function Vitrine({
   /** O que entra entre o topo da vitrine e as seções (filtro, convite do app). */
   antesDasSecoes?: React.ReactNode;
 }) {
-  const vendidos = escolherMaisPedidos(categorias, idsMaisPedidos);
-  const maisPedidos = vendidos.map(itemParaCard);
+  // Um objeto de card por item, reaproveitado em todo lugar que o mostra
+  // (busca, banner, mais pedidos, seções). O payload do RSC serializa uma vez
+  // cada objeto e referencia as repetições; com um itemParaCard novo em cada
+  // ponto, o cardápio inteiro ia três vezes para o navegador.
+  const cards = new Map(categorias.flatMap((c) => c.items).map((i) => [i.id, itemParaCard(i)]));
+  const card = (item: ItemDoCardapio) => cards.get(item.id) ?? itemParaCard(item);
+  const fileira = escolherMaisPedidos(categorias, idsMaisPedidos);
+  const maisPedidos = fileira.itens.map(card);
   // O dia sai da hora desta requisição: a página é dinâmica (o tenant vem dos
   // headers), então o "SEXTA" do banner vira "SÁBADO" sozinho à meia-noite.
-  const doBanner = escolherItemDoBanner(banner, categorias, vendidos);
+  // Só o que vendeu de verdade concorre a "o mais pedido": o enchimento da
+  // fileira não.
+  const doBanner = escolherItemDoBanner(banner, categorias, fileira.itens.slice(0, fileira.vendidos));
   const chamada = doBanner ? chamadaDoBanner(banner, doBanner.modo, new Date()) : "";
-  const todos = categorias.flatMap((c) => c.items.map(itemParaCard));
+  const todos = [...cards.values()];
 
   return (
-    <ProvedorDaFolha restaurantOpen={restaurantOpen} maisPedidos={maisPedidos}>
+    <ProvedorDaFolha restaurantOpen={restaurantOpen} maisPedidos={maisPedidos} vendidos={fileira.vendidos}>
       <div className="mx-auto max-w-5xl space-y-4 px-4 pb-2 pt-3">
         <BuscaNoCardapio itens={todos} restaurantOpen={restaurantOpen} />
         {doBanner && (
           <BannerDestaque
-            item={itemParaCard(doBanner.item)}
+            item={card(doBanner.item)}
             recorte={doBanner.item.imagemRecortadaUrl}
             kickerTexto={chamada}
           />
@@ -73,7 +81,7 @@ export function Vitrine({
       </div>
 
       <div className="mx-auto max-w-5xl px-4 pb-10 pt-6">
-        <SecoesDoCardapio categorias={categorias} restaurantOpen={restaurantOpen} />
+        <SecoesDoCardapio categorias={categorias} cards={cards} restaurantOpen={restaurantOpen} />
       </div>
     </ProvedorDaFolha>
   );

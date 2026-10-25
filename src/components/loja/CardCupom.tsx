@@ -6,8 +6,11 @@ import type { CupomDaVitrine } from "@/lib/loja/vitrine";
 
 /**
  * O card do cupom em destaque. "Copiar" põe o código na área de transferência
- * para colar na sacola; sem a API (http, navegador antigo, permissão negada),
+ * para colar no checkout; sem a API (http, navegador antigo, permissão negada),
  * o aviso diz o código para a pessoa digitar. Nada de diálogo: o toast basta.
+ *
+ * O campo do cupom só existe no /checkout: a sacola não tem onde colar, e o
+ * texto antigo ("direto na sacola") mandava a pessoa procurar no lugar errado.
  *
  * O título não diz "Primeiro pedido?" como o mockup: o cupom não tem regra de
  * primeira compra, e o card prometeria uma condição que o checkout não aplica.
@@ -17,9 +20,9 @@ export function CardCupom({ cupom }: { cupom: CupomDaVitrine }) {
     try {
       if (!navigator.clipboard?.writeText) throw new Error("sem clipboard");
       await navigator.clipboard.writeText(cupom.code);
-      toast.success(`Cupom ${cupom.code} copiado. É só colar na sacola.`);
+      toast.success(`Cupom ${cupom.code} copiado. É só colar na hora de finalizar o pedido.`);
     } catch {
-      toast(`Use o cupom ${cupom.code} na sacola.`);
+      toast(`Use o cupom ${cupom.code} na hora de finalizar o pedido.`);
     }
   }
 
@@ -39,7 +42,7 @@ export function CardCupom({ cupom }: { cupom: CupomDaVitrine }) {
           Cupom da casa: {cupom.beneficio}
         </p>
         <p className="mt-0.5 text-xs text-loja-tinta-2">
-          Cupom <span className="font-bold text-loja-tinta">{cupom.code}</span>, direto na sacola
+          Cupom <span className="font-bold text-loja-tinta">{cupom.code}</span>, no checkout
         </p>
       </div>
       <button

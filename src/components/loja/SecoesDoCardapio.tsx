@@ -1,5 +1,6 @@
 import { ProductCard } from "@/components/menu/ProductCard";
-import { cardTemPrioridade, itemParaCard, type CategoriaDoCardapio } from "@/lib/menu-cache";
+import { cardTemPrioridade, itemParaCard, type CategoriaDoCardapio, type ItemDoCard } from "@/lib/menu-cache";
+import { idDaSecao } from "@/lib/loja/ancoras";
 
 /**
  * As seções do cardápio, uma por categoria: manchete e grade de cards. É
@@ -8,17 +9,23 @@ import { cardTemPrioridade, itemParaCard, type CategoriaDoCardapio } from "@/lib
  */
 export function SecoesDoCardapio({
   categorias,
+  cards,
   restaurantOpen,
 }: {
   categorias: CategoriaDoCardapio[];
+  /**
+   * Os cards já montados pela Vitrine. Passar o mesmo objeto que a busca e a
+   * fileira recebem deixa o RSC mandar cada item uma vez só.
+   */
+  cards?: Map<string, ItemDoCard>;
   restaurantOpen: boolean;
 }) {
   return (
     <div className="space-y-10">
       {categorias.map((category, indiceCategoria) => (
-        <section key={category.id} id={category.slug} aria-labelledby={`titulo-${category.slug}`}>
+        <section key={category.id} id={idDaSecao(category.slug)} aria-labelledby={`titulo-${idDaSecao(category.slug)}`}>
           <div className="mb-4 flex items-baseline gap-3">
-            <h2 id={`titulo-${category.slug}`} className="manchete text-[1.9rem] text-forest-dark">
+            <h2 id={`titulo-${idDaSecao(category.slug)}`} className="manchete text-[1.9rem] text-forest-dark">
               {category.name}
             </h2>
             <span className="text-xs font-semibold text-loja-tinta-2">
@@ -30,7 +37,7 @@ export function SecoesDoCardapio({
             {category.items.map((item, indiceItem) => (
               <li key={item.id}>
                 <ProductCard
-                  item={itemParaCard(item)}
+                  item={cards?.get(item.id) ?? itemParaCard(item)}
                   restaurantOpen={restaurantOpen}
                   prioridade={cardTemPrioridade(indiceCategoria, indiceItem)}
                 />

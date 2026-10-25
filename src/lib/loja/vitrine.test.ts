@@ -57,20 +57,31 @@ describe("mais pedidos", () => {
 
   it("cruza com o cardápio: indisponível sai, a ordem de venda fica", () => {
     const menu = cardapio([item("a"), item("b"), item("c", null, false)]);
-    expect(escolherMaisPedidos(menu, ["c", "b", "x", "a"]).map((i) => i.id)).toEqual(["b", "a"]);
+    expect(escolherMaisPedidos(menu, ["c", "b", "x", "a"]).itens.map((i) => i.id)).toEqual(["b", "a"]);
+    expect(escolherMaisPedidos(menu, ["c", "b", "x", "a"]).vendidos).toBe(2);
   });
 
   it("poucos vendidos: completa a fileira com os outros, com foto primeiro", () => {
     const menu = cardapio([item("a"), item("b", "/b.jpg"), item("c"), item("d", "/d.jpg")]);
-    expect(escolherMaisPedidos(menu, ["c"]).map((i) => i.id)).toEqual(["c", "b", "d", "a"]);
-    expect(escolherMaisPedidos(menu, ["c"], 2).map((i) => i.id)).toEqual(["c", "b"]);
+    expect(escolherMaisPedidos(menu, ["c"]).itens.map((i) => i.id)).toEqual(["c", "b", "d", "a"]);
+    expect(escolherMaisPedidos(menu, ["c"], 2).itens.map((i) => i.id)).toEqual(["c", "b"]);
+  });
+
+  it("separa o que vendeu do enchimento da fileira", () => {
+    const menu = cardapio([item("a"), item("b", "/b.jpg"), item("c")]);
+    expect(escolherMaisPedidos(menu, ["c"]).vendidos).toBe(1);
+    expect(escolherMaisPedidos(menu, []).vendidos).toBe(0);
+    // Vendido indisponível não conta como vendido.
+    expect(escolherMaisPedidos(cardapio([item("a", null, false), item("b")]), ["a"]).vendidos).toBe(0);
+    // Nem passa do tamanho da fileira.
+    expect(escolherMaisPedidos(menu, ["a", "b", "c"], 2).vendidos).toBe(2);
   });
 
   it("sem histórico, os itens com foto na frente e os sem foto no fim", () => {
     const comFoto = cardapio([item("a"), item("b", "/b.jpg"), item("c", "/c.jpg")]);
-    expect(escolherMaisPedidos(comFoto, []).map((i) => i.id)).toEqual(["b", "c", "a"]);
+    expect(escolherMaisPedidos(comFoto, []).itens.map((i) => i.id)).toEqual(["b", "c", "a"]);
     const semFoto = cardapio([item("a"), item("b")]);
-    expect(escolherMaisPedidos(semFoto, []).map((i) => i.id)).toEqual(["a", "b"]);
+    expect(escolherMaisPedidos(semFoto, []).itens.map((i) => i.id)).toEqual(["a", "b"]);
   });
 });
 

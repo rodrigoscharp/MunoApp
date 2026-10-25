@@ -26,19 +26,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     try {
       // O where do prisma escopado já leva tenantId, então um id de outro
       // restaurante não encontra linha nenhuma e cai no P2025 abaixo.
-      // Um destaque por restaurante: marcar este desmarca os outros. Sem
-      // transação pelo mesmo motivo do POST.
+      const coupon = await prisma.coupon.update({
+        where: { id },
+        data: { ...rest, code: normalizeCouponCode(code) },
+        include: { _count: { select: { orders: true } } },
+      });
+      // Um destaque por restaurante: marcar este desmarca os outros, só
+      // depois que a gravação deu certo. Antes, um código repetido (P2002) ou
+      // um cupom já apagado (P2025) desmarcava o destaque que estava no ar e
+      // não marcava nada no lugar.
       if (rest.destaque) {
         await prisma.coupon.updateMany({
           where: { destaque: true, id: { not: id } },
           data: { destaque: false },
         });
       }
-      const coupon = await prisma.coupon.update({
-        where: { id },
-        data: { ...rest, code: normalizeCouponCode(code) },
-        include: { _count: { select: { orders: true } } },
-      });
       invalidarCupomEmDestaque(tenantId);
       return NextResponse.json(coupon);
     } catch (err) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Megaphone, Check, ImageOff } from "lucide-react";
+import { Megaphone, Check, ImageOff, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
 
@@ -25,8 +25,24 @@ interface Config {
  * Aqui o dono só escolhe empurrar outro item (lançamento, promoção) e,
  * se quiser, a chamada que vai junto do dia.
  */
-export function BannerControl({ initial, itens }: { initial: Config; itens: ItemParaBanner[] }) {
-  const [config, setConfig] = useState<Config>(initial);
+export function BannerControl({
+  initial,
+  itens,
+  nomeDoItemSalvo = null,
+}: {
+  initial: Config;
+  /** Só os itens disponíveis: é o que o banner pode mostrar. */
+  itens: ItemParaBanner[];
+  /** O nome do item gravado, quando ele não está em `itens` (esgotou). */
+  nomeDoItemSalvo?: string | null;
+}) {
+  // O item gravado pode ter esgotado ou sido apagado. A lista só tem os
+  // disponíveis, e o select mostrava "Selecione…" com o id velho guardado no
+  // estado: "Salvar" regravava um item que o banner já não mostra, sem o dono
+  // saber. O id velho sai do estado e o aviso diz o que aconteceu.
+  const salvoSumiu = initial.modo === "item" && !!initial.itemId && !itens.some((i) => i.id === initial.itemId);
+  const [config, setConfig] = useState<Config>(salvoSumiu ? { ...initial, itemId: null } : initial);
+  const [avisoDoSalvo, setAvisoDoSalvo] = useState(salvoSumiu);
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -35,6 +51,7 @@ export function BannerControl({ initial, itens }: { initial: Config; itens: Item
   function mudar(parcial: Partial<Config>) {
     setConfig((c) => ({ ...c, ...parcial }));
     setSaved(false);
+    if (parcial.itemId || parcial.modo === "mais-vendido") setAvisoDoSalvo(false);
   }
 
   function salvar() {
@@ -101,6 +118,16 @@ export function BannerControl({ initial, itens }: { initial: Config; itens: Item
           </span>
         </label>
       </fieldset>
+
+      {avisoDoSalvo && (
+        <p role="status" className="mt-4 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+          {nomeDoItemSalvo
+            ? `O item escolhido (${nomeDoItemSalvo}) está indisponível no cardápio.`
+            : "O item escolhido não está mais no cardápio."}{" "}
+          Enquanto isso, o banner mostra o automático. Escolha outro item ou volte ao mais vendido.
+        </p>
+      )}
 
       {config.modo === "item" && (
         <div className="mt-4 space-y-3">

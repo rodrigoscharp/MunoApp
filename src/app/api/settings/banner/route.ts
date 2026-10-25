@@ -31,9 +31,20 @@ export async function PUT(req: NextRequest) {
       }
       // O prisma escopado só encontra item deste restaurante: um id de outro
       // não passa, e o banner nunca aponta para o cardápio alheio.
-      const item = await prisma.menuItem.findUnique({ where: { id: config.itemId }, select: { id: true } });
+      const item = await prisma.menuItem.findUnique({
+        where: { id: config.itemId },
+        select: { id: true, available: true },
+      });
       if (!item) {
         return NextResponse.json({ error: [{ message: "Item não encontrado" }] }, { status: 404 });
+      }
+      // O painel só oferece itens disponíveis, e o banner nunca mostra um
+      // esgotado: gravar um seria salvar uma escolha que não aparece.
+      if (!item.available) {
+        return NextResponse.json(
+          { error: [{ message: "Este item está indisponível. Escolha outro ou deixe no automático." }] },
+          { status: 409 }
+        );
       }
     }
 

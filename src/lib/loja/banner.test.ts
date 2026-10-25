@@ -13,13 +13,18 @@ import {
 } from "./banner";
 import type { CategoriaDoCardapio } from "@/lib/menu-cache";
 
-const item = (id: string, available = true) => ({
+const item = (
+  id: string,
+  available = true,
+  imageUrl: string | null = null,
+  imagemRecortadaUrl: string | null = null
+) => ({
   id,
   name: id,
   description: null,
   price: 10,
-  imageUrl: null,
-  imagemRecortadaUrl: null,
+  imageUrl,
+  imagemRecortadaUrl,
   available,
   categoryId: "c",
   containsGluten: null,
@@ -49,6 +54,29 @@ describe("qual item vai no banner", () => {
       modo: "mais-vendido",
     });
     expect(escolherItemDoBanner(config, menu([item("b")]), [item("b")])?.item.id).toBe("b");
+  });
+
+  it("sem venda nenhuma, banner de destaque da casa, nunca 'o mais pedido'", () => {
+    // A fileira é completada com itens sem venda; o banner recebe só os vendidos.
+    const r = escolherItemDoBanner(
+      BANNER_PADRAO,
+      menu([item("a"), item("b", true, "/b.jpg"), item("c", true, "/c.jpg", "/c-recorte.png")]),
+      []
+    );
+    expect(r).toMatchObject({ item: { id: "c" }, modo: "destaque" });
+    expect(escolherItemDoBanner(BANNER_PADRAO, menu([item("a"), item("b", true, "/b.jpg")]), [])).toMatchObject({
+      item: { id: "b" },
+      modo: "destaque",
+    });
+    expect(escolherItemDoBanner(BANNER_PADRAO, menu([item("a", false), item("z")]), [])?.item.id).toBe("z");
+  });
+
+  it("escolhido esgotado e nada vendido: destaque da casa", () => {
+    const config = { modo: "item" as const, itemId: "a", chamada: "Lançamento" };
+    expect(escolherItemDoBanner(config, menu([item("a", false), item("b")]), [])).toMatchObject({
+      item: { id: "b" },
+      modo: "destaque",
+    });
   });
 
   it("sem item nenhum, sem banner", () => {
@@ -83,6 +111,14 @@ describe("o texto do banner", () => {
     const sexta = new Date("2026-10-30T15:00:00Z");
     expect(chamadaDoBanner({ modo: "item", itemId: "a", chamada: "Lançamento" }, "mais-vendido", sexta)).toBe(
       "SEXTA · O MAIS PEDIDO"
+    );
+  });
+
+  it("destaque sem venda: não diz 'o mais pedido', nem leva a chamada do dono", () => {
+    const sexta = new Date("2026-10-30T15:00:00Z");
+    expect(chamadaDoBanner(BANNER_PADRAO, "destaque", sexta)).toBe("SEXTA · DESTAQUE DA CASA");
+    expect(chamadaDoBanner({ modo: "item", itemId: "a", chamada: "Lançamento" }, "destaque", sexta)).toBe(
+      "SEXTA · DESTAQUE DA CASA"
     );
   });
 
