@@ -4,6 +4,9 @@ import { useState } from "react";
 import { Printer, Loader2, TestTube2 } from "lucide-react";
 import { toast } from "sonner";
 import type { PrinterConfig } from "@/app/api/settings/printer/route";
+import { botaoContorno, cartaoPainel, tituloDeSecao } from "@/components/painel/estilos";
+import { Selo } from "@/components/painel/Selo";
+import { cn } from "@/lib/utils";
 
 const MOCK_ORDER = {
   id: "test-print-000",
@@ -56,56 +59,63 @@ export function PrinterControl({ initial }: { initial: PrinterConfig }) {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-neutral-200 p-5 space-y-4">
+    <div className={`${cartaoPainel} flex flex-col gap-4 p-5 sm:p-6`}>
       {/* Header */}
       <div className="flex items-center gap-2">
-        <Printer size={18} className="text-brand" />
-        <h2 className="font-semibold text-neutral-900 text-sm">Impressora Tanka</h2>
-        {saving && <Loader2 size={13} className="animate-spin text-neutral-400 ml-auto" />}
+        <Printer size={17} className="text-loja-preco" aria-hidden />
+        <h3 className={tituloDeSecao}>Impressora Tanka</h3>
+        <Selo tom={config.enabled ? "pronto" : "neutro"} className="ml-2">
+          {config.enabled ? "Ativada" : "Desativada"}
+        </Selo>
+        {saving && <Loader2 size={15} className="ml-auto animate-spin text-loja-tinta-2" aria-label="Salvando" />}
       </div>
 
-      <p className="text-xs text-neutral-400 leading-relaxed">
+      <p className="text-[13px] leading-relaxed text-loja-tinta-2">
         Quando ativado, um botão de impressão aparece em cada pedido na tela da cozinha.
         Conecte a impressora ao computador e selecione-a no diálogo de impressão do navegador.
       </p>
 
       {/* Toggle habilitado */}
-      <label className="flex items-center justify-between cursor-pointer group">
-        <span className="text-sm font-medium text-neutral-700 group-hover:text-neutral-900 transition">
+      <div className="flex min-h-11 items-center justify-between gap-3 rounded-2xl bg-loja-creme px-4 py-1.5">
+        <span id="impressora-habilitar" className="text-[14px] font-bold text-loja-tinta">
           Habilitar impressão
         </span>
         <button
           type="button"
           role="switch"
           aria-checked={config.enabled}
+          aria-labelledby="impressora-habilitar"
           onClick={() => save({ ...config, enabled: !config.enabled })}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-            config.enabled ? "bg-brand" : "bg-neutral-200"
-          }`}
+          className="flex h-11 w-[52px] items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
         >
           <span
-            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-              config.enabled ? "translate-x-6" : "translate-x-1"
+            aria-hidden
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              config.enabled ? "bg-forest-dark" : "bg-[#D9CCBC]"
             }`}
-          />
+          >
+            <span
+              className={`inline-block h-[18px] w-[18px] transform rounded-full bg-white shadow transition-transform ${
+                config.enabled ? "translate-x-[23px]" : "translate-x-[3px]"
+              }`}
+            />
+          </span>
         </button>
-      </label>
+      </div>
 
       {/* Largura do papel */}
       {config.enabled && (
         <>
-          <div className="space-y-1.5">
-            <p className="text-xs font-medium text-neutral-600">Largura do papel</p>
+          <div role="group" aria-labelledby="impressora-papel" className="flex flex-col gap-2">
+            <p id="impressora-papel" className="text-[13px] font-bold text-loja-tinta">Largura do papel</p>
             <div className="flex gap-2">
               {(["58mm", "80mm"] as const).map((w) => (
                 <button
                   key={w}
+                  type="button"
+                  aria-pressed={config.paperWidth === w}
                   onClick={() => save({ ...config, paperWidth: w })}
-                  className={`flex-1 py-2 rounded-xl border text-sm font-medium transition ${
-                    config.paperWidth === w
-                      ? "bg-brand/10 border-brand/40 text-brand"
-                      : "border-neutral-200 text-neutral-600 hover:border-brand/30"
-                  }`}
+                  className="h-11 flex-1 rounded-full border-[1.5px] border-loja-linha bg-white text-[14px] font-bold text-loja-tinta transition hover:border-brand aria-pressed:border-forest-dark aria-pressed:bg-forest-dark aria-pressed:text-white"
                 >
                   {w}
                 </button>
@@ -115,14 +125,15 @@ export function PrinterControl({ initial }: { initial: PrinterConfig }) {
 
           {/* Teste de impressão */}
           <button
+            type="button"
             onClick={testPrint}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-neutral-300 text-sm text-neutral-600 hover:border-brand/40 hover:text-brand transition"
+            className={cn(botaoContorno, "h-12 w-full border-dashed text-[14px]")}
           >
-            <TestTube2 size={15} />
+            <TestTube2 size={16} aria-hidden />
             Testar impressão
           </button>
 
-          <p className="text-[11px] text-neutral-400">
+          <p className="text-[12px] text-loja-tinta-2">
             Dica: no diálogo de impressão, desative cabeçalhos/rodapés e margens para melhor resultado.
           </p>
         </>

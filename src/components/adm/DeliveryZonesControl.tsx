@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { MapPin, Plus, Trash2, Pencil, Check, X } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
+import { botaoBrasa, campo, cartaoPainel, tituloDeSecao } from "@/components/painel/estilos";
+import { Selo } from "@/components/painel/Selo";
 import { toast } from "sonner";
 
 interface Zone {
@@ -83,90 +85,112 @@ export function DeliveryZonesControl({ initialZones }: Props) {
     setEditPrice(String(zone.price));
   }
 
+  const botaoIcone =
+    "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-loja-tinta-2 transition hover:bg-loja-pessego-claro hover:text-loja-tinta";
+  const rotuloDoCampo = "mb-1.5 block text-[13px] font-bold text-loja-tinta";
+
   return (
-    <div className="bg-white rounded-xl border border-neutral-200 p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <MapPin size={15} className="text-neutral-400" />
-        <p className="text-xs text-neutral-400 font-medium uppercase tracking-wide">
-          Bairros e Fretes
-        </p>
+    <div className={`${cartaoPainel} p-5 sm:p-6`}>
+      <div className="mb-4 flex items-center gap-2">
+        <MapPin size={17} className="text-loja-preco" aria-hidden />
+        <h3 className={tituloDeSecao}>Bairros e fretes</h3>
+        {zones.length > 0 && (
+          <Selo tom="neutro" className="ml-auto">
+            {zones.length} {zones.length === 1 ? "bairro" : "bairros"}
+          </Selo>
+        )}
       </div>
 
       {/* Lista de zonas */}
-      <div className="space-y-2 mb-4">
-        {zones.length === 0 && (
-          <p className="text-xs text-neutral-400 italic text-center py-3">
-            Nenhum bairro cadastrado ainda
-          </p>
-        )}
-
-        {zones.map((zone) => (
-          <div key={zone.id} className="flex items-center gap-2 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2">
-            {editingId === zone.id ? (
-              <>
-                <input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="flex-1 min-w-0 border border-neutral-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
-                />
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-xs text-neutral-400">R$</span>
+      {zones.length === 0 ? (
+        <p className="mb-4 rounded-2xl bg-loja-creme px-4 py-5 text-center text-[13px] text-loja-tinta-2">
+          Nenhum bairro cadastrado ainda
+        </p>
+      ) : (
+        <ul className="mb-4 grid grid-cols-1 gap-2 md:grid-cols-2">
+          {zones.map((zone) => (
+            <li key={zone.id} className="flex min-h-14 items-center gap-2 rounded-2xl border border-loja-linha bg-white py-1.5 pl-4 pr-1.5">
+              {editingId === zone.id ? (
+                <>
                   <input
-                    value={editPrice}
-                    onChange={(e) => setEditPrice(e.target.value)}
-                    className="w-16 border border-neutral-200 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    aria-label="Nome do bairro"
+                    className={cn(campo, "h-11 min-w-0 flex-1 px-3 py-0 text-[14px]")}
                   />
-                </div>
-                <button onClick={() => saveEdit(zone.id)} className="text-green-500 hover:text-green-600 p-1">
-                  <Check size={15} />
-                </button>
-                <button onClick={() => setEditingId(null)} className="text-neutral-400 hover:text-neutral-600 p-1">
-                  <X size={15} />
-                </button>
-              </>
-            ) : (
-              <>
-                <span className="flex-1 text-sm text-neutral-800 font-medium truncate">{zone.name}</span>
-                <span className="text-sm font-semibold text-brand shrink-0">{formatCurrency(zone.price)}</span>
-                <button onClick={() => startEdit(zone)} className="text-neutral-400 hover:text-neutral-600 p-1">
-                  <Pencil size={13} />
-                </button>
-                <button onClick={() => deleteZone(zone.id, zone.name)} className="text-neutral-400 hover:text-red-500 p-1">
-                  <Trash2 size={13} />
-                </button>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <span className="text-[12px] text-loja-tinta-2" aria-hidden>R$</span>
+                    <input
+                      value={editPrice}
+                      onChange={(e) => setEditPrice(e.target.value)}
+                      aria-label="Valor do frete, em reais"
+                      inputMode="decimal"
+                      className={cn(campo, "h-11 w-20 px-2 py-0 text-[14px]")}
+                    />
+                  </div>
+                  <button type="button" onClick={() => saveEdit(zone.id)} aria-label="Salvar bairro" className={cn(botaoIcone, "text-forest-dark")}>
+                    <Check size={17} aria-hidden />
+                  </button>
+                  <button type="button" onClick={() => setEditingId(null)} aria-label="Cancelar edição" className={botaoIcone}>
+                    <X size={17} aria-hidden />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="flex-1 truncate text-[14px] font-bold text-loja-tinta">{zone.name}</span>
+                  <span className="shrink-0 text-[14px] font-extrabold text-loja-preco">{formatCurrency(zone.price)}</span>
+                  <button type="button" onClick={() => startEdit(zone)} aria-label={`Editar ${zone.name}`} className={botaoIcone}>
+                    <Pencil size={15} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteZone(zone.id, zone.name)}
+                    aria-label={`Remover ${zone.name}`}
+                    className={cn(botaoIcone, "hover:bg-[#FBE3DC] hover:text-[#A3271A]")}
+                  >
+                    <Trash2 size={15} aria-hidden />
+                  </button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/* Adicionar novo bairro */}
-      <div className="border-t border-neutral-100 pt-4 space-y-2">
-        <p className="text-xs font-medium text-neutral-600">Adicionar bairro</p>
-        <div className="flex gap-2">
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addZone()}
-            placeholder="Nome do bairro"
-            className="flex-1 min-w-0 border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
-          />
-          <div className="flex items-center gap-1 border border-neutral-200 rounded-lg px-2 shrink-0">
-            <span className="text-xs text-neutral-400">R$</span>
+      <div className="border-t border-[#F0E6DA] pt-4">
+        <p className="mb-3 text-[13px] font-extrabold text-loja-tinta">Adicionar bairro</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="min-w-0 flex-1">
+            <label htmlFor="zona-nova-nome" className={rotuloDoCampo}>Nome do bairro</label>
             <input
+              id="zona-nova-nome"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addZone()}
+              placeholder="Ex.: Centro"
+              className={cn(campo, "h-12 py-0")}
+            />
+          </div>
+          <div className="sm:w-36">
+            <label htmlFor="zona-nova-preco" className={rotuloDoCampo}>Frete (R$)</label>
+            <input
+              id="zona-nova-preco"
               value={newPrice}
               onChange={(e) => setNewPrice(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addZone()}
               placeholder="0,00"
-              className="w-14 py-2 text-sm focus:outline-none"
+              inputMode="decimal"
+              className={cn(campo, "h-12 py-0")}
             />
           </div>
           <button
+            type="button"
             onClick={addZone}
-            className="flex items-center gap-1.5 bg-brand hover:bg-brand-dark text-white text-sm font-semibold px-3 py-2 rounded-lg transition shrink-0"
+            className={cn(botaoBrasa, "h-12 shrink-0 px-5 text-[14px]")}
           >
-            <Plus size={14} />
-            Add
+            <Plus size={16} aria-hidden />
+            Adicionar
           </button>
         </div>
       </div>
