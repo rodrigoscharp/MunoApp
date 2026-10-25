@@ -39,7 +39,7 @@ function item(over: Record<string, unknown> = {}) {
   };
 }
 
-function montar() {
+function montar(extra: Partial<React.ComponentProps<typeof MenuManager>> = {}) {
   const categorias = [
     {
       id: "cat-1",
@@ -53,6 +53,7 @@ function montar() {
     <MenuManager
       initialCategories={categorias}
       allCategories={[{ id: "cat-1", name: "Lanches", slug: "lanches" }]}
+      {...extra}
     />
   );
 }
@@ -76,8 +77,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const botaoDeAtivar = (nome: "Desativar" | "Ativar") => screen.getAllByTitle(nome)[0];
-const linhaDo = (nome: string) => screen.getByText(nome).closest("div.flex.items-center")!;
+// A chave de disponibilidade é um switch com o nome do item; o estado mora no
+// aria-checked, e não numa classe de opacidade.
+const chaveDo = (nome: string) => screen.getByRole("switch", { name: `${nome} no cardápio` });
+const disponivel = (nome: string) => chaveDo(nome).getAttribute("aria-checked") === "true";
+const excluirDo = (nome: string) => screen.getByRole("button", { name: `Excluir ${nome}` });
 
 describe("ativar e desativar", () => {
   it("muda a tela antes de o servidor responder, e não refaz a página", async () => {
@@ -85,9 +89,9 @@ describe("ativar e desativar", () => {
     fetchMock.mockReturnValue(promessa);
     montar();
 
-    await userEvent.click(botaoDeAtivar("Desativar"));
+    await userEvent.click(chaveDo("X-Salada"));
 
-    expect(linhaDo("X-Salada").className).toContain("opacity-60");
+    expect(disponivel("X-Salada")).toBe(false);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ available: false });
 
     responder(new Response("{}", { status: 200 }));
@@ -99,20 +103,20 @@ describe("ativar e desativar", () => {
     fetchMock.mockResolvedValue(new Response("{}", { status: 500 }));
     montar();
 
-    await userEvent.click(botaoDeAtivar("Desativar"));
+    await userEvent.click(chaveDo("X-Salada"));
 
     await waitFor(() => expect(toastError).toHaveBeenCalledWith("Erro ao atualizar item"));
-    expect(linhaDo("X-Salada").className).not.toContain("opacity-60");
+    expect(disponivel("X-Salada")).toBe(true);
   });
 
   it("desfaz quando a rede cai", async () => {
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
     montar();
 
-    await userEvent.click(botaoDeAtivar("Desativar"));
+    await userEvent.click(chaveDo("X-Salada"));
 
     await waitFor(() => expect(toastError).toHaveBeenCalled());
-    expect(linhaDo("X-Salada").className).not.toContain("opacity-60");
+    expect(disponivel("X-Salada")).toBe(true);
   });
 });
 
@@ -122,7 +126,7 @@ describe("excluir", () => {
     fetchMock.mockReturnValue(promessa);
     montar();
 
-    await userEvent.click(linhaDo("X-Salada").querySelectorAll("button")[2]);
+    await userEvent.click(excluirDo("X-Salada"));
 
     expect(screen.queryByText("X-Salada")).toBeNull();
 
@@ -139,7 +143,7 @@ describe("excluir", () => {
     );
     montar();
 
-    await userEvent.click(linhaDo("X-Salada").querySelectorAll("button")[2]);
+    await userEvent.click(excluirDo("X-Salada"));
 
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith("Item já pedido. Desative em vez de excluir.")
@@ -152,9 +156,46 @@ describe("excluir", () => {
     vi.spyOn(window, "confirm").mockReturnValue(false);
     montar();
 
-    await userEvent.click(linhaDo("X-Salada").querySelectorAll("button")[2]);
+    await userEvent.click(excluirDo("X-Salada"));
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(screen.getByText("X-Salada")).toBeTruthy();
+  });
+});
+
+describe("a tela", () => {
+  it("conta categorias, itens e esgotados no cabeçalho, e a conta acompanha o clique", async () => {
+    fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
+    montar();
+    screen.getByText("1 categoria · 2 itens · 0 esgotados");
+
+    await userEvent.click(chaveDo("X-Bacon"));
+
+    screen.getByText("1 categoria · 2 itens · 1 esgotado");
+    screen.getByText("Esgotado", { selector: "span.rounded-full" });
+  });
+
+  it("a busca filtra pelo nome, sem acento nem caixa", async () => {
+    montar();
+    await userEvent.type(screen.getByRole("searchbox", { name: /buscar item/i }), "bacon");
+
+    expect(screen.queryByText("X-Salada")).toBeNull();
+    screen.getByText("X-Bacon");
+  });
+
+  it("mostra o item do banner na faixa e no selo do cartão, com o link para trocar", () => {
+    montar({ noBanner: { itemId: "item-2", modo: "mais-vendido" } });
+
+    const faixa = screen.getByRole("link", { name: /no banner agora/i });
+    expect(faixa.getAttribute("href")).toBe("/adm/banner-cupons");
+    expect(faixa.textContent).toContain("X-Bacon · mais vendido, automático");
+    const cartao = screen.getByRole("article", { name: "X-Bacon" });
+    expect(cartao.textContent).toContain("No banner");
+  });
+
+  it("cada cartão tem o botão de editar com o nome do item", () => {
+    montar();
+    screen.getByRole("button", { name: "Editar X-Salada" });
+    screen.getByRole("button", { name: "Editar X-Bacon" });
   });
 });

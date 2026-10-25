@@ -407,3 +407,17 @@ describe("foto sem fundo para o banner", () => {
     expect(enviado()).toMatchObject({ imageUrl: "https://x/nova.webp", imagemRecortadaUrl: null });
   });
 });
+
+describe("a folha", () => {
+  it("é um diálogo com o título do que está sendo feito", () => {
+    montar();
+    screen.getByRole("dialog", { name: /novo item/i });
+  });
+
+  it("fecha no Esc e no botão Fechar", async () => {
+    montar();
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(screen.getByRole("button", { name: "Fechar" }));
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+});
