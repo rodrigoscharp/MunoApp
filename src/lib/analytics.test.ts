@@ -42,12 +42,18 @@ const daReceita = () => chamadas().find((c) => c.sql.includes("to_char"))!;
 const doRanking = () => chamadas().find((c) => c.sql.includes('"OrderItem"'))!;
 
 let receita: { dia: string; receita: number }[];
-let ranking: { nome: string | null; quantidade: number }[];
+let ranking: {
+  menuItemId: string;
+  nome: string | null;
+  imageUrl: string | null;
+  quantidade: number;
+  receita: number;
+}[];
 
 beforeEach(() => {
   vi.clearAllMocks();
   receita = [];
-  ranking = [{ nome: "X-Salada", quantidade: 30 }];
+  ranking = [{ menuItemId: "item-1", nome: "X-Salada", imageUrl: "/x.jpg", quantidade: 30, receita: 600 }];
   queryRaw.mockImplementation((partes: TemplateStringsArray) =>
     Promise.resolve(partes.join("").includes('"OrderItem"') ? ranking : receita)
   );
@@ -140,15 +146,19 @@ describe("os baldes do gráfico", () => {
 });
 
 describe("ranking e pagamentos", () => {
-  it("dá nome aos itens do ranking", async () => {
+  it("dá nome, id e foto aos itens do ranking", async () => {
     const { topItems } = await calcularGraficos(TENANT, AGORA);
-    expect(topItems).toEqual([{ name: "X-Salada", quantity: 30 }]);
+    expect(topItems).toEqual([
+      { menuItemId: "item-1", name: "X-Salada", quantity: 30, imageUrl: "/x.jpg" },
+    ]);
   });
 
   it("não quebra o ranking quando o item foi excluído do cardápio", async () => {
-    ranking = [{ nome: null, quantidade: 30 }];
+    ranking = [{ menuItemId: "item-2", nome: null, imageUrl: null, quantidade: 30, receita: 0 }];
     const { topItems } = await calcularGraficos(TENANT, AGORA);
-    expect(topItems).toEqual([{ name: "Desconhecido", quantity: 30 }]);
+    expect(topItems).toEqual([
+      { menuItemId: "item-2", name: "Item removido", quantity: 30, imageUrl: null },
+    ]);
   });
 
   it("preenche com zero a forma de pagamento sem movimento", async () => {
