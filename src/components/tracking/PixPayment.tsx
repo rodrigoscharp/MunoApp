@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Copy, Check } from "lucide-react";
+import { botaoBrasa, botaoFloresta, cartao } from "@/components/loja/estilos";
 
 interface Props {
   // Já resolvido por toQrImageSrc: pode ser data URI (Mercado Pago, Asaas,
@@ -20,15 +21,17 @@ export function PixPayment({ qrSrc, copyPaste }: Props) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-neutral-200 p-6 mb-6">
-      <h2 className="text-center font-semibold text-neutral-900 mb-4">
+    <section aria-labelledby="titulo-pix" className={`${cartao} px-5 py-5`}>
+      <h2 id="titulo-pix" className="manchete text-center text-[28px] text-forest-dark">
         Pague com Pix
       </h2>
 
       {/* QR Code */}
       {qrSrc && (
-        <div className="flex justify-center mb-4">
-          <div className="p-3 border-2 border-neutral-200 rounded-xl">
+        <div className="mt-4 flex justify-center">
+          {/* Fundo branco de verdade, e não o papel: leitor de QR de banco
+              erra com borda clara colorida. */}
+          <div className="rounded-2xl border border-loja-linha bg-white p-3">
             {/* <img> comum, não next/image: o src pode ser data URI ou um
                 domínio de gateway que não está em remotePatterns. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -37,31 +40,28 @@ export function PixPayment({ qrSrc, copyPaste }: Props) {
         </div>
       )}
 
-      <p className="text-center text-xs text-neutral-500 mb-3">
+      <p className="mt-4 text-center text-xs text-loja-tinta-2">
         {qrSrc ? "Ou copie o código abaixo" : "Copie o código abaixo e pague no seu banco"}
       </p>
 
       {/* Copy & paste key */}
-      <div className="flex gap-2">
-        <div className="flex-1 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-xs text-neutral-600 truncate">
-          {copyPaste}
+      <div className="mt-2 flex gap-2">
+        <div className="flex min-h-11 min-w-0 flex-1 items-center truncate rounded-2xl border border-loja-linha bg-loja-creme px-3 font-mono text-xs text-loja-tinta-2">
+          <span className="truncate">{copyPaste}</span>
         </div>
         <button
+          type="button"
           onClick={handleCopy}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition ${
-            copied
-              ? "bg-green-100 text-green-700"
-              : "bg-neutral-100 hover:bg-neutral-200 text-neutral-700"
-          }`}
+          className={`${copied ? botaoFloresta : botaoBrasa} h-11 shrink-0 px-4 text-xs`}
         >
-          {copied ? <Check size={14} /> : <Copy size={14} />}
-          {copied ? "Copiado!" : "Copiar"}
+          {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+          <span aria-live="polite">{copied ? "Copiado!" : "Copiar"}</span>
         </button>
       </div>
 
-      <p className="text-center text-xs text-neutral-400 mt-4">
+      <p className="mt-4 text-center text-xs text-loja-tinta-2">
         O pagamento é confirmado automaticamente
       </p>
-    </div>
+    </section>
   );
 }

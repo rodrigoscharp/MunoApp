@@ -5,8 +5,10 @@ import { useEffect, useState } from "react";
 import { useOrderRealtime } from "@/hooks/useOrderRealtime";
 import { useParams } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
-import { CheckCircle, UtensilsCrossed, ArrowRight } from "lucide-react";
+import { Check, UtensilsCrossed, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { Raminho } from "@/components/loja/Raminho";
+import { botaoFloresta, cartao, kicker } from "@/components/loja/estilos";
 
 interface OrderItem {
   id: string;
@@ -71,63 +73,73 @@ export default function MesaOrderConfirmationPage() {
   }, [updatedAt, params.orderId]);
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-12 flex flex-col items-center gap-6 text-center">
-      <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
-        <CheckCircle size={40} className="text-green-600" />
-      </div>
-
-      <div>
-        <h1 className="text-2xl font-black text-neutral-900 mb-2">Pedido enviado!</h1>
-        <p className="text-neutral-500 text-sm">
+    <div className="mx-auto flex w-full max-w-lg flex-col gap-3 px-4 py-4">
+      <section className="relative isolate overflow-hidden rounded-[28px] bg-forest-dark px-5 pb-6 pt-5">
+        <Raminho className="pointer-events-none absolute -right-10 top-4 -z-10 h-[190px] w-[190px] text-forest" />
+        <span
+          aria-hidden="true"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-forest text-loja-pessego"
+        >
+          <Check size={24} strokeWidth={2.5} />
+        </span>
+        <h1 className="manchete mt-4 text-[44px] text-white">Pedido enviado!</h1>
+        <p className="mt-2 max-w-[28ch] text-[13px] leading-relaxed text-white/80">
           Seu pedido foi recebido pela cozinha. Relaxa que vem logo!
         </p>
-      </div>
+      </section>
 
       {order && (
-        <div className="w-full bg-white rounded-xl border border-neutral-200 p-5 text-left space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-neutral-400 font-medium uppercase tracking-wide">Status</span>
-            <span className="text-sm font-semibold text-brand">
+        <div className={`${cartao} space-y-3 px-4 py-4`}>
+          <div className="flex items-center justify-between gap-3">
+            <span className={`${kicker} text-loja-tinta-2`}>Status</span>
+            <span role="status" className="rounded-full bg-loja-pessego px-3 py-1 text-sm font-extrabold text-loja-preco">
               {STATUS_LABELS[order.status] ?? order.status}
             </span>
           </div>
 
-          <div className="border-t border-neutral-100 pt-3 space-y-2">
+          <div className="space-y-2.5 border-t border-dashed border-loja-linha pt-3">
             {order.items.map((item) => (
-              <div key={item.id} className="flex justify-between items-start gap-2">
-                <div className="min-w-0">
-                  <span className="text-sm text-neutral-700">
-                    <span className="font-bold text-brand">{item.quantity}x</span> {item.menuItem.name}
+              <div key={item.id} className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="mt-0.5 flex h-6 min-w-6 shrink-0 items-center justify-center rounded-lg bg-loja-pessego px-1 text-xs font-extrabold tabular-nums text-loja-preco">
+                    {item.quantity}
                   </span>
-                  {item.notes && (
-                    <p className="text-xs text-neutral-400 italic">{item.notes}</p>
-                  )}
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold leading-snug text-loja-tinta">
+                      {item.menuItem.name}
+                    </p>
+                    {item.notes && (
+                      <p className="mt-0.5 text-xs italic text-loja-tinta-2">{item.notes}</p>
+                    )}
+                  </div>
                 </div>
-                <span className="text-sm font-medium text-neutral-600 shrink-0">
+                <span className="shrink-0 text-[13px] font-bold text-loja-tinta">
                   {formatCurrency(Number(item.unitPrice) * item.quantity)}
                 </span>
               </div>
             ))}
           </div>
 
-          <div className="border-t border-neutral-100 pt-3 flex justify-between items-center">
-            <span className="font-semibold text-neutral-700">Total</span>
-            <span className="text-xl font-bold text-neutral-900">{formatCurrency(order.total)}</span>
+          <div className="flex items-baseline justify-between border-t border-dashed border-loja-linha pt-3">
+            <span className="text-[13px] font-extrabold text-loja-tinta">Total</span>
+            <span className="manchete text-2xl text-forest-dark tabular-nums">
+              {formatCurrency(order.total)}
+            </span>
           </div>
 
-          <div className="bg-brand-light rounded-lg px-4 py-3 flex items-center gap-2">
-            <UtensilsCrossed size={15} className="text-brand shrink-0" />
-            <p className="text-xs text-brand-dark">Pagamento no balcão ao final</p>
+          <div className="flex items-center gap-2 rounded-2xl bg-loja-folha px-4 py-3">
+            <UtensilsCrossed size={15} aria-hidden="true" className="shrink-0 text-forest" />
+            <p className="text-xs font-semibold text-forest-dark">Pagamento no balcão ao final</p>
           </div>
         </div>
       )}
 
       <Link
         href={`/mesa/${params.token}/cardapio`}
-        className="flex items-center gap-2 text-brand font-semibold hover:underline text-sm"
+        className={`${botaoFloresta} h-14 w-full text-sm font-extrabold`}
       >
         Adicionar mais itens
-        <ArrowRight size={15} />
+        <ArrowRight size={16} aria-hidden="true" />
       </Link>
     </div>
   );
