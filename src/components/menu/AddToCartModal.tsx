@@ -57,20 +57,33 @@ export function AddToCartModal({ item, onConfirm, onClose, combinaCom, onAdicion
     };
   }, []);
 
-  function handleClose() {
+  // A folha continua na tela e clicável durante os 280ms da saída. Sem esta
+  // trava, dois toques rápidos em "Pôr na sacola" agendavam dois onConfirm e
+  // o item entrava duas vezes; o mesmo para fechar e confirmar juntos. Ref, e
+  // não estado: o segundo toque chega antes de qualquer nova renderização.
+  const saindoRef = useRef(false);
+
+  function sair(depois: () => void) {
+    if (saindoRef.current) return;
+    saindoRef.current = true;
     setVisible(false);
-    setTimeout(onClose, SAIDA_MS);
+    setTimeout(depois, SAIDA_MS);
+  }
+
+  function handleClose() {
+    sair(onClose);
   }
 
   function handleConfirm() {
-    setVisible(false);
-    setTimeout(() => onConfirm(notes.trim(), quantity), SAIDA_MS);
+    const notas = notes.trim();
+    sair(() => onConfirm(notas, quantity));
   }
 
   // Esc fecha, como em qualquer diálogo.
   useEffect(() => {
     function aoTeclar(e: KeyboardEvent) {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !saindoRef.current) {
+        saindoRef.current = true;
         setVisible(false);
         setTimeout(onClose, SAIDA_MS);
       }
