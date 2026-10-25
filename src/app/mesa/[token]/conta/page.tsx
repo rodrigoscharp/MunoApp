@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { Receipt, UtensilsCrossed, ArrowRight, RefreshCw } from "lucide-react";
 import Link from "next/link";
+import { botaoContorno, cartao, kicker } from "@/components/loja/estilos";
 
 interface OrderItem {
   id: string;
@@ -62,53 +63,55 @@ export default function MesaContaPage() {
   const tableLabel = conta ? conta.table.name || `Mesa ${conta.table.number}` : "mesa";
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-8 flex flex-col gap-6">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-brand flex items-center justify-center shrink-0">
-          <Receipt size={18} className="text-white" />
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-neutral-900">Conta da {tableLabel}</h1>
-          <p className="text-xs text-neutral-500">Atualiza automaticamente conforme novos pedidos chegam</p>
-        </div>
+    <div className="mx-auto flex max-w-lg flex-col gap-5 px-4 py-8">
+      <div>
+        <p className={`${kicker} flex items-center gap-1.5 text-loja-preco`}>
+          <Receipt size={14} aria-hidden="true" /> A conta
+        </p>
+        <h1 className="manchete mt-2 text-[44px] text-forest-dark">Conta da {tableLabel}</h1>
+        <p className="mt-2 text-sm text-loja-tinta-2">
+          Atualiza automaticamente conforme novos pedidos chegam
+        </p>
       </div>
 
       {!conta ? (
-        <div className="flex items-center justify-center h-40 gap-3 text-neutral-500">
-          <RefreshCw size={18} className="animate-spin" />
+        <div className="flex h-40 items-center justify-center gap-3 text-loja-tinta-2">
+          <RefreshCw size={18} aria-hidden="true" className="animate-spin" />
           Carregando conta...
         </div>
       ) : byPerson.size === 0 ? (
-        <div className="text-center py-16 text-neutral-400">
-          <p className="text-sm">Nenhum pedido em aberto nesta mesa ainda.</p>
+        <div className={`${cartao} px-6 py-12 text-center`}>
+          <p className="text-sm text-loja-tinta-2">Nenhum pedido em aberto nesta mesa ainda.</p>
           <Link
             href={`/mesa/${params.token}/cardapio`}
-            className="inline-flex items-center gap-2 text-brand font-semibold hover:underline text-sm mt-4"
+            className={`${botaoContorno} mt-5 h-12 text-sm`}
           >
             Ver cardápio
-            <ArrowRight size={15} />
+            <ArrowRight size={16} aria-hidden="true" />
           </Link>
         </div>
       ) : (
         <>
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             {Array.from(byPerson.entries()).map(([name, orders]) => {
               const personTotal = orders.reduce((sum, o) => sum + o.total, 0);
               return (
-                <div key={name} className="bg-white rounded-xl border border-neutral-200 p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="font-semibold text-neutral-900">{name}</h2>
-                    <span className="text-sm font-bold text-neutral-900">{formatCurrency(personTotal)}</span>
+                <div key={name} className={`${cartao} p-5`}>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h2 className="truncate font-extrabold text-loja-tinta">{name}</h2>
+                    <span className="shrink-0 text-sm font-extrabold text-loja-preco">
+                      {formatCurrency(personTotal)}
+                    </span>
                   </div>
                   <div className="space-y-3">
                     {orders.map((order) => (
-                      <div key={order.id} className="border-t border-neutral-100 pt-3 space-y-1.5">
+                      <div key={order.id} className="space-y-1.5 border-t border-dashed border-loja-linha pt-3">
                         {order.items.map((item) => (
-                          <div key={item.id} className="flex justify-between items-start gap-2">
-                            <span className="text-sm text-neutral-700 min-w-0">
-                              <span className="font-bold text-brand">{item.quantity}x</span> {item.menuItem.name}
+                          <div key={item.id} className="flex items-start justify-between gap-2">
+                            <span className="min-w-0 text-sm text-loja-tinta">
+                              <span className="font-extrabold text-loja-preco">{item.quantity}×</span> {item.menuItem.name}
                             </span>
-                            <span className="text-sm text-neutral-500 shrink-0">
+                            <span className="shrink-0 text-sm font-semibold text-loja-tinta-2">
                               {formatCurrency(Number(item.unitPrice) * item.quantity)}
                             </span>
                           </div>
@@ -121,14 +124,14 @@ export default function MesaContaPage() {
             })}
           </div>
 
-          <div className="bg-white rounded-xl border border-neutral-200 p-5 flex items-center justify-between">
-            <span className="font-semibold text-neutral-700">Total da mesa</span>
-            <span className="text-xl font-bold text-neutral-900">{formatCurrency(grandTotal)}</span>
+          <div className={`${cartao} flex items-baseline justify-between p-5`}>
+            <span className="font-extrabold text-loja-tinta">Total da mesa</span>
+            <span className="manchete text-[32px] text-forest-dark">{formatCurrency(grandTotal)}</span>
           </div>
 
-          <div className="bg-brand-light rounded-lg px-4 py-3 flex items-center gap-2">
-            <UtensilsCrossed size={15} className="text-brand shrink-0" />
-            <p className="text-xs text-brand-dark">Pagamento no balcão ao final</p>
+          <div className="flex items-center gap-2.5 rounded-2xl bg-loja-pessego-claro px-4 py-3">
+            <UtensilsCrossed size={16} aria-hidden="true" className="shrink-0 text-loja-preco" />
+            <p className="text-[13px] font-bold text-[#6A3A1E]">Pagamento no balcão ao final</p>
           </div>
         </>
       )}

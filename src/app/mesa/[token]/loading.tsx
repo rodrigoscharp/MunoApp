@@ -1,26 +1,28 @@
+import { cartao } from "@/components/loja/estilos";
+
 // Cardápio da mesa: categorias e grade de pratos, como o loading de (client).
 // O cabeçalho com o número da mesa vem do layout e já está na tela.
 export default function MesaLoading() {
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
-      <div className="flex gap-2 py-3 mb-6 overflow-hidden">
+    <div className="mx-auto max-w-5xl px-4 py-6">
+      <div className="mb-6 flex gap-2 overflow-hidden py-3">
         {[...Array(5)].map((_, i) => (
           <div
             key={i}
-            className="h-8 w-20 rounded-full bg-neutral-100 animate-pulse flex-shrink-0"
+            className="h-[66px] w-[62px] flex-shrink-0 animate-pulse rounded-2xl bg-loja-papel"
           />
         ))}
       </div>
 
-      <div className="h-6 w-32 bg-neutral-200 rounded animate-pulse mb-4" />
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="mb-4 h-6 w-32 animate-pulse rounded-full bg-loja-linha" />
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
-            <div className="h-32 bg-neutral-100 animate-pulse" />
-            <div className="p-4 space-y-2">
-              <div className="h-4 bg-neutral-100 rounded animate-pulse w-3/4" />
-              <div className="h-3 bg-neutral-100 rounded animate-pulse w-full" />
-              <div className="h-4 w-16 bg-neutral-100 rounded animate-pulse" />
+          <div key={i} className={`${cartao} overflow-hidden p-2.5`}>
+            <div className="h-32 animate-pulse rounded-2xl bg-loja-pessego-claro" />
+            <div className="space-y-2 p-2">
+              <div className="h-4 w-3/4 animate-pulse rounded-full bg-loja-creme" />
+              <div className="h-3 w-full animate-pulse rounded-full bg-loja-creme" />
+              <div className="h-4 w-16 animate-pulse rounded-full bg-loja-creme" />
             </div>
           </div>
         ))}
