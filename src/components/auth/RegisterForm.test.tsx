@@ -28,6 +28,7 @@ const RESTAURANTE = {
   phone: "",
   logoUrl: "",
   floorPlanImageUrl: null,
+  slogan: "",
 };
 
 async function preencherEEnviar() {

@@ -53,6 +53,28 @@
   --color-console-selo-laranja: var(--console-selo-laranja);
   --color-console-selo-verde: var(--console-selo-verde);
   --font-display: var(--font-fredoka);
+  /* A loja (cardápio, sacola, checkout, acompanhamento, mesa, login).
+     Terracota e floresta continuam sendo os da marca; estes são o papel e as
+     variações que a loja usa em volta deles. `loja-brasa` existe por
+     contraste: o terracota da marca com letra branca pequena fica abaixo de
+     4,5:1, então botão com texto usa o tom mais fundo, e o terracota original
+     fica para nome, ícone e sacola. Mesmo motivo para `loja-preco`. */
+  --color-loja-creme: #F4EBDF;
+  --color-loja-papel: #FFFBF6;
+  --color-loja-pessego: #F6DCC6;
+  --color-loja-pessego-claro: #FBEADB;
+  --color-loja-linha: #E9DCCB;
+  --color-loja-brasa: #BF5321;
+  --color-loja-brasa-escura: #A4461A;
+  --color-loja-preco: #B04A1A;
+  --color-loja-tinta: #2B231E;
+  --color-loja-tinta-2: #6A5B50;
+  --color-loja-folha: #E3ECE6;
+  --font-manchete: var(--font-barlow-condensed), "Arial Narrow", sans-serif;
+  --font-loja: var(--font-plus-jakarta), var(--font-geist-sans), system-ui, sans-serif;
+  --shadow-loja: 0 1px 2px rgba(74, 48, 28, 0.06), 0 10px 22px -12px rgba(74, 48, 28, 0.28);
+  --shadow-loja-alta: 0 18px 34px -12px rgba(74, 48, 28, 0.35);
+  --shadow-loja-brasa: 0 14px 22px -10px rgba(191, 83, 33, 0.55);
 }
 
 /* ---- Tema do console -----------------------------------------------------
@@ -404,4 +426,19 @@ body {
   .console-menu,
   .console-aparece { animation: none; }
   .console-traco { animation: none; stroke-dashoffset: 0; }
+}
+
+/* Invólucro da loja: a fonte e o fundo valem para tudo o que está dentro, e
+   html/body continuam com a Geist para o console e o painel. */
+.loja {
+  font-family: var(--font-loja);
+  background: var(--color-loja-creme);
+  color: var(--color-loja-tinta);
+}
+.manchete {
+  font-family: var(--font-manchete);
+  font-weight: 800;
+  text-transform: uppercase;
+  line-height: 0.92;
+  letter-spacing: 0.005em;
 }

@@ -22,6 +22,9 @@ export const restaurantInfoSchema = z.object({
   phone: z.string().default(""),
   logoUrl: z.string().default("/munowbg.png"),
   floorPlanImageUrl: z.string().nullable().default(null),
+  // A frase embaixo do nome no topo do cardápio ("Hambúrguer de chapa").
+  // Curta porque divide a linha com o sino no celular.
+  slogan: z.string().trim().max(60, "Use até 60 caracteres").default(""),
 });
 
 export interface RestaurantInfo {
@@ -30,6 +33,7 @@ export interface RestaurantInfo {
   phone: string;
   logoUrl: string;
   floorPlanImageUrl: string | null;
+  slogan: string;
 }
 
 /**
@@ -51,6 +55,7 @@ export const SEM_CADASTRO: Omit<RestaurantInfo, "name"> = {
   phone: "",
   logoUrl: "/munowbg.png",
   floorPlanImageUrl: null,
+  slogan: "",
 };
 
 /**

@@ -16,11 +16,13 @@ vi.mock("@/lib/auth", () => ({ auth: () => auth() }));
 
 const couponFindMany = vi.fn();
 const couponCreate = vi.fn();
+const couponUpdateMany = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     coupon: {
       findMany: (...a: unknown[]) => couponFindMany(...a),
       create: (...a: unknown[]) => couponCreate(...a),
+      updateMany: (...a: unknown[]) => couponUpdateMany(...a),
     },
   },
 }));
@@ -137,5 +139,26 @@ describe("POST — o cupom criado", () => {
     couponCreate.mockRejectedValue(new Error("connection terminated"));
     const res = await POST(req("POST", cupomValido));
     expect(res.status).toBe(500);
+  });
+});
+
+describe("POST — cupom em destaque", () => {
+  // O card do cardápio mostra um cupom só. Dois marcados fariam a loja
+  // anunciar um deles ao acaso.
+  it("marcar um novo como destaque desmarca os outros antes de criar", async () => {
+    const res = await POST(req("POST", { ...cupomValido, destaque: true }));
+    expect(res.status).toBe(201);
+    expect(couponUpdateMany).toHaveBeenCalledWith({
+      where: { destaque: true },
+      data: { destaque: false },
+    });
+    expect(couponUpdateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      couponCreate.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("sem destaque, não mexe nos outros", async () => {
+    await POST(req("POST", cupomValido));
+    expect(couponUpdateMany).not.toHaveBeenCalled();
   });
 });

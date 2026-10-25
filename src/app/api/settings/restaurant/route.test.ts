@@ -63,6 +63,7 @@ const CADASTRO_COMPLETO = {
   phone: "(12) 99999-0000",
   logoUrl: "/logo.png",
   floorPlanImageUrl: null,
+  slogan: "Pizza no forno a lenha",
 };
 
 beforeEach(() => {

@@ -11,6 +11,7 @@ import { origemDoLogo } from "@/lib/pwa/logo-do-tenant";
 import { versaoDoLogo } from "@/lib/pwa/manifest";
 import { auth } from "@/lib/auth";
 import { ContextoDoCarrinho } from "@/components/cart/ContextoDoCarrinho";
+import { fontesDaLoja } from "@/lib/loja/fontes";
 
 /**
  * A identidade do restaurante nas tags que o manifest não alcança.
@@ -74,6 +75,9 @@ export default async function ClientLayout({
   // não busca de novo, e o login e o logout atualizam pelo próprio next-auth.
   return (
     <SessionProvider session={session}>
+      {/* O invólucro carrega a fonte e o creme da loja; html/body ficam com a
+          Geist porque também servem o console e o painel. */}
+      <div className={`loja ${fontesDaLoja} flex min-h-full flex-1 flex-col`}>
       <ContextoDoCarrinho contexto="delivery" />
       <BusinessHours schedule={schedule} />
       <Header restaurantInfo={info} />
@@ -86,6 +90,7 @@ export default async function ClientLayout({
         um bilhete em sessionStorage e esta folha o consome aqui.
       */}
       <ConviteDeInstalacao />
+      </div>
     </SessionProvider>
   );
 }

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { couponSchema, normalizeCouponCode } from "@/lib/coupon";
+import { invalidarCupomEmDestaque } from "@/lib/loja/vitrine";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const tenantId = getTenantIdFromRequest(req);
@@ -25,11 +26,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     try {
       // O where do prisma escopado já leva tenantId, então um id de outro
       // restaurante não encontra linha nenhuma e cai no P2025 abaixo.
+      // Um destaque por restaurante: marcar este desmarca os outros. Sem
+      // transação pelo mesmo motivo do POST.
+      if (rest.destaque) {
+        await prisma.coupon.updateMany({
+          where: { destaque: true, id: { not: id } },
+          data: { destaque: false },
+        });
+      }
       const coupon = await prisma.coupon.update({
         where: { id },
         data: { ...rest, code: normalizeCouponCode(code) },
         include: { _count: { select: { orders: true } } },
       });
+      invalidarCupomEmDestaque(tenantId);
       return NextResponse.json(coupon);
     } catch (err) {
       const codigo = typeof err === "object" && err !== null && "code" in err ? err.code : null;
@@ -63,6 +73,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       // Os pedidos que usaram o cupom ficam: o onDelete SetNull solta o couponId
       // e o couponCode gravado no pedido preserva o histórico e o recibo.
       await prisma.coupon.delete({ where: { id } });
+      invalidarCupomEmDestaque(tenantId);
     } catch (err) {
       // Mesmo tratamento do PATCH acima, que já tinha. Sem ele o P2025 subia e
       // virava "Erro interno do servidor" — o que o admin vê ao apagar um cupom

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { couponSchema, normalizeCouponCode } from "@/lib/coupon";
+import { invalidarCupomEmDestaque } from "@/lib/loja/vitrine";
 
 /**
  * Lista os cupons do restaurante. Só admin: a resposta é a lista de códigos
@@ -44,9 +45,17 @@ export async function POST(req: NextRequest) {
     const { code, ...rest } = parsed.data;
 
     try {
+      // Um destaque por restaurante: o card da loja mostra um cupom só, então
+      // marcar este desmarca os outros. Sem transação de propósito: se a
+      // criação falhar depois, o pior é nenhum cupom em destaque, que é o
+      // estado de quem nunca marcou nenhum.
+      if (rest.destaque) {
+        await prisma.coupon.updateMany({ where: { destaque: true }, data: { destaque: false } });
+      }
       const coupon = await prisma.coupon.create({
         data: { ...rest, code: normalizeCouponCode(code), tenantId },
       });
+      invalidarCupomEmDestaque(tenantId);
       return NextResponse.json({ ...coupon, _count: { orders: 0 } }, { status: 201 });
     } catch (err) {
       // Colisão do @@unique([tenantId, code]). Sem este catch viraria 500 pelo

@@ -334,6 +334,11 @@ model Coupon {
   validFrom  DateTime?
   validUntil DateTime?
   active     Boolean    @default(true)
+  // O cupom que a loja anuncia no cardápio, no card abaixo de "Mais pedidos".
+  // No máximo um por restaurante: marcar um desmarca os outros (rotas de
+  // /api/coupons). Sem destaque o card não aparece, porque a lista de cupons é
+  // segredo do dono e só ele decide qual vira propaganda.
+  destaque   Boolean    @default(false)
   orders     Order[]
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt

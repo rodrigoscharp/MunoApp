@@ -31,6 +31,9 @@ export const couponSchema = z
     validFrom: z.coerce.date().nullable().optional(),
     validUntil: z.coerce.date().nullable().optional(),
     active: z.boolean().default(true),
+    // Anunciado no card do cardápio. Opcional no corpo: quem não manda (um
+    // cliente antigo do painel) não desmarca o destaque sem querer.
+    destaque: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.type === "PERCENT" && (data.value <= 0 || data.value > 100)) {

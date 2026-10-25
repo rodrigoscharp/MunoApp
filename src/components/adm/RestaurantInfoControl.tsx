@@ -106,6 +106,23 @@ export function RestaurantInfoControl({ initial }: Props) {
         />
       </div>
 
+      {/* Frase */}
+      <div>
+        <label htmlFor="restaurante-slogan" className="text-xs font-medium text-neutral-700 block mb-1.5">
+          Frase do restaurante <span className="font-normal text-neutral-400">(opcional)</span>
+        </label>
+        <input
+          id="restaurante-slogan"
+          type="text"
+          maxLength={60}
+          value={info.slogan ?? ""}
+          onChange={(e) => change("slogan", e.target.value)}
+          className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-brand/30"
+          placeholder="Ex.: Hambúrguer de chapa"
+        />
+        <p className="mt-1 text-[11px] text-neutral-400">Aparece embaixo do nome, no topo do cardápio.</p>
+      </div>
+
       {/* Endereço */}
       <div>
         <label className="text-xs font-medium text-neutral-700 block mb-1.5">Endereço</label>
