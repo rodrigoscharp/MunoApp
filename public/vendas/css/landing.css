@@ -375,9 +375,13 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   .bolha, .faixa__trilha, .btn-brasa::after, .via__status i { animation: none; }
 }
 
-/* ---------- abertura ---------- */
-O fundo é var(--creme), não o #FFFFFF do render: a landing é #F4F2EF, e
-   a diferença apareceria como um flash no instante da revelação.
+/* --------------------------------------------------
+   Abertura: o painel cobre a tela, o ícone atravessa a câmera, a wordmark
+   assenta e o painel sobe revelando a página. A coreografia mora em
+   js/intro.js.
+
+   O fundo é var(--creme), o mesmo do body: qualquer outro tom apareceria como
+   um flash no instante da revelação.
    -------------------------------------------------- */
 .intro {
   /* Largura da wordmark. Todo o resto é proporção medida do original:
