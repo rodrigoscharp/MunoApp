@@ -1,117 +1,70 @@
-import {
-  cardTemPrioridade,
-  getCardapioOuVazio,
-  itemParaCard,
-  itemParaFiltro,
-} from "@/lib/menu-cache";
+import { Clock } from "lucide-react";
+import { getCardapioOuVazio, itemParaFiltro } from "@/lib/menu-cache";
 import { getRequestTenantId } from "@/lib/tenant-request";
-import { CategoryNav } from "@/components/menu/CategoryNav";
-import { ProductCard } from "@/components/menu/ProductCard";
+import { getBusinessHours, checkIsOpen } from "@/lib/business-hours";
+import { getMaisPedidosOuVazio, getCupomEmDestaqueOuNada } from "@/lib/loja/vitrine";
 import { FiltroDeRestricoes } from "@/components/menu/FiltroDeRestricoes";
 import { FaixaDeInstalacao } from "@/components/pwa/FaixaDeInstalacao";
-import { MenuItemWithCategory } from "@/types";
-import { getBusinessHours, checkIsOpen } from "@/lib/business-hours";
+import { Vitrine } from "@/components/loja/Vitrine";
+import { CardapioEmBreve } from "@/components/loja/SecoesDoCardapio";
 
 export default async function MenuPage() {
   const tenantId = await getRequestTenantId();
-  const [categories, schedule] = await Promise.all([getCardapioOuVazio(tenantId), getBusinessHours(tenantId)]);
+  // O tempo de entrega da linha "Aberto · entrega em X min" é lido pelo
+  // layout, que é quem monta o cabeçalho.
+  const [categories, schedule, idsMaisPedidos, cupom] = await Promise.all([
+    getCardapioOuVazio(tenantId),
+    getBusinessHours(tenantId),
+    getMaisPedidosOuVazio(tenantId),
+    getCupomEmDestaqueOuNada(tenantId),
+  ]);
   const isOpen = checkIsOpen(schedule);
   const nonEmpty = categories.filter((c) => c.items.length > 0);
 
   return (
     <div className="min-h-screen">
       {!isOpen && (
-        <div className="bg-neutral-950 text-white">
-          <div className="max-w-5xl mx-auto px-4 py-10 flex flex-col items-center text-center gap-3">
-            <span className="text-4xl">🕐</span>
-            <h2 className="text-xl font-black tracking-tight">Estamos fechados no momento</h2>
-            <p className="text-neutral-400 text-sm max-w-sm">
-              Já já abriremos para matar sua fome! Enquanto isso, fique à vontade para explorar o cardápio.
-            </p>
+        <div className="mx-auto max-w-5xl px-4 pt-3">
+          <div role="status" className="flex items-start gap-3 rounded-[20px] bg-forest-dark p-4 text-white">
+            <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10">
+              <Clock size={20} />
+            </span>
+            <div>
+              <h2 className="manchete text-[1.6rem]">Estamos fechados agora</h2>
+              <p className="mt-1 text-sm text-white/85">
+                Já já abriremos para matar sua fome! Enquanto isso, fique à vontade para explorar o cardápio.
+              </p>
+            </div>
           </div>
         </div>
       )}
 
       {nonEmpty.length > 0 ? (
-        <>
-          <CategoryNav categories={nonEmpty.map(({ id, name, slug }) => ({ id, name, slug }))} />
-          <div className="max-w-5xl mx-auto px-4 pt-4 pb-0">
-            <FiltroDeRestricoes
-              // A lista inteira vai uma segunda vez no payload, para este
-              // componente: só com o que o filtro lê (ver ItemDoFiltro).
-              menuItems={nonEmpty.flatMap((c) => c.items.map((item) => itemParaFiltro(item, c)))}
-              restaurantOpen={isOpen}
-            />
-            {/*
-              Convite permanente de instalação. Fica logo abaixo da navegação
-              de categorias, e não no Header, por dois motivos: o Header já
-              disputa o lado direito entre carrinho, conta e menu no celular, e
-              aqui a faixa some sozinha quando não há o que oferecer (app já
-              instalado, convite dispensado, navegador sem suporte), sem deixar
-              buraco no cabeçalho.
-            */}
-            <div className="mt-3">
+        <Vitrine
+          categorias={nonEmpty}
+          idsMaisPedidos={idsMaisPedidos}
+          cupom={cupom}
+          restaurantOpen={isOpen}
+          antesDasSecoes={
+            <>
+              <FiltroDeRestricoes
+                // A lista inteira vai uma segunda vez no payload, para este
+                // componente: só com o que o filtro lê (ver ItemDoFiltro).
+                menuItems={nonEmpty.flatMap((c) => c.items.map((item) => itemParaFiltro(item, c)))}
+                restaurantOpen={isOpen}
+              />
+              {/*
+                Convite permanente de instalação. Fica aqui, e não no Header,
+                porque a faixa some sozinha quando não há o que oferecer (app
+                já instalado, convite dispensado, navegador sem suporte), sem
+                deixar buraco no cabeçalho.
+              */}
               <FaixaDeInstalacao />
-            </div>
-          </div>
-          <div className="max-w-5xl mx-auto px-4 py-8 space-y-10">
-            {nonEmpty.map((category, indiceCategoria) => (
-              <section key={category.id} id={category.slug}>
-                <div className="flex items-center justify-between gap-3 mb-5">
-                  <div className="flex items-center gap-3">
-                    <span className="w-1 h-6 rounded-full bg-brand" />
-                    <h2 className="text-lg font-bold text-neutral-900 tracking-tight">
-                      {category.name}
-                    </h2>
-                    <span className="text-xs text-neutral-400 font-normal">
-                      {category.items.length} {category.items.length === 1 ? "item" : "itens"}
-                    </span>
-                  </div>
-                  {/* Hint de scroll — só aparece no mobile */}
-                  {category.items.length > 2 && (
-                    <span className="sm:hidden text-xs text-neutral-400 flex items-center gap-1 shrink-0">
-                      deslize
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                      </svg>
-                    </span>
-                  )}
-                </div>
-
-                {/* Mobile: carrossel horizontal | Desktop: grid */}
-                <div className="
-                  flex gap-3 overflow-x-auto snap-x snap-mandatory pb-3 -mx-4 px-4
-                  no-scrollbar
-                  sm:grid sm:grid-cols-3 lg:grid-cols-4
-                  sm:gap-4 sm:overflow-visible sm:mx-0 sm:px-0 sm:pb-0
-                ">
-                  {category.items.map((item, indiceItem) => (
-                    <div key={item.id} className="shrink-0 w-44 snap-start sm:w-auto sm:shrink sm:h-full">
-                      <ProductCard
-                        // O cast fica até o ProductCard tipar a prop pelo que
-                        // lê (ItemDoCard): hoje ele pede MenuItemWithCategory
-                        // inteiro, com categoria, e só usa estes campos.
-                        item={itemParaCard(item) as MenuItemWithCategory}
-                        restaurantOpen={isOpen}
-                        prioridade={cardTemPrioridade(indiceCategoria, indiceItem)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        </>
+            </>
+          }
+        />
       ) : (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-neutral-400 gap-3">
-          <div className="w-16 h-16 rounded-full bg-brand-light flex items-center justify-center">
-            <svg className="w-8 h-8 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-          </div>
-          <p className="text-base font-medium text-neutral-600">Cardápio em breve</p>
-          <p className="text-sm text-neutral-400">Os itens serão adicionados pelo administrador.</p>
-        </div>
+        <CardapioEmBreve />
       )}
     </div>
   );

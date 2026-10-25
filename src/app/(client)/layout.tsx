@@ -4,7 +4,9 @@ import { Header } from "@/components/menu/Header";
 import { BusinessHours } from "@/components/menu/BusinessHours";
 import { Footer } from "@/components/menu/Footer";
 import { getRestaurantInfo } from "@/lib/restaurant";
-import { getBusinessHours } from "@/lib/business-hours";
+import { getBusinessHours, checkIsOpen } from "@/lib/business-hours";
+import { getTempoDeEntrega } from "@/lib/loja/tempo-de-entrega";
+import { BarraInferior } from "@/components/loja/BarraInferior";
 import { getRequestTenantId } from "@/lib/tenant-request";
 import { ConviteDeInstalacao } from "@/components/pwa/ConviteDeInstalacao";
 import { origemDoLogo } from "@/lib/pwa/logo-do-tenant";
@@ -56,10 +58,11 @@ export default async function ClientLayout({
   children: React.ReactNode;
 }) {
   const tenantId = await getRequestTenantId();
-  const [info, schedule, session] = await Promise.all([
+  const [info, schedule, session, tempoDeEntrega] = await Promise.all([
     getRestaurantInfo(tenantId),
     getBusinessHours(tenantId),
     auth(),
+    getTempoDeEntrega(tenantId),
   ]);
 
   // O SessionProvider fica aqui, e não no layout raiz: este é o único ramo
@@ -80,9 +83,12 @@ export default async function ClientLayout({
       <div className={`loja ${fontesDaLoja} flex min-h-full flex-1 flex-col`}>
       <ContextoDoCarrinho contexto="delivery" />
       <BusinessHours schedule={schedule} />
-      <Header restaurantInfo={info} />
+      <Header restaurantInfo={info} aberto={checkIsOpen(schedule)} tempoDeEntrega={tempoDeEntrega} />
       <main className="flex-1">{children}</main>
       <Footer restaurantInfo={info} schedule={schedule} />
+      {/* A barra de baixo do celular. Depois do rodapé, porque ela mesma deixa
+          o espaço que impede o rodapé de ficar escondido por baixo dela. */}
+      <BarraInferior />
       {/*
         Convite de instalação depois do login. Fica no layout, e não na tela de
         login, porque o login redireciona no mesmo instante em que a senha é

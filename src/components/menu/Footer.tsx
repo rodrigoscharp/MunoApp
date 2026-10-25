@@ -1,5 +1,4 @@
-import Image from "next/image";
-import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
+import { MarcaDoRestaurante } from "@/components/loja/MarcaDoRestaurante";
 import { MapPin, Clock, Phone } from "lucide-react";
 import type { RestaurantInfo } from "@/lib/restaurant";
 import type { WeekSchedule } from "@/lib/business-hours";
@@ -43,56 +42,58 @@ interface FooterProps {
 export function Footer({ restaurantInfo, schedule }: FooterProps) {
   const groups = groupDays(schedule);
   return (
-    <footer className="bg-neutral-900 text-neutral-300 mt-16">
-      <div className="max-w-5xl mx-auto px-4 py-10">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
+    <footer className="mt-12 rounded-t-[30px] bg-loja-papel text-loja-tinta">
+      <div className="mx-auto max-w-5xl px-4 py-10">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
 
-          {/* Brand */}
+          {/* Marca: o logo do restaurante, ou o nome em manchete, e a frase
+              que o dono escreveu no cadastro. Sem frase, nada no lugar: um
+              texto genérico aqui falaria por todos os restaurantes. */}
           <div className="flex flex-col gap-3">
-            <Image
-              src={restaurantInfo.logoUrl}
-              alt={restaurantInfo.name}
-              width={120}
-              height={45}
-              className="h-12 w-auto object-contain brightness-0 invert opacity-90"
-              unoptimized={!imagemOtimizavel(restaurantInfo.logoUrl)}
-            />
-            <p className="text-sm text-neutral-400 leading-relaxed">
-              Sabor e qualidade em cada prato. Venha nos visitar ou faça seu pedido online.
-            </p>
+            <MarcaDoRestaurante info={restaurantInfo} tamanho="pequena" />
+            {restaurantInfo.slogan && (
+              <p className="text-[10.5px] font-extrabold uppercase tracking-[0.2em] text-forest-dark">
+                {restaurantInfo.slogan}
+              </p>
+            )}
           </div>
 
           {/* Contato */}
-          <div className="flex flex-col gap-3">
-            <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Contato</h3>
-            <ul className="space-y-2 text-sm">
-              {/* Só o que existe. Ver a nota em src/lib/restaurant.ts: contato
-                  ausente virou ausente de verdade, em vez de herdar o do
-                  restaurante do seed. */}
-              {restaurantInfo.address && (
-                <li className="flex items-start gap-2">
-                  <MapPin size={14} className="text-brand mt-0.5 shrink-0" />
-                  <span>{restaurantInfo.address}</span>
-                </li>
-              )}
-              {restaurantInfo.phone && (
-                <li className="flex items-center gap-2">
-                  <Phone size={14} className="text-brand shrink-0" />
-                  <span>{restaurantInfo.phone}</span>
-                </li>
-              )}
-            </ul>
-          </div>
+          {(restaurantInfo.address || restaurantInfo.phone) && (
+            <div className="flex flex-col gap-3">
+              <h2 className="text-[13px] font-extrabold uppercase tracking-[0.08em] text-loja-tinta-2">Contato</h2>
+              <ul className="space-y-2 text-sm">
+                {/* Só o que existe. Ver a nota em src/lib/restaurant.ts: contato
+                    ausente virou ausente de verdade, em vez de herdar o do
+                    restaurante do seed. */}
+                {restaurantInfo.address && (
+                  <li className="flex items-start gap-2">
+                    <MapPin size={15} aria-hidden="true" className="mt-0.5 shrink-0 text-forest" />
+                    <span>{restaurantInfo.address}</span>
+                  </li>
+                )}
+                {restaurantInfo.phone && (
+                  <li className="flex items-center gap-2">
+                    <Phone size={15} aria-hidden="true" className="shrink-0 text-forest" />
+                    <a href={`tel:${restaurantInfo.phone.replace(/[^\d+]/g, "")}`} className="hover:text-loja-preco hover:underline">
+                      {restaurantInfo.phone}
+                    </a>
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
 
           {/* Horários */}
           <div className="flex flex-col gap-3">
-            <h3 className="text-sm font-semibold text-white uppercase tracking-wider">Horário de Funcionamento</h3>
+            <h2 className="text-[13px] font-extrabold uppercase tracking-[0.08em] text-loja-tinta-2">Horário de funcionamento</h2>
             <ul className="space-y-2 text-sm">
               {groups.map((g) => (
                 <li key={g.label} className="flex items-center gap-2">
-                  <Clock size={14} className="text-brand shrink-0" />
+                  <Clock size={15} aria-hidden="true" className="shrink-0 text-forest" />
                   <span>
-                    {g.label}: {g.open ? `${formatTime(g.from)} às ${formatTime(g.to)}` : "Fechado"}
+                    <span className="font-semibold">{g.label}:</span>{" "}
+                    {g.open ? `${formatTime(g.from)} às ${formatTime(g.to)}` : "Fechado"}
                   </span>
                 </li>
               ))}
@@ -101,9 +102,8 @@ export function Footer({ restaurantInfo, schedule }: FooterProps) {
 
         </div>
 
-        <div className="border-t border-neutral-800 mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-neutral-500">
-          <span>© {new Date().getFullYear()} Muno Food. Todos os direitos reservados.</span>
-          <span>Desenvolvido com ♥ para você</span>
+        <div className="mt-8 border-t border-loja-linha pt-6 text-xs text-loja-tinta-2">
+          <span>© {new Date().getFullYear()} Muno</span>
         </div>
       </div>
     </footer>

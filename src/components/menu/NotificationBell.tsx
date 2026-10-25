@@ -63,28 +63,28 @@ function NotificationItem({
     <Link
       href={href}
       onClick={() => onRead(notification.id)}
-      className={`flex items-start gap-3 px-4 py-3 hover:bg-neutral-50 transition ${
-        !notification.read ? "bg-brand-light/40" : ""
+      className={`flex items-start gap-3 px-4 py-3 hover:bg-loja-pessego-claro/60 transition ${
+        !notification.read ? "bg-loja-pessego-claro" : ""
       }`}
     >
       <span className={`mt-0.5 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${meta.bg}`}>
-        <Icon size={15} className={meta.color} />
+        <Icon size={15} aria-hidden="true" className={meta.color} />
       </span>
       <div className="flex-1 min-w-0">
-        <p className={`text-sm leading-snug ${!notification.read ? "font-semibold text-neutral-900" : "font-medium text-neutral-700"}`}>
+        <p className={`text-sm leading-snug ${!notification.read ? "font-semibold text-loja-tinta" : "font-medium text-loja-tinta-2"}`}>
           {notification.message}
         </p>
         {notification.description && (
-          <p className="text-xs text-neutral-500 mt-0.5 leading-snug truncate">
+          <p className="text-xs text-loja-tinta-2 mt-0.5 leading-snug truncate">
             {notification.description}
           </p>
         )}
-        <p className="text-xs text-neutral-400 mt-1">
+        <p className="text-xs text-loja-tinta-2 mt-1">
           {timeAgo(notification.timestamp)}
         </p>
       </div>
       {!notification.read && (
-        <span className="mt-2 flex-shrink-0 w-2 h-2 rounded-full bg-brand" />
+        <span aria-hidden="true" className="mt-2 flex-shrink-0 w-2 h-2 rounded-full bg-brand" />
       )}
     </Link>
   );
@@ -124,18 +124,21 @@ export function NotificationBell() {
     <div className="relative" ref={panelRef}>
       <button
         onClick={handleOpen}
-        className="relative flex items-center justify-center w-10 h-10 rounded-full hover:bg-neutral-100 transition"
+        type="button"
+        aria-expanded={open}
+        className="relative flex items-center justify-center w-11 h-11 rounded-full bg-loja-papel shadow-loja hover:bg-white transition"
         aria-label="Notificações de pedido"
       >
         <Bell
           key={avisoKey}
           size={20}
-          className={`text-neutral-700 ${avisoKey > 0 ? "animate-bell-ring" : ""}`}
+          aria-hidden="true"
+          className={`text-loja-tinta ${avisoKey > 0 ? "animate-bell-ring" : ""}`}
         />
         {unreadCount > 0 && (
           <span
             key={avisoKey}
-            className={`absolute -top-0.5 -right-0.5 bg-brand text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none ${avisoKey > 0 ? "animate-cart-bounce" : ""}`}
+            className={`absolute -top-0.5 -right-0.5 bg-loja-brasa text-white text-xs rounded-full min-w-5 h-5 px-1 flex items-center justify-center font-extrabold leading-none ring-2 ring-loja-papel ${avisoKey > 0 ? "animate-cart-bounce" : ""}`}
           >
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
@@ -143,25 +146,26 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-neutral-200 rounded-2xl shadow-xl overflow-hidden z-50">
+        <div className="absolute right-0 top-full mt-2 w-[min(20rem,calc(100vw-2rem))] bg-loja-papel rounded-[20px] shadow-loja-alta overflow-hidden z-50">
           {/* Header do painel */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100">
-            <span className="text-sm font-semibold text-neutral-800">Notificações</span>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-loja-linha">
+            <span className="text-sm font-extrabold text-loja-tinta">Notificações</span>
             {notifications.length > 0 && (
               <button
                 onClick={clearAll}
-                className="flex items-center gap-1 text-xs text-neutral-400 hover:text-red-500 transition"
+                type="button"
+                className="flex items-center gap-1 min-h-8 px-1 text-xs font-semibold text-loja-tinta-2 hover:text-red-700 transition"
               >
-                <Trash2 size={12} /> Limpar
+                <Trash2 size={12} aria-hidden="true" /> Limpar
               </button>
             )}
           </div>
 
           {/* Lista */}
-          <div className="max-h-80 overflow-y-auto divide-y divide-neutral-100">
+          <div className="max-h-80 overflow-y-auto divide-y divide-loja-linha">
             {notifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-neutral-400">
-                <Bell size={32} className="mb-2 opacity-30" />
+              <div className="flex flex-col items-center justify-center py-10 px-6 text-center text-loja-tinta-2">
+                <Bell size={32} aria-hidden="true" className="mb-2 opacity-30" />
                 <p className="text-sm">Nenhuma notificação ainda</p>
                 <p className="text-xs mt-1">As atualizações dos seus pedidos aparecerão aqui</p>
               </div>
@@ -178,11 +182,11 @@ export function NotificationBell() {
 
           {/* Footer */}
           {notifications.length > 0 && (
-            <div className="border-t border-neutral-100 px-4 py-2.5">
+            <div className="border-t border-loja-linha px-4 py-2.5">
               <Link
                 href="/pedidos"
                 onClick={() => setOpen(false)}
-                className="block text-center text-xs font-medium text-brand hover:underline"
+                className="block text-center text-xs font-bold text-loja-preco hover:underline"
               >
                 Ver todos os pedidos
               </Link>
