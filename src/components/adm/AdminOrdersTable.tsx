@@ -154,8 +154,13 @@ const idCurto = (id: string) => id.slice(-6).toUpperCase();
 const nomeDaMesa = (t: { number: number; name: string | null }) => t.name || `Mesa ${t.number}`;
 const minutosDesde = (iso: string, agora: number) =>
   Math.max(0, Math.floor((agora - new Date(iso).getTime()) / 60_000));
-const hora = (iso: string) =>
-  new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+// Fuso fixo: o servidor (UTC na Vercel) e o navegador renderizam a mesma hora.
+const HORA = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: "America/Sao_Paulo",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+const hora = (iso: string) => HORA.format(new Date(iso));
 
 function haQuanto(minutos: number) {
   if (minutos < 1) return "agora";
