@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Receipt, UtensilsCrossed, ArrowRight, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { botaoContorno, cartao, kicker } from "@/components/loja/estilos";
+import { AvaliarNoGoogle } from "@/components/loja/AvaliarNoGoogle";
 
 interface OrderItem {
   id: string;
@@ -26,6 +27,7 @@ interface Order {
 interface Conta {
   table: { number: number; name: string | null };
   orders: Order[];
+  avaliacao?: { url: string; restaurante: string } | null;
 }
 
 export default function MesaContaPage() {
@@ -133,6 +135,10 @@ export default function MesaContaPage() {
             <UtensilsCrossed size={16} aria-hidden="true" className="shrink-0 text-loja-preco" />
             <p className="text-[13px] font-bold text-[#6A3A1E]">Pagamento no balcão ao final</p>
           </div>
+
+          {conta.avaliacao && (
+            <AvaliarNoGoogle url={conta.avaliacao.url} restaurante={conta.avaliacao.restaurante} />
+          )}
         </>
       )}
     </div>

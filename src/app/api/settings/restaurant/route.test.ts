@@ -64,6 +64,7 @@ const CADASTRO_COMPLETO = {
   logoUrl: "/logo.png",
   floorPlanImageUrl: null,
   slogan: "Pizza no forno a lenha",
+  avaliacaoGoogleUrl: "https://g.page/r/abc123/review",
 };
 
 beforeEach(() => {
@@ -131,6 +132,22 @@ describe("PUT /api/settings/restaurant", () => {
       expect.objectContaining({
         update: { value: JSON.stringify(CADASTRO_COMPLETO) },
       })
+    );
+  });
+
+  it("recusa link de avaliação que não é do Google", async () => {
+    const res = await PUT(putReq({ ...CADASTRO_COMPLETO, avaliacaoGoogleUrl: "https://golpe.net/review" }));
+
+    expect(res.status).toBe(400);
+    expect(settingUpsert).not.toHaveBeenCalled();
+  });
+
+  it("grava o link de avaliação com https, mesmo colado sem ele", async () => {
+    const res = await PUT(putReq({ ...CADASTRO_COMPLETO, avaliacaoGoogleUrl: "g.page/r/abc123/review" }));
+
+    expect(res.status).toBe(200);
+    expect(settingUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: { value: JSON.stringify(CADASTRO_COMPLETO) } })
     );
   });
 
