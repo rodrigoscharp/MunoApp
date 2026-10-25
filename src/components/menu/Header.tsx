@@ -1,24 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
-import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
-import { useSession, signOut } from "next-auth/react";
-import { useCart } from "@/hooks/useCart";
 import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { ShoppingBag, User, ChevronDown } from "lucide-react";
+import { useCart } from "@/hooks/useCart";
 import { CartFlyAnimation } from "@/components/menu/CartFlyAnimation";
-import { useState } from "react";
-import { ShoppingCart, User, LogOut, Settings, ChefHat, Menu, X, ClipboardList } from "lucide-react";
 import type { RestaurantInfo } from "@/lib/restaurant";
 import { useAnimacaoAoMudar } from "@/hooks/useAnimacaoAoMudar";
-
-// A gaveta do carrinho fica fora do bundle do cardápio: quase toda visita
-// olha o cardápio antes de abrir o carrinho, e ela só é montada quando o
-// cliente se aproxima do botão (ver `prepararCarrinho`).
-const CartDrawer = dynamic(
-  () => import("@/components/cart/CartDrawer").then((m) => m.CartDrawer),
-  { ssr: false }
-);
+import { GavetaDaSacola } from "@/components/loja/GavetaDaSacola";
+import { ItensDaConta } from "@/components/loja/ItensDaConta";
+import { ALVO_DA_SACOLA, useSacola } from "@/components/loja/sacola";
+import { botaoBrasa } from "@/components/loja/estilos";
+import { MarcaDoRestaurante } from "@/components/loja/MarcaDoRestaurante";
 
 // O sino só aparece com sessão, e ele traz o supabase-js junto
 // (useOrderNotifications importa o cliente do Realtime). Importado direto, o
@@ -30,183 +25,126 @@ const NotificationBell = dynamic(
 
 interface HeaderProps {
   restaurantInfo: RestaurantInfo;
+  /** Lido no servidor pelo layout (checkIsOpen), no fuso de Brasília. */
+  aberto: boolean;
+  /** Minutos configurados no painel. */
+  tempoDeEntrega: number;
 }
 
-export function Header({ restaurantInfo }: HeaderProps) {
+export function Header({ restaurantInfo, aberto, tempoDeEntrega }: HeaderProps) {
   const { data: session } = useSession();
 
-  // Selector direto no valor — Zustand re-renderiza imediatamente ao mudar
-  const itemCount = useCart((s) =>
-    s.items.reduce((sum, item) => sum + item.quantity, 0)
-  );
-
-  const [cartOpen, setCartOpen] = useState(false);
-  // Monta a gaveta (ainda fechada) no primeiro sinal de intenção, para o
-  // chunk já ter chegado no clique e a abertura manter a animação de entrada.
-  const [carrinhoMontado, setCarrinhoMontado] = useState(false);
-  const prepararCarrinho = () => setCarrinhoMontado(true);
+  const itemCount = useCart((s) => s.items.reduce((sum, item) => sum + item.quantity, 0));
+  const abrirSacola = useSacola((s) => s.abrir);
+  const prepararSacola = useSacola((s) => s.preparar);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  // Remontar o badge reinicia a animação do CSS. A duração já mora lá; não
-  // precisa de estado nem de timer aqui. `apenasAoCrescer` mantém o pulo para
-  // quando um item entra no carrinho, não para quando o cliente remove um.
+  // Remontar o badge reinicia a animação do CSS (ver useAnimacaoAoMudar).
   const bounceKey = useAnimacaoAoMudar(itemCount, { apenasAoCrescer: true });
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const aoTeclar = (e: KeyboardEvent) => e.key === "Escape" && setUserMenuOpen(false);
+    document.addEventListener("keydown", aoTeclar);
+    return () => document.removeEventListener("keydown", aoTeclar);
+  }, [userMenuOpen]);
 
   return (
     <>
       <CartFlyAnimation />
+      <GavetaDaSacola />
 
-      <header className="sticky top-8 z-40 bg-white border-b border-neutral-200 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
-          <Link href="/" className="shrink-0 flex items-center gap-3">
-            <Image src={restaurantInfo.logoUrl} alt={restaurantInfo.name} width={180} height={68} className="h-10 sm:h-16 w-auto object-contain" loading="eager" fetchPriority="high" unoptimized={!imagemOtimizavel(restaurantInfo.logoUrl)} />
-            <div className="flex flex-col justify-center leading-tight">
-              <span className="text-sm sm:text-base font-bold text-neutral-900 tracking-tight">{restaurantInfo.name}</span>
-              {/* Sem endereço cadastrado não se mostra o pino sozinho — e desde
-                  que o fallback deixou de ser o restaurante do seed, "vazio" é
-                  um estado real de tenant recém-criado. */}
-              {restaurantInfo.address && (
-                <span className="text-[11px] sm:text-xs text-neutral-500 flex items-center gap-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-                  {restaurantInfo.address}
-                </span>
+      {/* Fixo só no desktop, e com altura fixa (h-20): é dela que sai o
+          top-20 da navegação de categorias, que gruda logo abaixo. No celular
+          o topo rola junto e a navegação gruda no top-0, sem nunca ficar por
+          baixo do cabeçalho. */}
+      <header className="z-40 bg-loja-creme md:sticky md:top-0 md:h-20 md:border-b md:border-loja-linha md:bg-loja-creme/95 md:backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-start justify-between gap-4 px-4 pb-1 pt-5 md:h-full md:items-center md:py-0">
+          <div className="flex min-w-0 flex-col gap-1 md:flex-row md:items-center md:gap-5">
+            <Link href="/" aria-label={`${restaurantInfo.name || "Cardápio"}, início`} className="min-w-0 shrink-0">
+              <MarcaDoRestaurante info={restaurantInfo} prioridade />
+            </Link>
+            <div className="flex min-w-0 flex-col gap-1 md:gap-0.5">
+              {restaurantInfo.slogan && (
+                <p className="truncate text-[10.5px] font-extrabold uppercase tracking-[0.2em] text-forest-dark">
+                  {restaurantInfo.slogan}
+                </p>
               )}
+              <p className="flex items-center gap-1.5 text-xs font-semibold text-loja-tinta-2">
+                <span
+                  aria-hidden="true"
+                  className={`h-2 w-2 shrink-0 rounded-full ${aberto ? "bg-forest" : "bg-loja-tinta-2/50"}`}
+                />
+                {aberto ? (
+                  <span>
+                    <span className="font-extrabold text-forest-dark">Aberto</span> · entrega em {tempoDeEntrega} min
+                  </span>
+                ) : (
+                  <span className="font-extrabold">Fechado agora</span>
+                )}
+              </p>
             </div>
-          </Link>
-
-          {/* Desktop nav */}
-          <div className="hidden sm:flex items-center gap-1">
-            {session?.user.role === "ADMIN" && (
-              <Link href="/adm" className="flex items-center gap-1.5 text-xs text-neutral-500 hover:text-brand px-3 py-1.5 rounded-lg hover:bg-brand-light transition">
-                <Settings size={14} /> Admin
-              </Link>
-            )}
-            {(session?.user.role === "ADMIN" || session?.user.role === "KITCHEN") && (
-              <Link href="/dashboard" className="flex items-center gap-1.5 text-xs text-neutral-500 hover:text-brand px-3 py-1.5 rounded-lg hover:bg-brand-light transition">
-                <ChefHat size={14} /> Cozinha
-              </Link>
-            )}
           </div>
 
-          <div className="flex items-center gap-1 ml-auto">
-            {/* Sino de notificações de pedido */}
+          <div className="flex shrink-0 items-center gap-2">
             {session && <NotificationBell />}
 
-            {/* Cart — id usado pela animação de partícula */}
+            {session ? (
+              <div className="relative hidden md:block">
+                <button
+                  type="button"
+                  onClick={() => setUserMenuOpen((v) => !v)}
+                  aria-expanded={userMenuOpen}
+                  aria-haspopup="menu"
+                  className="flex h-11 items-center gap-2 rounded-full bg-loja-papel px-4 text-sm font-semibold text-loja-tinta shadow-loja transition hover:bg-white"
+                >
+                  <User size={17} aria-hidden="true" className="text-forest" />
+                  <span className="max-w-28 truncate">{session.user.name || "Minha conta"}</span>
+                  <ChevronDown size={15} aria-hidden="true" />
+                </button>
+                {userMenuOpen && (
+                  <div className="absolute right-0 top-full z-50 mt-2 min-w-56 rounded-[20px] bg-loja-papel p-2 shadow-loja-alta">
+                    <ItensDaConta session={session} aoEscolher={() => setUserMenuOpen(false)} />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                className="hidden h-11 items-center rounded-full px-4 text-sm font-bold text-loja-preco transition hover:bg-loja-pessego-claro md:inline-flex"
+              >
+                Entrar
+              </Link>
+            )}
+
+            {/* A sacola do desktop. No celular quem a abre é o botão do meio da
+                barra de baixo (BarraInferior); os dois levam o atributo que a
+                partícula procura, e só um deles está visível. */}
             <button
-              id="cart-btn"
-              onPointerEnter={prepararCarrinho}
-              onPointerDown={prepararCarrinho}
-              onFocus={prepararCarrinho}
-              onClick={() => {
-                prepararCarrinho();
-                setCartOpen(true);
-              }}
-              className="relative flex items-center justify-center w-10 h-10 rounded-full hover:bg-neutral-100 transition"
-              aria-label="Abrir carrinho"
+              type="button"
+              {...{ [ALVO_DA_SACOLA]: "" }}
+              onPointerEnter={prepararSacola}
+              onFocus={prepararSacola}
+              onClick={abrirSacola}
+              aria-label={itemCount > 0 ? `Abrir sacola, ${itemCount} ${itemCount === 1 ? "item" : "itens"}` : "Abrir sacola"}
+              className={`${botaoBrasa} relative hidden h-11 px-4 text-sm md:inline-flex`}
             >
-              <ShoppingCart size={20} className="text-neutral-700" />
+              <ShoppingBag size={18} aria-hidden="true" />
+              Sacola
               {itemCount > 0 && (
                 <span
                   key={bounceKey}
-                  className={`absolute -top-0.5 -right-0.5 bg-brand text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold leading-none ${bounceKey > 0 ? "animate-cart-bounce" : ""}`}
+                  className={`flex h-6 min-w-6 items-center justify-center rounded-full bg-forest-dark px-1.5 text-xs font-extrabold leading-none ${bounceKey > 0 ? "animate-cart-bounce" : ""}`}
                 >
                   {itemCount > 9 ? "9+" : itemCount}
                 </span>
               )}
             </button>
-
-            {/* User menu (desktop) */}
-            {session ? (
-              <div className="relative hidden sm:block">
-                <button
-                  onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-neutral-100 transition text-sm text-neutral-700"
-                >
-                  <User size={16} />
-                  <span className="max-w-24 truncate">{session.user.name}</span>
-                </button>
-                {userMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 bg-white border border-neutral-200 rounded-xl shadow-lg py-1 min-w-44 z-50">
-                    <p className="px-4 py-2 text-xs text-neutral-400 border-b border-neutral-100 truncate">
-                      {session.user.email}
-                    </p>
-                    <Link
-                      href="/pedidos"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition"
-                    >
-                      <ClipboardList size={14} /> Meus Pedidos
-                    </Link>
-                    <button
-                      onClick={() => { setUserMenuOpen(false); signOut({ callbackUrl: "/" }); }}
-                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 transition"
-                    >
-                      <LogOut size={14} /> Sair
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <Link href="/login" className="hidden sm:block text-sm text-neutral-600 hover:text-brand px-3 py-1.5 rounded-lg hover:bg-brand-light transition font-medium">
-                Entrar
-              </Link>
-            )}
-
-            {/* Mobile hamburger */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="sm:hidden flex items-center justify-center w-10 h-10 rounded-full hover:bg-neutral-100 transition"
-            >
-              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
           </div>
         </div>
-
-        {/* Mobile menu */}
-        {mobileMenuOpen && (
-          <div className="sm:hidden border-t border-neutral-100 bg-white px-4 py-3 space-y-1">
-            {session?.user.role === "ADMIN" && (
-              <Link href="/adm" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-neutral-700 hover:bg-neutral-100">
-                <Settings size={15} /> Admin
-              </Link>
-            )}
-            {(session?.user.role === "ADMIN" || session?.user.role === "KITCHEN") && (
-              <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-neutral-700 hover:bg-neutral-100">
-                <ChefHat size={15} /> Cozinha
-              </Link>
-            )}
-            {session ? (
-              <>
-                <Link
-                  href="/pedidos"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-neutral-700 hover:bg-neutral-100"
-                >
-                  <ClipboardList size={15} /> Meus Pedidos
-                </Link>
-                <button
-                  onClick={() => { setMobileMenuOpen(false); signOut({ callbackUrl: "/" }); }}
-                  className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-neutral-700 hover:bg-neutral-100"
-                >
-                  <LogOut size={15} /> Sair ({session.user.name})
-                </button>
-              </>
-            ) : (
-              <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-brand font-medium hover:bg-brand-light">
-                Entrar
-              </Link>
-            )}
-          </div>
-        )}
       </header>
 
-      {carrinhoMontado && (
-        <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
-      )}
-
       {userMenuOpen && (
-        <div className="fixed inset-0 z-30" onClick={() => setUserMenuOpen(false)} />
+        <div aria-hidden="true" className="fixed inset-0 z-30" onClick={() => setUserMenuOpen(false)} />
       )}
     </>
   );
