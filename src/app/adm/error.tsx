@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { botaoBrasa, botaoContorno, cartaoPainel, kicker } from "@/components/painel/estilos";
+import { Raminho } from "@/components/loja/Raminho";
 
 // Fica dentro do layout do painel: a barra lateral continua de pé, e o dono
 // pode ir para outra tela sem recarregar. Sem este arquivo o erro subia até
@@ -19,24 +21,22 @@ export default function AdminError({
   }, [error]);
 
   return (
-    <div className="min-h-[60vh] flex flex-col items-center justify-center px-4 text-center">
-      <h2 className="text-2xl font-bold text-neutral-900 mb-2">Algo deu errado</h2>
-      <p className="text-neutral-500 text-sm mb-6 max-w-sm">
-        Esta tela não carregou. Tente novamente ou volte para o início do painel.
-      </p>
-      <div className="flex gap-3">
-        <button
-          onClick={() => retry()}
-          className="px-4 py-2 bg-brand hover:bg-brand-dark text-white text-sm font-medium rounded-lg transition"
-        >
-          Tentar novamente
-        </button>
-        <Link
-          href="/adm"
-          className="px-4 py-2 bg-white border border-neutral-200 text-neutral-700 text-sm font-medium rounded-lg hover:bg-neutral-50 transition"
-        >
-          Voltar ao painel
-        </Link>
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div className={`${cartaoPainel} relative w-full max-w-md overflow-hidden px-6 py-10 text-center`}>
+        <Raminho className="pointer-events-none absolute -right-6 -top-8 h-32 w-32 text-loja-pessego" />
+        <span className={`${kicker} text-loja-preco`}>Esta tela não carregou</span>
+        <h2 className="manchete mt-2 text-[2.2rem] text-forest-dark">Algo deu errado</h2>
+        <p className="mx-auto mt-3 max-w-sm text-[14px] leading-relaxed text-loja-tinta-2">
+          Tente de novo ou volte para o início do painel. Seu cardápio continua no ar.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <button type="button" onClick={() => retry()} className={`${botaoBrasa} h-11 text-[14px]`}>
+            Tentar de novo
+          </button>
+          <Link href="/adm" className={`${botaoContorno} h-11 text-[14px]`}>
+            Voltar ao início
+          </Link>
+        </div>
       </div>
     </div>
   );
