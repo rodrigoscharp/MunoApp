@@ -48,7 +48,7 @@ export function Vitrine({
   const todos = categorias.flatMap((c) => c.items.map(itemParaCard));
 
   return (
-    <ProvedorDaFolha restaurantOpen={restaurantOpen} maisPedidos={maisPedidos}>
+    <ProvedorDaFolha restaurantOpen={restaurantOpen} maisPedidos={maisPedidos} vendidos={fileira.vendidos}>
       <div className="mx-auto max-w-5xl space-y-4 px-4 pb-2 pt-3">
         <BuscaNoCardapio itens={todos} restaurantOpen={restaurantOpen} />
         {doBanner && (

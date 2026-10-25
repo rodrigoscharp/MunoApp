@@ -27,15 +27,36 @@ export function useFolhaDoProduto(): ContextoDaFolha | null {
   return useContext(Contexto);
 }
 
+/**
+ * O selo da folha: "O mais pedido" para o primeiro vendido, "Mais pedido" para
+ * os outros vendidos, nada para o enchimento da fileira nem para o resto do
+ * cardápio.
+ */
+export function seloDeMaisPedido(
+  id: string,
+  maisPedidos: Pick<ItemDaVitrine, "id">[],
+  vendidos: number
+): string | undefined {
+  const posicao = maisPedidos.findIndex((m) => m.id === id);
+  if (posicao < 0 || posicao >= vendidos) return undefined;
+  return posicao === 0 ? "O mais pedido" : "Mais pedido";
+}
+
 export function ProvedorDaFolha({
   children,
   restaurantOpen,
   maisPedidos = [],
+  vendidos = 0,
 }: {
   children: React.ReactNode;
   restaurantOpen: boolean;
-  /** Alimenta o "Combina com" e o selo "O mais pedido". */
+  /** A fileira de "Mais pedidos". Alimenta o "Combina com" e o selo. */
   maisPedidos?: ItemDaVitrine[];
+  /**
+   * Quantos dos primeiros de `maisPedidos` venderam de verdade. Só eles
+   * ganham selo: o resto completa a fileira e não é "mais pedido" de nada.
+   */
+  vendidos?: number;
 }) {
   const addItem = useCart((s) => s.addItem);
   const [aberto, setAberto] = useState<{ item: ItemDaVitrine; origem: HTMLElement | null } | null>(null);
@@ -70,8 +91,7 @@ export function ProvedorDaFolha({
   }
 
   const item = aberto?.item;
-  const posicao = item ? maisPedidos.findIndex((m) => m.id === item.id) : -1;
-  const selo = posicao === 0 ? "O mais pedido" : posicao > 0 ? "Mais pedido" : undefined;
+  const selo = item ? seloDeMaisPedido(item.id, maisPedidos, vendidos) : undefined;
 
   return (
     <Contexto.Provider value={valor}>
