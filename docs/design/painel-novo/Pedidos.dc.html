@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Painel — Pedidos</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F4EBDF}
+a{color:#B04A1A}a:hover{color:#1E3D2F}
+</style>
+</helmet>
+<div style="min-height: 960px; background: #F4EBDF; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #2B231E; display: flex; flex-wrap: wrap">
+
+  <aside style="flex: 1 0 248px; max-width: 280px; box-sizing: border-box; padding: 24px 16px; background: #FFFBF6; border-right: 1px solid #E9DCCB; display: flex; flex-direction: column; gap: 20px">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px">
+      <img src="/_blob/116ab334217033490f72aca9ba1a0935" alt="Muno" style="height: 26px; width: auto">
+      <span style="font-size: 10px; font-weight: 800; letter-spacing: 0.18em; color: #6A5B50">PAINEL</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 16px; background: #F6DCC6">
+      <span style="width: 38px; height: 38px; border-radius: 12px; background: #D4612A; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 20px">B</span>
+      <div style="display: flex; flex-direction: column; min-width: 0">
+        <span style="font-size: 13.5px; font-weight: 800; color: #1E3D2F">Brasa &amp; Pão</span>
+        <span style="font-size: 11.5px; color: #6A3A1E; display: flex; align-items: center; gap: 5px"><span style="width: 7px; height: 7px; border-radius: 4px; background: #2B5240"></span>Aberto · fecha 23:30</span>
+      </div>
+    </div>
+    <nav aria-label="Menu do painel" style="display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="padding: 0 12px 4px; font-size: 10px; font-weight: 800; letter-spacing: 0.16em; color: #8A7A6D">OPERAÇÃO</span>
+        <a href="Dashboard.dc.html" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V20h-5v-6h-6v6H4z"></path></svg>Início</a>
+        <a href="Pedidos.dc.html" aria-current="page" style="height: 42px; padding: 0 12px; border-radius: 12px; background: #BF5321; color: #FFFFFF; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 700"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"></path><path d="M9 8h6M9 12h6"></path></svg><span style="flex-grow: 1">Pedidos</span><span style="min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: #FFFBF6; color: #B04A1A; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center">4</span></a>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c2 3-1 4 1 7 1-1 2-2 2-4 3 2 4 5 4 7a7 7 0 0 1-14 0c0-4 4-6 7-10z"></path></svg>Cozinha</a>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg><span style="flex-grow: 1">Chats</span><span style="min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: #1E3D2F; color: #FFFFFF; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center">2</span></a>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="9" width="16" height="4" rx="1.5"></rect><path d="M7 13v7M17 13v7M9 9V5h6v4"></path></svg>Mesas</a>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17a2 2 0 1 0 4 0 2 2 0 1 0-4 0M15 17a2 2 0 1 0 4 0 2 2 0 1 0-4 0M9 17h6M3 13h11l3-5h3"></path></svg>Motoboys</a>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="padding: 0 12px 4px; font-size: 10px; font-weight: 800; letter-spacing: 0.16em; color: #8A7A6D">LOJA</span>
+        <a href="Cardapio.dc.html" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"></rect><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"></rect><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"></rect><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"></rect></svg>Cardápio</a>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 0 0 4v5h18v-5a2 2 0 0 0 0-4V5H3z"></path><path d="M14 5v2M14 10.5v1M14 15v2"></path></svg>Banner e cupons</a>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 9l2-5h12l2 5M4 9v11h16V9M4 9h16M10 20v-6h4v6"></path></svg>Restaurante</a>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="padding: 0 12px 4px; font-size: 10px; font-weight: 800; letter-spacing: 0.16em; color: #8A7A6D">FINANCEIRO</span>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="2.5"></rect><path d="M3 10h18"></path></svg>Pagamentos</a>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"></path><path d="M9 12l2 2 4-4"></path></svg>Assinatura</a>
+      </div>
+    </nav>
+    <a href="#" style="margin-top: auto; height: 44px; border-radius: 22px; border: 1.5px solid #D4612A; color: #B04A1A; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 800">Ver minha loja<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B04A1A" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"></path></svg></a>
+  </aside>
+
+  <main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 40px">
+    <div style="max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px">
+      <header style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.16em; color: #B04A1A">HOJE · 31 PEDIDOS · R$ 1.133</span>
+          <h1 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 46px; line-height: 0.92; color: #1E3D2F">PEDIDOS</h1>
+        </div>
+        <label style="display: flex; align-items: center; gap: 10px; height: 44px; width: 300px; max-width: 100%; padding: 0 16px; box-sizing: border-box; border-radius: 22px; background: #FFFBF6; box-shadow: 0 1px 2px rgba(74,48,28,0.06)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6A5B50" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          <input type="search" placeholder="Número, cliente ou telefone" aria-label="Buscar pedido" style="border: 0; outline: 0; background: transparent; font: inherit; font-size: 13.5px; flex-grow: 1; min-width: 0">
+        </label>
+      </header>
+
+      <nav aria-label="Filtrar por status" style="display: flex; gap: 8px; flex-wrap: wrap">
+        <sc-for list="{{ filtros }}" as="f" hint-placeholder-count="7">
+          <button style="{{ f.estilo }}">{{ f.nome }}<span style="{{ f.contaEstilo }}">{{ f.conta }}</span></button>
+        </sc-for>
+      </nav>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+        <section aria-label="Lista de pedidos" style="flex: 1 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+          <sc-for list="{{ pedidos }}" as="p" hint-placeholder-count="6">
+            <a href="#" style="{{ p.cartao }}">
+              <div style="display: flex; flex-direction: column; gap: 4px; min-width: 70px">
+                <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 22px; line-height: 1; color: #1E3D2F">{{ p.id }}</span>
+                <span style="font-size: 11.5px; color: #6A5B50">{{ p.hora }}</span>
+              </div>
+              <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+                <span style="font-size: 13.5px; font-weight: 800">{{ p.cliente }} <span style="font-weight: 500; color: #6A5B50">· {{ p.como }}</span></span>
+                <span style="font-size: 12.5px; color: #4E4038; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ p.itens }}</span>
+              </div>
+              <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px">
+                <span style="{{ p.statusEstilo }}">{{ p.status }}</span>
+                <span style="font-size: 13.5px; font-weight: 800">{{ p.total }}</span>
+              </div>
+            </a>
+          </sc-for>
+        </section>
+
+        <aside aria-label="Pedido #1042" style="flex: 1 1 360px; max-width: 440px; min-width: 0; box-sizing: border-box; padding: 20px; border-radius: 22px; background: #FFFBF6; box-shadow: 0 1px 2px rgba(74,48,28,0.06), 0 16px 30px -18px rgba(74,48,28,0.35); display: flex; flex-direction: column; gap: 16px">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px">
+            <div style="display: flex; flex-direction: column; gap: 4px">
+              <span style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.16em; color: #B04A1A">NA CHAPA HÁ 6 MIN</span>
+              <h2 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 36px; line-height: 0.95; color: #1E3D2F">PEDIDO #1042</h2>
+            </div>
+            <span style="height: 26px; padding: 0 10px; border-radius: 13px; background: #E3ECE6; color: #1E3D2F; font-size: 11.5px; font-weight: 800; display: flex; align-items: center">Pix pago</span>
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; background: #F4EBDF">
+            <span style="width: 40px; height: 40px; border-radius: 20px; background: #1E3D2F; color: #FFFFFF; font-weight: 800; display: flex; align-items: center; justify-content: center">C</span>
+            <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0">
+              <span style="font-size: 13.5px; font-weight: 800">Carlos M. <span style="font-weight: 600; color: #6A5B50">· 7º pedido</span></span>
+              <span style="font-size: 12px; color: #4E4038">Rua das Flores, 123 · Apto 12 · Centro</span>
+            </div>
+            <button aria-label="Abrir conversa com Carlos" style="width: 40px; height: 40px; border-radius: 20px; border: 0; background: #FFFBF6; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1E3D2F" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg></button>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; align-items: center; gap: 12px"><img src="/_blob/f8c2ab27de3128417b7824665aa607ac" alt="" style="width: 46px; height: 46px; border-radius: 12px; object-fit: cover"><div style="flex-grow: 1; display: flex; flex-direction: column"><span style="font-size: 13.5px; font-weight: 800">1× Smash duplo</span><span style="font-size: 12px; color: #B04A1A; font-weight: 600">sem cebola</span></div><span style="font-size: 13px; font-weight: 700">R$ 37,00</span></div>
+            <div style="display: flex; align-items: center; gap: 12px"><img src="/_blob/4f152e666eac24fdaee93b0fb21544a1" alt="" style="width: 46px; height: 46px; border-radius: 12px; object-fit: cover"><div style="flex-grow: 1; display: flex; flex-direction: column"><span style="font-size: 13.5px; font-weight: 800">1× Batata rústica</span></div><span style="font-size: 13px; font-weight: 700">R$ 18,00</span></div>
+            <div style="display: flex; flex-direction: column; gap: 5px; padding-top: 10px; border-top: 1px dashed #E2D2BF; font-size: 12.5px; color: #4E4038">
+              <div style="display: flex; justify-content: space-between"><span>Entrega · Centro</span><span>R$ 5,00</span></div>
+              <div style="display: flex; justify-content: space-between; color: #1E3D2F; font-weight: 700"><span>Cupom BEMVINDO</span><span>− R$ 5,50</span></div>
+              <div style="display: flex; justify-content: space-between; align-items: baseline; color: #2B231E"><span style="font-weight: 800">Total</span><span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 26px; color: #1E3D2F">R$ 54,50</span></div>
+            </div>
+          </div>
+
+          <ol aria-label="Andamento" style="margin: 0; padding: 0; list-style: none; display: flex; gap: 6px">
+            <li style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 6px; border-radius: 3px; background: #2B5240"></span><span style="font-size: 11px; font-weight: 700; color: #1E3D2F">Recebido 20:02</span></li>
+            <li style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 6px; border-radius: 3px; background: #2B5240"></span><span style="font-size: 11px; font-weight: 700; color: #1E3D2F">Aceito 20:04</span></li>
+            <li aria-current="step" style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 6px; border-radius: 3px; background: #D4612A"></span><span style="font-size: 11px; font-weight: 800; color: #B04A1A">Na chapa</span></li>
+            <li style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 6px; border-radius: 3px; background: #EADCCB"></span><span style="font-size: 11px; color: #6A5B50">Pronto</span></li>
+            <li style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 6px; border-radius: 3px; background: #EADCCB"></span><span style="font-size: 11px; color: #6A5B50">Entregue</span></li>
+          </ol>
+
+          <div style="display: flex; gap: 8px">
+            <button style="flex-grow: 1; height: 52px; border-radius: 26px; border: 0; background: #BF5321; color: #FFFFFF; font: inherit; font-size: 14.5px; font-weight: 800; box-shadow: 0 14px 22px -10px rgba(191,83,33,0.55)">Marcar como pronto</button>
+            <button aria-label="Imprimir pedido" style="width: 52px; height: 52px; border-radius: 26px; border: 1.5px solid #E9DCCB; background: #FFFBF6; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2B231E" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6M7 17H4v-6h16v6h-3M7 14h10v7H7z"></path></svg></button>
+          </div>
+          <button style="height: 40px; border-radius: 20px; border: 0; background: transparent; color: #8A3A12; font: inherit; font-size: 13px; font-weight: 700">Cancelar pedido</button>
+        </aside>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const chip = (ativo) => `height:38px;padding:0 6px 0 14px;border-radius:19px;border:0;font:inherit;font-size:13px;font-weight:${ativo ? 800 : 600};display:flex;align-items:center;gap:8px;background:${ativo ? '#1E3D2F' : '#FFFBF6'};color:${ativo ? '#FFFFFF' : '#4E4038'}`;
+    const conta = (ativo) => `min-width:24px;height:26px;padding:0 7px;box-sizing:border-box;border-radius:13px;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;background:${ativo ? '#2B5240' : '#F4EBDF'};color:${ativo ? '#FFFFFF' : '#4E4038'}`;
+    const filtros = [['Em andamento', 4, true], ['Novos', 1], ['Na chapa', 2], ['Prontos', 0], ['A caminho', 1], ['Entregues', 26], ['Cancelados', 1]]
+      .map(([nome, n, ativo]) => ({ nome, conta: String(n), estilo: chip(!!ativo), contaEstilo: conta(!!ativo) }));
+    const pilula = (fundo, cor) => `height:24px;padding:0 10px;border-radius:12px;background:${fundo};color:${cor};font-size:11.5px;font-weight:800;display:inline-flex;align-items:center`;
+    const cartao = (sel, alerta) => `display:flex;align-items:center;gap:16px;padding:14px 16px;border-radius:18px;text-decoration:none;color:inherit;background:#FFFBF6;box-shadow:0 1px 2px rgba(74,48,28,0.06);border:2px solid ${sel ? '#D4612A' : alerta ? '#F2A67F' : 'transparent'}`;
+    const pedidos = [
+      { id: '#1044', hora: 'agora', cliente: 'Ana P.', como: 'Entrega', itens: '2× Smash duplo, 1× Batata rústica', status: 'Novo', statusEstilo: pilula('#D4612A', '#FFFFFF'), total: 'R$ 67,00', cartao: cartao(false, true) },
+      { id: '#1043', hora: '2 min', cliente: 'Mesa 4', como: 'Mesa', itens: '1× X-Salada, 2× Refri lata', status: 'Na chapa', statusEstilo: pilula('#FBEADB', '#8A3A12'), total: 'R$ 43,80', cartao: cartao(false) },
+      { id: '#1042', hora: '6 min', cliente: 'Carlos M.', como: 'Entrega', itens: '1× Smash duplo (sem cebola), 1× Batata rústica', status: 'Na chapa', statusEstilo: pilula('#FBEADB', '#8A3A12'), total: 'R$ 54,50', cartao: cartao(true) },
+      { id: '#1040', hora: '19 min', cliente: 'Pedro A.', como: 'Entrega', itens: '3× Smash duplo, 1× Milkshake', status: 'A caminho', statusEstilo: pilula('#1E3D2F', '#FFFFFF'), total: 'R$ 88,90', cartao: cartao(false) },
+      { id: '#1039', hora: '24 min', cliente: 'Lia S.', como: 'Retirada', itens: '3× Smash duplo', status: 'Atrasado', statusEstilo: pilula('#5A2A14', '#FDBA8C'), total: 'R$ 96,00', cartao: cartao(false, true) },
+      { id: '#1038', hora: '31 min', cliente: 'Júlia R.', como: 'Retirada', itens: '1× X-Salada', status: 'Entregue', statusEstilo: pilula('#E3ECE6', '#1E3D2F'), total: 'R$ 25,00', cartao: cartao(false) },
+    ];
+    return { filtros, pedidos };
+  }
+}
+</script>
+</body>
+</html>

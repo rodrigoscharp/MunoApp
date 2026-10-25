@@ -4,6 +4,9 @@ import { useState, useTransition } from "react";
 import { Clock, Check } from "lucide-react";
 import { toast } from "sonner";
 import type { WeekSchedule } from "@/lib/business-hours";
+import { botaoBrasa, campo, cartaoPainel, tituloDeSecao } from "@/components/painel/estilos";
+import { Selo } from "@/components/painel/Selo";
+import { cn } from "@/lib/utils";
 
 export type { DaySchedule, WeekSchedule } from "@/lib/business-hours";
 
@@ -60,70 +63,83 @@ export function BusinessHoursControl({ initialSchedule }: Props) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-neutral-200 p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <Clock size={15} className="text-neutral-400" />
-        <p className="text-xs text-neutral-400 font-medium uppercase tracking-wide">
-          Horário de Funcionamento
-        </p>
+    <div className={`${cartaoPainel} p-5 sm:p-6`}>
+      <div className="mb-4 flex items-center gap-2">
+        <Clock size={17} className="text-loja-preco" aria-hidden />
+        <h3 className={tituloDeSecao}>Horário de funcionamento</h3>
       </div>
 
-      <div className="space-y-3">
+      <ul className="flex flex-col">
         {DAYS.map(({ key, label }) => {
           const day = schedule[key];
           return (
-            <div key={key} className="grid grid-cols-[36px_80px_1fr] items-center gap-3">
+            <li
+              key={key}
+              className="grid grid-cols-[52px_minmax(64px,88px)_1fr] items-center gap-2 border-t border-[#F0E6DA] py-2 first:border-t-0 sm:gap-3"
+            >
               {/* Toggle aberto/fechado */}
               <button
+                type="button"
+                role="switch"
+                aria-checked={day.open}
+                aria-label={`${label}: ${day.open ? "aberto" : "fechado"}`}
                 onClick={() => toggleDay(key)}
-                className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                  day.open ? "bg-brand" : "bg-neutral-200"
-                }`}
+                className="flex h-11 w-[52px] items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
               >
                 <span
-                  className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transform transition-transform duration-200 ${
-                    day.open ? "translate-x-4" : "translate-x-0"
+                  aria-hidden
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
+                    day.open ? "bg-forest-dark" : "bg-[#D9CCBC]"
                   }`}
-                />
+                >
+                  <span
+                    className={`inline-block h-[18px] w-[18px] rounded-full bg-white shadow transition-transform duration-200 ${
+                      day.open ? "translate-x-[23px]" : "translate-x-[3px]"
+                    }`}
+                  />
+                </span>
               </button>
 
               {/* Nome do dia */}
-              <span className={`text-sm font-medium ${day.open ? "text-neutral-800" : "text-neutral-400"}`}>
+              <span className={`text-[14px] font-bold ${day.open ? "text-loja-tinta" : "text-loja-tinta-2"}`}>
                 {label}
               </span>
 
               {/* Horários */}
               {day.open ? (
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                   <input
                     type="time"
                     value={day.from}
+                    aria-label={`${label}: abre às`}
                     onChange={(e) => setTime(key, "from", e.target.value)}
-                    className="w-full border border-neutral-200 rounded-lg px-2 py-1.5 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-brand/30"
+                    className={cn(campo, "h-11 min-w-0 px-2 py-0 text-[14px] sm:px-3")}
                   />
-                  <span className="text-xs text-neutral-400 shrink-0">até</span>
+                  <span className="shrink-0 text-[12px] text-loja-tinta-2">até</span>
                   <input
                     type="time"
                     value={day.to}
+                    aria-label={`${label}: fecha às`}
                     onChange={(e) => setTime(key, "to", e.target.value)}
-                    className="w-full border border-neutral-200 rounded-lg px-2 py-1.5 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-brand/30"
+                    className={cn(campo, "h-11 min-w-0 px-2 py-0 text-[14px] sm:px-3")}
                   />
                 </div>
               ) : (
-                <span className="text-xs text-neutral-400 italic">Fechado</span>
+                <Selo tom="neutro" className="justify-self-start">Fechado</Selo>
               )}
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
 
       <button
+        type="button"
         onClick={save}
         disabled={pending || saved}
-        className="mt-5 w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-lg text-sm transition"
+        className={`${botaoBrasa} mt-5 h-12 w-full text-[14px]`}
       >
         {saved ? (
-          <><Check size={14} /> Salvo</>
+          <><Check size={16} aria-hidden /> Salvo</>
         ) : pending ? (
           "Salvando..."
         ) : (

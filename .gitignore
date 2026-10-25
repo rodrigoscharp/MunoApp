@@ -58,3 +58,6 @@ next-env.d.ts
 
 # dumps do banco de produção — contêm dado de cliente
 backups/
+
+# Saídas de navegador de auditorias locais (logs, capturas): podem ter dado do banco local.
+auditoria/

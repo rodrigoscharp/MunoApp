@@ -48,6 +48,9 @@ export function serializarPedidosDoAdmin(orders: PedidoDoBanco[]) {
     notes: o.notes,
     customerName: o.customerName,
     customerPhone: o.customerPhone,
+    deliveryAddress: o.deliveryAddress,
+    estimatedDeliveryAt: o.estimatedDeliveryAt?.toISOString() ?? null,
+    userId: o.userId,
     createdAt: o.createdAt.toISOString(),
     updatedAt: o.updatedAt.toISOString(),
     items: o.items.map((item) => ({

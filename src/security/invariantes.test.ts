@@ -55,6 +55,7 @@ const USO_DE_PRISMA_UNSCOPED: Record<string, string> = {
   "src/app/(chat)/pedidos/[orderId]/chat/page.tsx": TENANT_COM_ESCOPO_MANUAL,
   "src/app/(client)/pedidos/page.tsx": TENANT_COM_ESCOPO_MANUAL,
   "src/app/(client)/track/[orderId]/page.tsx": TENANT_COM_ESCOPO_MANUAL,
+  "src/app/adm/banner-cupons/page.tsx": TENANT_COM_ESCOPO_MANUAL,
   "src/app/adm/chats/page.tsx": TENANT_COM_ESCOPO_MANUAL,
   "src/app/adm/comecar/page.tsx": TENANT_COM_ESCOPO_MANUAL,
   "src/app/adm/menu/page.tsx": TENANT_COM_ESCOPO_MANUAL,

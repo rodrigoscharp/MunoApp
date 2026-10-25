@@ -8,6 +8,12 @@ import { prisma } from "@/lib/prisma";
 import { withRequestTenant, getRequestTenantPlano } from "@/lib/tenant-request";
 import { avisoDeAtraso } from "@/lib/assinatura/aviso";
 import { tenantTemMesaQr } from "@/lib/plans";
+import { getRestaurantInfo } from "@/lib/restaurant";
+import { getBusinessHours } from "@/lib/business-hours";
+import { estadoDaLoja } from "@/lib/painel/estado-da-loja";
+import { pedidosEmAndamentoEmCache } from "@/lib/analytics";
+import { fontesDaLoja } from "@/lib/loja/fontes";
+import { cn } from "@/lib/utils";
 
 /**
  * O vencimento da cobrança em aberto mais antiga, guardado por cinco minutos
@@ -65,21 +71,43 @@ export default async function AdminLayout({
   //
   // Só o vencimento vem do cache; os dias de atraso são contados agora, com o
   // relógio de agora, para a faixa não mostrar o número de cinco minutos atrás.
-  const aviso = await withRequestTenant(async (tenantId) => {
-    const vencimento = await vencimentoEmAbertoMaisAntigo(tenantId);
-    return avisoDeAtraso(vencimento ? new Date(vencimento) : null, new Date());
+  //
+  // O cartão do restaurante e o número de pedidos em andamento saem junto,
+  // todos em cache curto por restaurante (cadastro e horário 60s, contagem
+  // 30s): o layout roda em toda carga do /adm. Aberto ou fechado é calculado
+  // agora, sobre o horário guardado, com a mesma regra do cardápio.
+  const { aviso, restaurante, pedidosEmAndamento } = await withRequestTenant(async (tenantId) => {
+    const [vencimento, info, horario, emAndamento] = await Promise.all([
+      vencimentoEmAbertoMaisAntigo(tenantId),
+      getRestaurantInfo(tenantId),
+      getBusinessHours(tenantId),
+      // O número é enfeite: se a contagem falhar, o menu fica sem ele, e o
+      // painel não cai por isso.
+      pedidosEmAndamentoEmCache(tenantId).catch(() => 0),
+    ]);
+    const estado = estadoDaLoja(horario);
+    return {
+      aviso: avisoDeAtraso(vencimento ? new Date(vencimento) : null, new Date()),
+      restaurante: { nome: info.name, aberto: estado.aberto, rotulo: estado.rotulo },
+      pedidosEmAndamento: emAndamento,
+    };
   });
 
   const plano = await getRequestTenantPlano();
 
+  // `loja` e as fontes da loja vêm aqui, no invólucro do painel, e não no
+  // layout raiz (ver src/lib/loja/fontes.ts): o painel usa o mesmo sistema
+  // visual da loja, o console e a landing não.
   return (
-    <div className="min-h-screen flex bg-neutral-100">
+    <div className={cn("loja min-h-screen lg:flex", fontesDaLoja)}>
       <AdminSidebar
         user={{ name: session.user.name ?? "", email: session.user.email ?? "" }}
         temMesaQr={tenantTemMesaQr(plano)}
+        restaurante={restaurante}
+        pedidosEmAndamento={pedidosEmAndamento}
       />
-      <main className="flex-1 overflow-auto pt-14 pb-20 lg:pt-0 lg:pb-0">
-        <div className="max-w-6xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
+      <main className="min-w-0 flex-1 pb-24 pt-14 lg:pb-0 lg:pt-0">
+        <div className="mx-auto max-w-[1180px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           {aviso && <AvisoDeCobranca tom={aviso.tom} dias={aviso.dias} />}
           {children}
         </div>

@@ -8,6 +8,8 @@ import { X, Upload, Wand2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { booleanParaTri, triParaBoolean } from "@/lib/restricoes";
 import type { EtapaDoRecorte } from "@/lib/loja/remover-fundo";
+import { cn } from "@/lib/utils";
+import { botaoBrasa, botaoContorno, botaoFloresta, campo, kicker, rotulo } from "@/components/painel/estilos";
 
 // `.catch("nd")`: valor que não seja exatamente um dos três cai em "Não
 // informado". Falhar a validação aqui travaria o botão sem mensagem nenhuma, e
@@ -60,13 +62,13 @@ function PerguntaAlimentar({
 }) {
   return (
     <fieldset>
-      <legend className="text-sm text-neutral-700 mb-1">{legenda}</legend>
+      <legend className={cn(rotulo, "mb-1.5 text-[13px]")}>{legenda}</legend>
       <div className="flex gap-2">
-        {OPCOES_ALIMENTARES.map(({ valor, rotulo }) => (
+        {OPCOES_ALIMENTARES.map(({ valor, rotulo: texto }) => (
           <label key={valor} className="flex-1 cursor-pointer">
             <input type="radio" value={valor} {...register(campo)} className="peer sr-only" />
-            <span className="block text-center px-3 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-xs text-neutral-600 transition peer-checked:border-brand peer-checked:bg-brand-light peer-checked:text-brand-dark peer-focus-visible:ring-2 peer-focus-visible:ring-brand">
-              {rotulo}
+            <span className="flex min-h-11 items-center justify-center rounded-2xl border border-loja-linha bg-loja-papel px-2 text-center text-[12.5px] font-semibold text-loja-tinta transition peer-checked:border-forest-dark peer-checked:bg-forest-dark peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-brand">
+              {texto}
             </span>
           </label>
         ))}
@@ -240,213 +242,223 @@ export function MenuItemModal({ open, onClose, item, categories, onSaved }: Prop
     onSaved();
   }
 
+  useEffect(() => {
+    if (!open) return;
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, [open, onClose]);
+
   if (!open) return null;
 
+  const erroDoCampo = "mt-1.5 text-[12.5px] font-semibold text-loja-preco";
+  const rotuloDoCampo = cn(rotulo, "mb-1.5 block text-[13px]");
+  const bloco = "space-y-3 rounded-[22px] bg-loja-papel p-4 shadow-loja";
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-neutral-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
-          <h2 className="text-lg font-semibold">
-            {item ? "Editar Item" : "Novo Item"}
-          </h2>
+    // Folha lateral no desktop e folha de baixo no celular: o cardápio fica à
+    // vista atrás, e o formulário comprido rola por dentro, com Salvar sempre
+    // ao alcance.
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-stretch sm:justify-end">
+      <div className="absolute inset-0 bg-forest-dark/40 backdrop-blur-[2px]" onClick={onClose} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="titulo-do-item"
+        className="relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[26px] bg-loja-creme shadow-loja-alta sm:max-h-none sm:max-w-[480px] sm:rounded-none sm:rounded-l-[26px]"
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-loja-linha bg-loja-papel px-5 py-4 sm:px-6">
+          <div className="flex flex-col gap-1">
+            <span className={`${kicker} text-loja-preco`}>Cardápio</span>
+            <h2 id="titulo-do-item" className="manchete text-[1.9rem] text-forest-dark">
+              {item ? "Editar item" : "Novo item"}
+            </h2>
+          </div>
           <button
+            type="button"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-neutral-100 transition"
+            aria-label="Fechar"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-loja-tinta transition hover:bg-loja-creme"
           >
-            <X size={18} />
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
 
-        {/* Form */}
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        <form onSubmit={(handleSubmit as any)(onSubmit)} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">
-              Nome *
-            </label>
-            <input
-              {...register("name")}
-              className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
-            />
-            {errors.name && (
-              <p className="text-brand text-xs mt-1">{errors.name.message}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">
-              Descrição
-            </label>
-            <textarea
-              {...register("description")}
-              rows={2}
-              className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition resize-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">
-              Preço (R$) *
-            </label>
-            <input
-              {...register("price")}
-              type="number"
-              step="0.01"
-              min="0"
-              className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
-            />
-            {errors.price && (
-              <p className="text-brand text-xs mt-1">{errors.price.message}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">
-              Categoria *
-            </label>
-            <select
-              {...register("categoryId")}
-              className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
-            >
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-            {errors.categoryId && (
-              <p className="text-brand text-xs mt-1">{errors.categoryId.message}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">
-              Imagem
-            </label>
-            {/* Preview */}
-            {imageUrlValue && (
-              <div className="mb-2 relative h-28 w-full rounded-lg overflow-hidden border border-neutral-200 bg-neutral-50">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={imageUrlValue} alt="preview" className="w-full h-full object-cover" />
+        <form onSubmit={(handleSubmit as any)(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
+            <section className={cn(bloco, "space-y-4")}>
+              <div>
+                <label htmlFor="item-nome" className={rotuloDoCampo}>
+                  Nome *
+                </label>
+                <input id="item-nome" {...register("name")} className={campo} />
+                {errors.name && <p className={erroDoCampo}>{errors.name.message}</p>}
               </div>
-            )}
-            {/* Upload button */}
-            <label className={`flex items-center gap-2 w-full px-4 py-2.5 rounded-lg border border-dashed border-neutral-300 bg-neutral-50 text-sm text-neutral-500 cursor-pointer hover:border-red-400 hover:text-brand transition ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
-              <Upload size={14} />
-              {uploading ? "Enviando..." : "Clique para enviar imagem"}
-              <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
-            </label>
-            {/* Or URL input */}
-            <input
-              {...register("imageUrl")}
-              type="url"
-              placeholder="Ou cole uma URL..."
-              className="mt-2 w-full px-4 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-xs text-neutral-500 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
-            />
-            {errors.imageUrl && (
-              <p className="text-brand text-xs mt-1">{errors.imageUrl.message}</p>
-            )}
-          </div>
 
-          <div>
-            <span className="block text-sm font-medium text-neutral-700 mb-1">Foto sem fundo, para o banner</span>
-            <p className="text-xs text-neutral-400 mb-2">
-              Quando este item aparece no banner do cardápio, o lanche sai sem moldura. Envie um PNG já sem fundo ou gere o recorte daqui.
-            </p>
-            <div className="flex items-center gap-3">
-              <div
-                className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-neutral-200"
-                // Xadrez claro: é como se vê que o fundo ficou transparente.
-                style={{ backgroundColor: "#F6DCC6", backgroundImage: "linear-gradient(45deg,#fbeadb 25%,transparent 25%,transparent 75%,#fbeadb 75%),linear-gradient(45deg,#fbeadb 25%,transparent 25%,transparent 75%,#fbeadb 75%)", backgroundSize: "12px 12px", backgroundPosition: "0 0,6px 6px" }}
-              >
-                {recorteValue ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={recorteValue} alt="Recorte para o banner" className="h-full w-full object-contain" />
-                ) : (
-                  <span className="flex h-full items-center justify-center text-center text-[10px] text-neutral-500">sem recorte</span>
-                )}
+              <div>
+                <label htmlFor="item-descricao" className={rotuloDoCampo}>
+                  Descrição
+                </label>
+                <textarea id="item-descricao" {...register("description")} rows={2} className={cn(campo, "resize-none")} />
               </div>
-              <div className="flex min-w-0 flex-1 flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={gerarRecorte}
-                  disabled={!imageUrlValue || uploading || !!recortando}
-                  className="flex items-center justify-center gap-2 rounded-lg bg-neutral-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
-                >
-                  <Wand2 size={14} aria-hidden="true" />
-                  {recortando
-                    ? recortando.etapa === "baixando-modelo"
-                      ? `Preparando (primeira vez)${recortando.porcento ? ` ${Math.round(recortando.porcento)}%` : "…"}`
-                      : "Removendo o fundo… (até 1 min)"
-                    : "Remover fundo da foto"}
-                </button>
-                <div className="flex gap-2">
-                  <label className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-neutral-300 px-3 py-2 text-xs text-neutral-600 hover:border-brand ${uploading ? "pointer-events-none opacity-50" : ""}`}>
-                    <Upload size={13} aria-hidden="true" />
-                    Enviar PNG sem fundo
-                    <input type="file" accept="image/png,image/webp" className="hidden" onChange={enviarRecorte} />
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="item-preco" className={rotuloDoCampo}>
+                    Preço (R$) *
                   </label>
-                  {recorteValue && (
-                    <button
-                      type="button"
-                      onClick={() => setValue("imagemRecortadaUrl", "")}
-                      aria-label="Tirar o recorte"
-                      className="rounded-lg border border-neutral-200 px-2.5 text-neutral-500 hover:text-brand"
-                    >
-                      <Trash2 size={14} aria-hidden="true" />
-                    </button>
-                  )}
+                  <input
+                    id="item-preco"
+                    {...register("price")}
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    inputMode="decimal"
+                    className={campo}
+                  />
+                  {errors.price && <p className={erroDoCampo}>{errors.price.message}</p>}
+                </div>
+
+                <div>
+                  <label htmlFor="item-categoria" className={rotuloDoCampo}>
+                    Categoria *
+                  </label>
+                  <select id="item-categoria" {...register("categoryId")} className={cn(campo, "h-[50px] py-0")}>
+                    {categories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.categoryId && <p className={erroDoCampo}>{errors.categoryId.message}</p>}
                 </div>
               </div>
-            </div>
+
+              <label
+                htmlFor="available"
+                className="flex min-h-11 cursor-pointer items-center gap-3 text-[14px] font-semibold text-loja-tinta"
+              >
+                <input {...register("available")} type="checkbox" id="available" className="h-5 w-5 accent-[#2B5240]" />
+                Disponível no cardápio
+              </label>
+            </section>
+
+            <section className={bloco}>
+              <span className={rotuloDoCampo}>Foto</span>
+              {imageUrlValue && (
+                <div className="relative h-36 w-full overflow-hidden rounded-2xl bg-loja-pessego">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={imageUrlValue} alt="preview" className="h-full w-full object-cover" />
+                </div>
+              )}
+              <label
+                className={cn(
+                  "flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-[#B9A690] px-4 py-2.5 text-[13.5px] font-bold text-loja-tinta transition hover:border-brand hover:text-loja-preco",
+                  uploading && "pointer-events-none opacity-50"
+                )}
+              >
+                <Upload size={15} aria-hidden="true" />
+                {uploading ? "Enviando..." : "Clique para enviar imagem"}
+                <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+              </label>
+              <input
+                {...register("imageUrl")}
+                type="url"
+                aria-label="URL da foto"
+                placeholder="Ou cole uma URL..."
+                className={cn(campo, "py-2.5 text-[13px]")}
+              />
+              {errors.imageUrl && <p className={erroDoCampo}>{errors.imageUrl.message}</p>}
+            </section>
+
+            <section className={bloco}>
+              <div>
+                <span className={rotuloDoCampo}>Foto sem fundo, para o banner</span>
+                <p className="text-[12.5px] text-loja-tinta-2">
+                  Quando este item aparece no banner do cardápio, o lanche sai sem moldura. Envie um PNG já sem fundo ou gere o recorte daqui.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div
+                  className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl"
+                  // Xadrez claro: é como se vê que o fundo ficou transparente.
+                  style={{ backgroundColor: "#F6DCC6", backgroundImage: "linear-gradient(45deg,#fbeadb 25%,transparent 25%,transparent 75%,#fbeadb 75%),linear-gradient(45deg,#fbeadb 25%,transparent 25%,transparent 75%,#fbeadb 75%)", backgroundSize: "12px 12px", backgroundPosition: "0 0,6px 6px" }}
+                >
+                  {recorteValue ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={recorteValue} alt="Recorte para o banner" className="h-full w-full object-contain" />
+                  ) : (
+                    <span className="flex h-full items-center justify-center text-center text-[11px] font-semibold text-[#6A3A1E]">sem recorte</span>
+                  )}
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={gerarRecorte}
+                    disabled={!imageUrlValue || uploading || !!recortando}
+                    className={cn(botaoFloresta, "min-h-11 px-3 text-[12.5px] disabled:cursor-not-allowed")}
+                  >
+                    <Wand2 size={14} aria-hidden="true" />
+                    {recortando
+                      ? recortando.etapa === "baixando-modelo"
+                        ? `Preparando (primeira vez)${recortando.porcento ? ` ${Math.round(recortando.porcento)}%` : "…"}`
+                        : "Removendo o fundo… (até 1 min)"
+                      : "Remover fundo da foto"}
+                  </button>
+                  <div className="flex gap-2">
+                    <label
+                      className={cn(
+                        "flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full border-[1.5px] border-dashed border-[#B9A690] px-3 text-center text-[12.5px] font-bold text-loja-tinta hover:border-brand",
+                        uploading && "pointer-events-none opacity-50"
+                      )}
+                    >
+                      <Upload size={13} aria-hidden="true" />
+                      Enviar PNG sem fundo
+                      <input type="file" accept="image/png,image/webp" className="hidden" onChange={enviarRecorte} />
+                    </label>
+                    {recorteValue && (
+                      <button
+                        type="button"
+                        onClick={() => setValue("imagemRecortadaUrl", "")}
+                        aria-label="Tirar o recorte"
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-loja-linha text-loja-tinta-2 hover:text-loja-preco"
+                      >
+                        <Trash2 size={14} aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className={bloco}>
+              <div>
+                <h3 className="text-[15px] font-extrabold text-loja-tinta">Informações para o cliente</h3>
+                <p className="mt-0.5 text-[12.5px] text-loja-tinta-2">
+                  Marque &quot;Não&quot; só se tiver certeza, incluindo contaminação cruzada na cozinha.
+                  Quem tem alergia vai confiar nisso.
+                </p>
+              </div>
+              <PerguntaAlimentar legenda="Contém glúten?" campo="containsGluten" register={register} />
+              <PerguntaAlimentar legenda="Contém lactose?" campo="containsLactose" register={register} />
+              <PerguntaAlimentar legenda="É vegano?" campo="isVegan" register={register} />
+            </section>
+
+            {error && (
+              <div role="alert" className="rounded-2xl bg-loja-pessego-claro px-4 py-3">
+                <p className="text-[13.5px] font-semibold text-[#8A3A12]">{error}</p>
+              </div>
+            )}
           </div>
 
-          <div className="space-y-3">
-            <div>
-              <h3 className="text-sm font-medium text-neutral-700">Informações para o cliente</h3>
-              <p className="text-xs text-neutral-400 mt-0.5">
-                Marque &quot;Não&quot; só se tiver certeza, incluindo contaminação cruzada na cozinha.
-                Quem tem alergia vai confiar nisso.
-              </p>
-            </div>
-            <PerguntaAlimentar legenda="Contém glúten?" campo="containsGluten" register={register} />
-            <PerguntaAlimentar legenda="Contém lactose?" campo="containsLactose" register={register} />
-            <PerguntaAlimentar legenda="É vegano?" campo="isVegan" register={register} />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <input
-              {...register("available")}
-              type="checkbox"
-              id="available"
-              className="w-4 h-4 accent-red-500"
-            />
-            <label htmlFor="available" className="text-sm text-neutral-700">
-              Disponível no cardápio
-            </label>
-          </div>
-
-          {error && (
-            <div className="bg-brand-light border border-brand-muted rounded-lg px-4 py-2.5">
-              <p className="text-brand-dark text-sm">{error}</p>
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2.5 rounded-lg border border-neutral-200 text-sm text-neutral-700 hover:bg-neutral-50 transition"
-            >
+          <div className="flex gap-3 border-t border-loja-linha bg-loja-papel px-5 py-4 sm:px-6">
+            <button type="button" onClick={onClose} className={cn(botaoContorno, "h-12 flex-1 px-4 text-[14px]")}>
               Cancelar
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-lg transition"
-            >
+            <button type="submit" disabled={loading} className={cn(botaoBrasa, "h-12 flex-1 px-4 text-[14px] font-extrabold")}>
               {loading ? "Salvando..." : "Salvar"}
             </button>
           </div>

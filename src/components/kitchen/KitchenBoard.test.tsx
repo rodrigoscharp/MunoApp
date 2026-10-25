@@ -89,14 +89,35 @@ describe("o quadro", () => {
   it("mostra as cinco colunas do fluxo", async () => {
     await montar([]);
 
-    for (const coluna of ["Pendente", "Confirmado", "Em Preparo", "Pronto", "Em Entrega"]) {
-      expect(screen.getByText(coluna)).toBeDefined();
+    for (const coluna of ["Novos", "Confirmados", "Em preparo", "Prontos", "Em entrega"]) {
+      expect(screen.getByRole("region", { name: coluna })).toBeDefined();
     }
+  });
+
+  it("o botão principal diz o que a etapa faz", async () => {
+    await montar([
+      pedido({ id: "p-000001", status: "PENDING" }),
+      pedido({ id: "p-000002", status: "CONFIRMED" }),
+      pedido({ id: "p-000003", status: "IN_PREPARATION" }),
+    ]);
+    expect(screen.getByRole("button", { name: /^confirmar$/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /começar preparo/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /marcar pronto/i })).toBeDefined();
+  });
+
+  it("pedido com mais de 20 minutos se anuncia atrasado", async () => {
+    await montar([pedido({ createdAt: new Date(Date.now() - 25 * 60_000).toISOString() })]);
+    expect(screen.getByText(/atrasado/i)).toBeDefined();
+  });
+
+  it("pedido recente não se diz atrasado", async () => {
+    await montar([pedido()]);
+    expect(screen.queryByText(/atrasado/i)).toBeNull();
   });
 
   it("mantém a coluna do pedido em rua, que só sai quando alguém fecha", async () => {
     await montar([pedido({ status: "OUT_FOR_DELIVERY" })]);
-    expect(screen.getByText("Em Entrega")).toBeDefined();
+    expect(screen.getByRole("region", { name: "Em entrega" })).toBeDefined();
     expect(cartao()).not.toBeNull();
   });
 
@@ -122,7 +143,7 @@ describe("o quadro", () => {
 describe("avançar o pedido", () => {
   it("manda o próximo status do fluxo", async () => {
     await montar([pedido({ status: "IN_PREPARATION" })]);
-    await userEvent.click(screen.getByRole("button", { name: /avançar/i }));
+    await userEvent.click(screen.getByRole("button", { name: /marcar pronto/i }));
 
     await waitFor(() => expect(patches).toEqual([{ status: "READY" }]));
   });
@@ -163,12 +184,12 @@ describe("quando o servidor recusa a mudança", () => {
 
   it("o pedido volta para a coluna de origem", async () => {
     await montar([pedido({ status: "IN_PREPARATION" })]);
-    await userEvent.click(screen.getByRole("button", { name: /avançar/i }));
+    await userEvent.click(screen.getByRole("button", { name: /marcar pronto/i }));
 
     // Continua no quadro, e no status de antes.
     await waitFor(() => expect(cartao()).not.toBeNull());
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /avançar/i })).toBeDefined()
+      expect(screen.getByRole("button", { name: /marcar pronto/i })).toBeDefined()
     );
   });
 
@@ -226,7 +247,7 @@ describe("cancelar", () => {
 
     expect(patches).toEqual([]);
     expect(cartao()).not.toBeNull();
-    expect(screen.getByRole("button", { name: /avançar/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /marcar pronto/i })).toBeDefined();
   });
 
   it("não oferece cancelar um pedido já pronto", async () => {
@@ -253,16 +274,17 @@ describe("toque duplo", () => {
     render(<KitchenBoard />);
     await waitFor(() => expect(screen.queryByText(/carregando pedidos/i)).toBeNull());
 
-    const botao = screen.getByRole("button", { name: /avançar/i });
-    await userEvent.click(botao);
-    await userEvent.click(screen.getByRole("button", { name: /avançar/i }));
+    // O primeiro toque confirma; o card muda de coluna na hora, e o segundo
+    // cai no botão da etapa seguinte, que precisa estar travado.
+    await userEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /começar preparo/i }));
 
     expect(patches).toEqual([{ status: "CONFIRMED" }]);
-    expect((screen.getByRole("button", { name: /avançar/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /começar preparo/i }) as HTMLButtonElement).disabled).toBe(true);
 
     liberar();
     await waitFor(() =>
-      expect((screen.getByRole("button", { name: /avançar/i }) as HTMLButtonElement).disabled).toBe(false)
+      expect((screen.getByRole("button", { name: /começar preparo/i }) as HTMLButtonElement).disabled).toBe(false)
     );
   });
 });
@@ -302,6 +324,7 @@ describe("tempo real", () => {
   it("sem tópico, o quadro avisa que está só no polling", async () => {
     await montar([]);
     expect(await screen.findByText(/sem tempo real/i)).toBeDefined();
+    expect(screen.getByText(/atualizando a cada 10s/i)).toBeDefined();
   });
 });
 

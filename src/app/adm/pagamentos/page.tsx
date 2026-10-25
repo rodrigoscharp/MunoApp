@@ -5,6 +5,9 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { GatewayMark } from "@/components/adm/GatewayMark";
 import { GatewaySetupPanel, type ConnectionView } from "@/components/adm/GatewaySetupPanel";
 import type { PaymentProviderMeta } from "@/lib/payments/types";
+import { CabecalhoDaTela } from "@/components/painel/CabecalhoDaTela";
+import { Selo } from "@/components/painel/Selo";
+import { cartaoPainel } from "@/components/painel/estilos";
 
 interface ProviderView {
   meta: PaymentProviderMeta;
@@ -46,19 +49,20 @@ export default function PagamentosPage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-neutral-900">Pagamentos</h1>
-        <p className="text-sm text-neutral-500 mt-1 leading-relaxed">
-          Conecte a conta do seu gateway para receber os pedidos direto na sua conta.
-          O dinheiro não passa pela Muno.
-        </p>
-      </div>
+    <div className="mx-auto flex max-w-4xl flex-col gap-5">
+      <CabecalhoDaTela
+        contexto={active ? `Recebendo por ${active.meta.label}` : "Formas de recebimento"}
+        titulo="Pagamentos"
+      />
+      <p className="-mt-3 max-w-2xl text-[14px] leading-relaxed text-loja-tinta-2">
+        Conecte a conta do seu gateway para receber os pedidos direto na sua conta.
+        O dinheiro não passa pela Muno.
+      </p>
 
       {payload && !active && (
-        <div className="flex gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-900 leading-relaxed">
+        <div role="status" className="flex gap-3 rounded-[18px] bg-loja-pessego-claro p-4">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0 text-loja-preco" aria-hidden />
+          <p className="text-[14px] leading-relaxed text-[#6A2E10]">
             Seu restaurante aceita <strong>só dinheiro na entrega</strong>. Escolha um
             gateway abaixo para receber Pix e cartão.
           </p>
@@ -66,70 +70,62 @@ export default function PagamentosPage() {
       )}
 
       {error && (
-        <p className="text-sm text-brand bg-brand-light border border-brand-muted rounded-xl px-4 py-3">
+        <p role="alert" className="rounded-[18px] border border-brand-muted bg-brand-light px-4 py-3 text-[14px] font-semibold text-loja-preco">
           {error}
         </p>
       )}
 
       {!payload && !error && (
-        <div className="flex items-center justify-center gap-2 text-sm text-neutral-400 py-12">
-          <Loader2 size={16} className="animate-spin" />
+        <div className="flex items-center justify-center gap-2 py-12 text-[14px] text-loja-tinta-2">
+          <Loader2 size={16} className="animate-spin" aria-hidden />
           Carregando…
         </div>
       )}
 
       {payload && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {payload.providers.map(({ meta, connection }) => {
             const isSelected = selected === meta.id;
-            const isActive = connection?.status === "active";
 
             return (
               <button
                 key={meta.id}
+                type="button"
                 onClick={() => setSelected(isSelected ? null : meta.id)}
                 aria-pressed={isSelected}
-                className={`text-left bg-white rounded-2xl border p-4 transition ${
-                  isSelected
-                    ? "border-transparent ring-2 shadow-sm"
-                    : "border-neutral-200 hover:border-neutral-300"
+                className={`${cartaoPainel} min-h-[88px] p-4 text-left transition hover:bg-white ${
+                  isSelected ? "bg-white" : ""
                 }`}
-                style={isSelected ? { boxShadow: `0 0 0 2px ${meta.brandColor}` } : undefined}
+                style={isSelected ? { boxShadow: `0 0 0 2.5px ${meta.brandColor}` } : undefined}
               >
                 <div className="flex items-start gap-3">
                   <GatewayMark id={meta.id} label={meta.label} color={meta.brandColor} />
 
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-neutral-900 truncate">{meta.label}</span>
-                      {isActive && (
-                        <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" title="Conectado" />
-                      )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate text-[15px] font-extrabold text-loja-tinta">{meta.label}</span>
                       {meta.recommended && (
-                        <span
-                          className="shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-brand-light text-brand border border-brand-muted"
-                          title="Cobre Pix e cartão no mesmo gateway"
-                        >
-                          Recomendado
+                        <span title="Cobre Pix e cartão no mesmo gateway">
+                          <Selo tom="andamento">Recomendado</Selo>
                         </span>
                       )}
                     </div>
 
-                    <p className="text-xs text-neutral-500 mt-0.5">
+                    <p className="mt-0.5 text-[12.5px] text-loja-tinta-2">
                       {meta.methods.map((m) => METHOD_LABEL[m] ?? m).join(" e ")}
                     </p>
 
-                    <p className="text-xs mt-1.5 font-medium">
+                    <div className="mt-2">
                       {connection?.status === "active" ? (
-                        <span className="text-green-700">Conectado</span>
+                        <Selo tom="pronto">Conectado</Selo>
                       ) : connection?.status === "pending_webhook" ? (
-                        <span className="text-amber-700">Falta o webhook</span>
+                        <Selo tom="andamento">Falta o webhook</Selo>
                       ) : connection?.status === "invalid" ? (
-                        <span className="text-red-700">Credencial recusada</span>
+                        <Selo tom="alerta">Credencial recusada</Selo>
                       ) : (
-                        <span className="text-neutral-400">Não conectado</span>
+                        <Selo tom="neutro">Não conectado</Selo>
                       )}
-                    </p>
+                    </div>
                   </div>
                 </div>
               </button>

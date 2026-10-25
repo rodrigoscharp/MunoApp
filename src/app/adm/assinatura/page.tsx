@@ -15,6 +15,9 @@ import {
   formatarData,
   formatarInstante,
 } from "@/lib/assinatura/formato";
+import { CabecalhoDaTela } from "@/components/painel/CabecalhoDaTela";
+import { Selo, type TomDoSelo } from "@/components/painel/Selo";
+import { cartaoPainel, kicker, linhaDeTabela, rotulo as rotuloDeTabela } from "@/components/painel/estilos";
 
 /**
  * A tela da mensalidade do restaurante.
@@ -33,13 +36,34 @@ import {
  */
 const ROTULO_DA_SITUACAO: Record<
   SituacaoCobranca,
-  { texto: string; classe: string }
+  { texto: string; tom: TomDoSelo }
 > = {
-  PAGA: { texto: "Paga", classe: "text-green-700" },
-  CANCELADA: { texto: "Cancelada", classe: "text-neutral-400" },
-  VENCIDA: { texto: "Vencida", classe: "text-red-700" },
-  EM_ABERTO: { texto: "Em aberto", classe: "text-amber-700" },
+  PAGA: { texto: "Paga", tom: "pago" },
+  CANCELADA: { texto: "Cancelada", tom: "neutro" },
+  VENCIDA: { texto: "Vencida", tom: "alerta" },
+  EM_ABERTO: { texto: "Em aberto", tom: "andamento" },
 };
+
+/** Cartão de número do topo: rótulo, valor em manchete e a linha de apoio. */
+function CartaoDeNumero({
+  rotulo,
+  valor,
+  apoio,
+  classeDoValor = "text-forest-dark",
+}: {
+  rotulo: string;
+  valor: React.ReactNode;
+  apoio: React.ReactNode;
+  classeDoValor?: string;
+}) {
+  return (
+    <div className={`${cartaoPainel} p-5`}>
+      <p className={`${kicker} text-loja-tinta-2`}>{rotulo}</p>
+      <p className={`manchete mt-2 text-[2rem] leading-none ${classeDoValor}`}>{valor}</p>
+      <p className="mt-1.5 text-[12.5px] text-loja-tinta-2">{apoio}</p>
+    </div>
+  );
+}
 
 export default async function AssinaturaPage() {
   // O tenant vem do x-tenant-id que o proxy injetou, como nas outras telas
@@ -82,9 +106,9 @@ export default async function AssinaturaPage() {
 
   const cabecalho = (
     <>
-      <h1 className="text-2xl font-bold text-neutral-900 mb-1">Assinatura</h1>
-      <p className="text-sm text-neutral-400 mb-8">
-        Sua mensalidade da Muno e o histórico de cobranças
+      <CabecalhoDaTela contexto="Sua mensalidade da Muno" titulo="Assinatura" />
+      <p className="-mt-3 mb-6 text-[14px] text-loja-tinta-2">
+        A mensalidade e o histórico de cobranças
       </p>
     </>
   );
@@ -96,8 +120,8 @@ export default async function AssinaturaPage() {
     return (
       <div>
         {cabecalho}
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
-          <p className="text-sm text-neutral-600 leading-relaxed">
+        <div className={`${cartaoPainel} p-6`}>
+          <p className="text-[14px] leading-relaxed text-loja-tinta">
             Ainda não há mensalidade cadastrada para o seu restaurante. Nada a
             pagar por aqui, a equipe da Muno avisa quando a cobrança começar.
           </p>
@@ -124,14 +148,14 @@ export default async function AssinaturaPage() {
   const cancelada = assinatura.status === "CANCELADA";
 
   const situacao = bloqueada
-    ? { texto: "Gestão suspensa", classe: "text-red-600" }
+    ? { texto: "Gestão suspensa", classe: "text-[#A3271A]" }
     : cancelada
-      ? { texto: "Encerrada", classe: "text-neutral-500" }
+      ? { texto: "Encerrada", classe: "text-loja-tinta-2" }
       : aviso
-        ? { texto: "Pagamento em atraso", classe: "text-orange-500" }
+        ? { texto: "Pagamento em atraso", classe: "text-loja-preco" }
         : emCortesia
-          ? { texto: "Em cortesia", classe: "text-blue-600" }
-          : { texto: "Em dia", classe: "text-green-600" };
+          ? { texto: "Em cortesia", classe: "text-forest" }
+          : { texto: "Em dia", classe: "text-forest-dark" };
 
   const totalEmAberto = emAberto.reduce((soma, c) => soma + Number(c.valor), 0);
 
@@ -139,52 +163,39 @@ export default async function AssinaturaPage() {
     <div>
       {cabecalho}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="rounded-3xl border border-neutral-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(30,61,47,0.04),0_12px_32px_-12px_rgba(30,61,47,0.14)]">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-forest/60">
-            Situação
-          </p>
-          <p className={`display mt-1 text-2xl ${situacao.classe}`}>
-            {situacao.texto}
-          </p>
-          <p className="text-xs text-neutral-400 mt-0.5">
-            {emAberto.length === 0
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <CartaoDeNumero
+          rotulo="Situação"
+          valor={situacao.texto}
+          classeDoValor={situacao.classe}
+          apoio={
+            emAberto.length === 0
               ? "nenhuma cobrança em aberto"
               : emAberto.length === 1
                 ? "1 cobrança em aberto"
-                : `${emAberto.length} cobranças em aberto`}
-          </p>
-        </div>
+                : `${emAberto.length} cobranças em aberto`
+          }
+        />
 
-        <div className="rounded-3xl border border-neutral-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(30,61,47,0.04),0_12px_32px_-12px_rgba(30,61,47,0.14)]">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-forest/60">
-            Mensalidade
-          </p>
-          <p className="display mt-1 text-2xl text-forest-dark">
-            {formatCurrency(Number(assinatura.valorMensal))}
-          </p>
-          <p className="text-xs text-neutral-400 mt-0.5">
-            todo dia {assinatura.diaVencimento}
-          </p>
-        </div>
+        <CartaoDeNumero
+          rotulo="Mensalidade"
+          valor={formatCurrency(Number(assinatura.valorMensal))}
+          apoio={`todo dia ${assinatura.diaVencimento}`}
+        />
 
-        <div className="rounded-3xl border border-neutral-200/80 bg-white p-5 shadow-[0_1px_2px_rgba(30,61,47,0.04),0_12px_32px_-12px_rgba(30,61,47,0.14)]">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-forest/60">
-            {cancelada ? "Encerrada em" : "Próximo vencimento"}
-          </p>
-          <p className="display mt-1 text-2xl text-forest-dark">
-            {cancelada ? "—" : formatarData(proximo)}
-          </p>
-          <p className="text-xs text-neutral-400 mt-0.5">
-            {cancelada
+        <CartaoDeNumero
+          rotulo={cancelada ? "Encerrada em" : "Próximo vencimento"}
+          valor={cancelada ? "—" : formatarData(proximo)}
+          apoio={
+            cancelada
               ? "sem novas cobranças"
               : emCortesia
                 ? "primeira cobrança"
                 : totalEmAberto > 0
                   ? `${formatCurrency(totalEmAberto)} em aberto`
-                  : "próxima cobrança"}
-          </p>
-        </div>
+                  : "próxima cobrança"
+          }
+        />
       </div>
 
       {/* A oferta só para quem está no plano de baixo, e só com a assinatura
@@ -196,10 +207,10 @@ export default async function AssinaturaPage() {
       {/* O painel do bloqueio. O que ele precisa deixar claro, nesta ordem: o
           cardápio não caiu, o que exatamente parou, e como voltar. */}
       {bloqueada && (
-        <div className="flex gap-3 bg-red-50 border border-red-300 rounded-xl p-5 mb-6">
-          <Lock size={20} className="text-red-600 shrink-0 mt-0.5" />
-          <div className="text-sm text-red-900 leading-relaxed space-y-2">
-            <p className="font-semibold">
+        <div role="alert" className="mb-6 flex gap-3 rounded-[22px] bg-[#FBE3DC] p-5">
+          <Lock size={20} className="mt-0.5 shrink-0 text-[#A3271A]" aria-hidden />
+          <div className="space-y-2 text-[14px] leading-relaxed text-[#5A1A10]">
+            <p className="font-extrabold">
               O acesso à gestão está suspenso por falta de pagamento.
             </p>
             <p>
@@ -227,9 +238,9 @@ export default async function AssinaturaPage() {
       {/* Atraso ainda sem bloqueio: a mesma explicação, na dose de quem ainda
           tem tempo de resolver. */}
       {!bloqueada && aviso && (
-        <div className="flex gap-3 bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
-          <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-sm text-amber-900 leading-relaxed space-y-2">
+        <div role="status" className="mb-6 flex gap-3 rounded-[22px] bg-loja-pessego-claro p-5">
+          <AlertTriangle size={20} className="mt-0.5 shrink-0 text-loja-preco" aria-hidden />
+          <div className="space-y-2 text-[14px] leading-relaxed text-[#6A2E10]">
             <p>
               Sua mensalidade está vencida{" "}
               <strong>
@@ -249,69 +260,56 @@ export default async function AssinaturaPage() {
       )}
 
       {cancelada && (
-        <div className="bg-white rounded-xl border border-neutral-200 p-5 mb-6">
-          <p className="text-sm text-neutral-600 leading-relaxed">
+        <div className={`${cartaoPainel} mb-6 p-5`}>
+          <p className="text-[14px] leading-relaxed text-loja-tinta">
             Sua assinatura foi encerrada e não há novas cobranças. O histórico
             abaixo continua disponível.
           </p>
         </div>
       )}
 
-      <h2 className="text-sm font-bold text-neutral-900 mb-3">
+      <h2 className="manchete mb-3 text-[1.6rem] text-forest-dark">
         Histórico de cobranças
       </h2>
 
       {assinatura.cobrancas.length === 0 ? (
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
-          <p className="text-sm text-neutral-500">
+        <div className={`${cartaoPainel} p-6`}>
+          <p className="text-[14px] text-loja-tinta-2">
             {emCortesia
               ? `Nenhuma cobrança ainda. A primeira vence em ${formatarData(assinatura.inicioCobranca)}.`
               : "Nenhuma cobrança emitida até agora."}
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-neutral-200 overflow-x-auto">
-          <table className="w-full text-sm min-w-[520px]">
+        <div className={`${cartaoPainel} overflow-x-auto`}>
+          <table className="w-full min-w-[560px] text-[14px]">
             <thead>
-              <tr className="border-b border-neutral-100 text-left">
-                <th className="px-5 py-3 text-xs text-neutral-400 font-medium uppercase tracking-wide">
-                  Competência
-                </th>
-                <th className="px-5 py-3 text-xs text-neutral-400 font-medium uppercase tracking-wide">
-                  Valor
-                </th>
-                <th className="px-5 py-3 text-xs text-neutral-400 font-medium uppercase tracking-wide">
-                  Vencimento
-                </th>
-                <th className="px-5 py-3 text-xs text-neutral-400 font-medium uppercase tracking-wide">
-                  Situação
-                </th>
-                <th className="px-5 py-3 text-xs text-neutral-400 font-medium uppercase tracking-wide">
-                  Pagamento
-                </th>
+              <tr className="text-left">
+                <th scope="col" className={`px-5 py-3.5 ${rotuloDeTabela}`}>Competência</th>
+                <th scope="col" className={`px-5 py-3.5 ${rotuloDeTabela}`}>Valor</th>
+                <th scope="col" className={`px-5 py-3.5 ${rotuloDeTabela}`}>Vencimento</th>
+                <th scope="col" className={`px-5 py-3.5 ${rotuloDeTabela}`}>Situação</th>
+                <th scope="col" className={`px-5 py-3.5 ${rotuloDeTabela}`}>Pagamento</th>
               </tr>
             </thead>
             <tbody>
               {assinatura.cobrancas.map((cobranca) => {
                 const rotulo = ROTULO_DA_SITUACAO[situacaoDaCobranca(cobranca, agora)];
                 return (
-                  <tr
-                    key={cobranca.id}
-                    className="border-b border-neutral-50 last:border-0"
-                  >
-                    <td className="px-5 py-3 text-neutral-900 font-medium">
+                  <tr key={cobranca.id} className={linhaDeTabela}>
+                    <td className="px-5 py-3.5 font-bold text-loja-tinta">
                       {formatarCompetencia(cobranca.competencia)}
                     </td>
-                    <td className="px-5 py-3 text-neutral-600">
+                    <td className="px-5 py-3.5 font-semibold text-loja-tinta">
                       {formatCurrency(Number(cobranca.valor))}
                     </td>
-                    <td className="px-5 py-3 text-neutral-600">
+                    <td className="px-5 py-3.5 text-loja-tinta-2">
                       {formatarData(cobranca.vencimento)}
                     </td>
-                    <td className={`px-5 py-3 font-medium ${rotulo.classe}`}>
-                      {rotulo.texto}
+                    <td className="px-5 py-3.5">
+                      <Selo tom={rotulo.tom}>{rotulo.texto}</Selo>
                     </td>
-                    <td className="px-5 py-3 text-neutral-600">
+                    <td className="px-5 py-3.5 text-loja-tinta-2">
                       {cobranca.pagoEm ? formatarInstante(cobranca.pagoEm) : "—"}
                     </td>
                   </tr>
