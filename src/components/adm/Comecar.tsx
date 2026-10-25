@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check } from "lucide-react";
 import { sugerirSlug } from "@/lib/inscricao/sugerir-slug";
+import { botaoBrasa, campo, cartaoPainel, kicker } from "@/components/painel/estilos";
+import { cn } from "@/lib/utils";
 
 /**
  * A tela que faltava entre "criou a senha" e "sabe usar o sistema".
@@ -129,123 +132,164 @@ export function Comecar({
     irParaOPainel();
   }
 
-  const campo =
-    "w-full rounded-xl border border-neutral-200 bg-white px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand";
-  const rotulo = "block text-sm font-medium text-neutral-700 mb-1.5";
+  const rotulo = "mb-1.5 block text-[13px] font-bold text-loja-tinta";
+  const etapas = [
+    { numero: 1, titulo: "Endereço e telefone", feita: passo === 2 },
+    { numero: 2, titulo: "Primeiro item do cardápio", feita: false },
+  ];
 
   return (
-    <div className="mx-auto w-full max-w-lg">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-forest/60">
-        Passo {passo} de 2
-      </p>
-      <h1 className="display mt-2 text-2xl leading-tight text-forest-dark">
-        {passo === 1
-          ? "Vamos deixar sua casa pronta."
-          : "Agora o primeiro item do cardápio."}
-      </h1>
-      <p className="mt-2 text-sm leading-relaxed text-neutral-600">
-        {passo === 1
-          ? "O endereço aparece para os seus clientes no cardápio. Leva um minuto."
-          : "Com um item cadastrado sua loja já vende. Depois você adiciona o resto no painel."}
-      </p>
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-5">
+      <header className="flex flex-col gap-1.5">
+        <span className={cn(kicker, "text-loja-preco")}>Passo {passo} de 2</span>
+        <h1 className="manchete text-[2.2rem] leading-[0.95] text-forest-dark sm:text-[2.6rem]">
+          {passo === 1
+            ? "Vamos deixar sua casa pronta."
+            : "Agora o primeiro item do cardápio."}
+        </h1>
+        <p className="mt-1 text-[14px] leading-relaxed text-loja-tinta-2">
+          {passo === 1
+            ? "O endereço aparece para os seus clientes no cardápio. Leva um minuto."
+            : "Com um item cadastrado sua loja já vende. Depois você adiciona o resto no painel."}
+        </p>
+      </header>
 
-      {passo === 1 ? (
-        <form onSubmit={salvarIdentidade} className="mt-7 space-y-4">
-          <div>
-            <label htmlFor="onb-endereco" className={rotulo}>
-              Endereço
-            </label>
-            <input
-              id="onb-endereco"
-              value={endereco}
-              onChange={(e) => setEndereco(e.target.value)}
-              required
-              placeholder="Rua, número, cidade"
-              className={campo}
-            />
-          </div>
-          <div>
-            <label htmlFor="onb-telefone" className={rotulo}>
-              Telefone
-            </label>
-            <input
-              id="onb-telefone"
-              value={telefone}
-              onChange={(e) => setTelefone(e.target.value)}
-              placeholder="(XX) 99999-0000"
-              className={campo}
-            />
-          </div>
+      <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {etapas.map((etapa) => {
+          const atual = etapa.numero === passo;
+          return (
+            <li
+              key={etapa.numero}
+              aria-current={atual ? "step" : undefined}
+              className={cn(
+                "flex min-h-14 items-center gap-3 rounded-[18px] px-4 py-2.5",
+                atual ? "bg-loja-papel shadow-loja" : "bg-loja-papel/60"
+              )}
+            >
+              <span
+                className={cn(
+                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-extrabold",
+                  etapa.feita
+                    ? "bg-forest-dark text-white"
+                    : atual
+                      ? "bg-loja-brasa text-white"
+                      : "bg-[#EFE4D7] text-loja-tinta"
+                )}
+              >
+                {etapa.feita ? <Check size={15} strokeWidth={3} aria-hidden /> : etapa.numero}
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <span className={cn("text-[13.5px] font-bold", atual ? "text-loja-tinta" : "text-loja-tinta-2")}>
+                  {etapa.titulo}
+                </span>
+                {etapa.feita && <span className="text-[12px] text-forest">Concluído</span>}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
 
-          {erro && <p className="text-sm text-red-600">{erro}</p>}
+      <div className={cn(cartaoPainel, "p-5 sm:p-6")}>
+        {passo === 1 ? (
+          <form onSubmit={salvarIdentidade} className="flex flex-col gap-4">
+            <div>
+              <label htmlFor="onb-endereco" className={rotulo}>
+                Endereço
+              </label>
+              <input
+                id="onb-endereco"
+                value={endereco}
+                onChange={(e) => setEndereco(e.target.value)}
+                required
+                placeholder="Rua, número, cidade"
+                className={campo}
+              />
+            </div>
+            <div>
+              <label htmlFor="onb-telefone" className={rotulo}>
+                Telefone
+              </label>
+              <input
+                id="onb-telefone"
+                value={telefone}
+                onChange={(e) => setTelefone(e.target.value)}
+                placeholder="(XX) 99999-0000"
+                className={campo}
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={salvando}
-            className="w-full rounded-xl bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60"
-          >
-            {salvando ? "Salvando..." : "Salvar e continuar"}
-          </button>
-        </form>
-      ) : (
-        <form onSubmit={salvarItem} className="mt-7 space-y-4">
-          <div>
-            <label htmlFor="onb-categoria" className={rotulo}>
-              Categoria
-            </label>
-            <input
-              id="onb-categoria"
-              value={categoria}
-              onChange={(e) => setCategoria(e.target.value)}
-              required
-              placeholder="Lanches, Pizzas, Bebidas"
-              className={campo}
-            />
-          </div>
-          <div>
-            <label htmlFor="onb-item" className={rotulo}>
-              Nome do item
-            </label>
-            <input
-              id="onb-item"
-              value={item}
-              onChange={(e) => setItem(e.target.value)}
-              required
-              placeholder="X-Salada"
-              className={campo}
-            />
-          </div>
-          <div>
-            <label htmlFor="onb-preco" className={rotulo}>
-              Preço
-            </label>
-            <input
-              id="onb-preco"
-              value={preco}
-              onChange={(e) => setPreco(e.target.value)}
-              required
-              inputMode="decimal"
-              placeholder="25,00"
-              className={campo}
-            />
-          </div>
+            {erro && <p role="alert" className="text-[13px] font-semibold text-[#A3271A]">{erro}</p>}
 
-          {erro && <p className="text-sm text-red-600">{erro}</p>}
+            <button
+              type="submit"
+              disabled={salvando}
+              className={cn(botaoBrasa, "h-12 w-full text-[14px]")}
+            >
+              {salvando ? "Salvando..." : "Salvar e continuar"}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={salvarItem} className="flex flex-col gap-4">
+            <div>
+              <label htmlFor="onb-categoria" className={rotulo}>
+                Categoria
+              </label>
+              <input
+                id="onb-categoria"
+                value={categoria}
+                onChange={(e) => setCategoria(e.target.value)}
+                required
+                placeholder="Lanches, Pizzas, Bebidas"
+                className={campo}
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_9rem]">
+              <div>
+                <label htmlFor="onb-item" className={rotulo}>
+                  Nome do item
+                </label>
+                <input
+                  id="onb-item"
+                  value={item}
+                  onChange={(e) => setItem(e.target.value)}
+                  required
+                  placeholder="X-Salada"
+                  className={campo}
+                />
+              </div>
+              <div>
+                <label htmlFor="onb-preco" className={rotulo}>
+                  Preço
+                </label>
+                <input
+                  id="onb-preco"
+                  value={preco}
+                  onChange={(e) => setPreco(e.target.value)}
+                  required
+                  inputMode="decimal"
+                  placeholder="25,00"
+                  className={campo}
+                />
+              </div>
+            </div>
 
-          <button
-            type="submit"
-            disabled={salvando}
-            className="w-full rounded-xl bg-brand py-3 text-sm font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60"
-          >
-            {salvando ? "Salvando..." : "Salvar item"}
-          </button>
-        </form>
-      )}
+            {erro && <p role="alert" className="text-[13px] font-semibold text-[#A3271A]">{erro}</p>}
+
+            <button
+              type="submit"
+              disabled={salvando}
+              className={cn(botaoBrasa, "h-12 w-full text-[14px]")}
+            >
+              {salvando ? "Salvando..." : "Salvar item"}
+            </button>
+          </form>
+        )}
+      </div>
 
       <button
         type="button"
         onClick={deixarParaDepois}
-        className="mt-6 w-full text-sm font-medium text-neutral-500 transition hover:text-neutral-700"
+        className="mx-auto h-11 rounded-full px-5 text-[14px] font-bold text-loja-tinta-2 transition hover:bg-loja-papel hover:text-loja-tinta"
       >
         Deixar para depois
       </button>
