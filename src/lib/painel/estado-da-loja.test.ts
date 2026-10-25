@@ -10,7 +10,7 @@ function as(isoBRT: string) {
 
 afterEach(() => vi.useRealTimers());
 
-const semana = (dia: Partial<WeekSchedule>): WeekSchedule => ({ ...DEFAULT_SCHEDULE, ...dia });
+const semana = (dia: WeekSchedule): WeekSchedule => ({ ...DEFAULT_SCHEDULE, ...dia });
 
 describe("estadoDaLoja", () => {
   it("aberto mostra a hora de fechar de hoje", () => {
