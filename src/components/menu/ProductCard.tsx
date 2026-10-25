@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { Plus } from "lucide-react";
 import { useRef, useState } from "react";
 import { useCart } from "@/hooks/useCart";
@@ -76,6 +77,7 @@ export function ProductCard({
           {item.imageUrl ? (
             <Image
               src={item.imageUrl}
+            unoptimized={!imagemOtimizavel(item.imageUrl)}
               alt=""
               fill
               // Celular: duas colunas na grade, ~130px na fileira.

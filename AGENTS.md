@@ -545,6 +545,27 @@ manchetes e Plus Jakarta Sans no resto. Os mockups aprovados estão em
   `/api/coupons` desmarcam os outros ao marcar um.
 * **O ícone da categoria sai do nome** (`iconeDaCategoria`). Não há campo de
   ícone; categoria que não casar com nada recebe o genérico.
+* **O banner é automático, e o dono só o empurra** (`src/lib/loja/banner.ts`,
+  tela "Banner do cardápio" em `/adm/restaurante`). Padrão: o mais vendido dos
+  30 dias, com "DIA · O MAIS PEDIDO", o nome e o preço. No modo "item" vai o
+  escolhido, com a chamada do dono; esgotado ou apagado, volta sozinho ao mais
+  vendido. O dia sai do fuso de Brasília: em UTC, quinta 22h já é sexta.
+* **A foto do banner é `MenuItem.imagemRecortadaUrl`, sem fundo.** Nasce de
+  dois jeitos: o `/api/upload` devolve `semFundo` quando a imagem tem pixels
+  transparentes de verdade (o WebP gerado mantém o alfa), e o painel usa a
+  mesma foto como recorte; ou o dono clica em "Remover fundo da foto", que
+  roda no navegador dele (`src/lib/loja/remover-fundo.ts`). Trocar a foto por
+  uma com fundo limpa o recorte da antiga.
+* **O recorte roda só no processador, com o ormbg (Apache-2.0).** O RMBG é de
+  uso não comercial e o ISNet é AGPL: nenhum dos dois serve a um SaaS. O
+  BiRefNet (MIT) estourou a memória do navegador, e a GPU (WebGPU) não
+  implementa uma operação do ormbg; a tentativa que falha ainda prende o
+  runtime e derruba a volta para o processador. A biblioteca vem da CDN por
+  import com `webpackIgnore`, versão fixada, e nunca entra no bundle da loja.
+* **Toda `<Image>` com foto de item passa `unoptimized={!imagemOtimizavel(src)}`.**
+  O dono pode colar URL de qualquer site no campo da foto, e um host fora do
+  `remotePatterns` não some só da imagem: derruba a página inteira no erro do
+  `next/image`.
 * **Foto de restaurante sem `mix-blend-multiply`.** O efeito dos mockups só
   funciona com fundo branco, e foto com fundo de cor escureceria.
 

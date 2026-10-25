@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { X, Plus, Minus } from "lucide-react";
 import { useState, useEffect, useRef, useId } from "react";
 import { formatCurrency } from "@/lib/utils";
@@ -112,7 +113,8 @@ export function AddToCartModal({ item, onConfirm, onClose, combinaCom, onAdicion
             <Raminho className="absolute -left-8 top-10 h-40 w-40 text-[#C9A685] opacity-90" />
             <div className="absolute left-1/2 top-5 h-[11.5rem] w-[11.5rem] -translate-x-1/2 overflow-hidden rounded-[28px] bg-loja-pessego-claro shadow-loja-alta">
               {item.imageUrl ? (
-                <Image src={item.imageUrl} alt={item.name} fill sizes="184px" className="object-cover" />
+                <Image src={item.imageUrl}
+            unoptimized={!imagemOtimizavel(item.imageUrl)} alt={item.name} fill sizes="184px" className="object-cover" />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-loja-tinta-2/50">
                   <SemFoto className="h-12 w-12" />
@@ -179,7 +181,8 @@ export function AddToCartModal({ item, onConfirm, onClose, combinaCom, onAdicion
                     >
                       <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-loja-pessego-claro">
                         {c.imageUrl ? (
-                          <Image src={c.imageUrl} alt="" fill sizes="48px" className="object-cover" />
+                          <Image src={c.imageUrl}
+            unoptimized={!imagemOtimizavel(c.imageUrl)} alt="" fill sizes="48px" className="object-cover" />
                         ) : (
                           <SemFoto className="m-3 h-6 w-6 text-loja-tinta-2/50" />
                         )}

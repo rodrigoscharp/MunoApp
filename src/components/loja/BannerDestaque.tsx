@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { ArrowRight } from "lucide-react";
 import { Raminho } from "@/components/loja/Raminho";
 import { botaoBrasa, kicker } from "@/components/loja/estilos";
@@ -42,6 +43,7 @@ export function BannerDestaque({
         <div className="pointer-events-none absolute -right-8 top-1/2 h-[210px] w-[210px] -translate-y-1/2 sm:right-0 sm:h-[250px] sm:w-[250px]">
           <Image
             src={recorte}
+            unoptimized={!imagemOtimizavel(recorte)}
             alt={item.name}
             fill
             sizes="250px"
@@ -56,6 +58,7 @@ export function BannerDestaque({
         <div className="absolute -right-3 top-1/2 h-[150px] w-[150px] -translate-y-1/2 rotate-[4deg] overflow-hidden rounded-[26px] bg-loja-pessego-claro shadow-loja-alta sm:right-6 sm:h-[176px] sm:w-[176px]">
           <Image
             src={item.imageUrl}
+            unoptimized={!imagemOtimizavel(item.imageUrl)}
             alt={item.name}
             fill
             sizes="176px"

@@ -2,84 +2,96 @@
  * Remove o fundo de uma foto de produto, no navegador do dono.
  *
  * Roda só no painel, só quando o dono clica em "Remover fundo". Nada daqui
- * entra no código da loja: a biblioteca vem da CDN por import dinâmico, com a
- * versão fixada, e o webpack não a empacota (`webpackIgnore`). O modelo
- * (BiRefNet lite, licença MIT, ~115 MB em fp16) baixa na primeira vez e fica
- * no cache do navegador.
+ * entra no código da loja: a biblioteca (transformers.js, Apache-2.0) vem da
+ * CDN por import dinâmico, com a versão fixada, e o webpack não a empacota
+ * (`webpackIgnore`). É o build empacotado (`transformers.min.js`): o `.web`
+ * importa o onnxruntime pelo nome do pacote, e a CDN não resolve.
  *
- * Licença foi o critério da escolha: o modelo mais usado para isso (RMBG) é
- * de uso não comercial, e a biblioteca pronta mais conhecida é AGPL. Os dois
- * seriam problema para a Muno, que é SaaS.
+ * O modelo é o ormbg (Apache-2.0), na versão uint8 de ~44 MB, que baixa na
+ * primeira vez e fica no cache do navegador. Licença foi o critério: o RMBG é
+ * de uso não comercial, e o ISNet e a biblioteca pronta mais conhecida são
+ * AGPL, problema para a Muno, que é SaaS. O BiRefNet (MIT) foi testado e
+ * estourou a memória do navegador na execução, na GPU e no processador.
+ *
+ * Roda no processador (wasm), perto de 30 s por foto numa máquina comum. A GPU
+ * ficou de fora de propósito: o ONNX Runtime para WebGPU não implementa uma
+ * operação do modelo ("using ceil() in shape computation is not yet supported
+ * for MaxPool"), e a tentativa que falha deixa o runtime preso a ela, a ponto
+ * de a volta para o processador também falhar na mesma página.
  *
  * Devolve um PNG com o fundo transparente, já cortado em volta do produto
  * (com folga), para o lanche ocupar o banner em vez de nadar num quadro vazio.
  */
 
 const BIBLIOTECA =
-  "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.web.min.js";
-const MODELO = "onnx-community/BiRefNet_lite-ONNX";
+  "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js";
+const MODELO = "onnx-community/ormbg-ONNX";
 
 export type EtapaDoRecorte = "baixando-modelo" | "recortando";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-let carregado: Promise<{ model: any; processor: any; RawImage: any }> | null = null;
+type Recortador = (imagem: string) => Promise<any[]>;
+const recortadores = new Map<string, Promise<Recortador>>();
 
-function carregar(aoBaixar?: (porcento: number) => void) {
-  if (!carregado) {
-    carregado = (async () => {
+function recortador(device: "wasm", aoBaixar?: (porcento: number) => void): Promise<Recortador> {
+  let pronto = recortadores.get(device);
+  if (!pronto) {
+    pronto = (async () => {
       const tf: any = await import(/* webpackIgnore: true */ BIBLIOTECA);
-      const temWebGpu = typeof navigator !== "undefined" && "gpu" in navigator;
-      const model = await tf.AutoModel.from_pretrained(MODELO, {
-        // fp16 na GPU; no processador, fp32, porque o wasm não roda todas as
-        // operações do modelo em meia precisão.
-        dtype: temWebGpu ? "fp16" : "fp32",
-        device: temWebGpu ? "webgpu" : "wasm",
+      return tf.pipeline("background-removal", MODELO, {
+        device,
+        dtype: "uint8",
         progress_callback: (p: { status?: string; progress?: number }) => {
           if (p.status === "progress" && typeof p.progress === "number") aoBaixar?.(p.progress);
         },
       });
-      const processor = await tf.AutoProcessor.from_pretrained(MODELO);
-      return { model, processor, RawImage: tf.RawImage };
-    })().catch((erro) => {
-      // Falhou (rede, navegador sem suporte): a próxima tentativa recomeça.
-      carregado = null;
-      throw erro;
-    });
+    })();
+    // Falhou (rede, navegador sem suporte): a próxima tentativa recomeça.
+    pronto.catch(() => recortadores.delete(device));
+    recortadores.set(device, pronto);
   }
-  return carregado;
+  return pronto;
+}
+
+async function recortarCom(
+  device: "wasm",
+  url: string,
+  aoMudar?: (etapa: EtapaDoRecorte, porcento?: number) => void
+) {
+  aoMudar?.("baixando-modelo");
+  const rodar = await recortador(device, (p) => aoMudar?.("baixando-modelo", p));
+  aoMudar?.("recortando");
+  const [saida] = await rodar(url);
+  return saida;
 }
 
 export async function removerFundo(
   origem: Blob | string,
   aoMudar?: (etapa: EtapaDoRecorte, porcento?: number) => void
 ): Promise<Blob> {
-  aoMudar?.("baixando-modelo");
-  const { model, processor, RawImage } = await carregar((p) => aoMudar?.("baixando-modelo", p));
-  aoMudar?.("recortando");
+  const url = typeof origem === "string" ? origem : URL.createObjectURL(origem);
+  try {
+    const saida = await recortarCom("wasm", url, aoMudar);
 
-  const imagem = typeof origem === "string" ? await RawImage.fromURL(origem) : await RawImage.fromBlob(origem);
-  const { pixel_values } = await processor(imagem);
-  const { output_image } = await model({ input_image: pixel_values });
-  const mascara = await RawImage.fromTensor(output_image[0].sigmoid().mul(255).to("uint8")).resize(
-    imagem.width,
-    imagem.height
-  );
+    // A saída é RGBA: o canal alfa é a máscara do produto.
+    const recortada = saida.toCanvas() as HTMLCanvasElement | OffscreenCanvas;
+    const alfa = new Uint8Array(saida.width * saida.height);
+    for (let i = 0; i < alfa.length; i++) alfa[i] = saida.data[4 * i + 3];
+    const caixa = caixaDoProduto(alfa, saida.width, saida.height);
 
-  const canvas = imagem.toCanvas() as HTMLCanvasElement | OffscreenCanvas;
-  const ctx = canvas.getContext("2d") as CanvasRenderingContext2D;
-  const pixels = ctx.getImageData(0, 0, imagem.width, imagem.height);
-  for (let i = 0; i < mascara.data.length; i++) pixels.data[4 * i + 3] = mascara.data[i];
-  ctx.putImageData(pixels, 0, 0);
+    const final = document.createElement("canvas");
+    final.width = caixa.largura;
+    final.height = caixa.altura;
+    final
+      .getContext("2d")!
+      .drawImage(recortada as CanvasImageSource, caixa.x, caixa.y, caixa.largura, caixa.altura, 0, 0, caixa.largura, caixa.altura);
 
-  const caixa = caixaDoProduto(mascara.data, imagem.width, imagem.height);
-  const saida = document.createElement("canvas");
-  saida.width = caixa.largura;
-  saida.height = caixa.altura;
-  saida.getContext("2d")!.drawImage(canvas as CanvasImageSource, caixa.x, caixa.y, caixa.largura, caixa.altura, 0, 0, caixa.largura, caixa.altura);
-
-  return new Promise((resolve, reject) =>
-    saida.toBlob((b) => (b ? resolve(b) : reject(new Error("Não foi possível gerar o recorte"))), "image/png")
-  );
+    return await new Promise<Blob>((resolve, reject) =>
+      final.toBlob((b) => (b ? resolve(b) : reject(new Error("Não foi possível gerar o recorte"))), "image/png")
+    );
+  } finally {
+    if (typeof origem !== "string") URL.revokeObjectURL(url);
+  }
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 

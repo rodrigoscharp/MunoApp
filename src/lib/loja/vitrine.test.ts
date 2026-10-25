@@ -60,9 +60,15 @@ describe("mais pedidos", () => {
     expect(escolherMaisPedidos(menu, ["c", "b", "x", "a"]).map((i) => i.id)).toEqual(["b", "a"]);
   });
 
-  it("sem histórico, os primeiros itens com foto; sem foto, os primeiros", () => {
+  it("poucos vendidos: completa a fileira com os outros, com foto primeiro", () => {
+    const menu = cardapio([item("a"), item("b", "/b.jpg"), item("c"), item("d", "/d.jpg")]);
+    expect(escolherMaisPedidos(menu, ["c"]).map((i) => i.id)).toEqual(["c", "b", "d", "a"]);
+    expect(escolherMaisPedidos(menu, ["c"], 2).map((i) => i.id)).toEqual(["c", "b"]);
+  });
+
+  it("sem histórico, os itens com foto na frente e os sem foto no fim", () => {
     const comFoto = cardapio([item("a"), item("b", "/b.jpg"), item("c", "/c.jpg")]);
-    expect(escolherMaisPedidos(comFoto, []).map((i) => i.id)).toEqual(["b", "c"]);
+    expect(escolherMaisPedidos(comFoto, []).map((i) => i.id)).toEqual(["b", "c", "a"]);
     const semFoto = cardapio([item("a"), item("b")]);
     expect(escolherMaisPedidos(semFoto, []).map((i) => i.id)).toEqual(["a", "b"]);
   });

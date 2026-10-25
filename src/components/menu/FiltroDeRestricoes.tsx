@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ChevronDown, Leaf, Plus, X } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
@@ -84,7 +85,8 @@ function ItemCard({ item, restaurantOpen }: { item: ItemDoFiltro; restaurantOpen
     <li className="flex items-center gap-2.5 rounded-2xl bg-loja-papel p-2 shadow-loja">
       <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-loja-pessego-claro">
         {item.imageUrl ? (
-          <Image src={item.imageUrl} alt="" fill sizes="48px" className="object-cover" />
+          <Image src={item.imageUrl}
+            unoptimized={!imagemOtimizavel(item.imageUrl)} alt="" fill sizes="48px" className="object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-loja-tinta-2/40">
             <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

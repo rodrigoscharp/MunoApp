@@ -54,9 +54,10 @@ export function getMaisPedidos(tenantId: string): Promise<string[]> {
 
 /**
  * Os itens da fileira, já cruzados com o cardápio: só o que está disponível
- * agora e na ordem de venda. Restaurante novo, sem pedido nenhum, recebe os
- * primeiros itens com foto, para a vitrine nunca nascer vazia; sem foto
- * nenhuma, os primeiros itens.
+ * agora, os vendidos primeiro e na ordem de venda. Quando os vendidos não
+ * enchem a fileira (restaurante novo, ou com poucos pedidos no mês), ela
+ * completa com os outros itens com foto, e depois sem foto: uma fileira de um
+ * item só parecia cardápio quebrado.
  */
 export function escolherMaisPedidos(
   categorias: CategoriaDoCardapio[],
@@ -68,10 +69,11 @@ export function escolherMaisPedidos(
   const vendidos = idsMaisPedidos
     .map((id) => porId.get(id))
     .filter((i): i is ItemDoCardapio => !!i);
-  if (vendidos.length > 0) return vendidos.slice(0, quantos);
-
-  const comFoto = todos.filter((i) => i.imageUrl);
-  return (comFoto.length > 0 ? comFoto : todos).slice(0, quantos);
+  const escolhidos = new Set(vendidos.map((i) => i.id));
+  const resto = todos.filter((i) => !escolhidos.has(i.id));
+  const comFoto = resto.filter((i) => i.imageUrl);
+  const semFoto = resto.filter((i) => !i.imageUrl);
+  return [...vendidos, ...comFoto, ...semFoto].slice(0, quantos);
 }
 
 export async function getMaisPedidosOuVazio(tenantId: string): Promise<string[]> {

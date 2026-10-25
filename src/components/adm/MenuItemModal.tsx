@@ -154,7 +154,8 @@ export function MenuItemModal({ open, onClose, item, categories, onSaved }: Prop
       if (!enviado) return toast.error("Recorte pronto, mas não deu para enviar. Tente de novo.");
       setValue("imagemRecortadaUrl", enviado.url);
       toast.success("Fundo removido. Confira o resultado antes de salvar.");
-    } catch {
+    } catch (erro) {
+      console.error("[remover-fundo]", erro);
       setRecortando(null);
       setUploading(false);
       toast.error("Não deu para remover o fundo neste navegador. Tente no Chrome atualizado ou envie a foto já sem fundo.");
@@ -377,7 +378,7 @@ export function MenuItemModal({ open, onClose, item, categories, onSaved }: Prop
                   {recortando
                     ? recortando.etapa === "baixando-modelo"
                       ? `Preparando (primeira vez)${recortando.porcento ? ` ${Math.round(recortando.porcento)}%` : "…"}`
-                      : "Removendo o fundo…"
+                      : "Removendo o fundo… (até 1 min)"
                     : "Remover fundo da foto"}
                 </button>
                 <div className="flex gap-2">
