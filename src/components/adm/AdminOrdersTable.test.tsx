@@ -475,3 +475,14 @@ describe("as ações do detalhe", () => {
     expect(within(modal).getByText(/7 pedidos/)).toBeDefined();
   });
 });
+
+describe("haQuanto", () => {
+  it("minutos, horas e, acima de um dia, dias", async () => {
+    const { haQuanto } = await import("./AdminOrdersTable");
+    expect(haQuanto(0)).toBe("agora");
+    expect(haQuanto(42)).toBe("42 min");
+    expect(haQuanto(95)).toBe("1h 35min");
+    expect(haQuanto(24 * 60 + 5)).toBe("1 dia");
+    expect(haQuanto(2042 * 60 + 35)).toBe("85 dias");
+  });
+});

@@ -162,10 +162,15 @@ const HORA = new Intl.DateTimeFormat("pt-BR", {
 });
 const hora = (iso: string) => HORA.format(new Date(iso));
 
-function haQuanto(minutos: number) {
+export function haQuanto(minutos: number) {
   if (minutos < 1) return "agora";
   if (minutos < 60) return `${minutos} min`;
   const h = Math.floor(minutos / 60);
+  // Pedido esquecido aberto há semanas aparecia como "2042h 35min".
+  if (h >= 24) {
+    const dias = Math.floor(h / 24);
+    return dias === 1 ? "1 dia" : `${dias} dias`;
+  }
   return `${h}h${minutos % 60 ? ` ${minutos % 60}min` : ""}`;
 }
 

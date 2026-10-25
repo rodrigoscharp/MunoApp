@@ -230,4 +230,18 @@ describe("ao vivo", () => {
     expect(v.maisAntigo).toEqual({ id: "p1", criadoEm: "2026-10-25T00:06:00.000Z" });
     expect(orderFindFirst.mock.calls[0][0].where.status.in).toEqual(["PENDING", "CONFIRMED", "IN_PREPARATION"]);
   });
+
+  it("só olha as últimas 24 horas, como o quadro da cozinha", async () => {
+    // Pedido PENDING esquecido há meses não é "na casa": aparecia como
+    // "esperando há 116 dias" no ao vivo.
+    orderGroupBy.mockResolvedValue([]);
+    orderFindFirst.mockResolvedValue(null);
+    const antes = Date.now();
+    await lerAoVivo(TENANT);
+    for (const chamada of [orderGroupBy.mock.calls[0][0], orderFindFirst.mock.calls[0][0]]) {
+      const desde: Date = chamada.where.createdAt.gte;
+      expect(antes - desde.getTime()).toBeGreaterThanOrEqual(24 * 60 * 60 * 1000 - 5);
+      expect(antes - desde.getTime()).toBeLessThan(24 * 60 * 60 * 1000 + 5000);
+    }
+  });
 });

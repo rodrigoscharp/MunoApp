@@ -546,6 +546,19 @@ export const EM_ANDAMENTO = [
   "OUT_FOR_DELIVERY",
 ] as const satisfies readonly OrderStatus[];
 
+/**
+ * A mesma janela do quadro da cozinha (KITCHEN_WINDOW_MS em /api/orders): só
+ * conta como "na casa" o pedido das últimas 24 horas. Sem ela, um pedido que
+ * ficou PENDING para sempre (cliente que sumiu, teste esquecido) aparecia no
+ * "ao vivo" e no número do menu como "esperando há 116 dias", e a cozinha
+ * nem o mostrava.
+ */
+export const JANELA_AO_VIVO_MS = 24 * 60 * 60 * 1000;
+
+function desdeAJanela(): Date {
+  return new Date(Date.now() - JANELA_AO_VIVO_MS);
+}
+
 /** Os que ainda dependem da cozinha: é a espera destes que o dono vigia. */
 const ESPERANDO_A_COZINHA: OrderStatus[] = ["PENDING", "CONFIRMED", "IN_PREPARATION"];
 
@@ -559,11 +572,11 @@ export async function lerAoVivo(tenantId: string): Promise<AoVivo> {
   const [grupos, maisAntigo] = await Promise.all([
     prismaUnscoped.order.groupBy({
       by: ["status"],
-      where: { tenantId, status: { in: [...EM_ANDAMENTO] } },
+      where: { tenantId, status: { in: [...EM_ANDAMENTO] }, createdAt: { gte: desdeAJanela() } },
       _count: { _all: true },
     }),
     prismaUnscoped.order.findFirst({
-      where: { tenantId, status: { in: ESPERANDO_A_COZINHA } },
+      where: { tenantId, status: { in: ESPERANDO_A_COZINHA }, createdAt: { gte: desdeAJanela() } },
       orderBy: { createdAt: "asc" },
       select: { id: true, createdAt: true },
     }),
@@ -634,7 +647,9 @@ export async function ultimosPedidos(tenantId: string, quantos = 6): Promise<Ped
  */
 export const pedidosEmAndamentoEmCache = unstable_cache(
   async (tenantId: string) =>
-    prismaUnscoped.order.count({ where: { tenantId, status: { in: [...EM_ANDAMENTO] } } }),
+    prismaUnscoped.order.count({
+      where: { tenantId, status: { in: [...EM_ANDAMENTO] }, createdAt: { gte: desdeAJanela() } },
+    }),
   ["adm-pedidos-em-andamento"],
   { revalidate: 30 }
 );
