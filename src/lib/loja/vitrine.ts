@@ -153,7 +153,7 @@ async function lerCupomEmDestaque(tenantId: string): Promise<CupomDaVitrine | nu
  * O cupom em destaque, se houver um ativo e dentro da validade. Cinco minutos
  * de cache: é o prazo máximo em que um cupom que acabou de vencer ainda
  * aparece no card. O checkout valida de novo no servidor, então o pior caso é
- * o card anunciar um cupom que a sacola recusa com a mensagem de vencido.
+ * o card anunciar um cupom que o checkout recusa com a mensagem de vencido.
  */
 export function getCupomEmDestaque(tenantId: string): Promise<CupomDaVitrine | null> {
   const emCache = unstable_cache(
