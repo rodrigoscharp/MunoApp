@@ -5,13 +5,20 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
-import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mail, Lock, User, AlertCircle } from "lucide-react";
+import { Mail, Lock, User } from "lucide-react";
 import { AuthBrandPanel } from "@/components/auth/AuthBrandPanel";
+import {
+  AvisoDeErro,
+  ErroDoCampo,
+  Rotulo,
+  TituloDaTela,
+  campoComIcone,
+  iconeDoCampo,
+} from "@/components/auth/pecas";
+import { botaoBrasa, cartao } from "@/components/loja/estilos";
 import { destinoSeguro } from "@/lib/redirect-seguro";
 import type { RestaurantInfo } from "@/lib/restaurant";
 
@@ -92,132 +99,111 @@ export function RegisterForm({ restaurantInfo }: { restaurantInfo: RestaurantInf
   }
 
   return (
-    <div className="min-h-screen flex">
+    <div className="flex min-h-screen flex-col lg:flex-row">
       <AuthBrandPanel
         restaurantInfo={restaurantInfo}
         descricao="Crie sua conta e aproveite a comodidade de pedir online a qualquer hora."
       />
 
-      {/* Right panel */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 bg-neutral-50">
-        <div className="w-full max-w-sm">
-
-          {/* Mobile logo */}
-          <div className="flex justify-center mb-8 lg:hidden">
-            <Image
-              src={restaurantInfo.logoUrl}
-              alt={restaurantInfo.name}
-              width={160}
-              height={60}
-              className="h-16 w-auto object-contain"
-              unoptimized={!imagemOtimizavel(restaurantInfo.logoUrl)}
-            />
-          </div>
-
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-neutral-900">Criar conta</h2>
-            <p className="text-neutral-500 text-sm mt-1">Preencha os dados abaixo para se cadastrar</p>
-          </div>
+      <div className="flex flex-1 items-start justify-center px-4 pb-12 pt-6 sm:px-6 lg:items-center lg:py-12">
+        <div className={`${cartao} w-full max-w-sm p-6 sm:p-8`}>
+          <TituloDaTela
+            rotulo="Sua conta"
+            titulo="Criar conta"
+            subtitulo="Preencha os dados abaixo para se cadastrar"
+          />
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1.5">Nome</label>
+              <Rotulo htmlFor="cadastro-nome">Nome</Rotulo>
               <div className="relative">
-                <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <User size={18} aria-hidden="true" className={iconeDoCampo} />
                 <input
                   {...register("name")}
+                  id="cadastro-nome"
                   type="text"
+                  autoComplete="name"
                   placeholder="Seu nome completo"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition placeholder:text-neutral-400"
+                  className={campoComIcone}
                 />
               </div>
-              {errors.name && (
-                <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1">
-                  <AlertCircle size={12} /> {errors.name.message}
-                </p>
-              )}
+              <ErroDoCampo>{errors.name?.message}</ErroDoCampo>
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1.5">Email</label>
+              <Rotulo htmlFor="cadastro-email">Email</Rotulo>
               <div className="relative">
-                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <Mail size={18} aria-hidden="true" className={iconeDoCampo} />
                 <input
                   {...register("email")}
+                  id="cadastro-email"
                   type="email"
+                  autoComplete="email"
                   placeholder="seu@email.com"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition placeholder:text-neutral-400"
+                  className={campoComIcone}
                 />
               </div>
-              {errors.email && (
-                <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1">
-                  <AlertCircle size={12} /> {errors.email.message}
-                </p>
-              )}
+              <ErroDoCampo>{errors.email?.message}</ErroDoCampo>
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1.5">Senha</label>
+              <Rotulo htmlFor="cadastro-senha">Senha</Rotulo>
               <div className="relative">
-                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <Lock size={18} aria-hidden="true" className={iconeDoCampo} />
                 <input
                   {...register("password")}
+                  id="cadastro-senha"
                   type="password"
+                  autoComplete="new-password"
                   placeholder={`Mínimo ${SENHA_MINIMA} caracteres`}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition placeholder:text-neutral-400"
+                  className={campoComIcone}
                 />
               </div>
-              {errors.password && (
-                <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1">
-                  <AlertCircle size={12} /> {errors.password.message}
-                </p>
-              )}
+              <ErroDoCampo>{errors.password?.message}</ErroDoCampo>
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1.5">Confirmar Senha</label>
+              <Rotulo htmlFor="cadastro-confirmar">Confirmar senha</Rotulo>
               <div className="relative">
-                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <Lock size={18} aria-hidden="true" className={iconeDoCampo} />
                 <input
                   {...register("confirmPassword")}
+                  id="cadastro-confirmar"
                   type="password"
+                  autoComplete="new-password"
                   placeholder="Repita a senha"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition placeholder:text-neutral-400"
+                  className={campoComIcone}
                 />
               </div>
-              {errors.confirmPassword && (
-                <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1">
-                  <AlertCircle size={12} /> {errors.confirmPassword.message}
-                </p>
-              )}
+              <ErroDoCampo>{errors.confirmPassword?.message}</ErroDoCampo>
             </div>
 
-            {error && (
-              <div className="flex items-center gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                <AlertCircle size={16} className="text-red-500 shrink-0" />
-                <p className="text-red-600 text-sm">{error}</p>
-              </div>
-            )}
+            <AvisoDeErro>{error}</AvisoDeErro>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-brand hover:bg-brand-dark disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition text-sm mt-2 shadow-sm"
+              className={`${botaoBrasa} mt-2 h-[52px] w-full text-[15px]`}
             >
               {loading ? "Criando conta..." : "Criar conta"}
             </button>
-            <p className="text-center text-xs text-neutral-400">
+            <p className="text-center text-xs leading-relaxed text-loja-tinta-2">
               Seus dados são usados para o seu pedido, conforme a{" "}
-              <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline">
+              <a
+                href="/privacidade"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-loja-preco underline"
+              >
                 Política de Privacidade
               </a>
               .
             </p>
           </form>
 
-          <p className="text-center text-sm text-neutral-500 mt-6">
+          <p className="mt-6 text-center text-sm text-loja-tinta-2">
             Já tem conta?{" "}
-            <Link href={loginHref} className="text-brand hover:text-brand-dark font-semibold">
+            <Link
+              href={loginHref}
+              className="inline-flex min-h-11 items-center font-bold text-loja-preco hover:text-forest-dark"
+            >
               Entrar
             </Link>
           </p>

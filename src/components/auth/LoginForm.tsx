@@ -4,13 +4,20 @@ import { useState } from "react";
 import { getSession, signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
-import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mail, Lock, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { AuthBrandPanel } from "@/components/auth/AuthBrandPanel";
+import {
+  AvisoDeErro,
+  ErroDoCampo,
+  Rotulo,
+  TituloDaTela,
+  campoComIcone,
+  iconeDoCampo,
+} from "@/components/auth/pecas";
+import { botaoBrasa, cartao } from "@/components/loja/estilos";
 import { pedirConviteAposLogin } from "@/components/pwa/convitePosLogin";
 import { destinoSeguro } from "@/lib/redirect-seguro";
 import type { RestaurantInfo } from "@/lib/restaurant";
@@ -99,108 +106,91 @@ export function LoginForm({ restaurantInfo }: { restaurantInfo: RestaurantInfo }
   }
 
   return (
-    <div className="min-h-screen flex">
+    <div className="flex min-h-screen flex-col lg:flex-row">
       <AuthBrandPanel
         restaurantInfo={restaurantInfo}
         descricao="Sabor e qualidade em cada prato. Faça seu pedido online com facilidade."
       />
 
-      {/* Right panel */}
-      <div className="flex-1 flex items-start lg:items-center justify-center px-6 pt-8 pb-12 lg:py-12 bg-neutral-50">
-        <div className="w-full max-w-sm">
-
-          {/* Mobile logo */}
-          <div className="flex justify-center mb-8 lg:hidden">
-            <Image
-              src={restaurantInfo.logoUrl}
-              alt={restaurantInfo.name}
-              width={160}
-              height={60}
-              className="h-16 w-auto object-contain"
-              unoptimized={!imagemOtimizavel(restaurantInfo.logoUrl)}
-            />
-          </div>
-
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-neutral-900">
-              {primeiroAcesso ? "Tudo pronto!" : "Bem-vindo de volta"}
-            </h2>
-            <p className="text-neutral-500 text-sm mt-1">
-              {primeiroAcesso
+      <div className="flex flex-1 items-start justify-center px-4 pb-12 pt-6 sm:px-6 lg:items-center lg:py-12">
+        <div className={`${cartao} w-full max-w-sm p-6 sm:p-8`}>
+          <TituloDaTela
+            rotulo="Sua conta"
+            titulo={primeiroAcesso ? "Tudo pronto!" : "Bem-vindo de volta"}
+            subtitulo={
+              primeiroAcesso
                 ? "Entre com seu e-mail e a senha que você acabou de criar."
-                : "Entre com suas credenciais para continuar"}
-            </p>
-          </div>
+                : "Entre com suas credenciais para continuar"
+            }
+          />
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1.5">Email</label>
+              <Rotulo htmlFor="login-email">Email</Rotulo>
               <div className="relative">
-                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <Mail size={18} aria-hidden="true" className={iconeDoCampo} />
                 <input
                   {...register("email")}
+                  id="login-email"
                   type="email"
+                  autoComplete="email"
                   placeholder="seu@email.com"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition placeholder:text-neutral-400"
+                  className={campoComIcone}
                 />
               </div>
-              {errors.email && (
-                <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1">
-                  <AlertCircle size={12} /> {errors.email.message}
-                </p>
-              )}
+              <ErroDoCampo>{errors.email?.message}</ErroDoCampo>
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-medium text-neutral-700">Senha</label>
-                <Link href="/esqueci-senha" className="text-xs text-brand hover:text-brand-dark font-medium transition">
+              <div className="flex items-center justify-between">
+                <Rotulo htmlFor="login-senha">Senha</Rotulo>
+                <Link
+                  href="/esqueci-senha"
+                  className="-mt-1.5 inline-flex min-h-11 items-center text-[13px] font-bold text-loja-preco transition hover:text-forest-dark"
+                >
                   Esqueci minha senha
                 </Link>
               </div>
               <div className="relative">
-                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <Lock size={18} aria-hidden="true" className={iconeDoCampo} />
                 <input
                   {...register("password")}
+                  id="login-senha"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-10 py-3 rounded-xl border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition placeholder:text-neutral-400"
+                  className={`${campoComIcone} pr-12`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition"
+                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                  className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-loja-tinta-2 transition hover:text-loja-tinta"
                   tabIndex={-1}
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-              {errors.password && (
-                <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1">
-                  <AlertCircle size={12} /> {errors.password.message}
-                </p>
-              )}
+              <ErroDoCampo>{errors.password?.message}</ErroDoCampo>
             </div>
 
-            {error && (
-              <div className="flex items-center gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                <AlertCircle size={16} className="text-red-500 shrink-0" />
-                <p className="text-red-600 text-sm">{error}</p>
-              </div>
-            )}
+            <AvisoDeErro>{error}</AvisoDeErro>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-brand hover:bg-brand-dark disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition text-sm mt-2 shadow-sm"
+              className={`${botaoBrasa} mt-2 h-[52px] w-full text-[15px]`}
             >
               {loading ? "Entrando..." : "Entrar"}
             </button>
           </form>
 
-          <p className="text-center text-sm text-neutral-500 mt-6">
+          <p className="mt-6 text-center text-sm text-loja-tinta-2">
             Não tem conta?{" "}
-            <Link href={registerHref} className="text-brand hover:text-brand-dark font-semibold">
+            <Link
+              href={registerHref}
+              className="inline-flex min-h-11 items-center font-bold text-loja-preco hover:text-forest-dark"
+            >
               Cadastre-se grátis
             </Link>
           </p>

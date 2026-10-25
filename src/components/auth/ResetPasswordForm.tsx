@@ -4,11 +4,19 @@ import { MENSAGEM_SENHA_MINIMA, SENHA_MINIMA } from "@/lib/senha";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Lock, AlertCircle, CheckCircle } from "lucide-react";
+import { Lock, CheckCircle } from "lucide-react";
+import {
+  AvisoDeErro,
+  ErroDoCampo,
+  Rotulo,
+  TituloDaTela,
+  campoComIcone,
+  iconeDoCampo,
+} from "@/components/auth/pecas";
+import { botaoBrasa } from "@/components/loja/estilos";
 
 const schema = z
   .object({
@@ -83,97 +91,88 @@ export function ResetPasswordForm({ nomeRestaurante }: { nomeRestaurante?: strin
 
   return (
     <div className="w-full">
-      {/* A largura vem da page. No primeiro acesso o logo do celular sai: o
-          card do letreiro logo acima já ancora a tela, e dois blocos de marca
-          empilhados empurram o formulário para baixo da dobra justamente em
-          quem abriu o e-mail no telefone. */}
-      {!primeiroAcesso && (
-        <div className="flex justify-center mb-8 lg:hidden">
-          <Image src="/munowbg.png" alt="MUNO" width={160} height={60} className="h-16 w-auto object-contain" />
-        </div>
-      )}
-
+      {/* A largura e o cartão vêm da page, assim como a marca: o painel do
+          restaurante na recuperação, o letreiro no primeiro acesso. */}
       {success ? (
-        <div className="text-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
-            <CheckCircle size={32} className="text-green-600" />
+        <div className="space-y-4 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-loja-folha">
+            <CheckCircle size={30} aria-hidden="true" className="text-forest-dark" />
           </div>
-          <h2 className="text-2xl font-bold text-neutral-900">{primeiroAcesso ? "Tudo pronto!" : "Senha redefinida!"}</h2>
-          <p className="text-neutral-500 text-sm">Redirecionando para o login...</p>
+          <h1 className="manchete text-[40px] text-forest-dark">
+            {primeiroAcesso ? "Tudo pronto!" : "Senha redefinida!"}
+          </h1>
+          <p className="text-sm text-loja-tinta-2">Redirecionando para o login...</p>
         </div>
       ) : (
         <>
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-neutral-900">
-              {primeiroAcesso
+          <TituloDaTela
+            rotulo={primeiroAcesso ? "Primeiro acesso" : "Recuperar acesso"}
+            titulo={
+              primeiroAcesso
                 ? nomeRestaurante
                   ? `Bem-vindo à Muno, ${nomeRestaurante}.`
                   : "Bem-vindo à Muno."
-                : "Nova senha"}
-            </h2>
-            <p className="text-neutral-500 text-sm mt-1">
-              {primeiroAcesso
+                : "Nova senha"
+            }
+            subtitulo={
+              primeiroAcesso
                 ? "Crie sua senha para entrar pela primeira vez. Depois dela, o painel do seu restaurante é todo seu."
-                : "Crie uma nova senha para sua conta."}
-            </p>
-          </div>
+                : "Crie uma nova senha para sua conta."
+            }
+          />
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1.5">{primeiroAcesso ? "Sua senha" : "Nova senha"}</label>
+              <Rotulo htmlFor="nova-senha">{primeiroAcesso ? "Sua senha" : "Nova senha"}</Rotulo>
               <div className="relative">
-                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <Lock size={18} aria-hidden="true" className={iconeDoCampo} />
                 <input
                   {...register("password")}
+                  id="nova-senha"
                   type="password"
+                  autoComplete="new-password"
                   placeholder={`Mínimo ${SENHA_MINIMA} caracteres`}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition placeholder:text-neutral-400"
+                  className={campoComIcone}
                 />
               </div>
-              {errors.password && (
-                <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1">
-                  <AlertCircle size={12} /> {errors.password.message}
-                </p>
-              )}
+              <ErroDoCampo>{errors.password?.message}</ErroDoCampo>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1.5">{primeiroAcesso ? "Confirmar senha" : "Confirmar nova senha"}</label>
+              <Rotulo htmlFor="confirmar-senha">
+                {primeiroAcesso ? "Confirmar senha" : "Confirmar nova senha"}
+              </Rotulo>
               <div className="relative">
-                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <Lock size={18} aria-hidden="true" className={iconeDoCampo} />
                 <input
                   {...register("confirmPassword")}
+                  id="confirmar-senha"
                   type="password"
+                  autoComplete="new-password"
                   placeholder="Repita a senha"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-neutral-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition placeholder:text-neutral-400"
+                  className={campoComIcone}
                 />
               </div>
-              {errors.confirmPassword && (
-                <p className="text-red-500 text-xs mt-1.5 flex items-center gap-1">
-                  <AlertCircle size={12} /> {errors.confirmPassword.message}
-                </p>
-              )}
+              <ErroDoCampo>{errors.confirmPassword?.message}</ErroDoCampo>
             </div>
 
-            {error && (
-              <div className="flex items-center gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                <AlertCircle size={16} className="text-red-500 shrink-0" />
-                <p className="text-red-600 text-sm">{error}</p>
-              </div>
-            )}
+            <AvisoDeErro>{error}</AvisoDeErro>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-brand hover:bg-brand-dark disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition text-sm shadow-sm"
+              className={`${botaoBrasa} h-[52px] w-full text-[15px]`}
             >
               {loading ? "Salvando..." : primeiroAcesso ? "Criar senha e entrar" : "Redefinir senha"}
             </button>
           </form>
 
           {!primeiroAcesso && (
-            <p className="text-center text-sm text-neutral-500 mt-6">
-              <Link href="/login" className="text-brand hover:text-brand-dark font-semibold">
+            <p className="mt-6 text-center text-sm">
+              <Link
+                href="/login"
+                className="inline-flex min-h-11 items-center font-bold text-loja-preco hover:text-forest-dark"
+              >
                 Voltar ao login
               </Link>
             </p>
