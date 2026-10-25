@@ -547,7 +547,10 @@ manchetes e Plus Jakarta Sans no resto. Os mockups aprovados estão em
   ícone; categoria que não casar com nada recebe o genérico.
 * **O banner é automático, e o dono só o empurra** (`src/lib/loja/banner.ts`,
   tela "Banner do cardápio" em `/adm/restaurante`). Padrão: o mais vendido dos
-  30 dias, com "DIA · O MAIS PEDIDO", o nome e o preço. No modo "item" vai o
+  30 dias, com "DIA · O MAIS PEDIDO", o nome e o preço. Sem venda no mês, um
+  item da casa com "DIA · DESTAQUE DA CASA": a fileira de "Mais pedidos" é
+  completada com itens que não venderam, e só os `vendidos` primeiros dela
+  podem ser anunciados como mais pedidos (banner e selo da folha). No modo "item" vai o
   escolhido, com a chamada do dono; esgotado ou apagado, volta sozinho ao mais
   vendido. O dia sai do fuso de Brasília: em UTC, quinta 22h já é sexta.
 * **A foto do banner é `MenuItem.imagemRecortadaUrl`, sem fundo.** Nasce de

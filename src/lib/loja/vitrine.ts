@@ -53,6 +53,17 @@ export function getMaisPedidos(tenantId: string): Promise<string[]> {
 }
 
 /**
+ * A fileira de "Mais pedidos": os itens e quantos dos primeiros saíram de
+ * verdade. `vendidos` separa o vendido do enchimento, e quem anuncia "o mais
+ * pedido" (o banner, o selo da folha) só pode ler os `vendidos` primeiros: o
+ * resto entrou para a fileira não ficar com um card só, não porque vendeu.
+ */
+export interface FileiraDeMaisPedidos {
+  itens: ItemDoCardapio[];
+  vendidos: number;
+}
+
+/**
  * Os itens da fileira, já cruzados com o cardápio: só o que está disponível
  * agora, os vendidos primeiro e na ordem de venda. Quando os vendidos não
  * enchem a fileira (restaurante novo, ou com poucos pedidos no mês), ela
@@ -63,7 +74,7 @@ export function escolherMaisPedidos(
   categorias: CategoriaDoCardapio[],
   idsMaisPedidos: string[],
   quantos = QUANTOS
-): ItemDoCardapio[] {
+): FileiraDeMaisPedidos {
   const todos = categorias.flatMap((c) => c.items).filter((i) => i.available);
   const porId = new Map(todos.map((i) => [i.id, i]));
   const vendidos = idsMaisPedidos
@@ -73,7 +84,10 @@ export function escolherMaisPedidos(
   const resto = todos.filter((i) => !escolhidos.has(i.id));
   const comFoto = resto.filter((i) => i.imageUrl);
   const semFoto = resto.filter((i) => !i.imageUrl);
-  return [...vendidos, ...comFoto, ...semFoto].slice(0, quantos);
+  return {
+    itens: [...vendidos, ...comFoto, ...semFoto].slice(0, quantos),
+    vendidos: Math.min(vendidos.length, quantos),
+  };
 }
 
 export async function getMaisPedidosOuVazio(tenantId: string): Promise<string[]> {

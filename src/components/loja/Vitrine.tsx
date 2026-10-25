@@ -37,11 +37,13 @@ export function Vitrine({
   /** O que entra entre o topo da vitrine e as seções (filtro, convite do app). */
   antesDasSecoes?: React.ReactNode;
 }) {
-  const vendidos = escolherMaisPedidos(categorias, idsMaisPedidos);
-  const maisPedidos = vendidos.map(itemParaCard);
+  const fileira = escolherMaisPedidos(categorias, idsMaisPedidos);
+  const maisPedidos = fileira.itens.map(itemParaCard);
   // O dia sai da hora desta requisição: a página é dinâmica (o tenant vem dos
   // headers), então o "SEXTA" do banner vira "SÁBADO" sozinho à meia-noite.
-  const doBanner = escolherItemDoBanner(banner, categorias, vendidos);
+  // Só o que vendeu de verdade concorre a "o mais pedido": o enchimento da
+  // fileira não.
+  const doBanner = escolherItemDoBanner(banner, categorias, fileira.itens.slice(0, fileira.vendidos));
   const chamada = doBanner ? chamadaDoBanner(banner, doBanner.modo, new Date()) : "";
   const todos = categorias.flatMap((c) => c.items.map(itemParaCard));
 
