@@ -158,6 +158,7 @@ describe("proxy: bloqueio da área de gestão", () => {
     "/adm/pagamentos",
     "/adm/mesas",
     "/adm/restaurante",
+    "/adm/banner-cupons",
     // O cadastro de motoboys é gestão e fica bloqueado. O app do entregador
     // (/motoboy/pedidos) não mora aqui e segue de pé — está na lista de
     // operação lá em cima.

@@ -550,7 +550,10 @@ manchetes e Plus Jakarta Sans no resto. Os mockups aprovados estão em
 * **O ícone da categoria sai do nome** (`iconeDaCategoria`). Não há campo de
   ícone; categoria que não casar com nada recebe o genérico.
 * **O banner é automático, e o dono só o empurra** (`src/lib/loja/banner.ts`,
-  tela "Banner do cardápio" em `/adm/restaurante`). Padrão: o mais vendido dos
+  tela "Banner e cupons" em `/adm/banner-cupons`). As regras puras (schema,
+  `escolherItemDoBanner`, `chamadaDoBanner`) moram em `banner-regras.ts`, que
+  não importa o Prisma: é dali que a prévia do painel, um componente cliente,
+  monta o mesmo texto da loja. `banner.ts` reexporta tudo. Padrão: o mais vendido dos
   30 dias, com "DIA · O MAIS PEDIDO", o nome e o preço. Sem venda no mês, um
   item da casa com "DIA · DESTAQUE DA CASA": a fileira de "Mais pedidos" é
   completada com itens que não venderam, e só os `vendidos` primeiros dela

@@ -7,6 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import type { Coupon } from "./CouponsControl";
+import { cn } from "@/lib/utils";
+import { botaoBrasa, botaoContorno, campo, kicker, rotulo } from "@/components/painel/estilos";
 
 const schema = z
   .object({
@@ -151,142 +153,177 @@ export function CouponModal({ open, onClose, coupon, onSaved }: Props) {
     onSaved(salvo);
   }
 
+  useEffect(() => {
+    if (!open) return;
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, [open, onClose]);
+
   if (!open) return null;
 
-  const campoClasse =
-    "w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition";
+  const erroDoCampo = "mt-1.5 text-[12.5px] font-semibold text-loja-preco";
+  const rotuloDoCampo = cn(rotulo, "mb-1.5 block text-[13px]");
+  const ajuda = "mt-1.5 text-[12px] text-loja-tinta-2";
+  const caixa = "flex min-h-11 cursor-pointer items-start gap-3 text-[14px] font-semibold text-loja-tinta";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-neutral-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
-          <h2 className="text-lg font-semibold">{coupon ? "Editar Cupom" : "Novo Cupom"}</h2>
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+      <div className="absolute inset-0 bg-forest-dark/40 backdrop-blur-[2px]" onClick={onClose} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="titulo-do-cupom"
+        className="relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[26px] bg-loja-creme shadow-loja-alta sm:max-w-md sm:rounded-[26px]"
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-loja-linha bg-loja-papel px-5 py-4">
+          <div className="flex flex-col gap-1">
+            <span className={`${kicker} text-loja-preco`}>Cupons</span>
+            <h2 id="titulo-do-cupom" className="manchete text-[1.9rem] text-forest-dark">
+              {coupon ? "Editar cupom" : "Novo cupom"}
+            </h2>
+          </div>
           <button
+            type="button"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-neutral-100 transition"
+            aria-label="Fechar"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-loja-tinta transition hover:bg-loja-creme"
           >
-            <X size={18} />
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
 
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        <form onSubmit={(handleSubmit as any)(onSubmit)} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">Código *</label>
-            <input
-              {...register("code")}
-              placeholder="PRIMEIRACOMPRA"
-              autoCapitalize="characters"
-              className={`${campoClasse} uppercase font-mono tracking-wide`}
-            />
-            <p className="text-xs text-neutral-400 mt-1">
-              É o que o cliente digita no checkout. Espaços e maiúsculas são ajustados sozinhos.
-            </p>
-            {errors.code && <p className="text-brand text-xs mt-1">{errors.code.message}</p>}
-          </div>
+        <form onSubmit={(handleSubmit as any)(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+            <section className="space-y-4 rounded-[22px] bg-loja-papel p-4 shadow-loja">
+              <div>
+                <label htmlFor="cupom-codigo" className={rotuloDoCampo}>
+                  Código *
+                </label>
+                <input
+                  id="cupom-codigo"
+                  {...register("code")}
+                  placeholder="PRIMEIRACOMPRA"
+                  autoCapitalize="characters"
+                  className={cn(campo, "font-mono uppercase tracking-wide")}
+                />
+                <p className={ajuda}>
+                  É o que o cliente digita no checkout. Espaços e maiúsculas são ajustados sozinhos.
+                </p>
+                {errors.code && <p className={erroDoCampo}>{errors.code.message}</p>}
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">Tipo *</label>
-            <select {...register("type")} className={campoClasse}>
-              {TIPOS.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </div>
+              <div>
+                <label htmlFor="cupom-tipo" className={rotuloDoCampo}>
+                  Tipo *
+                </label>
+                <select id="cupom-tipo" {...register("type")} className={cn(campo, "h-[50px] py-0")}>
+                  {TIPOS.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          {type !== "FREE_SHIPPING" && (
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                {type === "PERCENT" ? "Desconto (%) *" : "Desconto (R$) *"}
-              </label>
-              <input
-                {...register("value")}
-                type="number"
-                step={type === "PERCENT" ? "1" : "0.01"}
-                min="0"
-                placeholder={type === "PERCENT" ? "10" : "15,00"}
-                className={campoClasse}
-              />
-              {errors.value && <p className="text-brand text-xs mt-1">{errors.value.message}</p>}
-            </div>
-          )}
-
-          {type === "FREE_SHIPPING" && (
-            <p className="text-xs text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2">
-              Zera a taxa de entrega. Em pedidos de retirada o cupom é recusado, já que não há frete.
-            </p>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">
-              Pedido mínimo (R$)
-            </label>
-            <input
-              {...register("minOrder")}
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="0,00"
-              className={campoClasse}
-            />
-            <p className="text-xs text-neutral-400 mt-1">
-              Sobre o valor dos itens, sem contar a taxa de entrega. Deixe vazio para não exigir mínimo.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Válido de</label>
-              <input {...register("validFrom")} type="date" className={campoClasse} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Válido até</label>
-              <input {...register("validUntil")} type="date" className={campoClasse} />
-              {errors.validUntil && (
-                <p className="text-brand text-xs mt-1">{errors.validUntil.message}</p>
+              {type !== "FREE_SHIPPING" && (
+                <div>
+                  <label htmlFor="cupom-valor" className={rotuloDoCampo}>
+                    {type === "PERCENT" ? "Desconto (%) *" : "Desconto (R$) *"}
+                  </label>
+                  <input
+                    id="cupom-valor"
+                    {...register("value")}
+                    type="number"
+                    step={type === "PERCENT" ? "1" : "0.01"}
+                    min="0"
+                    inputMode="decimal"
+                    placeholder={type === "PERCENT" ? "10" : "15,00"}
+                    className={campo}
+                  />
+                  {errors.value && <p className={erroDoCampo}>{errors.value.message}</p>}
+                </div>
               )}
-            </div>
+
+              {type === "FREE_SHIPPING" && (
+                <p className="rounded-2xl bg-loja-folha px-3.5 py-3 text-[12.5px] font-semibold text-forest-dark">
+                  Zera a taxa de entrega. Em pedidos de retirada o cupom é recusado, já que não há frete.
+                </p>
+              )}
+
+              <div>
+                <label htmlFor="cupom-minimo" className={rotuloDoCampo}>
+                  Pedido mínimo (R$)
+                </label>
+                <input
+                  id="cupom-minimo"
+                  {...register("minOrder")}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  className={campo}
+                />
+                <p className={ajuda}>
+                  Sobre o valor dos itens, sem contar a taxa de entrega. Deixe vazio para não exigir mínimo.
+                </p>
+              </div>
+            </section>
+
+            <section className="space-y-4 rounded-[22px] bg-loja-papel p-4 shadow-loja">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="cupom-de" className={rotuloDoCampo}>
+                    Válido de
+                  </label>
+                  <input id="cupom-de" {...register("validFrom")} type="date" className={cn(campo, "px-3")} />
+                </div>
+                <div>
+                  <label htmlFor="cupom-ate" className={rotuloDoCampo}>
+                    Válido até
+                  </label>
+                  <input id="cupom-ate" {...register("validUntil")} type="date" className={cn(campo, "px-3")} />
+                  {errors.validUntil && <p className={erroDoCampo}>{errors.validUntil.message}</p>}
+                </div>
+              </div>
+
+              <label htmlFor="coupon-active" className={cn(caixa, "items-center")}>
+                <input {...register("active")} type="checkbox" id="coupon-active" className="h-5 w-5 shrink-0 accent-[#2B5240]" />
+                Cupom ativo
+              </label>
+
+              <label htmlFor="coupon-destaque" className={caixa}>
+                <input
+                  {...register("destaque")}
+                  type="checkbox"
+                  id="coupon-destaque"
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-[#2B5240]"
+                />
+                <span>
+                  Anunciar no cardápio
+                  <span className="mt-0.5 block text-[12.5px] font-normal text-loja-tinta-2">
+                    Aparece num card para todo cliente. Só um cupom por vez: marcar este tira o destaque do outro.
+                  </span>
+                </span>
+              </label>
+            </section>
+
+            {error && (
+              <div role="alert" className="rounded-2xl bg-loja-pessego-claro px-4 py-3">
+                <p className="text-[13.5px] font-semibold text-[#8A3A12]">{error}</p>
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-3">
-            <input {...register("active")} type="checkbox" id="coupon-active" className="w-4 h-4 accent-red-500" />
-            <label htmlFor="coupon-active" className="text-sm text-neutral-700">
-              Cupom ativo
-            </label>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <input {...register("destaque")} type="checkbox" id="coupon-destaque" className="mt-0.5 w-4 h-4 accent-red-500" />
-            <label htmlFor="coupon-destaque" className="text-sm text-neutral-700">
-              Anunciar no cardápio
-              <span className="block text-xs text-neutral-500">
-                Aparece num card para todo cliente. Só um cupom por vez: marcar este tira o destaque do outro.
-              </span>
-            </label>
-          </div>
-
-          {error && (
-            <div className="bg-brand-light border border-brand-muted rounded-lg px-4 py-2.5">
-              <p className="text-brand-dark text-sm">{error}</p>
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2.5 rounded-lg border border-neutral-200 text-sm text-neutral-700 hover:bg-neutral-50 transition"
-            >
+          <div className="flex gap-3 border-t border-loja-linha bg-loja-papel px-5 py-4">
+            <button type="button" onClick={onClose} className={cn(botaoContorno, "h-12 flex-1 px-4 text-[14px]")}>
               Cancelar
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 bg-brand hover:bg-brand-dark disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-lg transition"
-            >
+            <button type="submit" disabled={loading} className={cn(botaoBrasa, "h-12 flex-1 px-4 text-[14px] font-extrabold")}>
               {loading ? "Salvando..." : "Salvar"}
             </button>
           </div>

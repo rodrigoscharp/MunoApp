@@ -72,3 +72,58 @@ describe("BannerControl", () => {
     expect(enviado()).toMatchObject({ itemId: "a" });
   });
 });
+
+describe("prévia do banner", () => {
+  // Sexta, 22h em Brasília: já é sábado em UTC, e a prévia tem de dizer sexta.
+  const SEXTA_A_NOITE = "2026-10-24T01:00:00.000Z";
+  const previa = () => screen.getByRole("figure", { name: /prévia do banner/i });
+
+  it("no automático mostra o mais vendido, com o dia de Brasília", () => {
+    render(
+      <BannerControl
+        initial={{ modo: "mais-vendido", itemId: null, chamada: "" }}
+        itens={itens}
+        automatico={{ item: itens[1], modo: "mais-vendido" }}
+        agora={SEXTA_A_NOITE}
+      />
+    );
+    expect(previa().textContent).toContain("SEXTA · O MAIS PEDIDO");
+    expect(previa().textContent).toContain("X-Salada");
+    // O Intl separa "R$" do número com espaço não separável.
+    expect(previa().textContent).toMatch(/por R\$\s25(?!,)/);
+  });
+
+  it("sem venda no mês, não promete o mais pedido", () => {
+    render(
+      <BannerControl
+        initial={{ modo: "mais-vendido", itemId: null, chamada: "" }}
+        itens={itens}
+        automatico={{ item: itens[1], modo: "destaque" }}
+        agora={SEXTA_A_NOITE}
+      />
+    );
+    expect(previa().textContent).toContain("SEXTA · DESTAQUE DA CASA");
+  });
+
+  it("escolher um item troca a prévia e leva a chamada digitada", async () => {
+    render(
+      <BannerControl
+        initial={{ modo: "mais-vendido", itemId: null, chamada: "" }}
+        itens={itens}
+        automatico={{ item: itens[1], modo: "mais-vendido" }}
+        agora={SEXTA_A_NOITE}
+      />
+    );
+    await userEvent.click(screen.getByLabelText(/escolher um item/i));
+    await userEvent.selectOptions(screen.getByLabelText(/item do banner/i), "a");
+    await userEvent.type(screen.getByLabelText(/chamada/i), "Lançamento");
+
+    expect(previa().textContent).toContain("SEXTA · LANÇAMENTO");
+    expect(previa().textContent).toContain("X-Bacon");
+  });
+
+  it("sem item nenhum disponível, diz que o banner não aparece", () => {
+    render(<BannerControl initial={{ modo: "mais-vendido", itemId: null, chamada: "" }} itens={[]} />);
+    screen.getByText(/o banner só aparece quando houver um/i);
+  });
+});
