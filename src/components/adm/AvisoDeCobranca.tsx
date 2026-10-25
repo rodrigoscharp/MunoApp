@@ -11,18 +11,24 @@ interface Props {
   dias: number;
 }
 
-const ESTILO: Record<TomDoAviso, { caixa: string; icone: string }> = {
+// As três cores do sistema da loja, que diferem em claridade e não só em
+// matiz: pêssego claro para o lembrete, pêssego cheio para o firme e o marrom
+// fundo do selo de alerta para o bloqueio. Todo par texto/fundo passa de 4,5:1.
+const ESTILO: Record<TomDoAviso, { caixa: string; icone: string; link: string }> = {
   INFORMATIVO: {
-    caixa: "bg-amber-50 border-amber-200 text-amber-900",
-    icone: "text-amber-600",
+    caixa: "bg-loja-pessego-claro text-loja-tinta",
+    icone: "bg-loja-papel text-loja-preco",
+    link: "text-loja-preco",
   },
   FIRME: {
-    caixa: "bg-orange-50 border-orange-200 text-orange-900",
-    icone: "text-orange-600",
+    caixa: "bg-loja-pessego text-[#4A2412]",
+    icone: "bg-loja-papel text-loja-brasa",
+    link: "text-[#4A2412]",
   },
   BLOQUEIO: {
-    caixa: "bg-red-50 border-red-300 text-red-900",
-    icone: "text-red-600",
+    caixa: "bg-[#5A2A14] text-[#FBEADB]",
+    icone: "bg-[#7A3A1C] text-[#FDBA8C]",
+    link: "text-[#FDBA8C]",
   },
 };
 
@@ -50,13 +56,15 @@ export function AvisoDeCobranca({ tom, dias }: Props) {
   // aviso, com os números e o que fazer.
   if (pathname.startsWith("/adm/assinatura")) return null;
 
-  const { caixa, icone } = ESTILO[tom];
+  const { caixa, icone, link } = ESTILO[tom];
   const Icone = ICONE[tom];
 
   return (
-    <div className={`flex gap-3 border rounded-xl p-4 mb-6 ${caixa}`}>
-      <Icone size={18} className={`${icone} shrink-0 mt-0.5`} />
-      <div className="text-sm leading-relaxed">
+    <div role="status" className={`mb-6 flex gap-3.5 rounded-[20px] p-4 shadow-loja sm:p-5 ${caixa}`}>
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${icone}`}>
+        <Icone size={18} aria-hidden="true" />
+      </span>
+      <div className="text-[13.5px] leading-relaxed">
         {tom === "INFORMATIVO" && (
           <p>
             Sua mensalidade da Muno venceu <strong>{emAtraso(dias)}</strong>.
@@ -82,7 +90,7 @@ export function AvisoDeCobranca({ tom, dias }: Props) {
         )}
         <Link
           href="/adm/assinatura"
-          className="inline-block mt-2 font-semibold underline underline-offset-2"
+          className={`mt-1 inline-flex min-h-11 items-center font-extrabold underline underline-offset-4 ${link}`}
         >
           Ver assinatura
         </Link>
