@@ -555,8 +555,10 @@ manchetes e Plus Jakarta Sans no resto. Os mockups aprovados estão em
   escolhido, com a chamada do dono; esgotado ou apagado, volta sozinho ao mais
   vendido. O dia sai do fuso de Brasília: em UTC, quinta 22h já é sexta.
 * **A foto do banner é `MenuItem.imagemRecortadaUrl`, sem fundo.** Nasce de
-  dois jeitos: o `/api/upload` devolve `semFundo` quando a imagem tem pixels
-  transparentes de verdade (o WebP gerado mantém o alfa), e o painel usa a
+  dois jeitos: o `/api/upload` devolve `semFundo` quando a imagem tem fundo
+  transparente de verdade (`src/lib/fundo-transparente.ts`: 8% da imagem e 30%
+  da borda vazios, para cantos arredondados não contarem; o WebP gerado mantém
+  o alfa), e o painel usa a
   mesma foto como recorte; ou o dono clica em "Remover fundo da foto", que
   roda no navegador dele (`src/lib/loja/remover-fundo.ts`). Trocar a foto por
   uma com fundo limpa o recorte da antiga.

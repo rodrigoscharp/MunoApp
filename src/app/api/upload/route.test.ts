@@ -154,6 +154,32 @@ describe("POST /api/upload: o conteúdo é verificado e reprocessado", () => {
     expect((await (await POST(requisicao(arquivo("x.png", "image/png", opacoComAlfa)))).json()).semFundo).toBe(false);
   });
 
+  // Um pixel transparente bastava: logo de cantos arredondados virava "foto
+  // sem fundo" e ia para o banner como se fosse recorte.
+  it("foto de cantos arredondados não conta como sem fundo", async () => {
+    const arredondada = await sharp(
+      Buffer.from(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" rx="36" fill="#c83c1e"/></svg>`
+      )
+    )
+      .png()
+      .toBuffer();
+    const res = await POST(requisicao(arquivo("logo.png", "image/png", arredondada)));
+    expect((await res.json()).semFundo).toBe(false);
+    // O alfa continua no WebP: os cantos seguem arredondados.
+    expect((await sharp(upload.mock.calls[0][1]).metadata()).hasAlpha).toBe(true);
+  });
+
+  it("imagem com alfa grande também é reduzida a 1280 px", async () => {
+    const grande = await sharp({
+      create: { width: 3000, height: 1000, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .png()
+      .toBuffer();
+    await POST(requisicao(arquivo("x.png", "image/png", grande)));
+    expect((await sharp(upload.mock.calls[0][1]).metadata()).width).toBe(1280);
+  });
+
   it("não amplia imagem pequena", async () => {
     await POST(requisicao(arquivo()));
 
