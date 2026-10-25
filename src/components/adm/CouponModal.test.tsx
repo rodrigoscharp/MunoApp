@@ -274,3 +274,19 @@ describe("resposta do servidor", () => {
     expect(await screen.findByText("Erro ao salvar")).toBeDefined();
   });
 });
+
+describe("o diálogo", () => {
+  it("tem o título do que está sendo feito e campos com rótulo", () => {
+    montar();
+    screen.getByRole("dialog", { name: /novo cupom/i });
+    screen.getByLabelText(/código/i);
+    screen.getByLabelText(/pedido mínimo/i);
+  });
+
+  it("fecha no Esc e no botão Fechar", async () => {
+    montar();
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(screen.getByRole("button", { name: "Fechar" }));
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+});

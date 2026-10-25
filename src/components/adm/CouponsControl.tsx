@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Pencil, Trash2, TicketPercent } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { CouponModal } from "./CouponModal";
+import { Selo, type TomDoSelo } from "@/components/painel/Selo";
+import { botaoBrasa, cartaoPainel, tituloDeSecao } from "@/components/painel/estilos";
 
 export interface Coupon {
   id: string;
@@ -52,16 +54,16 @@ function resumo(coupon: Coupon): string {
  * Por que o cupom não está pegando é a primeira pergunta do dono do
  * restaurante, então o motivo aparece na lista em vez de só "ativo/inativo".
  */
-function situacao(coupon: Coupon): { texto: string; classe: string } | null {
+function situacao(coupon: Coupon): { texto: string; tom: TomDoSelo } | null {
   if (!coupon.active) {
-    return { texto: "Inativo", classe: "bg-neutral-100 text-neutral-500" };
+    return { texto: "Inativo", tom: "neutro" };
   }
   const agora = new Date();
   if (coupon.validUntil && new Date(coupon.validUntil) < agora) {
-    return { texto: "Expirado", classe: "bg-amber-50 text-amber-700" };
+    return { texto: "Expirado", tom: "alerta" };
   }
   if (coupon.validFrom && new Date(coupon.validFrom) > agora) {
-    return { texto: "Agendado", classe: "bg-blue-50 text-blue-700" };
+    return { texto: "Agendado", tom: "andamento" };
   }
   return null;
 }
@@ -111,56 +113,47 @@ export function CouponsControl({ initialCoupons }: Props) {
   }
 
   return (
-    <div className="bg-white rounded-xl border border-neutral-200 p-5">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <TicketPercent size={15} className="text-neutral-400" />
-          <p className="text-xs text-neutral-400 font-medium uppercase tracking-wide">
-            Cupons de Desconto
+    <section aria-labelledby="titulo-cupons" className={cn(cartaoPainel, "flex flex-col gap-4 p-5")}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 id="titulo-cupons" className={tituloDeSecao}>
+            Cupons de desconto
+          </h2>
+          <p className="mt-0.5 text-[13px] text-loja-tinta-2">
+            O cliente digita o código no checkout de entrega e retirada.
           </p>
         </div>
-        <button
-          onClick={abrirNovo}
-          className="flex items-center gap-1.5 bg-brand hover:bg-brand-dark text-white text-sm font-semibold px-3 py-1.5 rounded-lg transition"
-        >
-          <Plus size={14} />
+        <button onClick={abrirNovo} className={cn(botaoBrasa, "h-11 px-5 text-[14px] font-extrabold")}>
+          <Plus size={16} strokeWidth={2.6} aria-hidden="true" />
           Novo cupom
         </button>
       </div>
 
       {coupons.length === 0 ? (
-        <p className="text-xs text-neutral-400 italic text-center py-6">
+        <p className="rounded-[18px] bg-loja-creme px-4 py-6 text-center text-[13px] text-loja-tinta-2">
           Nenhum cupom cadastrado. O campo de cupom só aparece no checkout de entrega e retirada.
         </p>
       ) : (
-        <div className="space-y-2">
+        <ul className="flex flex-col gap-2">
           {coupons.map((coupon) => {
             const badge = situacao(coupon);
             return (
-              <div
+              <li
                 key={coupon.id}
-                className="flex items-center gap-3 rounded-lg border border-neutral-100 bg-neutral-50 px-3 py-2.5"
+                className="flex items-center gap-3 rounded-[18px] border border-[#F0E6DA] bg-loja-papel py-2 pl-4 pr-1.5"
               >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-sm font-semibold tracking-wide text-neutral-800">
+                <div className="min-w-0 flex-1 py-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-[14px] font-extrabold tracking-wide text-forest-dark">
                       {coupon.code}
                     </span>
-                    {coupon.destaque && (
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-brand-light text-brand-dark">
-                        No cardápio
-                      </span>
-                    )}
-                    {badge && (
-                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${badge.classe}`}>
-                        {badge.texto}
-                      </span>
-                    )}
+                    {coupon.destaque && <Selo tom="rua">No cardápio</Selo>}
+                    {badge && <Selo tom={badge.tom}>{badge.texto}</Selo>}
                   </div>
-                  <p className="text-xs text-neutral-500 mt-0.5 truncate">{resumo(coupon)}</p>
+                  <p className="mt-0.5 truncate text-[12.5px] text-loja-tinta-2">{resumo(coupon)}</p>
                 </div>
 
-                <span className="text-xs text-neutral-400 shrink-0 hidden sm:block">
+                <span className="hidden shrink-0 text-[12px] font-semibold text-loja-tinta-2 sm:block">
                   {coupon._count.orders === 0
                     ? "não usado"
                     : `${coupon._count.orders} uso${coupon._count.orders > 1 ? "s" : ""}`}
@@ -168,22 +161,22 @@ export function CouponsControl({ initialCoupons }: Props) {
 
                 <button
                   onClick={() => abrirEdicao(coupon)}
-                  className="text-neutral-400 hover:text-neutral-600 p-1 shrink-0"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-loja-tinta transition hover:bg-loja-creme"
                   aria-label={`Editar cupom ${coupon.code}`}
                 >
-                  <Pencil size={13} />
+                  <Pencil size={15} aria-hidden="true" />
                 </button>
                 <button
                   onClick={() => excluir(coupon)}
-                  className="text-neutral-400 hover:text-red-500 p-1 shrink-0"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-loja-tinta-2 transition hover:bg-loja-pessego-claro hover:text-loja-preco"
                   aria-label={`Excluir cupom ${coupon.code}`}
                 >
-                  <Trash2 size={13} />
+                  <Trash2 size={15} aria-hidden="true" />
                 </button>
-              </div>
+              </li>
             );
           })}
-        </div>
+        </ul>
       )}
 
       <CouponModal
@@ -192,6 +185,7 @@ export function CouponsControl({ initialCoupons }: Props) {
         coupon={editing}
         onSaved={aoSalvar}
       />
-    </div>
+    </section>
   );
 }
+
