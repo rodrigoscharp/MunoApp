@@ -1,25 +1,43 @@
 import { prismaUnscoped } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { inicioDoDiaBRT } from "@/lib/faturamento";
 import { MotoboyAccessControl } from "@/components/adm/MotoboyAccessControl";
 
 export default async function MotoboyAccessPage() {
   const session = await auth();
-  const motoboys = await prismaUnscoped.user.findMany({
-    where: { role: "MOTOBOY", tenantId: session!.user.tenantId },
-    select: { id: true, name: true, email: true, createdAt: true },
-    orderBy: { createdAt: "desc" },
-  });
+  const tenantId = session!.user.tenantId;
+
+  // As entregas do dia são uma contagem agrupada, servida pelo índice
+  // [tenantId, status, createdAt]. Não há coluna de "entregue em": conta o
+  // pedido de hoje que já está DELIVERED, e um pedido de 23:50 entregue depois
+  // da meia-noite fica no dia anterior. Para o dono olhar o movimento, basta.
+  const [motoboys, entregas] = await Promise.all([
+    prismaUnscoped.user.findMany({
+      where: { role: "MOTOBOY", tenantId },
+      select: { id: true, name: true, email: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
+    prismaUnscoped.order.groupBy({
+      by: ["motoboyId"],
+      where: {
+        tenantId,
+        status: "DELIVERED",
+        motoboyId: { not: null },
+        createdAt: { gte: inicioDoDiaBRT(new Date()) },
+      },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const entregasHoje: Record<string, number> = {};
+  for (const e of entregas) {
+    if (e.motoboyId) entregasHoje[e.motoboyId] = e._count._all;
+  }
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-neutral-900 mb-1">Acesso de Motoboys</h1>
-      <p className="text-sm text-neutral-400 mb-8">Gerencie quem tem acesso ao portal de entregadores</p>
-
-      <div className="max-w-lg">
-        <MotoboyAccessControl
-          initialMotoboys={motoboys.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() }))}
-        />
-      </div>
-    </div>
+    <MotoboyAccessControl
+      initialMotoboys={motoboys.map((m) => ({ ...m, createdAt: m.createdAt.toISOString() }))}
+      entregasHoje={entregasHoje}
+    />
   );
 }

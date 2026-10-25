@@ -11,9 +11,7 @@ export default async function MesasAdminPage() {
     redirect("/adm");
   }
 
-  return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <TableManager />
-    </div>
-  );
+  // O cabeçalho mora no TableManager, porque a contagem do topo (livres,
+  // ocupadas, valor na mesa) sai das mesas que ele carrega e recarrega.
+  return <TableManager />;
 }
