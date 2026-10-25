@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { Minus, Plus, Trash2, UtensilsCrossed } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import type { CartItem } from "@/types";
 
 /**
@@ -89,7 +90,14 @@ export function Miniatura({ src, tamanho = 56 }: { src?: string | null; tamanho?
       style={{ width: tamanho, height: tamanho }}
     >
       {src ? (
-        <Image src={src} alt="" fill sizes={`${tamanho}px`} className="object-cover" />
+        <Image
+          src={src}
+          alt=""
+          fill
+          sizes={`${tamanho}px`}
+          unoptimized={!imagemOtimizavel(src)}
+          className="object-cover"
+        />
       ) : (
         <span className="flex h-full w-full items-center justify-center text-forest/60">
           <UtensilsCrossed size={Math.round(tamanho * 0.36)} strokeWidth={1.6} aria-hidden="true" />
