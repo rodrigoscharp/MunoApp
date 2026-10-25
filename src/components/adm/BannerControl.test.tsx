@@ -50,4 +50,25 @@ describe("BannerControl", () => {
     render(<BannerControl initial={{ modo: "item", itemId: "b", chamada: "" }} itens={itens} />);
     screen.getByText(/ainda não tem foto sem fundo/i);
   });
+
+  it("item salvo que esgotou: avisa pelo nome e não regrava o id velho", async () => {
+    render(
+      <BannerControl initial={{ modo: "item", itemId: "sumiu", chamada: "" }} itens={itens} nomeDoItemSalvo="X-Tudo" />
+    );
+    screen.getByText(/X-Tudo\) está indisponível/i);
+    expect((screen.getByLabelText(/item do banner/i) as HTMLSelectElement).value).toBe("");
+    await userEvent.click(screen.getByRole("button", { name: /salvar banner/i }));
+    expect(toastError).toHaveBeenCalledWith("Escolha o item do banner");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("item salvo que foi apagado: avisa, e o aviso some ao escolher outro", async () => {
+    render(<BannerControl initial={{ modo: "item", itemId: "sumiu", chamada: "" }} itens={itens} />);
+    screen.getByText(/não está mais no cardápio/i);
+    await userEvent.selectOptions(screen.getByLabelText(/item do banner/i), "a");
+    expect(screen.queryByText(/não está mais no cardápio/i)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /salvar banner/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(enviado()).toMatchObject({ itemId: "a" });
+  });
 });

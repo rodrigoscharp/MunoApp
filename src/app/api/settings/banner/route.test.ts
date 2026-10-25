@@ -25,7 +25,7 @@ const put = (body: unknown) =>
 beforeEach(() => {
   vi.clearAllMocks();
   auth.mockResolvedValue({ user: { id: "a", role: "ADMIN", tenantId: "rest-a" } });
-  findUnique.mockResolvedValue({ id: "item-1" });
+  findUnique.mockResolvedValue({ id: "item-1", available: true });
 });
 
 describe("PUT /api/settings/banner", () => {
@@ -53,6 +53,15 @@ describe("PUT /api/settings/banner", () => {
     findUnique.mockResolvedValue(null);
     const res = await PUT(put({ modo: "item", itemId: "de-outro" }));
     expect(res.status).toBe(404);
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  // O painel só lista disponíveis; a rota recusa o mesmo, para a escolha
+  // gravada nunca ser um item que o banner não mostra.
+  it("item indisponível é recusado", async () => {
+    findUnique.mockResolvedValue({ id: "item-1", available: false });
+    const res = await PUT(put({ modo: "item", itemId: "item-1" }));
+    expect(res.status).toBe(409);
     expect(upsert).not.toHaveBeenCalled();
   });
 
