@@ -9,8 +9,8 @@ const CartDrawer = dynamic(
   { ssr: false }
 );
 
-/** A única gaveta da sacola da loja; os botões a abrem por useSacola. */
-export function GavetaDaSacola() {
+/** Monta a única gaveta da sacola da loja quando alguém a pede; os botões a abrem por useSacola. */
+export function MontadorDaSacola() {
   const montada = useSacola((s) => s.montada);
   const aberta = useSacola((s) => s.aberta);
   const fechar = useSacola((s) => s.fechar);

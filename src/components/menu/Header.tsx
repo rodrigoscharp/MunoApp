@@ -9,7 +9,7 @@ import { useCart } from "@/hooks/useCart";
 import { CartFlyAnimation } from "@/components/menu/CartFlyAnimation";
 import type { RestaurantInfo } from "@/lib/restaurant";
 import { useAnimacaoAoMudar } from "@/hooks/useAnimacaoAoMudar";
-import { GavetaDaSacola } from "@/components/loja/GavetaDaSacola";
+import { MontadorDaSacola } from "@/components/loja/MontadorDaSacola";
 import { ItensDaConta } from "@/components/loja/ItensDaConta";
 import { ALVO_DA_SACOLA, useSacola } from "@/components/loja/sacola";
 import { botaoBrasa } from "@/components/loja/estilos";
@@ -51,7 +51,7 @@ export function Header({ restaurantInfo, aberto, tempoDeEntrega }: HeaderProps) 
   return (
     <>
       <CartFlyAnimation />
-      <GavetaDaSacola />
+      <MontadorDaSacola />
 
       {/* Fixo só no desktop, e com altura fixa (h-20): é dela que sai o
           top-20 da navegação de categorias, que gruda logo abaixo. No celular

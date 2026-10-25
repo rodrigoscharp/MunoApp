@@ -5,7 +5,7 @@ import { create } from "zustand";
 /**
  * Quem abre a gaveta da sacola. Ela tem dois botões na tela, e só um aparece
  * de cada vez: o do cabeçalho no desktop e o do meio da barra de baixo no
- * celular. Os dois chamam `abrir()` aqui, e uma gaveta só (GavetaDaSacola)
+ * celular. Os dois chamam `abrir()` aqui, e uma gaveta só (MontadorDaSacola)
  * escuta.
  *
  * `montada` existe para o chunk da gaveta ficar fora do bundle do cardápio:
