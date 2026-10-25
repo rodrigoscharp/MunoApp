@@ -123,12 +123,14 @@ describe("montarMapaDeCalor", () => {
     expect(mapa.pico).toEqual({ diaDaSemana: 5, hora: 20, pedidos: 9 });
   });
 
-  it("desenha só da primeira à última hora com pedido", () => {
+  it("cobre o horário comercial e se estica até a primeira e a última hora com pedido", () => {
     const mapa = montarMapaDeCalor([
       { diaDaSemana: 1, hora: 18, pedidos: 1 },
-      { diaDaSemana: 2, hora: 23, pedidos: 2 },
+      { diaDaSemana: 2, hora: 1, pedidos: 2 },
     ]);
-    expect(mapa.horas).toEqual([18, 19, 20, 21, 22, 23]);
+    expect(mapa.horas[0]).toBe(1);
+    expect(mapa.horas.at(-1)).toBe(22);
+    expect(montarMapaDeCalor([{ diaDaSemana: 6, hora: 21, pedidos: 1 }]).horas).toHaveLength(12);
   });
 
   it("sem pedido, mostra o horário comercial e nenhum pico", () => {

@@ -144,7 +144,7 @@ export interface MapaDeCalor {
   celulas: number[][];
   maximo: number;
   pico: { diaDaSemana: number; hora: number; pedidos: number } | null;
-  /** As horas que a tela desenha, da primeira à última com pedido. */
+  /** As horas que a tela desenha: 11h a 22h, esticadas até a primeira e a última com pedido. */
   horas: number[];
 }
 
@@ -187,10 +187,11 @@ export function montarMapaDeCalor(
     }
   }
 
-  if (ate < 0) {
-    de = HORAS_PADRAO.de;
-    ate = HORAS_PADRAO.ate;
-  }
+  // A grade cobre pelo menos o horário comercial típico, e se estica para
+  // incluir a madrugada ou a manhã de quem vende nelas. Uma loja com pedido
+  // só às 21h não vira uma coluna sozinha esticada na largura toda.
+  de = Math.min(de, HORAS_PADRAO.de);
+  ate = Math.max(ate, HORAS_PADRAO.ate);
   const horas = Array.from({ length: ate - de + 1 }, (_, i) => de + i);
   return { celulas, maximo, pico, horas };
 }
