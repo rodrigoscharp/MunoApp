@@ -522,6 +522,32 @@ isso o atraso da cobrança em aberto mais antiga entra na conta.
 "Sem mensalidade" não é inadimplência: é cliente que existe e cujo valor
 ninguém cadastrou. Pintar os dois de vermelho treina o olho a ignorar os dois.
 
+# A loja (cardápio do cliente)
+
+Desde 25/10/2026 a loja tem visual próprio: creme, Barlow Condensed nas
+manchetes e Plus Jakarta Sans no resto. Os mockups aprovados estão em
+`docs/design/loja-nova/`.
+
+* **As fontes da loja não vão no layout raiz.** `fontesDaLoja`
+  (`src/lib/loja/fontes.ts`) entra no invólucro `.loja` dos layouts da loja
+  (`(client)`, `mesa/[token]`, a página do chat). O raiz também serve console,
+  painel e cozinha, onde elas iriam para o preload sem pintar nada.
+* **Cores da loja são `--color-loja-*`**, ao lado de `brand`/`forest`. Botão
+  com texto branco usa `loja-brasa`, e preço usa `loja-preco`: o terracota
+  da marca com letra branca pequena fica abaixo de 4,5:1.
+* **Classe que muda `display` passa por `cn()`.** `botaoBrasa` e os outros de
+  `src/components/loja/estilos.ts` trazem `inline-flex`; concatenado em
+  template string com `hidden`, o `inline-flex` vence no CSS. Foi assim que a
+  sacola do topo apareceu no celular junto com a da barra de baixo.
+* **A vitrine não tem cadastro próprio** (`src/lib/loja/vitrine.ts`): o banner e
+  "Mais pedidos" saem dos pedidos dos últimos 30 dias, e o card de cupom do
+  cupom com `destaque`. Um destaque por restaurante: as rotas de
+  `/api/coupons` desmarcam os outros ao marcar um.
+* **O ícone da categoria sai do nome** (`iconeDaCategoria`). Não há campo de
+  ícone; categoria que não casar com nada recebe o genérico.
+* **Foto de restaurante sem `mix-blend-multiply`.** O efeito dos mockups só
+  funciona com fundo branco, e foto com fundo de cor escureceria.
+
 # A suíte de segurança
 
 `src/security/` guarda testes sobre o projeto inteiro, que falham quando um
