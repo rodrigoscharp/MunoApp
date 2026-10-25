@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Painel — Dashboard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F4EBDF}
+a{color:#B04A1A}a:hover{color:#1E3D2F}
+</style>
+</helmet>
+<div style="min-height: 1760px; background: #F4EBDF; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #2B231E; display: flex; flex-wrap: wrap">
+
+  <aside style="flex: 1 0 248px; max-width: 280px; box-sizing: border-box; padding: 24px 16px; background: #FFFBF6; border-right: 1px solid #E9DCCB; display: flex; flex-direction: column; gap: 20px">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 8px">
+      <img src="/_blob/116ab334217033490f72aca9ba1a0935" alt="Muno" style="height: 26px; width: auto">
+      <span style="font-size: 10px; font-weight: 800; letter-spacing: 0.18em; color: #6A5B50">PAINEL</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 16px; background: #F6DCC6">
+      <span style="width: 38px; height: 38px; border-radius: 12px; background: #D4612A; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 20px">B</span>
+      <div style="display: flex; flex-direction: column; min-width: 0">
+        <span style="font-size: 13.5px; font-weight: 800; color: #1E3D2F">Brasa &amp; Pão</span>
+        <span style="font-size: 11.5px; color: #6A3A1E; display: flex; align-items: center; gap: 5px"><span style="width: 7px; height: 7px; border-radius: 4px; background: #2B5240"></span>Aberto · fecha 23:30</span>
+      </div>
+    </div>
+    <nav aria-label="Menu do painel" style="display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="padding: 0 12px 4px; font-size: 10px; font-weight: 800; letter-spacing: 0.16em; color: #8A7A6D">OPERAÇÃO</span>
+        <a href="Dashboard.dc.html" aria-current="page" style="height: 42px; padding: 0 12px; border-radius: 12px; background: #BF5321; color: #FFFFFF; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 700"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V20h-5v-6h-6v6H4z"></path></svg>Início</a>
+        <a href="Pedidos.dc.html" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"></path><path d="M9 8h6M9 12h6"></path></svg><span style="flex-grow: 1">Pedidos</span><span style="min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: #D4612A; color: #FFFFFF; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center">4</span></a>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c2 3-1 4 1 7 1-1 2-2 2-4 3 2 4 5 4 7a7 7 0 0 1-14 0c0-4 4-6 7-10z"></path></svg>Cozinha</a>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg><span style="flex-grow: 1">Chats</span><span style="min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: #1E3D2F; color: #FFFFFF; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center">2</span></a>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="4" y="9" width="16" height="4" rx="1.5"></rect><path d="M7 13v7M17 13v7M9 9V5h6v4"></path></svg>Mesas</a>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17a2 2 0 1 0 4 0 2 2 0 1 0-4 0M15 17a2 2 0 1 0 4 0 2 2 0 1 0-4 0M9 17h6M3 13h11l3-5h3"></path></svg>Motoboys</a>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="padding: 0 12px 4px; font-size: 10px; font-weight: 800; letter-spacing: 0.16em; color: #8A7A6D">LOJA</span>
+        <a href="Cardapio.dc.html" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"></rect><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"></rect><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"></rect><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"></rect></svg>Cardápio</a>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 0 0 4v5h18v-5a2 2 0 0 0 0-4V5H3z"></path><path d="M14 5v2M14 10.5v1M14 15v2"></path></svg>Banner e cupons</a>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 9l2-5h12l2 5M4 9v11h16V9M4 9h16M10 20v-6h4v6"></path></svg>Restaurante</a>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="padding: 0 12px 4px; font-size: 10px; font-weight: 800; letter-spacing: 0.16em; color: #8A7A6D">FINANCEIRO</span>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="2.5"></rect><path d="M3 10h18"></path></svg>Pagamentos</a>
+        <a href="#" style="height: 42px; padding: 0 12px; border-radius: 12px; color: #4E4038; text-decoration: none; display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 600"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4E4038" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"></path><path d="M9 12l2 2 4-4"></path></svg>Assinatura</a>
+      </div>
+    </nav>
+    <a href="#" style="margin-top: auto; height: 44px; border-radius: 22px; border: 1.5px solid #D4612A; color: #B04A1A; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 800">Ver minha loja<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#B04A1A" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"></path></svg></a>
+  </aside>
+
+  <main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 28px 32px 48px">
+    <div style="max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px">
+
+      <header style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.16em; color: #B04A1A">SÁBADO, 25 DE OUTUBRO</span>
+          <h1 style="margin: 0; font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 46px; line-height: 0.92; color: #1E3D2F">BOA NOITE, BRASA &amp; PÃO</h1>
+        </div>
+        <div role="radiogroup" aria-label="Período" style="display: flex; padding: 4px; border-radius: 22px; background: #EADCCB">
+          <button style="height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: transparent; color: #4E4038; font: inherit; font-size: 13px; font-weight: 600">Hoje</button>
+          <button aria-pressed="true" style="height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: #FFFBF6; color: #1E3D2F; font: inherit; font-size: 13px; font-weight: 800; box-shadow: 0 4px 10px -6px rgba(74,48,28,0.35)">7 dias</button>
+          <button style="height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: transparent; color: #4E4038; font: inherit; font-size: 13px; font-weight: 600">30 dias</button>
+          <button style="height: 36px; padding: 0 16px; border-radius: 18px; border: 0; background: transparent; color: #4E4038; font: inherit; font-size: 13px; font-weight: 600">Mês</button>
+        </div>
+      </header>
+
+      <section aria-label="Agora" style="position: relative; overflow: hidden; display: flex; flex-wrap: wrap; align-items: center; gap: 24px; padding: 18px 22px; border-radius: 22px; background: #1E3D2F; color: #FFFFFF">
+        <svg aria-hidden="true" width="180" height="180" viewBox="0 0 120 120" fill="none" stroke="#3E6A55" stroke-width="1.6" stroke-linecap="round" style="position: absolute; right: -30px; top: -40px"><path d="M20 100C45 70 70 45 104 18"></path><path d="M44 74c-10-16-6-30 6-36 6 14 2 28-6 36zM62 56c-4-18 4-30 18-32 2 16-6 26-18 32zM32 88c-18-4-26-16-24-28 16 0 24 12 24 28z"></path></svg>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 10.5px; font-weight: 800; letter-spacing: 0.16em; color: #F2A67F; display: flex; align-items: center; gap: 6px"><span style="width: 7px; height: 7px; border-radius: 4px; background: #9FD3B5"></span>AGORA · AO VIVO</span>
+          <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 34px; line-height: 1">4 PEDIDOS NA CASA</span>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap">
+          <span style="height: 34px; padding: 0 12px; border-radius: 17px; background: #2B5240; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 6px"><strong style="font-size: 15px">1</strong> novo</span>
+          <span style="height: 34px; padding: 0 12px; border-radius: 17px; background: #2B5240; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 6px"><strong style="font-size: 15px">2</strong> na chapa</span>
+          <span style="height: 34px; padding: 0 12px; border-radius: 17px; background: #2B5240; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 6px"><strong style="font-size: 15px">1</strong> a caminho</span>
+          <span style="height: 34px; padding: 0 12px; border-radius: 17px; background: #5A2A14; color: #FDBA8C; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 6px">#1039 esperando há 24 min</span>
+        </div>
+        <a href="#" style="margin-left: auto; height: 44px; padding: 0 20px; border-radius: 22px; background: #E8804F; color: #1A0E08; text-decoration: none; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800">Abrir cozinha</a>
+      </section>
+
+      <section aria-label="Resumo do período" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px">
+        <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+          <article style="display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: 20px; background: #FFFBF6; box-shadow: 0 1px 2px rgba(74,48,28,0.06), 0 12px 24px -16px rgba(74,48,28,0.3)">
+            <div style="display: flex; align-items: center; justify-content: space-between">
+              <span style="font-size: 12.5px; font-weight: 700; color: #6A5B50">{{ k.rotulo }}</span>
+              <span style="{{ k.variacaoEstilo }}">{{ k.variacao }}</span>
+            </div>
+            <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 38px; line-height: 1; color: #1E3D2F">{{ k.valor }}</span>
+            <div style="display: flex; align-items: flex-end; gap: 3px; height: 30px">
+              <sc-for list="{{ k.barras }}" as="b" hint-placeholder-count="7">
+                <span style="{{ b.estilo }}"></span>
+              </sc-for>
+            </div>
+            <span style="font-size: 11.5px; color: #6A5B50">{{ k.nota }}</span>
+          </article>
+        </sc-for>
+      </section>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px">
+        <section style="grid-column: span 2; min-width: 0; padding: 20px 22px; border-radius: 22px; background: #FFFBF6; box-shadow: 0 1px 2px rgba(74,48,28,0.06)">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+            <h2 style="margin: 0; font-size: 15px; font-weight: 800">Faturamento por dia</h2>
+            <span style="font-size: 12px; color: #6A5B50">Hoje em destaque · linha tracejada = média</span>
+          </div>
+          <div style="position: relative; display: flex; align-items: flex-end; gap: 14px; height: 220px; margin-top: 18px; padding-bottom: 26px; border-bottom: 1px solid #E9DCCB">
+            <span style="position: absolute; left: 0; right: 0; bottom: 140px; border-top: 1.5px dashed #C9A685"></span>
+            <sc-for list="{{ dias }}" as="d" hint-placeholder-count="7">
+              <div style="flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 6px; position: relative">
+                <span style="font-size: 11px; font-weight: 800; color: #4E4038">{{ d.valor }}</span>
+                <span style="{{ d.estilo }}"></span>
+                <span style="position: absolute; bottom: -22px; font-size: 11.5px; font-weight: 700; color: #6A5B50">{{ d.dia }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <section style="min-width: 0; padding: 20px 22px; border-radius: 22px; background: #FFFBF6; box-shadow: 0 1px 2px rgba(74,48,28,0.06); display: flex; flex-direction: column; gap: 16px">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 800">Como pediram</h2>
+          <div style="display: flex; align-items: center; gap: 18px">
+            <div role="img" aria-label="Entrega 58%, retirada 27%, mesa 15%" style="position: relative; width: 132px; height: 132px; flex-shrink: 0; border-radius: 66px; background: conic-gradient(#D4612A 0 58%, #1E3D2F 58% 85%, #F2A67F 85% 100%)">
+              <span style="position: absolute; inset: 22px; border-radius: 44px; background: #FFFBF6; display: flex; flex-direction: column; align-items: center; justify-content: center"><span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 26px; line-height: 1; color: #1E3D2F">168</span><span style="font-size: 10.5px; color: #6A5B50">pedidos</span></span>
+            </div>
+            <ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; font-size: 13px">
+              <li style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #D4612A"></span>Entrega <strong style="margin-left: auto">58%</strong></li>
+              <li style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #1E3D2F"></span>Retirada <strong style="margin-left: auto">27%</strong></li>
+              <li style="display: flex; align-items: center; gap: 8px"><span style="width: 10px; height: 10px; border-radius: 3px; background: #F2A67F"></span>Mesa <strong style="margin-left: auto">15%</strong></li>
+            </ul>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px dashed #E2D2BF">
+            <span style="font-size: 12.5px; font-weight: 800">Pagamento</span>
+            <div style="display: flex; height: 12px; border-radius: 6px; overflow: hidden"><span style="width: 52%; background: #2B5240"></span><span style="width: 31%; background: #9CBBA9"></span><span style="width: 17%; background: #E3ECE6"></span></div>
+            <div style="display: flex; gap: 12px; font-size: 11.5px; color: #4E4038"><span><strong>Pix</strong> 52%</span><span><strong>Cartão</strong> 31%</span><span><strong>Dinheiro</strong> 17%</span></div>
+          </div>
+        </section>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px">
+        <section style="grid-column: span 2; min-width: 0; padding: 20px 22px; border-radius: 22px; background: #FFFBF6; box-shadow: 0 1px 2px rgba(74,48,28,0.06)">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+            <h2 style="margin: 0; font-size: 15px; font-weight: 800">Horário de pico</h2>
+            <span style="font-size: 12px; color: #6A5B50">Pedidos por dia e hora · sexta 20h é o seu pico</span>
+          </div>
+          <div style="overflow-x: auto; margin-top: 14px">
+            <div style="display: grid; grid-template-columns: 44px repeat(12, minmax(28px, 1fr)); gap: 4px; min-width: 520px">
+              <span></span>
+              <sc-for list="{{ horas }}" as="h" hint-placeholder-count="12">
+                <span style="font-size: 10.5px; font-weight: 700; color: #6A5B50; text-align: center">{{ h }}</span>
+              </sc-for>
+              <sc-for list="{{ calor }}" as="c" hint-placeholder-count="91">
+                <span style="{{ c.estilo }}">{{ c.texto }}</span>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 11px; color: #6A5B50">menos<span style="width: 18px; height: 10px; border-radius: 3px; background: #F6E6D8"></span><span style="width: 18px; height: 10px; border-radius: 3px; background: #F2B48F"></span><span style="width: 18px; height: 10px; border-radius: 3px; background: #E3804E"></span><span style="width: 18px; height: 10px; border-radius: 3px; background: #BF5321"></span>mais</div>
+        </section>
+
+        <section style="min-width: 0; padding: 20px 22px; border-radius: 22px; background: #FFFBF6; box-shadow: 0 1px 2px rgba(74,48,28,0.06); display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; align-items: baseline; justify-content: space-between">
+            <h2 style="margin: 0; font-size: 15px; font-weight: 800">Mais vendidos</h2>
+            <a href="#" style="font-size: 12px; font-weight: 700; text-decoration: none">Ver todos</a>
+          </div>
+          <sc-for list="{{ top }}" as="t" hint-placeholder-count="5">
+            <div style="display: flex; align-items: center; gap: 12px">
+              <img src="{{ t.foto }}" alt="" style="width: 44px; height: 44px; border-radius: 12px; object-fit: cover; background: #F6DCC6">
+              <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px">
+                <div style="display: flex; justify-content: space-between; gap: 8px; font-size: 13px"><span style="font-weight: 700">{{ t.nome }}</span><span style="font-weight: 800; color: #B04A1A">{{ t.receita }}</span></div>
+                <div style="height: 6px; border-radius: 3px; background: #F4EBDF"><span style="{{ t.barra }}"></span></div>
+                <span style="font-size: 11px; color: #6A5B50">{{ t.qtd }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </section>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px">
+        <section style="padding: 20px 22px; border-radius: 22px; background: #FFFBF6; box-shadow: 0 1px 2px rgba(74,48,28,0.06); display: flex; flex-direction: column; gap: 12px">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 800">Clientes</h2>
+          <div style="display: flex; gap: 22px">
+            <div style="display: flex; flex-direction: column"><span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 34px; line-height: 1; color: #1E3D2F">63</span><span style="font-size: 12px; color: #6A5B50">voltaram</span></div>
+            <div style="display: flex; flex-direction: column"><span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 34px; line-height: 1; color: #B04A1A">31</span><span style="font-size: 12px; color: #6A5B50">primeira vez</span></div>
+          </div>
+          <div style="display: flex; height: 12px; border-radius: 6px; overflow: hidden"><span style="width: 67%; background: #1E3D2F"></span><span style="width: 33%; background: #D4612A"></span></div>
+          <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #4E4038">2 em cada 3 pedidos vêm de quem já comprou. 12 clientes não pedem há mais de 30 dias.</p>
+        </section>
+        <section style="padding: 20px 22px; border-radius: 22px; background: #FFFBF6; box-shadow: 0 1px 2px rgba(74,48,28,0.06); display: flex; flex-direction: column; gap: 12px">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 800">Cupons</h2>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; border: 1.5px dashed #9CBBA9"><span style="font-size: 13px; font-weight: 800; color: #1E3D2F; flex-grow: 1">BEMVINDO</span><span style="font-size: 12px; color: #4E4038">14 usos</span><span style="font-size: 13px; font-weight: 800; color: #B04A1A">− R$ 98,00</span></div>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; border: 1.5px dashed #E2D2BF"><span style="font-size: 13px; font-weight: 800; color: #1E3D2F; flex-grow: 1">FRETEZERO</span><span style="font-size: 12px; color: #4E4038">8 usos</span><span style="font-size: 13px; font-weight: 800; color: #B04A1A">− R$ 40,00</span></div>
+          <span style="font-size: 12px; color: #6A5B50">R$ 138 de desconto trouxeram R$ 712 em pedidos.</span>
+        </section>
+        <section style="padding: 20px 22px; border-radius: 22px; background: #FFFBF6; box-shadow: 0 1px 2px rgba(74,48,28,0.06); display: flex; flex-direction: column; gap: 12px">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 800">Entregas</h2>
+          <sc-for list="{{ motoboys }}" as="m" hint-placeholder-count="3">
+            <div style="display: flex; align-items: center; gap: 10px">
+              <span style="width: 36px; height: 36px; border-radius: 18px; background: #E3ECE6; color: #1E3D2F; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center">{{ m.inicial }}</span>
+              <span style="flex-grow: 1; font-size: 13px; font-weight: 700">{{ m.nome }}</span>
+              <span style="font-size: 12px; color: #4E4038">{{ m.entregas }}</span>
+              <span style="font-size: 12px; font-weight: 800; color: #1E3D2F">{{ m.tempo }}</span>
+            </div>
+          </sc-for>
+          <span style="font-size: 12px; color: #6A5B50">Tempo na rua: da saída do motoboy até entregue.</span>
+        </section>
+      </div>
+
+      <section style="padding: 20px 22px; border-radius: 22px; background: #FFFBF6; box-shadow: 0 1px 2px rgba(74,48,28,0.06)">
+        <div style="display: flex; align-items: baseline; justify-content: space-between">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 800">Últimos pedidos</h2>
+          <a href="Pedidos.dc.html" style="font-size: 12px; font-weight: 700; text-decoration: none">Abrir pedidos</a>
+        </div>
+        <div style="overflow-x: auto; margin-top: 10px">
+          <table style="width: 100%; min-width: 640px; border-collapse: collapse; font-size: 13px">
+            <thead><tr style="text-align: left; color: #6A5B50; font-size: 11.5px"><th style="padding: 10px 8px; font-weight: 700">Pedido</th><th style="padding: 10px 8px; font-weight: 700">Cliente</th><th style="padding: 10px 8px; font-weight: 700">Como</th><th style="padding: 10px 8px; font-weight: 700">Pagamento</th><th style="padding: 10px 8px; font-weight: 700">Status</th><th style="padding: 10px 8px; font-weight: 700; text-align: right">Total</th></tr></thead>
+            <tbody>
+              <sc-for list="{{ ultimos }}" as="p" hint-placeholder-count="5">
+                <tr style="border-top: 1px solid #F0E6DA"><td style="padding: 11px 8px; font-weight: 800">{{ p.id }}</td><td style="padding: 11px 8px">{{ p.cliente }}</td><td style="padding: 11px 8px; color: #4E4038">{{ p.como }}</td><td style="padding: 11px 8px; color: #4E4038">{{ p.pagamento }}</td><td style="padding: 11px 8px"><span style="{{ p.statusEstilo }}">{{ p.status }}</span></td><td style="padding: 11px 8px; text-align: right; font-weight: 800">{{ p.total }}</td></tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1760}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const barras = (vals, cor) => vals.map((v, i) => ({
+      estilo: `flex:1;border-radius:3px;height:${v}%;background:${i === vals.length - 1 ? cor : '#F6DCC6'}`,
+    }));
+    const subiu = 'height:24px;padding:0 9px;border-radius:12px;background:#E3ECE6;color:#1E3D2F;font-size:11.5px;font-weight:800;display:flex;align-items:center';
+    const caiu = 'height:24px;padding:0 9px;border-radius:12px;background:#FBEADB;color:#8A3A12;font-size:11.5px;font-weight:800;display:flex;align-items:center';
+    const kpis = [
+      { rotulo: 'Faturamento', valor: 'R$ 4.812', variacao: '▲ 12%', variacaoEstilo: subiu, nota: 'vs. R$ 4.296 nos 7 dias anteriores', barras: barras([40, 55, 48, 62, 58, 80, 100], '#BF5321') },
+      { rotulo: 'Pedidos', valor: '168', variacao: '▲ 8%', variacaoEstilo: subiu, nota: '24 por dia em média', barras: barras([45, 52, 50, 60, 55, 78, 100], '#1E3D2F') },
+      { rotulo: 'Ticket médio', valor: 'R$ 28,64', variacao: '▲ 3%', variacaoEstilo: subiu, nota: 'entrega R$ 31 · retirada R$ 24', barras: barras([88, 90, 86, 94, 92, 96, 100], '#BF5321') },
+      { rotulo: 'Cancelados', valor: '3', variacao: '▼ 2', variacaoEstilo: caiu, nota: '1,8% dos pedidos · 2 por Pix não pago', barras: barras([60, 30, 0, 30, 0, 30, 30], '#8A3A12') },
+    ];
+    const valoresDias = [520, 610, 480, 702, 655, 912, 1133];
+    const maior = Math.max(...valoresDias);
+    const nomes = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'HOJE'];
+    const dias = valoresDias.map((v, i) => ({
+      dia: nomes[i],
+      valor: 'R$ ' + v,
+      estilo: `width:100%;max-width:56px;border-radius:12px 12px 4px 4px;height:${Math.round((v / maior) * 160)}px;background:${i === 6 ? '#BF5321' : '#F2C9AE'}`,
+    }));
+    const horas = ['11h', '12h', '13h', '14h', '15h', '16h', '17h', '18h', '19h', '20h', '21h', '22h'];
+    const linhas = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
+    const base = [3, 6, 5, 2, 1, 1, 2, 4, 7, 8, 6, 3];
+    const fator = [0.9, 0.6, 0.6, 0.7, 0.8, 1.25, 1.15];
+    const cores = ['#F6E6D8', '#F2B48F', '#E3804E', '#BF5321'];
+    const calor = [];
+    linhas.forEach((dia, r) => {
+      calor.push({ texto: dia, estilo: 'font-size:10.5px;font-weight:800;color:#6A5B50;display:flex;align-items:center' });
+      base.forEach((b, c) => {
+        const v = Math.round(b * fator[r]);
+        const nivel = v >= 9 ? 3 : v >= 6 ? 2 : v >= 3 ? 1 : 0;
+        calor.push({ texto: '', estilo: `height:30px;border-radius:6px;background:${cores[nivel]}` });
+      });
+    });
+    const top = [
+      { nome: 'Smash duplo', receita: 'R$ 1.536', qtd: '48 vendidos', foto: '/_blob/f8c2ab27de3128417b7824665aa607ac', barra: 'display:block;height:6px;border-radius:3px;width:100%;background:#BF5321' },
+      { nome: 'Batata rústica', receita: 'R$ 702', qtd: '39 vendidos', foto: '/_blob/4f152e666eac24fdaee93b0fb21544a1', barra: 'display:block;height:6px;border-radius:3px;width:81%;background:#D4612A' },
+      { nome: 'Milkshake', receita: 'R$ 589', qtd: '31 vendidos', foto: '/_blob/96c21846d7e76905197b99aee560f575', barra: 'display:block;height:6px;border-radius:3px;width:65%;background:#E3804E' },
+      { nome: 'Brownie', receita: 'R$ 264', qtd: '22 vendidos', foto: '/_blob/0effb1881469eeed2e0fc175ac246454', barra: 'display:block;height:6px;border-radius:3px;width:46%;background:#F2A67F' },
+    ];
+    const motoboys = [
+      { inicial: 'J', nome: 'João', entregas: '38 entregas', tempo: '18 min' },
+      { inicial: 'R', nome: 'Rafa', entregas: '29 entregas', tempo: '22 min' },
+      { inicial: 'M', nome: 'Márcio', entregas: '21 entregas', tempo: '25 min' },
+    ];
+    const pilula = (fundo, cor) => `height:24px;padding:0 10px;border-radius:12px;background:${fundo};color:${cor};font-size:11.5px;font-weight:800;display:inline-flex;align-items:center`;
+    const ultimos = [
+      { id: '#1044', cliente: 'Ana P.', como: 'Entrega', pagamento: 'Pix pendente', status: 'Novo', statusEstilo: pilula('#F6DCC6', '#8A3A12'), total: 'R$ 67,00' },
+      { id: '#1043', cliente: 'Mesa 4', como: 'Mesa', pagamento: 'No balcão', status: 'Na chapa', statusEstilo: pilula('#FBEADB', '#8A3A12'), total: 'R$ 43,80' },
+      { id: '#1042', cliente: 'Carlos M.', como: 'Entrega', pagamento: 'Pix pago', status: 'Na chapa', statusEstilo: pilula('#FBEADB', '#8A3A12'), total: 'R$ 54,50' },
+      { id: '#1041', cliente: 'Júlia R.', como: 'Retirada', pagamento: 'Dinheiro', status: 'Pronto', statusEstilo: pilula('#E3ECE6', '#1E3D2F'), total: 'R$ 25,00' },
+      { id: '#1040', cliente: 'Pedro A.', como: 'Entrega', pagamento: 'Cartão', status: 'A caminho', statusEstilo: pilula('#1E3D2F', '#FFFFFF'), total: 'R$ 88,90' },
+    ];
+    return { kpis, dias, horas, calor, top, motoboys, ultimos };
+  }
+}
+</script>
+</body>
+</html>
