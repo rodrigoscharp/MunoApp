@@ -842,7 +842,10 @@ adm:aviso-de-cobranca        faixa do /adm, 5min  invalidarCacheDeCobranca(): ba
 console:menu                 badges, 60s          a mesma, e as rotas de lead
 console:visao-geral          home do console, 10min, sem invalidação (agregado de um ano)
 console:clientes             pedidos por cliente, 10min, sem invalidação
-gráficos do /adm             60s por tenant, sem invalidação
+gráficos do /adm             60s por tenant, sem invalidação (/api/analytics)
+adm-painel                   dashboard por período, 60s (hoje: 15s), sem invalidação
+adm-horario-de-pico          mapa de calor dos 30 dias, 5min, sem invalidação
+adm-pedidos-em-andamento     número no menu do /adm, 30s, sem invalidação
 ```
 
 * **Tag por tenant onde o dado é do restaurante.** Tag global fazia uma
