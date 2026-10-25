@@ -2,106 +2,78 @@
 
 import { useCart } from "@/hooks/useCart";
 import { formatCurrency } from "@/lib/utils";
-import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft } from "lucide-react";
+import { ShoppingBag, ArrowLeft, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { CartUpsell } from "@/components/cart/CartUpsell";
+import { LinhaDaSacola } from "@/components/cart/LinhaDaSacola";
+import { botaoBrasa, botaoContorno, cartao } from "@/components/loja/estilos";
 
 export default function CartPage() {
   const { items, updateQuantity, total, clearCart } = useCart();
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-neutral-400">
-        <ShoppingBag size={56} strokeWidth={1} />
-        <p className="text-lg font-medium">Seu carrinho está vazio</p>
-        <Link
-          href="/"
-          className="text-sm text-brand hover:text-brand-dark font-medium"
-        >
+      <div className="mx-auto flex min-h-[60vh] max-w-lg flex-col items-center justify-center gap-3 px-4 text-center">
+        <span className="flex h-20 w-20 items-center justify-center rounded-full bg-loja-pessego text-loja-preco">
+          <ShoppingBag size={34} strokeWidth={1.6} aria-hidden="true" />
+        </span>
+        <p className="text-[17px] font-extrabold text-loja-tinta">Seu carrinho está vazio</p>
+        <Link href="/" className={`${botaoContorno} mt-1 h-11`}>
           Ver cardápio
         </Link>
       </div>
     );
   }
 
+  const unidades = items.reduce((soma, item) => soma + item.quantity, 0);
+
   return (
-    <div className="max-w-lg mx-auto px-4 py-8">
-      <Link
-        href="/"
-        className="flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-700 mb-6 transition"
-      >
-        <ArrowLeft size={16} />
-        Continuar comprando
-      </Link>
+    <div className="mx-auto max-w-lg px-4 pb-10 pt-5">
+      <div className="mb-4 flex items-center gap-3">
+        <Link
+          href="/"
+          aria-label="Continuar comprando"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-loja-papel text-loja-tinta shadow-loja transition hover:bg-loja-pessego-claro"
+        >
+          <ArrowLeft size={20} aria-hidden="true" />
+        </Link>
+        <h1 className="manchete flex-1 text-[32px] text-forest-dark">Seu pedido</h1>
+        <span className="text-xs font-bold text-loja-tinta-2">
+          {unidades} {unidades === 1 ? "item" : "itens"}
+        </span>
+      </div>
 
-      <h1 className="text-2xl font-bold text-neutral-900 mb-6">Seu Pedido</h1>
-
-      <div className="bg-white rounded-xl border border-neutral-200 divide-y divide-neutral-100 mb-4">
+      <div className="mb-4 space-y-2">
         {items.map((item) => (
-          <div key={item.cartId} className="flex items-start gap-3 px-5 py-4">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-neutral-900">{item.name}</p>
-              {/* O mesmo item com observações diferentes ocupa linhas próprias
-                  (o store indexa por cartId); sem a observação, as duas
-                  linhas pareceriam repetidas. */}
-              {item.notes && (
-                <p className="text-xs text-neutral-500 mt-0.5">{item.notes}</p>
-              )}
-              <p className="text-xs text-neutral-400 mt-0.5">
-                {formatCurrency(item.price)} cada
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => updateQuantity(item.cartId, item.quantity - 1)}
-                className="w-7 h-7 rounded-full border border-neutral-200 flex items-center justify-center hover:bg-neutral-50 transition"
-              >
-                {item.quantity === 1 ? (
-                  <Trash2 size={12} className="text-brand-muted" />
-                ) : (
-                  <Minus size={12} />
-                )}
-              </button>
-              <span className="text-sm font-semibold w-5 text-center">
-                {item.quantity}
-              </span>
-              <button
-                onClick={() => updateQuantity(item.cartId, item.quantity + 1)}
-                className="w-7 h-7 rounded-full border border-neutral-200 flex items-center justify-center hover:bg-neutral-50 transition"
-              >
-                <Plus size={12} />
-              </button>
-            </div>
-
-            <span className="text-sm font-semibold text-neutral-900 w-16 text-right">
-              {formatCurrency(item.price * item.quantity)}
-            </span>
-          </div>
+          <LinhaDaSacola
+            key={item.cartId}
+            item={item}
+            unitarioSempre
+            onQuantidade={(q) => updateQuantity(item.cartId, q)}
+          />
         ))}
       </div>
 
       <CartUpsell className="mb-4" />
 
-      {/* Total + actions */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-4">
-        <div className="flex justify-between items-center">
-          <span className="font-semibold text-neutral-700">Total</span>
-          <span className="text-2xl font-bold text-neutral-900">
-            {formatCurrency(total())}
-          </span>
+      <div className={`${cartao} space-y-3 p-5`}>
+        <div className="flex items-baseline justify-between">
+          <span className="text-[13px] font-bold text-loja-tinta-2">Total</span>
+          <span className="manchete text-[32px] text-forest-dark">{formatCurrency(total())}</span>
         </div>
+        <p className="text-[12px] text-loja-tinta-2">
+          Entrega, cupom e pagamento você escolhe no próximo passo.
+        </p>
 
-        <Link
-          href="/checkout"
-          className="block w-full bg-brand hover:bg-brand-dark text-white text-center font-semibold py-3 rounded-xl transition"
-        >
+        <Link href="/checkout" className={`${botaoBrasa} h-14 w-full text-[15px]`}>
           Finalizar Pedido
+          <ArrowRight size={17} strokeWidth={2.4} aria-hidden="true" />
         </Link>
 
         <button
+          type="button"
           onClick={clearCart}
-          className="w-full text-sm text-neutral-400 hover:text-brand transition"
+          className="flex h-11 w-full items-center justify-center text-[13px] font-semibold text-loja-tinta-2 transition hover:text-loja-preco"
         >
           Limpar carrinho
         </button>
