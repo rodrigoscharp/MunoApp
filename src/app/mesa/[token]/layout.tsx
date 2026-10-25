@@ -7,6 +7,7 @@ import { MesaIndisponivel } from "@/components/mesa/MesaIndisponivel";
 import { tenantTemMesaQr } from "@/lib/plans";
 import { ContextoDoCarrinho } from "@/components/cart/ContextoDoCarrinho";
 import { MesaDaAba } from "@/components/mesa/MesaDaAba";
+import { fontesDaLoja } from "@/lib/loja/fontes";
 
 export default async function MesaLayout({
   children,
@@ -43,7 +44,7 @@ export default async function MesaLayout({
   if (!table) notFound();
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className={`loja ${fontesDaLoja} min-h-screen flex flex-col`}>
       {/* Carrinho próprio desta mesa: nem o do delivery, nem o de outro QR. */}
       <ContextoDoCarrinho contexto={`mesa:${table.token}`} />
       {/* A mesa lida aqui vai para a aba, para o checkout não buscar de novo. */}

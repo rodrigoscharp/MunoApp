@@ -237,9 +237,9 @@ describe("quando o envio falha", () => {
 });
 
 describe("as respostas rápidas", () => {
-  // O label é quebrado em emoji + texto pelo componente; o primeiro token vira
-  // o ícone, então o rótulo precisa começar por um.
-  const atalhos = [{ label: "🛵 Cadê meu pedido?", message: "Cadê meu pedido?" }];
+  // O rótulo aparece inteiro. Até a loja nova ele começava por um emoji que o
+  // componente arrancava para usar como ícone; hoje é só texto.
+  const atalhos = [{ label: "Cadê meu pedido?", message: "Cadê meu pedido?" }];
 
   it("aparecem para o cliente que ainda não falou", async () => {
     await montar({ currentRole: "CUSTOMER", quickReplies: atalhos });

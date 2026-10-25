@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ChevronDown, Leaf, X } from "lucide-react";
+import { ChevronDown, Leaf, Plus, X } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { triggerCartFly } from "@/components/menu/CartFlyAnimation";
 import { formatCurrency } from "@/lib/utils";
@@ -81,33 +82,37 @@ function ItemCard({ item, restaurantOpen }: { item: ItemDoFiltro; restaurantOpen
   }
 
   return (
-    <div className="flex items-center gap-2 bg-white rounded-xl border border-neutral-200 p-2.5 mt-2">
-      <div className="relative w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-neutral-100">
+    <li className="flex items-center gap-2.5 rounded-2xl bg-loja-papel p-2 shadow-loja">
+      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-loja-pessego-claro">
         {item.imageUrl ? (
-          <Image src={item.imageUrl} alt={item.name} fill sizes="48px" className="object-cover" />
+          <Image src={item.imageUrl}
+            unoptimized={!imagemOtimizavel(item.imageUrl)} alt="" fill sizes="48px" className="object-cover" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-neutral-300">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="flex h-full w-full items-center justify-center text-loja-tinta-2/40">
+            <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
         )}
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold text-neutral-900 leading-tight truncate">{item.name}</p>
-        <p className="text-xs text-neutral-400">{item.category.name}</p>
-        <p className="text-xs font-bold text-brand">{formatCurrency(item.price)}</p>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[13px] font-bold leading-tight text-loja-tinta">{item.name}</p>
+        <p className="text-xs text-loja-tinta-2">{item.category.name}</p>
+        <p className="text-xs font-extrabold text-loja-preco">{formatCurrency(item.price)}</p>
       </div>
       <button
         ref={btnRef}
+        type="button"
         onClick={handleAdd}
         disabled={!restaurantOpen}
+        aria-label={`Adicionar ${item.name}`}
         title={!restaurantOpen ? "Restaurante fechado" : undefined}
-        className="shrink-0 px-2.5 py-1 rounded-full bg-brand hover:bg-brand-dark active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-semibold transition-all duration-150 shadow-sm"
+        className="flex h-11 shrink-0 items-center gap-1 rounded-full bg-loja-brasa px-3.5 text-xs font-bold text-white transition hover:bg-loja-brasa-escura active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        + Adicionar
+        <Plus size={14} strokeWidth={3} aria-hidden="true" />
+        Adicionar
       </button>
-    </div>
+    </li>
   );
 }
 
@@ -155,45 +160,45 @@ export function FiltroDeRestricoes({ menuItems, restaurantOpen }: FiltroDeRestri
 
   if (dispensado) {
     return (
-      <div className="flex justify-center pb-2">
+      <div className="flex justify-center">
         <button
           type="button"
           onClick={reabrir}
-          className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-brand transition-colors"
+          className="flex min-h-11 items-center gap-1.5 rounded-full px-4 text-xs font-bold text-forest-dark transition hover:bg-loja-papel"
         >
-          <Leaf size={13} />
+          <Leaf size={14} aria-hidden="true" />
           Filtrar por restrição
-          <ChevronDown size={13} />
+          <ChevronDown size={14} aria-hidden="true" />
         </button>
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-white overflow-hidden shadow-sm mb-6">
-      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-neutral-100 bg-neutral-50">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-brand flex items-center justify-center shrink-0">
-            <Leaf size={15} className="text-white" />
+    <section aria-label="Filtrar por restrição" className="overflow-hidden rounded-[20px] bg-loja-papel shadow-loja">
+      <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-3">
+        <div className="flex items-center gap-2.5">
+          <div aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-loja-folha text-forest">
+            <Leaf size={18} />
           </div>
           <div>
-            <p className="text-sm font-bold text-neutral-900 leading-none">Filtrar por restrição</p>
-            <p className="text-xs text-neutral-400 mt-0.5">Veja só o que serve para você</p>
+            <p className="text-[13.5px] font-extrabold leading-none text-forest-dark">Filtrar por restrição</p>
+            <p className="mt-1 text-xs text-loja-tinta-2">Veja só o que serve para você</p>
           </div>
         </div>
         <button
           type="button"
           onClick={dispensar}
           aria-label="Fechar filtro"
-          className="text-neutral-400 hover:text-neutral-600 transition-colors p-1"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-loja-tinta-2 transition hover:bg-loja-creme hover:text-loja-tinta"
         >
-          <X size={16} />
+          <X size={18} aria-hidden="true" />
         </button>
       </div>
 
-      <div className="px-4 py-4 space-y-3">
+      <div className="space-y-3 px-4 pb-4">
         <div className="flex flex-wrap gap-2">
-          {RESTRICOES.map(({ id, label, emoji }) => {
+          {RESTRICOES.map(({ id, label }) => {
             const ligado = ativas.includes(id);
             return (
               <button
@@ -201,13 +206,13 @@ export function FiltroDeRestricoes({ menuItems, restaurantOpen }: FiltroDeRestri
                 type="button"
                 aria-pressed={ligado}
                 onClick={() => alternar(id)}
-                className={`px-3 py-1.5 rounded-full border text-sm font-medium transition-all duration-150 active:scale-95 ${
+                className={`min-h-10 rounded-full border-[1.5px] px-4 text-sm font-semibold transition active:scale-95 ${
                   ligado
-                    ? "border-brand bg-brand text-white"
-                    : "border-neutral-200 text-neutral-600 hover:border-brand hover:text-brand hover:bg-brand/5"
+                    ? "border-forest-dark bg-forest-dark text-white"
+                    : "border-loja-linha bg-loja-creme text-loja-tinta hover:border-forest"
                 }`}
               >
-                <span aria-hidden="true">{emoji}</span> {label}
+                {label}
               </button>
             );
           })}
@@ -216,31 +221,31 @@ export function FiltroDeRestricoes({ menuItems, restaurantOpen }: FiltroDeRestri
         {ativas.length > 0 && (
           <div className="space-y-2">
             {resultado.length > 0 ? (
-              <div className="max-h-80 overflow-y-auto no-scrollbar">
+              <ul className="no-scrollbar max-h-80 space-y-2 overflow-y-auto">
                 {resultado.map((item) => (
                   <ItemCard key={item.id} item={item} restaurantOpen={restaurantOpen} />
                 ))}
-              </div>
+              </ul>
             ) : (
-              <p className="text-sm text-neutral-500">
+              <p className="text-sm text-loja-tinta">
                 {algumSemDeclaracao
                   ? "Este restaurante ainda não informou quais itens atendem a esse filtro."
                   : "Nenhum item atende a todos os filtros marcados."}
               </p>
             )}
-            <p className="text-xs text-neutral-400">
+            <p className="text-xs text-loja-tinta-2">
               Informado pelo restaurante. Em caso de alergia, confirme com a equipe antes de pedir.
             </p>
             <button
               type="button"
               onClick={() => setAtivas([])}
-              className="text-xs text-neutral-500 hover:text-brand underline"
+              className="min-h-9 text-xs font-semibold text-loja-preco underline"
             >
               Limpar filtros
             </button>
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }

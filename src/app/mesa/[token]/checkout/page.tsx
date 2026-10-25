@@ -9,8 +9,16 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { formatCurrency } from "@/lib/utils";
-import { ArrowLeft, UtensilsCrossed } from "lucide-react";
+import { ArrowLeft, ArrowRight, UtensilsCrossed } from "lucide-react";
 import Link from "next/link";
+import { botaoBrasa, botaoContorno, campo, cartao } from "@/components/loja/estilos";
+import { Miniatura } from "@/components/cart/LinhaDaSacola";
+
+const tituloDoBloco = "text-[15px] font-extrabold text-loja-tinta";
+const rotulo = "mb-1.5 block text-[13px] font-bold text-loja-tinta";
+const erroDoCampo = "mt-1 text-[12px] font-semibold text-loja-preco";
+const caixaDeErro =
+  "rounded-2xl border border-loja-pessego bg-loja-pessego-claro px-4 py-3 text-[13px] font-semibold text-loja-preco";
 
 const schema = z.object({
   customerName: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
@@ -54,20 +62,20 @@ export default function MesaCheckoutPage() {
   // Antes de ler o localStorage o carrinho parece vazio para todo mundo.
   if (!carrinhoHidratado) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
-        <p className="text-neutral-400 text-sm">Carregando seu pedido...</p>
+      <div className="mx-auto max-w-lg px-4 py-16 text-center">
+        <p className="text-sm text-loja-tinta-2">Carregando seu pedido...</p>
       </div>
     );
   }
 
   if (items.length === 0) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+      <div className="mx-auto flex max-w-lg flex-col items-center gap-3 px-4 py-16 text-center">
         {/* O carrinho pode ter esvaziado agora, pelo 422 de item fora do ar:
             o aviso de quais itens saíram continua aqui. */}
-        {error && <p className="text-brand-dark text-sm mb-4">{error}</p>}
-        <p className="text-neutral-500 mb-4">Seu carrinho está vazio.</p>
-        <Link href={`/mesa/${params.token}/cardapio`} className="text-brand font-medium hover:underline">
+        {error && <p className={`${caixaDeErro} mb-2 w-full`}>{error}</p>}
+        <p className="text-[15px] font-bold text-loja-tinta">Seu carrinho está vazio.</p>
+        <Link href={`/mesa/${params.token}/cardapio`} className={`${botaoContorno} h-11`}>
           Ver cardápio
         </Link>
       </div>
@@ -137,114 +145,120 @@ export default function MesaCheckoutPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <Link
-        href={`/mesa/${params.token}/cardapio`}
-        className="flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-700 mb-6 transition"
+    <div className="mx-auto max-w-5xl px-4 pb-12 pt-5">
+      <div className="mb-5 flex items-center gap-3">
+        <Link
+          href={`/mesa/${params.token}/cardapio`}
+          aria-label="Voltar ao cardápio"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-loja-papel text-loja-tinta shadow-loja transition hover:bg-loja-pessego-claro"
+        >
+          <ArrowLeft size={20} aria-hidden="true" />
+        </Link>
+        <h1 className="manchete text-[32px] text-forest-dark md:text-[40px]">Finalizar Pedido</h1>
+      </div>
+
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="grid grid-cols-1 items-start gap-5 md:grid-cols-[minmax(0,1fr)_360px] md:gap-6"
       >
-        <ArrowLeft size={16} />
-        Voltar ao cardápio
-      </Link>
-
-      <h1 className="text-2xl font-bold text-neutral-900 mb-6">Finalizar Pedido</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-
+        <div className="space-y-5">
           {/* Mesa info */}
-          <div className="bg-brand-light border border-brand-muted rounded-xl p-5 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-brand flex items-center justify-center shrink-0">
-              <UtensilsCrossed size={18} className="text-white" />
-            </div>
-            <div>
-              <p className="font-semibold text-brand-dark">{tableLabel}</p>
-              <p className="text-xs text-brand-dark/70">O pagamento é feito no balcão ao final</p>
+          <div className="flex items-center gap-3 rounded-[20px] bg-loja-folha p-4">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-forest-dark text-white">
+              <UtensilsCrossed size={19} aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="manchete truncate text-[24px] text-forest-dark">{tableLabel}</p>
+              <p className="text-[12.5px] font-medium text-forest-dark">O pagamento é feito no balcão ao final</p>
             </div>
           </div>
 
           {/* Dados do cliente */}
-          <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-4">
-            <h2 className="font-semibold text-neutral-900">Seus dados</h2>
+          <section className={`${cartao} space-y-4 p-4`} aria-labelledby="titulo-dados">
+            <h2 id="titulo-dados" className={tituloDoBloco}>Seus dados</h2>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Nome *</label>
+              <label htmlFor="customerName" className={rotulo}>Nome *</label>
               <input
+                id="customerName"
                 {...register("customerName")}
                 autoComplete="name"
                 placeholder="Seu nome"
-                className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
+                className={campo}
               />
               {errors.customerName ? (
-                <p className="text-brand text-xs mt-1">{errors.customerName.message}</p>
+                <p className={erroDoCampo}>{errors.customerName.message}</p>
               ) : (
-                <p className="text-neutral-400 text-xs mt-1">
+                <p className="mt-1 text-[12px] text-loja-tinta-2">
                   Usaremos para identificar seu pedido na conta da mesa.
                 </p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Telefone (opcional)</label>
+              <label htmlFor="customerPhone" className={rotulo}>Telefone (opcional)</label>
               <input
+                id="customerPhone"
                 {...register("customerPhone")}
                 type="tel"
                 inputMode="tel"
                 autoComplete="tel"
                 placeholder="(11) 99999-9999"
-                className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
+                className={campo}
               />
-              {errors.customerPhone && <p className="text-brand text-xs mt-1">{errors.customerPhone.message}</p>}
+              {errors.customerPhone && <p className={erroDoCampo}>{errors.customerPhone.message}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Observações (opcional)</label>
+              <label htmlFor="notes" className={rotulo}>Observações (opcional)</label>
               <textarea
+                id="notes"
                 {...register("notes")}
                 placeholder="Sem cebola, ponto da carne, etc."
                 rows={2}
-                className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition resize-none"
+                className={`${campo} resize-none`}
               />
-              {errors.notes && <p className="text-brand text-xs mt-1">{errors.notes.message}</p>}
+              {errors.notes && <p className={erroDoCampo}>{errors.notes.message}</p>}
             </div>
-          </div>
+          </section>
+        </div>
 
-          {error && (
-            <div className="bg-brand-light border border-brand-muted rounded-lg px-4 py-3">
-              <p className="text-brand-dark text-sm">{error}</p>
+        {/* Resumo e confirmação. No desktop acompanha a rolagem do formulário. */}
+        <aside className="space-y-3 md:sticky md:top-24">
+          <section className={`${cartao} p-4`} aria-labelledby="titulo-resumo">
+            <h2 id="titulo-resumo" className={`${tituloDoBloco} mb-3`}>Resumo do Pedido</h2>
+            <ul className="mb-3 space-y-2.5">
+              {items.map((item) => (
+                <li key={item.cartId} className="flex items-center gap-3">
+                  <Miniatura src={item.imageUrl} tamanho={44} />
+                  <div className="flex min-w-0 flex-1 gap-1.5">
+                    <span className="shrink-0 text-[13px] font-extrabold text-loja-preco">{item.quantity}x</span>
+                    <span className="truncate text-[13px] font-semibold text-loja-tinta">{item.name}</span>
+                  </div>
+                  <span className="shrink-0 text-[13px] font-bold text-loja-tinta">
+                    {formatCurrency(item.price * item.quantity)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="border-t border-dashed border-loja-linha pt-3">
+              <div className="flex items-baseline justify-between">
+                <span className="text-[13px] font-bold text-loja-tinta-2">Total</span>
+                <span className="manchete text-[32px] text-forest-dark">{formatCurrency(itemsTotal)}</span>
+              </div>
+              <p className="mt-1 text-[12px] text-loja-tinta-2">Pagamento no balcão</p>
             </div>
-          )}
+          </section>
+
+          {error && <p className={caixaDeErro}>{error}</p>}
 
           <button
             type="submit"
             disabled={loading || !tableInfo}
-            className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition"
+            className={`${botaoBrasa} h-14 w-full text-[15px]`}
           >
             {loading ? "Enviando pedido..." : "Confirmar Pedido"}
+            {!loading && <ArrowRight size={17} strokeWidth={2.4} aria-hidden="true" />}
           </button>
-        </form>
-
-        {/* Resumo */}
-        <div className="bg-white rounded-xl border border-neutral-200 p-5 h-fit">
-          <h2 className="font-semibold text-neutral-900 mb-4">Resumo do Pedido</h2>
-          <ul className="space-y-3 mb-4">
-            {items.map((item) => (
-              <li key={item.cartId} className="flex items-start justify-between gap-2">
-                <div className="flex gap-2 min-w-0">
-                  <span className="text-sm font-bold text-brand flex-shrink-0">{item.quantity}x</span>
-                  <span className="text-sm text-neutral-800 truncate">{item.name}</span>
-                </div>
-                <span className="text-sm font-medium text-neutral-700 flex-shrink-0">
-                  {formatCurrency(item.price * item.quantity)}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <div className="border-t border-neutral-100 pt-3">
-            <div className="flex items-center justify-between pt-1">
-              <span className="font-semibold text-neutral-700">Total</span>
-              <span className="text-xl font-bold text-neutral-900">{formatCurrency(itemsTotal)}</span>
-            </div>
-            <p className="text-xs text-neutral-400 mt-1">Pagamento no balcão</p>
-          </div>
-        </div>
-      </div>
+        </aside>
+      </form>
     </div>
   );
 }

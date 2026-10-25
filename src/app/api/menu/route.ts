@@ -24,6 +24,8 @@ const menuItemSchema = z.object({
   description: z.string().optional(),
   price: z.number().positive(),
   imageUrl: z.string().url().optional().nullable(),
+  // A foto sem fundo, para o banner. null tira o recorte; ausente não mexe.
+  imagemRecortadaUrl: z.string().url().optional().nullable(),
   available: z.boolean().default(true),
   categoryId: z.string(),
   // null limpa a declaração ("não informado"); ausente não mexe. String como

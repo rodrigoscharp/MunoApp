@@ -1,10 +1,24 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { ALVO_DA_SACOLA } from "@/components/loja/sacola";
 
 export interface FlyEvent {
   fromX: number;
   fromY: number;
+}
+
+/**
+ * O botão de sacola que está na tela. Há dois (cabeçalho no desktop, barra de
+ * baixo no celular), e o escondido por breakpoint tem `display: none`, sem
+ * retângulo nenhum: é por isso que ele fica de fora.
+ */
+export function alvoVisivelDaSacola(): HTMLElement | null {
+  const alvos = document.querySelectorAll<HTMLElement>(`[${ALVO_DA_SACOLA}]`);
+  for (const alvo of alvos) {
+    if (alvo.getClientRects().length > 0) return alvo;
+  }
+  return null;
 }
 
 // Dispara a animação a partir de qualquer componente
@@ -23,8 +37,8 @@ export function CartFlyAnimation() {
     function onCartFly(e: Event) {
       const { fromX, fromY } = (e as CustomEvent<FlyEvent>).detail;
 
-      // Posição do ícone do carrinho
-      const cartBtn = document.getElementById("cart-btn");
+      // Posição do botão da sacola que está visível
+      const cartBtn = alvoVisivelDaSacola();
       if (!cartBtn || !containerRef.current) return;
       const cartRect = cartBtn.getBoundingClientRect();
       const toX = cartRect.left + cartRect.width / 2;
@@ -40,6 +54,7 @@ export function CartFlyAnimation() {
         height: 12px;
         border-radius: 50%;
         background: #D4612A;
+        box-shadow: 0 0 0 3px #FFFBF6;
         pointer-events: none;
         z-index: 9999;
         transform: translate(-50%, -50%);

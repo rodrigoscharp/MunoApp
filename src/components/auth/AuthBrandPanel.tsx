@@ -1,10 +1,13 @@
 import Image from "next/image";
 import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { MapPin } from "lucide-react";
+import { Raminho } from "@/components/loja/Raminho";
+import { kicker } from "@/components/loja/estilos";
+import { LOGO_PADRAO } from "@/lib/pwa/logo-do-tenant";
 import type { RestaurantInfo } from "@/lib/restaurant";
 
 /**
- * O painel de marca das telas de login e cadastro.
+ * O painel de marca das telas de login, cadastro e recuperação de senha.
  *
  * Existe para que os dois lados leiam o MESMO restaurante. Até 18/08/2026 cada
  * tela trazia "Muno Food Restaurante" e "Rua Paraty 1772, Ubatuba-SP" escritos
@@ -16,6 +19,14 @@ import type { RestaurantInfo } from "@/lib/restaurant";
  * O endereço só aparece quando existe. Tenant recém-provisionado ainda não
  * preencheu o cadastro, e uma linha com o pino e nada ao lado é pior que
  * nenhuma linha.
+ *
+ * Sem logo próprio (`LOGO_PADRAO`, o da Muno), o nome entra em manchete
+ * terracota no lugar da imagem: o cliente do restaurante não conhece a Muno,
+ * e o logo dela aqui diria que a conta é de outro lugar.
+ *
+ * No celular o painel encolhe para uma faixa no topo, com nome e frase; a
+ * descrição e o endereço ficam só na coluna do desktop, para o formulário
+ * caber acima da dobra.
  */
 export function AuthBrandPanel({
   restaurantInfo,
@@ -24,31 +35,43 @@ export function AuthBrandPanel({
   restaurantInfo: RestaurantInfo;
   descricao: string;
 }) {
-  return (
-    <div className="hidden lg:flex lg:w-1/2 bg-brand flex-col items-center justify-center p-12 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-brand via-brand to-brand-dark opacity-90" />
-      <div className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-white/5" />
-      <div className="absolute -top-16 -right-16 w-72 h-72 rounded-full bg-white/5" />
+  const logo = restaurantInfo.logoUrl?.trim();
+  const temLogo = Boolean(logo) && logo !== LOGO_PADRAO;
 
-      <div className="relative z-10 flex flex-col items-center text-center gap-6 max-w-sm">
-        <Image
-          src={restaurantInfo.logoUrl}
-          alt={restaurantInfo.name}
-          width={200}
-          height={75}
-          className="h-20 w-auto object-contain brightness-0 invert"
-          unoptimized={!imagemOtimizavel(restaurantInfo.logoUrl)}
-        />
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2">{restaurantInfo.name}</h1>
-          <p className="text-white/70 text-base leading-relaxed">{descricao}</p>
-        </div>
+  // Só a partir do lg. Abaixo disso o cabeçalho da loja já mostra o nome e a
+  // frase logo acima, e o painel repetia o mesmo nome duas vezes na tela do
+  // celular antes de o formulário começar.
+  return (
+    <div className="relative hidden overflow-hidden bg-loja-pessego lg:flex lg:w-1/2 lg:flex-col lg:items-center lg:justify-center lg:rounded-none lg:p-12">
+      <Raminho className="pointer-events-none absolute -right-6 -top-6 h-32 w-32 text-[#C9A685] lg:-right-10 lg:top-10 lg:h-72 lg:w-72" />
+      <Raminho className="pointer-events-none absolute -bottom-16 -left-12 hidden h-64 w-64 rotate-180 text-[#C9A685] opacity-70 lg:block" />
+
+      <div className="relative z-10 flex max-w-sm flex-col items-center gap-3 text-center lg:gap-6">
+        {temLogo ? (
+          <Image
+            src={logo}
+            alt={restaurantInfo.name}
+            width={200}
+            height={75}
+            className="h-14 w-auto object-contain lg:h-24"
+            unoptimized={!imagemOtimizavel(logo)}
+          />
+        ) : (
+          <p className="manchete break-words text-[38px] text-loja-preco lg:text-[64px]">
+            {restaurantInfo.name}
+          </p>
+        )}
+
+        {restaurantInfo.slogan && (
+          <p className={`${kicker} text-forest-dark`}>{restaurantInfo.slogan}</p>
+        )}
+
+        <p className="hidden text-base leading-relaxed text-loja-tinta lg:block">{descricao}</p>
+
         {restaurantInfo.address && (
-          <div className="w-full border-t border-white/20 pt-6 flex flex-col gap-3 text-white/70 text-sm">
-            <div className="flex items-center gap-2">
-              <MapPin size={14} className="text-white/50 shrink-0" />
-              <span>{restaurantInfo.address}</span>
-            </div>
+          <div className="hidden w-full items-center justify-center gap-2 border-t border-[#E2C3A6] pt-6 text-sm text-loja-tinta lg:flex">
+            <MapPin size={16} aria-hidden="true" className="shrink-0 text-loja-preco" />
+            <span>{restaurantInfo.address}</span>
           </div>
         )}
       </div>

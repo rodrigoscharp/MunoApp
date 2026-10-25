@@ -13,6 +13,7 @@ interface MenuItem {
   description: string | null;
   price: number;
   imageUrl: string | null;
+  imagemRecortadaUrl?: string | null;
   available: boolean;
   categoryId: string;
   containsGluten?: boolean | null;

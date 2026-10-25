@@ -15,6 +15,7 @@ export interface Coupon {
   validFrom: string | null;
   validUntil: string | null;
   active: boolean;
+  destaque?: boolean;
   _count: { orders: number };
 }
 
@@ -81,11 +82,15 @@ export function CouponsControl({ initialCoupons }: Props) {
   }
 
   function aoSalvar(salvo: Coupon) {
-    setCoupons((prev) =>
-      prev.some((c) => c.id === salvo.id)
-        ? prev.map((c) => (c.id === salvo.id ? salvo : c))
-        : [salvo, ...prev]
-    );
+    setCoupons((prev) => {
+      // O servidor desmarca os outros destaques; a lista acompanha sem buscar.
+      const base = salvo.destaque
+        ? prev.map((c) => (c.id === salvo.id ? c : { ...c, destaque: false }))
+        : prev;
+      return base.some((c) => c.id === salvo.id)
+        ? base.map((c) => (c.id === salvo.id ? salvo : c))
+        : [salvo, ...base];
+    });
     setModalOpen(false);
   }
 
@@ -141,6 +146,11 @@ export function CouponsControl({ initialCoupons }: Props) {
                     <span className="font-mono text-sm font-semibold tracking-wide text-neutral-800">
                       {coupon.code}
                     </span>
+                    {coupon.destaque && (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-brand-light text-brand-dark">
+                        No cardápio
+                      </span>
+                    )}
                     {badge && (
                       <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${badge.classe}`}>
                         {badge.texto}

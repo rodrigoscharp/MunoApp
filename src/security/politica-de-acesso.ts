@@ -154,6 +154,7 @@ export const POLITICA: Record<string, Nivel> = {
   "PUT /api/settings/printer": autenticado("ADMIN"),
   "GET /api/settings/restaurant": publico("nome, endereço, telefone e logo exibidos no cardápio"),
   "PUT /api/settings/restaurant": autenticado("ADMIN"),
+  "PUT /api/settings/banner": autenticado("ADMIN"),
 
   "GET /api/tables": autenticado("ADMIN"),
   "POST /api/tables": autenticado("ADMIN"),

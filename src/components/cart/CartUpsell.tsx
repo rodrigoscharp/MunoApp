@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { Plus } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { formatCurrency } from "@/lib/utils";
 import { getUpsellSuggestions } from "@/lib/upsell";
 import { CategoryWithItems } from "@/types";
+import { kicker } from "@/components/loja/estilos";
+import { Miniatura } from "@/components/cart/LinhaDaSacola";
 
-export function CartUpsell({ className = "px-6 py-4" }: { className?: string }) {
+export function CartUpsell({ className = "px-5 py-4" }: { className?: string }) {
   const items = useCart((s) => s.items);
   const addItem = useCart((s) => s.addItem);
   const [categories, setCategories] = useState<CategoryWithItems[] | null>(null);
@@ -29,57 +30,42 @@ export function CartUpsell({ className = "px-6 py-4" }: { className?: string }) 
 
   if (suggestions.length === 0) return null;
 
+  // Uma sugestão ocupa a largura toda; mais de uma vira faixa de rolar, com a
+  // próxima aparecendo na borda para dizer que há mais.
+  const largura = suggestions.length === 1 ? "w-full" : "w-[82%] max-w-[300px]";
+
   return (
     <div className={className}>
-      <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-3">
-        Que tal adicionar?
-      </p>
+      <p className={`${kicker} mb-2 text-forest-dark`}>Que tal adicionar?</p>
 
-      <div className="flex gap-3 overflow-x-auto snap-x [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {suggestions.map((item) => (
           <div
             key={item.id}
-            className="w-32 shrink-0 snap-start bg-white rounded-2xl border border-neutral-200 overflow-hidden"
+            className={`${largura} flex shrink-0 snap-start items-center gap-3 rounded-[18px] bg-loja-pessego p-1.5 pr-2`}
           >
-            <div className="relative aspect-square bg-neutral-100">
-              {item.imageUrl ? (
-                <Image
-                  src={item.imageUrl}
-                  alt={item.name}
-                  fill
-                  sizes="128px"
-                  className="object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <svg className="w-8 h-8 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-              )}
-
-              <button
-                onClick={() =>
-                  addItem(
-                    { id: item.id, name: item.name, price: item.price, imageUrl: item.imageUrl },
-                    1
-                  )
-                }
-                className="absolute bottom-1.5 right-1.5 w-7 h-7 rounded-full bg-brand hover:bg-brand-dark active:scale-90 text-white flex items-center justify-center shadow-md transition-all duration-150"
-                aria-label={`Adicionar ${item.name}`}
-              >
-                <Plus size={14} strokeWidth={2.5} />
-              </button>
-            </div>
-
-            <div className="px-2.5 pt-2 pb-2.5">
-              <p className="text-xs font-medium text-neutral-900 leading-snug line-clamp-2 h-8">
+            <Miniatura src={item.imageUrl} tamanho={52} />
+            <div className="min-w-0 flex-1">
+              <p className="line-clamp-2 text-[13px] font-extrabold leading-snug text-forest-dark">
                 {item.name}
               </p>
-              <p className="text-sm font-bold text-brand mt-1">
+              <p className="mt-0.5 text-[13px] font-bold text-loja-preco">
                 {formatCurrency(item.price)}
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() =>
+                addItem(
+                  { id: item.id, name: item.name, price: item.price, imageUrl: item.imageUrl },
+                  1
+                )
+              }
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-forest-dark text-white transition hover:bg-forest active:scale-90"
+              aria-label={`Adicionar ${item.name}`}
+            >
+              <Plus size={18} strokeWidth={2.5} aria-hidden="true" />
+            </button>
           </div>
         ))}
       </div>

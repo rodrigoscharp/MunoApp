@@ -1,20 +1,23 @@
 "use client";
 
 import Image from "next/image";
+import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
 import { Plus } from "lucide-react";
 import { useRef, useState } from "react";
 import { useCart } from "@/hooks/useCart";
 import { triggerCartFly } from "@/components/menu/CartFlyAnimation";
-import { formatCurrency } from "@/lib/utils";
-import { MenuItemWithCategory } from "@/types";
 import { AddToCartModal } from "@/components/menu/AddToCartModal";
+import { useFolhaDoProduto } from "@/components/loja/FolhaDoProduto";
+import { precoCurto } from "@/components/loja/preco";
+import type { ItemDaVitrine } from "@/components/loja/tipos";
 
 export function ProductCard({
   item,
   restaurantOpen = true,
   prioridade = false,
+  variante = "grade",
 }: {
-  item: MenuItemWithCategory;
+  item: ItemDaVitrine;
   restaurantOpen?: boolean;
   /**
    * Os primeiros cards, acima da dobra, são candidatos a LCP. Com isso a foto
@@ -23,10 +26,22 @@ export function ProductCard({
    * quando há várias imagens candidatas, que é o caso de uma grade.
    */
   prioridade?: boolean;
+  /** "fileira": o card estreito da faixa de mais pedidos, sem descrição. */
+  variante?: "grade" | "fileira";
 }) {
+  const folha = useFolhaDoProduto();
   const addItem = useCart((s) => s.addItem);
   const btnRef = useRef<HTMLButtonElement>(null);
+  // Só usado fora de um ProvedorDaFolha (ver FolhaDoProduto).
   const [showModal, setShowModal] = useState(false);
+
+  const podeAdicionar = item.available && restaurantOpen;
+
+  function abrir() {
+    if (!podeAdicionar) return;
+    if (folha) folha.abrir(item, btnRef.current);
+    else setShowModal(true);
+  }
 
   function handleConfirm(notes: string, quantity: number) {
     addItem(
@@ -37,70 +52,88 @@ export function ProductCard({
     setShowModal(false);
   }
 
+  const fileira = variante === "fileira";
+
   return (
     <>
-      <div className="group bg-white rounded-2xl border border-neutral-200 overflow-hidden flex flex-col h-full hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
-        <div className="relative h-36 sm:h-40 bg-neutral-100 overflow-hidden">
+      <article
+        className={`group flex h-full flex-col rounded-[20px] bg-loja-papel shadow-loja transition duration-200 hover:-translate-y-0.5 hover:shadow-loja-alta ${
+          fileira ? "gap-1.5 p-2 pb-2.5" : "gap-2 p-2 pb-3 sm:p-2.5"
+        }`}
+      >
+        {/* A foto também abre a folha, mas fica fora da ordem de tabulação:
+            o botão "+" já é a mesma ação, e dois focos para ela só dobrariam
+            o caminho de quem navega por teclado. */}
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-hidden="true"
+          onClick={abrir}
+          disabled={!podeAdicionar}
+          className={`relative block w-full overflow-hidden rounded-2xl bg-loja-pessego-claro disabled:cursor-default ${
+            fileira ? "aspect-[8/7]" : "aspect-[4/3]"
+          }`}
+        >
           {item.imageUrl ? (
             <Image
               src={item.imageUrl}
-              alt={item.name}
+            unoptimized={!imagemOtimizavel(item.imageUrl)}
+              alt=""
               fill
-              // No celular o card é uma faixa de rolagem com largura fixa
-              // (w-44, 176px, na página); 50vw pedia o dobro em telas largas.
-              sizes="(max-width: 640px) 176px, (max-width: 1024px) 33vw, 25vw"
+              // Celular: duas colunas na grade, ~130px na fileira.
+              sizes={fileira ? "140px" : "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"}
               loading={prioridade ? "eager" : "lazy"}
               fetchPriority={prioridade ? "high" : undefined}
-              className="object-cover group-hover:scale-105 transition-transform duration-300"
+              className="object-cover transition-transform duration-300 group-hover:scale-105"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <svg className="w-10 h-10 text-neutral-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <span className="flex h-full w-full items-center justify-center text-loja-tinta-2/40">
+              <svg className="h-9 w-9" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-            </div>
+            </span>
           )}
           {!item.available && (
-            <div className="absolute inset-0 bg-white/75 flex items-center justify-center">
-              <span className="text-xs font-medium text-neutral-500 bg-white/90 px-3 py-1 rounded-full border border-neutral-200">
+            <span className="absolute inset-0 flex items-center justify-center bg-loja-papel/75">
+              <span className="rounded-full bg-loja-papel px-3 py-1 text-xs font-semibold text-loja-tinta-2 shadow-loja">
                 Indisponível
               </span>
-            </div>
+            </span>
           )}
-        </div>
+        </button>
 
-        <div className="p-3 sm:p-4 flex flex-col flex-1">
-          <h3 className="font-semibold text-neutral-900 text-sm leading-snug line-clamp-2">
+        <div className="flex flex-1 flex-col px-0.5">
+          <h3 className={`font-bold leading-tight text-loja-tinta line-clamp-2 ${fileira ? "text-[13px]" : "text-sm"}`}>
             {item.name}
           </h3>
-          {item.description && (
-            <p className="text-xs text-neutral-400 mt-1 leading-relaxed line-clamp-2">
-              {item.description}
-            </p>
+          {!fileira && item.description && (
+            <p className="mt-1 text-xs leading-relaxed text-loja-tinta-2 line-clamp-2">{item.description}</p>
           )}
-          <div className="mt-auto pt-3 flex items-center justify-between gap-2">
-            <span className="text-base font-bold text-brand">
-              {formatCurrency(item.price)}
+          <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+            <span className={`font-extrabold text-loja-preco ${fileira ? "text-[13.5px]" : "text-[15px]"}`}>
+              {precoCurto(item.price)}
             </span>
+            {/* Alvo de 44px com o círculo de 36 dentro: o toque cabe no dedo
+                sem o card ganhar altura. */}
             <button
               ref={btnRef}
-              onClick={() => setShowModal(true)}
-              disabled={!item.available || !restaurantOpen}
-              title={!restaurantOpen ? "Restaurante fechado no momento" : undefined}
-              className="flex items-center justify-center w-8 h-8 rounded-full bg-brand hover:bg-brand-dark active:scale-90 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-all duration-150 shadow-sm"
+              type="button"
+              onClick={abrir}
+              disabled={!podeAdicionar}
+              aria-label={`Adicionar ${item.name}`}
+              title={!restaurantOpen ? "Restaurante fechado no momento" : !item.available ? "Indisponível" : undefined}
+              className="group/mais -m-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full disabled:cursor-not-allowed"
             >
-              <Plus size={16} strokeWidth={2.5} />
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-white transition duration-150 group-hover:bg-loja-brasa group-active/mais:scale-90 group-disabled/mais:opacity-40">
+                <Plus size={17} strokeWidth={3} aria-hidden="true" />
+              </span>
             </button>
           </div>
         </div>
-      </div>
+      </article>
 
       {showModal && (
-        <AddToCartModal
-          item={item}
-          onConfirm={handleConfirm}
-          onClose={() => setShowModal(false)}
-        />
+        <AddToCartModal item={item} onConfirm={handleConfirm} onClose={() => setShowModal(false)} />
       )}
     </>
   );

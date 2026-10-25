@@ -170,6 +170,7 @@ describe("o que vai para o navegador", () => {
     description: "Pão, carne e salada",
     price: 25.9,
     imageUrl: "https://exemplo/x.jpg",
+    imagemRecortadaUrl: null,
     available: true,
     categoryId: "cat-1",
     containsGluten: true,

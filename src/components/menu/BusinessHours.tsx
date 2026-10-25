@@ -113,13 +113,17 @@ export function BusinessHours({ schedule }: Props) {
 
   const groups = groupDays(schedule);
 
+  // Faixa estática, no alto da página: ela já não gruda. A navegação de
+  // categorias é quem gruda, e duas faixas fixas empilhadas comiam a tela do
+  // celular e empurravam o top da navegação para um número que mudava com o
+  // tamanho do cabeçalho.
   return (
-    <div className="sticky top-0 z-50 bg-neutral-900 text-white text-xs">
+    <div className="bg-forest-dark text-white text-xs">
       <div className="max-w-5xl mx-auto px-4 h-8 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 overflow-x-auto no-scrollbar">
           {groups.map((g) => (
-            <span key={g.label} className="shrink-0 text-neutral-400">
-              <span className="text-neutral-300 font-medium">{g.label}:</span>{" "}
+            <span key={g.label} className="shrink-0 text-white/75">
+              <span className="text-white font-semibold">{g.label}:</span>{" "}
               {g.open ? `${formatTime(g.from)} – ${formatTime(g.to)}` : "Fechado"}
             </span>
           ))}
@@ -127,9 +131,12 @@ export function BusinessHours({ schedule }: Props) {
 
         {status && (
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className={`w-1.5 h-1.5 rounded-full ${status.isOpen ? "bg-green-400 animate-pulse" : "bg-neutral-500"}`} />
-            <Clock size={11} className={status.isOpen ? "text-green-400" : "text-neutral-500"} />
-            <span className={status.isOpen ? "text-green-400 font-medium" : "text-neutral-500"}>
+            <span
+              aria-hidden="true"
+              className={`w-1.5 h-1.5 rounded-full ${status.isOpen ? "bg-[#9ED9B4] animate-pulse" : "bg-white/50"}`}
+            />
+            <Clock size={11} aria-hidden="true" className={status.isOpen ? "text-[#9ED9B4]" : "text-white/70"} />
+            <span className={status.isOpen ? "text-[#9ED9B4] font-bold" : "text-white/80"}>
               {status.label}
             </span>
           </div>

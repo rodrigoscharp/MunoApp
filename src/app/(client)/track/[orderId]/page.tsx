@@ -28,16 +28,18 @@ export default async function TrackPage({ params, searchParams }: Props) {
   if (!order || !canViewOrder(order, session?.user ?? null)) notFound();
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6">
+    <div className="mx-auto w-full max-w-lg px-4 py-4">
       {/* Payment result feedback */}
       {payment === "success" && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4 text-center">
-          <p className="text-green-700 font-medium">Pagamento aprovado!</p>
+        <div role="status" className="mb-3 rounded-[20px] bg-loja-folha px-4 py-3 text-center">
+          <p className="text-sm font-extrabold text-forest-dark">Pagamento aprovado!</p>
         </div>
       )}
       {payment === "failure" && (
-        <div className="bg-brand-light border border-brand-muted rounded-xl p-4 mb-4 text-center">
-          <p className="text-red-700 font-medium">Pagamento não aprovado. Tente novamente.</p>
+        <div role="alert" className="mb-3 rounded-[20px] bg-loja-pessego px-4 py-3 text-center">
+          <p className="text-sm font-extrabold text-loja-preco">
+            Pagamento não aprovado. Tente novamente.
+          </p>
         </div>
       )}
 

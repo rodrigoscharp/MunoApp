@@ -1,75 +1,35 @@
-import { cardTemPrioridade, getCardapioOuVazio, itemParaCard } from "@/lib/menu-cache";
+import { getCardapioOuVazio } from "@/lib/menu-cache";
 import { getRequestTenantId } from "@/lib/tenant-request";
-import { CategoryNav } from "@/components/menu/CategoryNav";
-import { ProductCard } from "@/components/menu/ProductCard";
-import { MenuItemWithCategory } from "@/types";
+import { getMaisPedidosOuVazio } from "@/lib/loja/vitrine";
+import { getBannerOuPadrao } from "@/lib/loja/banner";
+import { Vitrine } from "@/components/loja/Vitrine";
+import { CardapioEmBreve } from "@/components/loja/SecoesDoCardapio";
 
 export default async function MesaCardapioPage() {
   const tenantId = await getRequestTenantId();
-  const categories = await getCardapioOuVazio(tenantId);
+  const [categories, idsMaisPedidos, banner] = await Promise.all([
+    getCardapioOuVazio(tenantId),
+    getMaisPedidosOuVazio(tenantId),
+    getBannerOuPadrao(tenantId),
+  ]);
   const nonEmpty = categories.filter((c) => c.items.length > 0);
 
   return (
     <div className="min-h-screen">
       {nonEmpty.length > 0 ? (
-        <>
-          <CategoryNav categories={nonEmpty.map(({ id, name, slug }) => ({ id, name, slug }))} />
-          <div className="max-w-5xl mx-auto px-4 py-8 space-y-10">
-            {nonEmpty.map((category, indiceCategoria) => (
-              <section key={category.id} id={category.slug}>
-                <div className="flex items-center justify-between gap-3 mb-5">
-                  <div className="flex items-center gap-3">
-                    <span className="w-1 h-6 rounded-full bg-brand" />
-                    <h2 className="text-lg font-bold text-neutral-900 tracking-tight">
-                      {category.name}
-                    </h2>
-                    <span className="text-xs text-neutral-400 font-normal">
-                      {category.items.length} {category.items.length === 1 ? "item" : "itens"}
-                    </span>
-                  </div>
-                  {category.items.length > 2 && (
-                    <span className="sm:hidden text-xs text-neutral-400 flex items-center gap-1 shrink-0">
-                      deslize
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                      </svg>
-                    </span>
-                  )}
-                </div>
-
-                <div className="
-                  flex gap-3 overflow-x-auto snap-x snap-mandatory pb-3 -mx-4 px-4
-                  no-scrollbar
-                  sm:grid sm:grid-cols-3 lg:grid-cols-4
-                  sm:gap-4 sm:overflow-visible sm:mx-0 sm:px-0 sm:pb-0
-                ">
-                  {category.items.map((item, indiceItem) => (
-                    <div key={item.id} className="shrink-0 w-44 snap-start sm:w-auto sm:shrink sm:h-full">
-                      <ProductCard
-                        // O cast fica até o ProductCard tipar a prop pelo que
-                        // lê (ItemDoCard): hoje ele pede MenuItemWithCategory
-                        // inteiro, com categoria, e só usa estes campos.
-                        item={itemParaCard(item) as MenuItemWithCategory}
-                        restaurantOpen={true}
-                        prioridade={cardTemPrioridade(indiceCategoria, indiceItem)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        </>
+        // Sem cupom (não vale em pedido de mesa) e sem barra de baixo: a mesa
+        // tem a sacola e a conta no próprio cabeçalho, que é fixo, e a
+        // navegação de categorias gruda logo abaixo dele: 92px é a faixa da
+        // mesa (h-7) mais a linha do logo (h-16), em MesaHeader.tsx.
+        <Vitrine
+          categorias={nonEmpty}
+          idsMaisPedidos={idsMaisPedidos}
+          banner={banner}
+          restaurantOpen={true}
+          navClassName="top-[92px]"
+        />
       ) : (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-neutral-400 gap-3">
-          <div className="w-16 h-16 rounded-full bg-brand-light flex items-center justify-center">
-            <svg className="w-8 h-8 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-          </div>
-          <p className="text-base font-medium text-neutral-600">Cardápio em breve</p>
-          <p className="text-sm text-neutral-400">Os itens serão adicionados pelo administrador.</p>
-        </div>
+        <CardapioEmBreve />
       )}
     </div>
   );

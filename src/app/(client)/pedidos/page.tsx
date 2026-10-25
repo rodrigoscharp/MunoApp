@@ -3,18 +3,12 @@ import { prismaUnscoped } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { formatCurrency, formatDate, ORDER_STATUS_LABELS } from "@/lib/utils";
-import { ArrowRight, MessageSquare, PackageSearch, ShoppingBag } from "lucide-react";
+import { ChevronRight, MessageSquare, PackageSearch } from "lucide-react";
 import { OrderStatus } from "@/types";
-
-const STATUS_STYLES: Record<OrderStatus, string> = {
-  PENDING: "bg-yellow-100 text-yellow-700",
-  CONFIRMED: "bg-blue-100 text-blue-700",
-  IN_PREPARATION: "bg-orange-100 text-orange-700",
-  READY: "bg-green-100 text-green-700",
-  OUT_FOR_DELIVERY: "bg-purple-100 text-purple-700",
-  DELIVERED: "bg-neutral-100 text-neutral-600",
-  CANCELLED: "bg-red-100 text-red-600",
-};
+import { botaoBrasa, cartao, kicker } from "@/components/loja/estilos";
+import { Raminho } from "@/components/loja/Raminho";
+import { TituloDosPedidos } from "./TituloDosPedidos";
+import { SELO_DO_PEDIDO, seloBase } from "@/components/loja/selo-do-pedido";
 
 const ACTIVE_STATUSES: OrderStatus[] = [
   "PENDING",
@@ -50,34 +44,31 @@ export default async function PedidosPage() {
   );
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-3 mb-8">
-        <ShoppingBag size={22} className="text-brand" />
-        <h1 className="text-2xl font-bold text-neutral-900">Meus Pedidos</h1>
-      </div>
+    <div className="mx-auto max-w-2xl px-4 py-8">
+      <TituloDosPedidos />
 
       {orders.length === 0 ? (
-        <div className="text-center py-20">
-          <PackageSearch size={48} className="mx-auto mb-4 text-neutral-300" />
-          <p className="text-neutral-500 font-medium">Nenhum pedido ainda</p>
-          <p className="text-neutral-400 text-sm mt-1 mb-6">
-            Seus pedidos aparecerão aqui após a compra.
-          </p>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 bg-brand hover:bg-brand-dark text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition"
-          >
-            Ver cardápio
-          </Link>
+        <div className={`${cartao} relative overflow-hidden px-6 py-12 text-center`}>
+          <Raminho className="pointer-events-none absolute -right-6 -top-6 h-28 w-28 text-[#C9A685]" />
+          <div className="relative">
+            <span className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-loja-pessego">
+              <PackageSearch size={28} aria-hidden="true" className="text-loja-preco" />
+            </span>
+            <p className="manchete text-[32px] text-forest-dark">Nenhum pedido ainda</p>
+            <p className="mx-auto mt-2 mb-6 max-w-xs text-sm text-loja-tinta-2">
+              Seus pedidos aparecerão aqui após a compra.
+            </p>
+            <Link href="/" className={`${botaoBrasa} h-12 text-sm`}>
+              Ver cardápio
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="space-y-8">
           {/* Pedidos ativos */}
           {active.length > 0 && (
             <section>
-              <h2 className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-3">
-                Em andamento
-              </h2>
+              <h2 className={`${kicker} mb-3 text-loja-tinta-2`}>Em andamento</h2>
               <div className="space-y-3">
                 {active.map((order) => (
                   <OrderCard key={order.id} order={order} />
@@ -89,9 +80,7 @@ export default async function PedidosPage() {
           {/* Histórico */}
           {past.length > 0 && (
             <section>
-              <h2 className="text-xs font-semibold text-neutral-400 uppercase tracking-wide mb-3">
-                Histórico
-              </h2>
+              <h2 className={`${kicker} mb-3 text-loja-tinta-2`}>Histórico</h2>
               <div className="space-y-3">
                 {past.map((order) => (
                   <OrderCard key={order.id} order={order} />
@@ -120,55 +109,54 @@ function OrderCard({
   const isActive = ACTIVE_STATUSES.includes(status);
 
   return (
-    <div className="bg-white border border-neutral-200 rounded-xl px-5 py-4 hover:border-brand/40 hover:shadow-sm transition">
-      <Link href={`/track/${order.id}`} className="flex items-center justify-between gap-4 group">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            <span className="font-mono text-xs font-bold text-neutral-500">
+    <div className={`${cartao} px-5 py-4 transition hover:shadow-loja-alta`}>
+      <Link href={`/track/${order.id}`} className="group flex items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="font-mono text-xs font-bold text-loja-tinta-2">
               #{order.id.slice(-6).toUpperCase()}
             </span>
-            <span
-              className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[status]}`}
-            >
+            <span className={`${seloBase} ${SELO_DO_PEDIDO[status]}`}>
               {ORDER_STATUS_LABELS[status]}
             </span>
             {isActive && (
-              <span className="flex items-center gap-1 text-xs text-brand font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse inline-block" />
+              <span className="flex items-center gap-1.5 text-xs font-bold text-loja-preco">
+                <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-brand" />
                 Ao vivo
               </span>
             )}
           </div>
 
-          <p className="text-sm text-neutral-700 truncate">
+          <p className="truncate text-sm font-semibold text-loja-tinta">
             {order.items
               .map((i) => `${i.quantity}× ${i.menuItem.name}`)
               .join(", ")}
           </p>
 
-          <p className="text-xs text-neutral-400 mt-1">
+          <p className="mt-1 text-xs text-loja-tinta-2">
             {formatDate(order.createdAt)}
           </p>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          <span className="font-bold text-neutral-900 text-sm">
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="manchete text-[24px] text-forest-dark">
             {formatCurrency(Number(order.total))}
           </span>
-          <ArrowRight
-            size={16}
-            className="text-neutral-300 group-hover:text-brand transition"
+          <ChevronRight
+            size={18}
+            aria-hidden="true"
+            className="text-loja-tinta-2 transition group-hover:text-loja-preco"
           />
         </div>
       </Link>
 
       {/* Botão de chat */}
-      <div className="mt-3 pt-3 border-t border-neutral-100 flex justify-end">
+      <div className="mt-3 flex justify-end border-t border-dashed border-loja-linha pt-2">
         <Link
           href={`/pedidos/${order.id}/chat`}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-500 hover:text-brand transition"
+          className="inline-flex min-h-11 items-center gap-1.5 text-[13px] font-bold text-forest-dark transition hover:text-loja-preco"
         >
-          <MessageSquare size={13} />
+          <MessageSquare size={15} aria-hidden="true" />
           Chat com o restaurante
         </Link>
       </div>

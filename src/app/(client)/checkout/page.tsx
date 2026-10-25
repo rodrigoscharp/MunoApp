@@ -12,8 +12,16 @@ import { formatCurrency } from "@/lib/utils";
 import { PaymentMethodSelector } from "@/components/checkout/PaymentMethodSelector";
 import { PaymentMethod } from "@/types";
 import { isValidCpf, formatCpf, stripCpf } from "@/lib/cpf";
-import { ArrowLeft, Store, Truck, MapPin, TicketPercent, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Store, Truck, MapPin, TicketPercent, X } from "lucide-react";
 import Link from "next/link";
+import { botaoBrasa, botaoContorno, botaoFloresta, campo, cartao } from "@/components/loja/estilos";
+import { Miniatura } from "@/components/cart/LinhaDaSacola";
+
+const tituloDoBloco = "text-[15px] font-extrabold text-loja-tinta";
+const rotulo = "mb-1.5 block text-[13px] font-bold text-loja-tinta";
+const erroDoCampo = "mt-1 text-[12px] font-semibold text-loja-preco";
+const caixaDeErro =
+  "rounded-2xl border border-loja-pessego bg-loja-pessego-claro px-4 py-3 text-[13px] font-semibold text-loja-preco";
 
 interface DeliveryZone {
   id: string;
@@ -184,20 +192,20 @@ export default function CheckoutPage() {
   // Antes de ler o localStorage o carrinho parece vazio para todo mundo.
   if (!carrinhoHidratado) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
-        <p className="text-neutral-400 text-sm">Carregando seu pedido...</p>
+      <div className="mx-auto max-w-lg px-4 py-16 text-center">
+        <p className="text-sm text-loja-tinta-2">Carregando seu pedido...</p>
       </div>
     );
   }
 
   if (items.length === 0) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+      <div className="mx-auto flex max-w-lg flex-col items-center gap-3 px-4 py-16 text-center">
         {/* O carrinho pode ter esvaziado agora, pelo 422 de item fora do ar:
             o aviso de quais itens saíram continua aqui. */}
-        {error && <p className="text-brand-dark text-sm mb-4">{error}</p>}
-        <p className="text-neutral-500 mb-4">Seu carrinho está vazio.</p>
-        <Link href="/" className="text-brand font-medium hover:underline">Ver cardápio</Link>
+        {error && <p className={`${caixaDeErro} mb-2 w-full`}>{error}</p>}
+        <p className="text-[15px] font-bold text-loja-tinta">Seu carrinho está vazio.</p>
+        <Link href="/" className={`${botaoContorno} h-11`}>Ver cardápio</Link>
       </div>
     );
   }
@@ -375,163 +383,177 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <Link href="/" className="flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-700 mb-6 transition">
-        <ArrowLeft size={16} />
-        Voltar ao cardápio
-      </Link>
+    <div className="mx-auto max-w-5xl px-4 pb-12 pt-5">
+      <div className="mb-5 flex items-center gap-3">
+        <Link
+          href="/"
+          aria-label="Voltar ao cardápio"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-loja-papel text-loja-tinta shadow-loja transition hover:bg-loja-pessego-claro"
+        >
+          <ArrowLeft size={20} aria-hidden="true" />
+        </Link>
+        <h1 className="manchete text-[32px] text-forest-dark md:text-[40px]">Finalizar Pedido</h1>
+      </div>
 
-      <h1 className="text-2xl font-bold text-neutral-900 mb-6">Finalizar Pedido</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="grid grid-cols-1 items-start gap-5 md:grid-cols-[minmax(0,1fr)_360px] md:gap-6"
+      >
+        <div className="space-y-5">
           {/* Retirada / Entrega */}
-          <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-4">
-            <h2 className="font-semibold text-neutral-900">Como deseja receber?</h2>
-            <div className="grid grid-cols-2 gap-3">
-              {(["PICKUP", "DELIVERY"] as DeliveryType[]).map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  disabled={type === "DELIVERY" && semEntrega}
-                  onClick={() => setDeliveryType(type)}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition disabled:opacity-40 disabled:cursor-not-allowed ${
-                    deliveryType === type
-                      ? "border-brand bg-brand-light text-brand"
-                      : "border-neutral-200 text-neutral-500 hover:border-neutral-300"
-                  }`}
-                >
-                  {type === "PICKUP" ? <Store size={22} /> : <Truck size={22} />}
-                  <span className="text-sm font-semibold">
+          <section className="space-y-3" aria-labelledby="titulo-receber">
+            <h2 id="titulo-receber" className={tituloDoBloco}>Como deseja receber?</h2>
+            <div className="grid grid-cols-2 gap-1 rounded-[22px] bg-loja-linha p-1">
+              {(["PICKUP", "DELIVERY"] as DeliveryType[]).map((type) => {
+                const marcado = deliveryType === type;
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    aria-pressed={marcado}
+                    disabled={type === "DELIVERY" && semEntrega}
+                    onClick={() => setDeliveryType(type)}
+                    className={`flex h-11 items-center justify-center gap-2 rounded-[18px] text-[13.5px] transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                      marcado
+                        ? "bg-loja-papel font-extrabold text-forest-dark shadow-[0_4px_10px_-6px_rgba(74,48,28,0.35)]"
+                        : "font-semibold text-loja-tinta-2 hover:text-loja-tinta"
+                    }`}
+                  >
+                    {type === "PICKUP" ? (
+                      <Store size={17} aria-hidden="true" />
+                    ) : (
+                      <Truck size={17} aria-hidden="true" />
+                    )}
                     {type === "PICKUP" ? "Retirar no local" : "Entrega"}
-                  </span>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
 
             {semEntrega && (
-              <p className="text-xs text-neutral-500">
+              <p className="px-1 text-[12.5px] text-loja-tinta-2">
                 Este restaurante não está fazendo entregas pelo app no momento. Você pode retirar
                 no local.
               </p>
             )}
 
             {deliveryType === "DELIVERY" && (
-              <div className="space-y-3 pt-1">
-
+              <div className={`${cartao} space-y-4 p-4`}>
                 {/* Seletor de bairro */}
                 <div>
-                  <label className="block text-xs font-medium text-neutral-600 mb-2 flex items-center gap-1">
-                    <MapPin size={11} /> Selecione seu bairro *
+                  <label htmlFor="zonaId" className={`${rotulo} flex items-center gap-1.5`}>
+                    <MapPin size={14} className="text-forest" aria-hidden="true" /> Bairro *
                   </label>
                   {estadoDasZonas.estado === "carregando" ? (
-                    <p className="text-xs text-neutral-400 italic py-2">Carregando bairros disponíveis...</p>
+                    <p className="py-2 text-[13px] italic text-loja-tinta-2">Carregando bairros disponíveis...</p>
                   ) : estadoDasZonas.estado === "erro" ? (
-                    <div className="flex items-center justify-between gap-3 py-2">
-                      <p className="text-xs text-brand-dark">
+                    <div className="flex items-center justify-between gap-3 rounded-2xl bg-loja-pessego-claro py-1.5 pl-3.5 pr-1.5">
+                      <p className="text-[12.5px] font-semibold text-loja-preco">
                         Não conseguimos carregar os bairros de entrega.
                       </p>
                       <button
                         type="button"
                         onClick={carregarZonas}
-                        className="text-xs font-semibold text-brand hover:underline shrink-0"
+                        className="h-11 shrink-0 rounded-full px-3 text-[13px] font-extrabold text-forest-dark hover:bg-loja-papel"
                       >
                         Tentar de novo
                       </button>
                     </div>
                   ) : (
-                    <select
-                      {...register("zonaId")}
-                      className="w-full px-3 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm text-neutral-700 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
-                    >
+                    <select id="zonaId" {...register("zonaId")} className={campo}>
                       <option value="">Selecione seu bairro</option>
                       {zones.map((zone) => (
                         <option key={zone.id} value={zone.id}>{zone.name}</option>
                       ))}
                     </select>
                   )}
-                  {errors.zonaId && <p className="text-brand text-xs mt-1">{errors.zonaId.message}</p>}
+                  {errors.zonaId && <p className={erroDoCampo}>{errors.zonaId.message}</p>}
                 </div>
 
                 {/* Endereço */}
                 <div className="grid grid-cols-3 gap-3">
                   <div className="col-span-2">
-                    <label className="block text-xs font-medium text-neutral-600 mb-1">Rua *</label>
+                    <label htmlFor="rua" className={rotulo}>Rua *</label>
                     <input
+                      id="rua"
                       {...register("rua")}
                       autoComplete="address-line1"
                       placeholder="Rua das Flores"
-                      className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
+                      className={campo}
                     />
-                    {errors.rua && <p className="text-brand text-xs mt-1">{errors.rua.message}</p>}
+                    {errors.rua && <p className={erroDoCampo}>{errors.rua.message}</p>}
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-neutral-600 mb-1">Número *</label>
+                    <label htmlFor="numero" className={rotulo}>Número *</label>
                     <input
+                      id="numero"
                       {...register("numero")}
                       inputMode="numeric"
                       placeholder="123"
-                      className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
+                      className={campo}
                     />
-                    {errors.numero && <p className="text-brand text-xs mt-1">{errors.numero.message}</p>}
+                    {errors.numero && <p className={erroDoCampo}>{errors.numero.message}</p>}
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-neutral-600 mb-1">Complemento (opcional)</label>
+                  <label htmlFor="complemento" className={rotulo}>Complemento (opcional)</label>
                   <input
+                    id="complemento"
                     {...register("complemento")}
                     autoComplete="address-line2"
                     placeholder="Apto 12, Bloco B"
-                    className="w-full px-3 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
+                    className={campo}
                   />
                 </div>
               </div>
             )}
-          </div>
+          </section>
 
           {/* Dados do cliente */}
-          <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-4">
-            <h2 className="font-semibold text-neutral-900">Seus dados</h2>
+          <section className={`${cartao} space-y-4 p-4`} aria-labelledby="titulo-dados">
+            <h2 id="titulo-dados" className={tituloDoBloco}>Seus dados</h2>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Nome *</label>
+              <label htmlFor="customerName" className={rotulo}>Nome *</label>
               <input
+                id="customerName"
                 {...register("customerName")}
                 autoComplete="name"
                 placeholder="Seu nome"
-                className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
+                className={campo}
               />
-              {errors.customerName && <p className="text-brand text-xs mt-1">{errors.customerName.message}</p>}
+              {errors.customerName && <p className={erroDoCampo}>{errors.customerName.message}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
+              <label htmlFor="customerPhone" className={rotulo}>
                 Telefone {deliveryType === "DELIVERY" ? "*" : "(opcional)"}
               </label>
               <input
+                id="customerPhone"
                 {...register("customerPhone")}
                 type="tel"
                 inputMode="tel"
                 autoComplete="tel"
                 placeholder="(11) 99999-9999"
-                className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
+                className={campo}
               />
-              {errors.customerPhone && <p className="text-brand text-xs mt-1">{errors.customerPhone.message}</p>}
+              {errors.customerPhone && <p className={erroDoCampo}>{errors.customerPhone.message}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Observações (opcional)</label>
+              <label htmlFor="notes" className={rotulo}>Observações (opcional)</label>
               <textarea
+                id="notes"
                 {...register("notes")}
                 placeholder="Sem cebola, ponto da carne, etc."
                 rows={2}
-                className="w-full px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition resize-none"
+                className={`${campo} resize-none`}
               />
-              {errors.notes && <p className="text-brand text-xs mt-1">{errors.notes.message}</p>}
+              {errors.notes && <p className={erroDoCampo}>{errors.notes.message}</p>}
             </div>
-          </div>
+          </section>
 
           {/* Pagamento */}
-          <div className="bg-white rounded-xl border border-neutral-200 p-5">
-            <h2 className="font-semibold text-neutral-900 mb-3">Pagamento</h2>
+          <section className="space-y-3" aria-labelledby="titulo-pagamento">
+            <h2 id="titulo-pagamento" className={tituloDoBloco}>Pagamento</h2>
             <PaymentMethodSelector
               value={paymentMethod}
               onChange={setPaymentMethod}
@@ -540,8 +562,8 @@ export default function CheckoutPage() {
 
             {requiresPayerDocument &&
               (paymentMethod === "PIX" || paymentMethod === "CREDIT_CARD") && (
-                <div className="mt-3 space-y-1">
-                  <label htmlFor="payerDocument" className="block text-sm font-medium text-neutral-700">
+                <div className={`${cartao} space-y-1.5 p-4`}>
+                  <label htmlFor="payerDocument" className={rotulo}>
                     CPF *
                   </label>
                   <input
@@ -551,153 +573,171 @@ export default function CheckoutPage() {
                     placeholder="000.000.000-00"
                     value={payerDocument}
                     onChange={(e) => setPayerDocument(formatCpf(e.target.value))}
-                    className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm"
+                    className={campo}
                   />
-                  <p className="text-xs text-neutral-400">
+                  <p className="text-[12px] text-loja-tinta-2">
                     Exigido pelo meio de pagamento deste restaurante para emitir a cobrança.
                   </p>
                 </div>
               )}
-          </div>
+          </section>
 
           {/* Cupom de desconto */}
-          <div className="bg-white rounded-xl border border-neutral-200 p-5">
-            <h2 className="font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-              <TicketPercent size={17} className="text-neutral-400" />
-              Cupom de desconto
-            </h2>
-
+          <section className="space-y-2.5">
             {appliedCoupon ? (
-              <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5">
-                <span className="font-mono text-sm font-semibold tracking-wide text-green-800">
-                  {appliedCoupon.code}
-                </span>
-                <span className="text-sm text-green-700 flex-1 truncate">
-                  {appliedCoupon.freeShipping
-                    ? "frete grátis aplicado"
-                    : `${formatCurrency(appliedCoupon.discount)} de desconto`}
-                </span>
-                <button
-                  type="button"
-                  onClick={removerCupom}
-                  aria-label="Remover cupom"
-                  className="text-green-700 hover:text-green-900 p-1 shrink-0"
-                >
-                  <X size={15} />
-                </button>
-              </div>
+              <>
+                <h2 className={tituloDoBloco}>Cupom de desconto</h2>
+                <Bilhete>
+                  <p className="min-w-0 flex-1 truncate text-[13.5px] font-extrabold text-forest-dark">
+                    <span className="font-mono tracking-wide">{appliedCoupon.code}</span>{" "}
+                    <span className="font-semibold text-loja-tinta-2">aplicado</span>
+                  </p>
+                  <span className="shrink-0 text-[13.5px] font-extrabold text-forest-dark">
+                    {appliedCoupon.freeShipping
+                      ? "frete grátis"
+                      : `− ${formatCurrency(appliedCoupon.discount)}`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={removerCupom}
+                    aria-label="Remover cupom"
+                    className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-loja-tinta-2 transition hover:bg-loja-creme hover:text-loja-tinta"
+                  >
+                    <X size={17} aria-hidden="true" />
+                  </button>
+                </Bilhete>
+              </>
             ) : (
-              <div className="flex gap-2">
-                <input
-                  value={couponCode}
-                  onChange={(e) => setCouponCode(e.target.value)}
-                  // Enter dentro do form dispararia o submit do pedido; aqui ele
-                  // só aplica o cupom.
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      aplicarCupom();
-                    }
-                  }}
-                  placeholder="Digite seu cupom"
-                  autoCapitalize="characters"
-                  className="flex-1 min-w-0 px-4 py-2.5 rounded-lg border border-neutral-200 bg-neutral-50 text-sm uppercase font-mono tracking-wide focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent transition"
-                />
-                <button
-                  type="button"
-                  onClick={aplicarCupom}
-                  disabled={checkingCoupon || !couponCode.trim()}
-                  className="px-4 py-2.5 rounded-lg border border-neutral-200 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0"
-                >
-                  {checkingCoupon ? "..." : "Aplicar"}
-                </button>
-              </div>
+              <>
+                <label htmlFor="cupom" className={`${tituloDoBloco} block`}>Cupom de desconto</label>
+                <Bilhete>
+                  <input
+                    id="cupom"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value)}
+                    // Enter dentro do form dispararia o submit do pedido; aqui ele
+                    // só aplica o cupom.
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        aplicarCupom();
+                      }
+                    }}
+                    placeholder="Digite seu cupom"
+                    autoCapitalize="characters"
+                    className="h-11 min-w-0 flex-1 bg-transparent font-mono text-[14px] font-bold uppercase tracking-wide text-forest-dark outline-none placeholder:font-sans placeholder:font-medium placeholder:normal-case placeholder:tracking-normal placeholder:text-loja-tinta-2/80"
+                  />
+                  <button
+                    type="button"
+                    onClick={aplicarCupom}
+                    disabled={checkingCoupon || !couponCode.trim()}
+                    className={`${botaoFloresta} -mr-1.5 h-10 shrink-0 px-4 text-[13px]`}
+                  >
+                    {checkingCoupon ? "..." : "Aplicar"}
+                  </button>
+                </Bilhete>
+              </>
             )}
 
-            {couponError && <p className="text-brand text-xs mt-2">{couponError}</p>}
-          </div>
+            {couponError && <p className={`${erroDoCampo} px-1`}>{couponError}</p>}
+          </section>
+        </div>
 
-          {error && (
-            <div className="bg-brand-light border border-brand-muted rounded-lg px-4 py-3">
-              <p className="text-brand-dark text-sm">{error}</p>
+        {/* Resumo e confirmação. No desktop acompanha a rolagem do formulário. */}
+        <aside className="space-y-3 md:sticky md:top-32">
+          <section className={`${cartao} p-4`} aria-labelledby="titulo-resumo">
+            <h2 id="titulo-resumo" className={`${tituloDoBloco} mb-3`}>Resumo do Pedido</h2>
+            <ul className="mb-3 space-y-2.5">
+              {items.map((item) => (
+                <li key={item.cartId} className="flex items-center gap-3">
+                  <Miniatura src={item.imageUrl} tamanho={44} />
+                  <div className="flex min-w-0 flex-1 gap-1.5">
+                    <span className="shrink-0 text-[13px] font-extrabold text-loja-preco">{item.quantity}x</span>
+                    <span className="truncate text-[13px] font-semibold text-loja-tinta">{item.name}</span>
+                  </div>
+                  <span className="shrink-0 text-[13px] font-bold text-loja-tinta">
+                    {formatCurrency(item.price * item.quantity)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="space-y-1.5 border-t border-dashed border-loja-linha pt-3 text-[13px] text-loja-tinta-2">
+              <div className="flex items-center justify-between">
+                <span>Subtotal</span>
+                <span>{formatCurrency(itemsTotal)}</span>
+              </div>
+              {deliveryType === "DELIVERY" && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex min-w-0 items-center gap-1">
+                    Taxa de entrega
+                    {selectedZone && <span className="truncate text-[12px]">· {selectedZone.name}</span>}
+                  </span>
+                  <span className="shrink-0">
+                    {!selectedZone ? (
+                      <span className="text-[12px] italic">selecione o bairro</span>
+                    ) : appliedCoupon?.freeShipping ? (
+                      <>
+                        <span className="mr-1.5 line-through">{formatCurrency(baseFee)}</span>
+                        <span className="font-bold text-forest-dark">Grátis</span>
+                      </>
+                    ) : (
+                      formatCurrency(baseFee)
+                    )}
+                  </span>
+                </div>
+              )}
+              {discount > 0 && (
+                <div className="flex items-center justify-between font-bold text-forest-dark">
+                  <span className="flex items-center gap-1">
+                    Desconto
+                    {appliedCoupon && (
+                      <span className="font-mono text-[12px] font-semibold">· {appliedCoupon.code}</span>
+                    )}
+                  </span>
+                  <span>− {formatCurrency(discount)}</span>
+                </div>
+              )}
+              <div className="flex items-baseline justify-between pt-2">
+                <span className="text-[13px] font-bold text-loja-tinta-2">Total</span>
+                <span className="manchete text-[32px] text-forest-dark">{formatCurrency(grandTotal)}</span>
+              </div>
             </div>
-          )}
+          </section>
+
+          {error && <p className={caixaDeErro}>{error}</p>}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-brand hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition"
+            className={`${botaoBrasa} h-14 w-full text-[15px]`}
           >
             {loading ? "Processando..." : paymentMethod === "CASH" ? "Confirmar Pedido" : "Ir para Pagamento"}
+            {!loading && <ArrowRight size={17} strokeWidth={2.4} aria-hidden="true" />}
           </button>
-          <p className="text-center text-xs text-neutral-400">
+          <p className="px-2 text-center text-[11.5px] text-loja-tinta-2">
             Seu nome, telefone e endereço são usados só para este pedido, conforme a{" "}
-            <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline">
+            <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="font-semibold underline">
               Política de Privacidade
             </a>
             .
           </p>
-        </form>
+        </aside>
+      </form>
+    </div>
+  );
+}
 
-        {/* Resumo */}
-        <div className="bg-white rounded-xl border border-neutral-200 p-5 h-fit">
-          <h2 className="font-semibold text-neutral-900 mb-4">Resumo do Pedido</h2>
-          <ul className="space-y-3 mb-4">
-            {items.map((item) => (
-              <li key={item.cartId} className="flex items-start justify-between gap-2">
-                <div className="flex gap-2 min-w-0">
-                  <span className="text-sm font-bold text-brand flex-shrink-0">{item.quantity}x</span>
-                  <span className="text-sm text-neutral-800 truncate">{item.name}</span>
-                </div>
-                <span className="text-sm font-medium text-neutral-700 flex-shrink-0">
-                  {formatCurrency(item.price * item.quantity)}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <div className="border-t border-neutral-100 pt-3 space-y-1.5">
-            <div className="flex items-center justify-between text-sm text-neutral-500">
-              <span>Subtotal</span>
-              <span>{formatCurrency(itemsTotal)}</span>
-            </div>
-            {deliveryType === "DELIVERY" && (
-              <div className="flex items-center justify-between text-sm text-neutral-500">
-                <span className="flex items-center gap-1">
-                  Taxa de entrega
-                  {selectedZone && <span className="text-neutral-400 text-xs">· {selectedZone.name}</span>}
-                </span>
-                <span>
-                  {!selectedZone ? (
-                    <span className="italic text-xs">selecione o bairro</span>
-                  ) : appliedCoupon?.freeShipping ? (
-                    <>
-                      <span className="line-through text-neutral-400 mr-1.5">{formatCurrency(baseFee)}</span>
-                      <span className="text-green-600 font-medium">Grátis</span>
-                    </>
-                  ) : (
-                    formatCurrency(baseFee)
-                  )}
-                </span>
-              </div>
-            )}
-            {discount > 0 && (
-              <div className="flex items-center justify-between text-sm text-green-600">
-                <span className="flex items-center gap-1">
-                  Desconto
-                  {appliedCoupon && (
-                    <span className="text-green-500 text-xs font-mono">· {appliedCoupon.code}</span>
-                  )}
-                </span>
-                <span>-{formatCurrency(discount)}</span>
-              </div>
-            )}
-            <div className="flex items-center justify-between pt-1">
-              <span className="font-semibold text-neutral-700">Total</span>
-              <span className="text-xl font-bold text-neutral-900">{formatCurrency(grandTotal)}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+/**
+ * O cupom em forma de bilhete: borda tracejada e dois recortes nas laterais,
+ * da cor do fundo da página, como o picote de um ingresso.
+ */
+function Bilhete({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative flex min-h-[56px] items-center gap-2.5 rounded-2xl border-[1.5px] border-dashed border-forest/45 bg-loja-papel py-1.5 pl-4 pr-3">
+      <span aria-hidden="true" className="absolute -left-[9px] top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-loja-creme" />
+      <span aria-hidden="true" className="absolute -right-[9px] top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-loja-creme" />
+      <TicketPercent size={20} strokeWidth={1.8} className="shrink-0 text-forest" aria-hidden="true" />
+      {children}
     </div>
   );
 }

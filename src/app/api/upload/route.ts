@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { authPlatform } from "@/lib/auth-platform";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import sharp from "sharp";
+import { temFundoTransparente } from "@/lib/fundo-transparente";
 
 // Largura máxima gravada. O cardápio mostra a imagem em poucas centenas de
 // pixels; guardar o original de 5 MB só multiplica armazenamento e tráfego.
@@ -76,15 +77,33 @@ export async function POST(req: NextRequest) {
   // nada que o cliente tenha embutido. Nome e extensão saem do resultado, não
   // do que foi enviado.
   let buffer: Buffer;
+  let semFundo = false;
   try {
-    buffer = await sharp(Buffer.from(await file.arrayBuffer()), {
-      limitInputPixels: PIXELS_MAXIMOS,
-      animated: file.type === "image/gif",
-    })
-      .rotate()
-      .resize({ width: LARGURA_MAXIMA, withoutEnlargement: true })
-      .webp({ quality: 80 })
-      .toBuffer();
+    const original = Buffer.from(await file.arrayBuffer());
+    const entrada = () =>
+      sharp(original, { limitInputPixels: PIXELS_MAXIMOS, animated: file.type === "image/gif" });
+    // metadata() lê só o cabeçalho: saber se há alfa não decodifica nada.
+    const meta = await entrada().metadata();
+    const animada = (meta.pages ?? 1) > 1;
+    if (meta.hasAlpha && !animada) {
+      // Com alfa, a imagem é decodificada uma vez só, já reduzida, e os mesmos
+      // pixels servem à pergunta do recorte e ao WebP. Antes eram três
+      // decodificações do original inteiro (metadata, stats e a conversão).
+      const { data, info } = await entrada()
+        .rotate()
+        .resize({ width: LARGURA_MAXIMA, withoutEnlargement: true })
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const raw = { width: info.width, height: info.height, channels: info.channels };
+      semFundo = await temFundoTransparente(data, raw);
+      buffer = await sharp(data, { raw }).webp({ quality: 80 }).toBuffer();
+    } else {
+      buffer = await entrada()
+        .rotate()
+        .resize({ width: LARGURA_MAXIMA, withoutEnlargement: true })
+        .webp({ quality: 80 })
+        .toBuffer();
+    }
   } catch {
     return NextResponse.json({ error: "O arquivo não é uma imagem válida" }, { status: 400 });
   }
@@ -104,5 +123,8 @@ export async function POST(req: NextRequest) {
     .from("product-images")
     .getPublicUrl(filename);
 
-  return NextResponse.json({ url: data.publicUrl });
+  // `semFundo` avisa o painel que a foto já chegou recortada: ela vira também
+  // a foto do banner, sem o dono precisar clicar em "Remover fundo". O WebP
+  // gerado acima preserva o canal alfa.
+  return NextResponse.json({ url: data.publicUrl, semFundo });
 }

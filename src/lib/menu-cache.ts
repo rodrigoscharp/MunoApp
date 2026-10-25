@@ -34,6 +34,7 @@ export interface ItemDoCardapio {
   // leituras receberem o mesmo tipo, com ou sem cache.
   price: number;
   imageUrl: string | null;
+  imagemRecortadaUrl: string | null;
   available: boolean;
   categoryId: string;
   containsGluten: boolean | null;
@@ -78,6 +79,7 @@ async function lerCardapio(tenantId: string): Promise<CategoriaDoCardapio[]> {
             description: true,
             price: true,
             imageUrl: true,
+            imagemRecortadaUrl: true,
             available: true,
             categoryId: true,
             containsGluten: true,

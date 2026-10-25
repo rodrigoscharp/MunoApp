@@ -368,3 +368,42 @@ describe("informações para o cliente", () => {
     expect(screen.getByText(/contaminação cruzada/i)).toBeDefined();
   });
 });
+
+describe("foto sem fundo para o banner", () => {
+  const arquivoPrincipal = () => document.querySelectorAll<HTMLInputElement>('input[type="file"]')[0];
+
+  it("foto enviada já sem fundo vira também a do banner", async () => {
+    montar();
+    await preencherValido();
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ url: "https://x/sem-fundo.webp", semFundo: true }) });
+    await userEvent.upload(arquivoPrincipal(), new File(["x"], "lanche.png", { type: "image/png" }));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+
+    await salvar();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(enviado()).toMatchObject({
+      imageUrl: "https://x/sem-fundo.webp",
+      imagemRecortadaUrl: "https://x/sem-fundo.webp",
+    });
+  });
+
+  it("trocar por uma foto com fundo tira o recorte da foto antiga", async () => {
+    montar({
+      id: "i1",
+      name: "X-Salada",
+      description: null,
+      price: 25.9,
+      imageUrl: "https://x/antiga.webp",
+      imagemRecortadaUrl: "https://x/antiga-recortada.webp",
+      available: true,
+      categoryId: "cat-1",
+    });
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ url: "https://x/nova.webp", semFundo: false }) });
+    await userEvent.upload(arquivoPrincipal(), new File(["x"], "nova.jpg", { type: "image/jpeg" }));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+
+    await salvar();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(enviado()).toMatchObject({ imageUrl: "https://x/nova.webp", imagemRecortadaUrl: null });
+  });
+});

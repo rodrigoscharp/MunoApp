@@ -17,6 +17,7 @@ const schema = z
     validFrom: z.string(),
     validUntil: z.string(),
     active: z.boolean(),
+    destaque: z.boolean(),
   })
   .superRefine((data, ctx) => {
     const value = Number(data.value.replace(",", "."));
@@ -90,6 +91,7 @@ export function CouponModal({ open, onClose, coupon, onSaved }: Props) {
         validFrom: paraInputDate(coupon.validFrom),
         validUntil: paraInputDate(coupon.validUntil),
         active: coupon.active,
+        destaque: coupon.destaque ?? false,
       });
     } else {
       reset({
@@ -100,6 +102,7 @@ export function CouponModal({ open, onClose, coupon, onSaved }: Props) {
         validFrom: "",
         validUntil: "",
         active: true,
+        destaque: false,
       });
     }
     setError("");
@@ -118,6 +121,7 @@ export function CouponModal({ open, onClose, coupon, onSaved }: Props) {
       validFrom: inicioDoDiaLocal(data.validFrom),
       validUntil: fimDoDiaLocal(data.validUntil),
       active: data.active,
+      destaque: data.destaque,
     };
 
     const res = coupon
@@ -251,6 +255,16 @@ export function CouponModal({ open, onClose, coupon, onSaved }: Props) {
             <input {...register("active")} type="checkbox" id="coupon-active" className="w-4 h-4 accent-red-500" />
             <label htmlFor="coupon-active" className="text-sm text-neutral-700">
               Cupom ativo
+            </label>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <input {...register("destaque")} type="checkbox" id="coupon-destaque" className="mt-0.5 w-4 h-4 accent-red-500" />
+            <label htmlFor="coupon-destaque" className="text-sm text-neutral-700">
+              Anunciar no cardápio
+              <span className="block text-xs text-neutral-500">
+                Aparece num card para todo cliente. Só um cupom por vez: marcar este tira o destaque do outro.
+              </span>
             </label>
           </div>
 

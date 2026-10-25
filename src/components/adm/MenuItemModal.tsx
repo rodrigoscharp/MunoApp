@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { useForm, type UseFormRegister } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { X, Upload } from "lucide-react";
+import { X, Upload, Wand2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { booleanParaTri, triParaBoolean } from "@/lib/restricoes";
+import type { EtapaDoRecorte } from "@/lib/loja/remover-fundo";
 
 // `.catch("nd")`: valor que não seja exatamente um dos três cai em "Não
 // informado". Falhar a validação aqui travaria o botão sem mensagem nenhuma, e
@@ -18,6 +19,7 @@ const schema = z.object({
   description: z.string().optional(),
   price: z.string().refine((v) => !isNaN(Number(v)) && Number(v) > 0, "Preço deve ser positivo"),
   imageUrl: z.string().url("URL inválida").optional().or(z.literal("")),
+  imagemRecortadaUrl: z.string().optional().or(z.literal("")),
   available: z.boolean(),
   categoryId: z.string().min(1, "Selecione uma categoria"),
   containsGluten: triEstado,
@@ -33,6 +35,7 @@ interface MenuItem {
   description: string | null;
   price: number;
   imageUrl: string | null;
+  imagemRecortadaUrl?: string | null;
   available: boolean;
   categoryId: string;
   containsGluten?: boolean | null;
@@ -96,22 +99,68 @@ export function MenuItemModal({ open, onClose, item, categories, onSaved }: Prop
   } = useForm<FormData>({ resolver: zodResolver(schema) as any });
 
   const imageUrlValue = watch("imageUrl");
+  const recorteValue = watch("imagemRecortadaUrl");
+  const [recortando, setRecortando] = useState<{ etapa: EtapaDoRecorte; porcento?: number } | null>(null);
+
+  async function enviar(file: Blob, nome: string): Promise<{ url: string; semFundo: boolean } | null> {
+    const fd = new FormData();
+    fd.append("file", file, nome);
+    const res = await fetch("/api/upload", { method: "POST", body: fd });
+    if (!res.ok) return null;
+    return res.json();
+  }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch("/api/upload", { method: "POST", body: fd });
-    if (res.ok) {
-      const { url } = await res.json();
-      setValue("imageUrl", url);
-      toast.success("Imagem enviada!");
+    const enviado = await enviar(file, file.name);
+    if (enviado) {
+      setValue("imageUrl", enviado.url);
+      // Foto que já chega sem fundo vira também a do banner. Foto comum troca
+      // a foto do item, e o recorte da foto antiga deixa de valer.
+      setValue("imagemRecortadaUrl", enviado.semFundo ? enviado.url : "");
+      toast.success(enviado.semFundo ? "Imagem enviada, já sem fundo: vale também para o banner." : "Imagem enviada!");
     } else {
       toast.error("Erro ao enviar imagem");
     }
     setUploading(false);
+  }
+
+  async function enviarRecorte(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const enviado = await enviar(file, file.name);
+    setUploading(false);
+    if (!enviado) return toast.error("Erro ao enviar imagem");
+    if (!enviado.semFundo) {
+      return toast.error("Essa imagem ainda tem fundo. Envie um PNG com o fundo transparente, ou use Remover fundo.");
+    }
+    setValue("imagemRecortadaUrl", enviado.url);
+    toast.success("Foto sem fundo salva para o banner.");
+  }
+
+  async function gerarRecorte() {
+    if (!imageUrlValue) return;
+    try {
+      // Import dinâmico: o modelo e a biblioteca só existem para quem clicar.
+      const { removerFundo, nomeDoRecorte } = await import("@/lib/loja/remover-fundo");
+      const recorte = await removerFundo(imageUrlValue, (etapa, porcento) => setRecortando({ etapa, porcento }));
+      setRecortando(null);
+      setUploading(true);
+      // WebP, ou PNG no navegador que não gera WebP: o nome segue o que veio.
+      const enviado = await enviar(recorte, nomeDoRecorte(recorte));
+      setUploading(false);
+      if (!enviado) return toast.error("Recorte pronto, mas não deu para enviar. Tente de novo.");
+      setValue("imagemRecortadaUrl", enviado.url);
+      toast.success("Fundo removido. Confira o resultado antes de salvar.");
+    } catch (erro) {
+      console.error("[remover-fundo]", erro);
+      setRecortando(null);
+      setUploading(false);
+      toast.error("Não deu para remover o fundo neste navegador. Tente no Chrome atualizado ou envie a foto já sem fundo.");
+    }
   }
 
   useEffect(() => {
@@ -121,6 +170,7 @@ export function MenuItemModal({ open, onClose, item, categories, onSaved }: Prop
         description: item.description ?? "",
         price: String(item.price),
         imageUrl: item.imageUrl ?? "",
+        imagemRecortadaUrl: item.imagemRecortadaUrl ?? "",
         available: item.available,
         categoryId: item.categoryId,
         containsGluten: booleanParaTri(item.containsGluten),
@@ -133,6 +183,7 @@ export function MenuItemModal({ open, onClose, item, categories, onSaved }: Prop
         description: "",
         price: "",
         imageUrl: "",
+        imagemRecortadaUrl: "",
         available: true,
         categoryId: categories[0]?.id ?? "",
         containsGluten: "nd",
@@ -152,6 +203,7 @@ export function MenuItemModal({ open, onClose, item, categories, onSaved }: Prop
       ...resto,
       price: Number(data.price),
       imageUrl: data.imageUrl || null,
+      imagemRecortadaUrl: data.imagemRecortadaUrl || null,
       description: data.description || null,
       containsGluten: triParaBoolean(containsGluten),
       containsLactose: triParaBoolean(containsLactose),
@@ -296,6 +348,59 @@ export function MenuItemModal({ open, onClose, item, categories, onSaved }: Prop
             {errors.imageUrl && (
               <p className="text-brand text-xs mt-1">{errors.imageUrl.message}</p>
             )}
+          </div>
+
+          <div>
+            <span className="block text-sm font-medium text-neutral-700 mb-1">Foto sem fundo, para o banner</span>
+            <p className="text-xs text-neutral-400 mb-2">
+              Quando este item aparece no banner do cardápio, o lanche sai sem moldura. Envie um PNG já sem fundo ou gere o recorte daqui.
+            </p>
+            <div className="flex items-center gap-3">
+              <div
+                className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-neutral-200"
+                // Xadrez claro: é como se vê que o fundo ficou transparente.
+                style={{ backgroundColor: "#F6DCC6", backgroundImage: "linear-gradient(45deg,#fbeadb 25%,transparent 25%,transparent 75%,#fbeadb 75%),linear-gradient(45deg,#fbeadb 25%,transparent 25%,transparent 75%,#fbeadb 75%)", backgroundSize: "12px 12px", backgroundPosition: "0 0,6px 6px" }}
+              >
+                {recorteValue ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={recorteValue} alt="Recorte para o banner" className="h-full w-full object-contain" />
+                ) : (
+                  <span className="flex h-full items-center justify-center text-center text-[10px] text-neutral-500">sem recorte</span>
+                )}
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={gerarRecorte}
+                  disabled={!imageUrlValue || uploading || !!recortando}
+                  className="flex items-center justify-center gap-2 rounded-lg bg-neutral-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+                >
+                  <Wand2 size={14} aria-hidden="true" />
+                  {recortando
+                    ? recortando.etapa === "baixando-modelo"
+                      ? `Preparando (primeira vez)${recortando.porcento ? ` ${Math.round(recortando.porcento)}%` : "…"}`
+                      : "Removendo o fundo… (até 1 min)"
+                    : "Remover fundo da foto"}
+                </button>
+                <div className="flex gap-2">
+                  <label className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-neutral-300 px-3 py-2 text-xs text-neutral-600 hover:border-brand ${uploading ? "pointer-events-none opacity-50" : ""}`}>
+                    <Upload size={13} aria-hidden="true" />
+                    Enviar PNG sem fundo
+                    <input type="file" accept="image/png,image/webp" className="hidden" onChange={enviarRecorte} />
+                  </label>
+                  {recorteValue && (
+                    <button
+                      type="button"
+                      onClick={() => setValue("imagemRecortadaUrl", "")}
+                      aria-label="Tirar o recorte"
+                      className="rounded-lg border border-neutral-200 px-2.5 text-neutral-500 hover:text-brand"
+                    >
+                      <Trash2 size={14} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="space-y-3">

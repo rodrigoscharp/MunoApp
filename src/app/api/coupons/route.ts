@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { apiError, getTenantIdFromRequest, withTenant } from "@/lib/api";
 import { couponSchema, normalizeCouponCode } from "@/lib/coupon";
+import { invalidarCupomEmDestaque } from "@/lib/loja/vitrine";
 
 /**
  * Lista os cupons do restaurante. Só admin: a resposta é a lista de códigos
@@ -47,6 +48,19 @@ export async function POST(req: NextRequest) {
       const coupon = await prisma.coupon.create({
         data: { ...rest, code: normalizeCouponCode(code), tenantId },
       });
+      // Um destaque por restaurante: o card da loja mostra um cupom só, então
+      // marcar este desmarca os outros. Depois de criar, e não antes: um
+      // código repetido (P2002) já tinha apagado o destaque que estava no ar,
+      // e o card sumia da loja por causa de um cupom que nem nasceu. Entre as
+      // duas escritas há dois marcados por um instante, e a loja mostra um
+      // deles; é melhor que nenhum.
+      if (rest.destaque) {
+        await prisma.coupon.updateMany({
+          where: { destaque: true, id: { not: coupon.id } },
+          data: { destaque: false },
+        });
+      }
+      invalidarCupomEmDestaque(tenantId);
       return NextResponse.json({ ...coupon, _count: { orders: 0 } }, { status: 201 });
     } catch (err) {
       // Colisão do @@unique([tenantId, code]). Sem este catch viraria 500 pelo

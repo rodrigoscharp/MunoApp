@@ -106,6 +106,11 @@ model MenuItem {
   description     String?
   price           Decimal     @db.Decimal(10, 2)
   imageUrl        String?
+  // A mesma foto sem fundo, em WebP com transparência: é ela que "sai" do
+  // banner do cardápio. Nasce quando o dono sobe uma foto já recortada (o
+  // upload detecta a transparência) ou usa "Remover fundo" no painel. Nula é
+  // o normal: o banner cai para a foto com moldura.
+  imagemRecortadaUrl String?
   available       Boolean     @default(true)
   // O que o restaurante declara sobre a receita. null = "não informou", e por
   // isso as colunas NÃO têm default: um `false` faria todo item antigo aparecer
@@ -334,6 +339,11 @@ model Coupon {
   validFrom  DateTime?
   validUntil DateTime?
   active     Boolean    @default(true)
+  // O cupom que a loja anuncia no cardápio, no card abaixo de "Mais pedidos".
+  // No máximo um por restaurante: marcar um desmarca os outros (rotas de
+  // /api/coupons). Sem destaque o card não aparece, porque a lista de cupons é
+  // segredo do dono e só ele decide qual vira propaganda.
+  destaque   Boolean    @default(false)
   orders     Order[]
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
