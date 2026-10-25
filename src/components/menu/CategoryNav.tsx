@@ -3,17 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { IconeDaCategoria } from "@/components/loja/IconeDaCategoria";
 import { iconeDaCategoria } from "@/lib/loja/icone-da-categoria";
+import { ANCORA_DO_CARDAPIO, ANCORA_DOS_MAIS_PEDIDOS, idDaSecao, secaoDoHashAntigo } from "@/lib/loja/ancoras";
 
 interface Category {
   id: string;
   name: string;
   slug: string;
 }
-
-/** Âncora para "Cardápio" da barra de baixo (ver BarraInferior). */
-const ANCORA = "cardapio";
-/** Mesmo id da seção em MaisPedidos.tsx. */
-const ANCORA_TOP = "mais-pedidos";
 
 /**
  * Quanto do topo da tela fica coberto pelo que gruda: a própria navegação e o
@@ -41,13 +37,15 @@ export function CategoryNav({
   className?: string;
 }) {
   const blocos = [
-    ...(comMaisPedidos ? [{ id: ANCORA_TOP, name: "Top", slug: ANCORA_TOP, top: true }] : []),
-    ...categories.map((c) => ({ ...c, top: false })),
+    ...(comMaisPedidos ? [{ id: ANCORA_DOS_MAIS_PEDIDOS, name: "Top", alvo: ANCORA_DOS_MAIS_PEDIDOS, top: true }] : []),
+    // O id da seção leva prefixo (ver src/lib/loja/ancoras.ts): o slug cru
+    // podia ser igual ao de uma âncora fixa.
+    ...categories.map((c) => ({ id: c.id, name: c.name, alvo: idDaSecao(c.slug), top: false })),
   ];
-  const [active, setActive] = useState(blocos[0]?.slug);
+  const [active, setActive] = useState(blocos[0]?.alvo);
   const navRef = useRef<HTMLElement>(null);
   const trilhoRef = useRef<HTMLDivElement>(null);
-  const slugs = blocos.map((b) => b.slug).join("|");
+  const alvos = blocos.map((b) => b.alvo).join("|");
 
   useEffect(() => {
     const coberto = Math.round(alturaCoberta(navRef.current));
@@ -60,36 +58,49 @@ export function CategoryNav({
       { rootMargin: `-${coberto + 8}px 0px -60% 0px` }
     );
 
-    slugs.split("|").forEach((slug) => {
-      const el = slug && document.getElementById(slug);
+    alvos.split("|").forEach((alvo) => {
+      const el = alvo && document.getElementById(alvo);
       if (el) observer.observe(el);
     });
 
     return () => observer.disconnect();
-  }, [slugs]);
+  }, [alvos]);
+
+  // Link de antes do prefixo (`/#lanches`) ainda leva à seção.
+  useEffect(() => {
+    const { hash } = window.location;
+    if (!hash || document.getElementById(hash.slice(1))) return;
+    const secao = secaoDoHashAntigo(hash);
+    const el = secao && document.getElementById(secao);
+    if (!el) return;
+    // Sem setActive: o IntersectionObserver acima marca o bloco quando a
+    // seção entra na tela. Só na montagem: é a chegada pelo link.
+    const top = el.getBoundingClientRect().top + window.scrollY - alturaCoberta(navRef.current) - 8;
+    window.scrollTo({ top });
+  }, []);
 
   // O bloco ativo entra na faixa quando a página rola para uma seção que
   // estava fora dela. Rola só o trilho, nunca a página.
   useEffect(() => {
     const trilho = trilhoRef.current;
-    const bloco = trilho?.querySelector<HTMLElement>(`[data-slug="${active}"]`);
+    const bloco = trilho?.querySelector<HTMLElement>(`[data-alvo="${active}"]`);
     if (!trilho || !bloco) return;
     const esquerda = bloco.offsetLeft - trilho.offsetLeft;
     const fora = esquerda < trilho.scrollLeft || esquerda + bloco.offsetWidth > trilho.scrollLeft + trilho.clientWidth;
     if (fora) trilho.scrollTo({ left: Math.max(0, esquerda - 16), behavior: "smooth" });
   }, [active]);
 
-  function scrollTo(slug: string) {
-    const el = document.getElementById(slug);
+  function scrollTo(alvo: string) {
+    const el = document.getElementById(alvo);
     if (!el) return;
     const top = el.getBoundingClientRect().top + window.scrollY - alturaCoberta(navRef.current) - 8;
     window.scrollTo({ top, behavior: "smooth" });
-    setActive(slug);
+    setActive(alvo);
   }
 
   return (
     <>
-      <div id={ANCORA} aria-hidden="true" />
+      <div id={ANCORA_DO_CARDAPIO} aria-hidden="true" />
       <nav
         ref={navRef}
         aria-label="Categorias"
@@ -100,13 +111,13 @@ export function CategoryNav({
           className="no-scrollbar mx-auto flex max-w-5xl gap-2 overflow-x-auto px-4 py-2.5"
         >
           {blocos.map((bloco) => {
-            const ativo = active === bloco.slug;
+            const ativo = active === bloco.alvo;
             return (
               <button
                 key={bloco.id}
                 type="button"
-                data-slug={bloco.slug}
-                onClick={() => scrollTo(bloco.slug)}
+                data-alvo={bloco.alvo}
+                onClick={() => scrollTo(bloco.alvo)}
                 aria-current={ativo ? "location" : undefined}
                 className={`flex h-[64px] min-w-[68px] max-w-[96px] shrink-0 flex-col items-center justify-center gap-1 rounded-2xl border-[1.5px] bg-loja-papel px-2 text-[11px] leading-tight transition ${
                   ativo

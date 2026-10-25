@@ -544,6 +544,9 @@ manchetes e Plus Jakarta Sans no resto. Os mockups aprovados estão em
   cupom com `destaque`. Um destaque por restaurante: as rotas de
   `/api/coupons` desmarcam os outros ao marcar um, e só depois que a
   gravação deu certo: antes, um código repetido apagava o destaque no ar.
+* **A seção da categoria é `cat-<slug>`, não o slug cru** (`src/lib/loja/ancoras.ts`).
+  O slug é texto livre, e "mais-pedidos" ou "cardapio" repetiam o id das
+  âncoras fixas. Link antigo com o slug cru ainda chega à seção.
 * **O ícone da categoria sai do nome** (`iconeDaCategoria`). Não há campo de
   ícone; categoria que não casar com nada recebe o genérico.
 * **O banner é automático, e o dono só o empurra** (`src/lib/loja/banner.ts`,
