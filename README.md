@@ -15,7 +15,7 @@ no gateway do próprio dono — e o CRM que vende tudo isso.
 ![Prisma](https://img.shields.io/badge/Prisma-6-23201E?style=flat-square&labelColor=23201E&color=2B5240)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-23201E?style=flat-square&labelColor=23201E&color=2B5240)
 ![Tailwind](https://img.shields.io/badge/Tailwind-4-23201E?style=flat-square&labelColor=23201E&color=2B5240)
-![Testes](https://img.shields.io/badge/testes-1749-23201E?style=flat-square&labelColor=23201E&color=2B5240)
+![Testes](https://img.shields.io/badge/testes-2848-23201E?style=flat-square&labelColor=23201E&color=2B5240)
 
 </div>
 
@@ -162,6 +162,9 @@ O lado comercial da Muno, com login separado (cookie próprio, `PlatformAdmin`).
 - **Clientes** — todos os restaurantes ativos, com plano e mensalidade
 - **Cobrança** — assinatura com valor e dia de vencimento, geração automática da
   fatura do mês por job diário, baixa manual do PIX e régua de inadimplência
+- **Saúde** — semáforo das peças que param em silêncio (banco, cron, webhook do
+  Asaas, provisionamento, e-mail, erros de rota, volume de pedidos) e um feed de
+  eventos, consultado também por um monitor externo
 
 O console tem **tema claro e escuro**, com a opção de seguir o sistema, aplicado
 antes da primeira pintura para a tela não piscar a cada navegação.
@@ -175,9 +178,11 @@ para eu voltar em janeiro".
 
 | Atraso | Situação | O que acontece |
 |---|---|---|
-| 1 a 6 dias | `ATIVA` | Faixa informativa no `/adm` |
-| 7 a 14 dias | `INADIMPLENTE` | Faixa firme |
-| 15 dias ou mais | `BLOQUEADA` | Gestão fecha — cardápio, checkout, mesa, cozinha e entrega **continuam de pé** |
+| 1 a 6 dias corridos | `ATIVA` | Faixa informativa no `/adm` |
+| 7 dias corridos, até o bloqueio | `INADIMPLENTE` | Faixa firme |
+| 10 dias úteis ou mais | `BLOQUEADA` | Gestão fecha — cardápio, checkout, mesa, cozinha e entrega **continuam de pé** |
+
+Dia útil é de segunda a sexta; feriado conta como útil.
 
 Inadimplência nunca derruba o storefront. E mesmo bloqueado, o dono continua
 alcançando pedidos, chats e a própria fatura: quem pagaria o preço de fechar
@@ -195,8 +200,9 @@ provisionamento, ligando "visita vinda de um anúncio" a "membro pagante".
 proxy (host raiz)  →  Set-Cookie: muno_s=<uuid>
 landing e checkout →  VISITA, VIU_PRECO, CLICOU_ASSINAR, ABRIU_WHATSAPP,
                       CHECKOUT_PASSO
-servidor           →  CHECKOUT_CRIADO, PAGOU, PROVISIONADO, ABANDONOU
-cron das 9h        →  resume os 90 dias e apaga o evento cru
+servidor           →  CHECKOUT_CRIADO, FOI_PARA_PAGAMENTO, PAGAMENTO_RECUSADO,
+                      PAGOU, PROVISIONADO, ABANDONOU
+cron das 9h UTC    →  resume os 90 dias e apaga o evento cru
 ```
 
 Três regras atravessam o desenho:
@@ -255,7 +261,7 @@ plataforma. Os dois usos de gateway não se cruzam.)
 - Credencial validada contra a API do gateway **antes** de entrar no banco
 - Guardada criptografada com AES-256-GCM; nenhuma resposta devolve o token em
   claro, nem para o admin dono da conta
-- Webhook por tenant (`/api/payments/webhook/[gateway]/[tenantId]`), autenticado
+- Webhook por tenant (`/api/payments/webhook/[provider]/[tenantId]`), autenticado
   pela assinatura daquele lojista — a URL é pública e não autentica nada
 - Sem gateway conectado, o checkout oferece só dinheiro na entrega
 
@@ -281,7 +287,8 @@ fazem a mesma coisa:
 
 **Tempo real sem expor o banco.** O servidor publica no canal Broadcast do
 tenant depois de cada escrita relevante; o navegador assina o canal e busca o
-conteúdo pela API protegida. As assinaturas antigas de `postgres_changes` liam
+conteúdo pela API protegida. O nome do canal leva um HMAC e só é entregue por
+`/api/realtime/topic`, depois de conferida a permissão. As assinaturas antigas de `postgres_changes` liam
 tabela direto com a chave `anon` e foram removidas.
 
 **Segurança.** Senha com bcrypt custo 12 · sessão JWT com tenant embutido ·
@@ -308,8 +315,8 @@ sessão de outro tenant tratada como deslogada · rotas de API com 404 em vez de
 | Gráficos | Recharts |
 | E-mail | Resend |
 | Arquivos | Supabase Storage (imagens) e Vercel Blob (backups) |
-| Testes | Vitest — 1749 testes |
-| Deploy | Vercel, região `gru1` (São Paulo) |
+| Testes | Vitest — 2848 testes de unidade, mais a suíte de integração |
+| Deploy | Vercel, região `iad1` (Virgínia), a mesma do banco |
 
 ---
 
@@ -335,6 +342,9 @@ src/
 │       ├── leads/publico/      # captação vinda da landing
 │       ├── funil/evento/       # ingestão dos eventos do funil
 │       ├── assinar/            # checkout self-service
+│       ├── assinaturas/        # webhook do Asaas da plataforma
+│       ├── health/             # saúde do banco e semáforo do sistema
+│       ├── realtime/topic/     # nome do canal de tempo real, após checar permissão
 │       └── cron/assinaturas/   # job diário: cobrança, régua e expurgo
 ├── components/                 # por área: adm, menu, mesa, kitchen, motoboy, platform, assinar…
 ├── hooks/                      # carrinho, chat, cozinha, rastreio, notificações
@@ -344,13 +354,14 @@ src/
     ├── payments/               # um adapter por gateway + fábrica
     ├── assinatura/             # régua de inadimplência, competência, baixa, situação
     ├── funil/                  # cookie, estágio, resumo, expurgo, registro de evento
+    ├── saude/                  # regra do semáforo, limiares e registro de eventos
     ├── platform-conversao.ts   # as contas da tela de conversão
     └── coupon, delivery-fee, faturamento, plans, realtime, business-hours…
 public/
 └── vendas/                     # a landing, HTML estático servido no domínio raiz
 prisma/
-├── schema.prisma               # 24 models
-├── migrations/                 # 18 migrações, RLS incluído
+├── schema.prisma               # 25 models
+├── migrations/                 # 27 migrações, RLS incluído
 └── seed.ts
 ```
 
@@ -366,9 +377,10 @@ prisma/
 `Coupon` · `DeliveryZone` · `DeliveryTracking` · `ChatMessage` · `Setting` ·
 `PasswordResetToken` · `PaymentConnection`
 
-**Da plataforma** (sem `tenantId`, lidas por `prismaUnscoped`, com RLS sem policy)
+**Da plataforma** (fora do escopo automático, lidas por `prismaUnscoped`, com RLS
+sem policy)
 `PlatformAdmin` · `Lead` · `LeadNote` · `Assinatura` · `Cobranca` · `Inscricao` ·
-`SessaoFunil` · `EventoFunil` · `ResumoDiario`
+`SessaoFunil` · `EventoFunil` · `ResumoDiario` · `EventoSistema`
 
 Ciclo do pedido:
 
@@ -435,7 +447,7 @@ desenvolvimento e produção divergirem exatamente no ramo onde o bug mora.
 | Variável | Para quê |
 |---|---|
 | `DATABASE_URL`, `DIRECT_URL` | Postgres. Em desenvolvimento, sempre localhost |
-| `NEXTAUTH_SECRET`, `NEXTAUTH_URL` | Sessão. Gere com `openssl rand -base64 32` |
+| `AUTH_SECRET` (ou `NEXTAUTH_SECRET`), `NEXTAUTH_URL` | Sessão. Gere com `openssl rand -base64 32` |
 | `ROOT_DOMAIN` | Domínios raiz, separados por vírgula, para resolver o subdomínio |
 | `NEXT_PUBLIC_APP_URL` | Base das URLs de webhook mostradas ao lojista |
 | `PAYMENT_TOKEN_ENCRYPTION_KEY` | Criptografia das credenciais de gateway. `openssl rand -hex 32` |
@@ -446,6 +458,11 @@ desenvolvimento e produção divergirem exatamente no ramo onde o bug mora.
 | `LANDING_ORIGIN` | Origens autorizadas a gravar lead e evento de funil. Sem ela, produção recusa todas |
 | `ASAAS_API_KEY`, `ASAAS_ENV`, `ASAAS_WEBHOOK_TOKEN` | A cobrança **da Muno**, no checkout self-service. Nada a ver com o gateway do restaurante |
 | `BLOB_READ_WRITE_TOKEN` | Envio dos backups |
+| `HEALTH_MONITOR_TOKEN` | Autentica o monitor externo em `/api/health/sistema` |
+| `ERROR_WEBHOOK_URL` | Opcional: canal (Slack, Discord) que recebe os erros |
+
+As demais (`PLATFORM_ALLOWED_IPS`, `RETENCAO_PEDIDOS_MESES`,
+`REALTIME_TOPIC_SECRET`…) estão comentadas no `.env.example`.
 
 > A chave do Asaas começa com `$`, e o `$` precisa vir **escapado como `\$`** no
 > `.env`. O carregador do Next expande variáveis: um `$` solto vira referência a
@@ -465,8 +482,9 @@ desenvolvimento e produção divergirem exatamente no ramo onde o bug mora.
 ```bash
 npm run dev              # servidor local (passa pela trava de banco)
 npm run build            # build de produção
-npm test                 # 1749 testes
+npm test                 # 2848 testes de unidade
 npm run test:watch
+npm run test:integracao  # contra o Postgres local, no banco muno_teste
 npm run lint
 ```
 
