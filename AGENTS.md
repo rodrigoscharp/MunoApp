@@ -571,6 +571,14 @@ manchetes e Plus Jakarta Sans no resto. Os mockups aprovados estão em
   implementa uma operação do ormbg; a tentativa que falha ainda prende o
   runtime e derruba a volta para o processador. A biblioteca vem da CDN por
   import com `webpackIgnore`, versão fixada, e nunca entra no bundle da loja.
+* **A CSP de hoje é só Report-Only** (`next.config.js`), e o "Remover fundo"
+  depende disso. No dia em que ela passar a `Content-Security-Policy`, o
+  painel precisa de `https://cdn.jsdelivr.net` em `script-src` (a
+  biblioteca), `https://huggingface.co https://cdn-lfs.huggingface.co
+  https://*.hf.co` em `connect-src` (o modelo), `'wasm-unsafe-eval'` em
+  `script-src` (o runtime em wasm) e `blob:` em `worker-src` (o worker do
+  ONNX). Sem eles o botão falha com "não deu para remover o fundo", sem dizer
+  por quê.
 * **Um objeto de card por item na Vitrine.** O RSC serializa cada objeto uma
   vez e referencia as repetições; busca, banner, fileira e seções recebem o
   mesmo card do mapa montado na Vitrine. Um `itemParaCard` novo em cada ponto
