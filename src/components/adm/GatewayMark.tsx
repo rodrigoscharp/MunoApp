@@ -34,7 +34,7 @@ export function GatewayMark({ id, label, color, size = 44 }: Props) {
 
   return (
     <div
-      className="relative rounded-xl shrink-0 overflow-hidden flex items-center justify-center"
+      className="relative flex shrink-0 items-center justify-center overflow-hidden rounded-[14px]"
       style={{
         width: size,
         height: size,
@@ -45,7 +45,7 @@ export function GatewayMark({ id, label, color, size = 44 }: Props) {
     >
       <span
         aria-hidden
-        className="font-bold text-white transition-opacity"
+        className="font-extrabold text-white transition-opacity"
         style={{ fontSize: size * 0.34, opacity: logoLoaded ? 0 : 1 }}
       >
         {initials(label)}
