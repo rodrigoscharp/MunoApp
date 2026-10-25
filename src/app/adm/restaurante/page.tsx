@@ -4,10 +4,12 @@ import { DeliveryTimeControl } from "@/components/adm/DeliveryTimeControl";
 import { BusinessHoursControl, WeekSchedule } from "@/components/adm/BusinessHoursControl";
 import { RestaurantInfoControl } from "@/components/adm/RestaurantInfoControl";
 import { DeliveryZonesControl } from "@/components/adm/DeliveryZonesControl";
-import { CouponsControl } from "@/components/adm/CouponsControl";
 import { PrinterControl } from "@/components/adm/PrinterControl";
-import { BannerControl } from "@/components/adm/BannerControl";
-import { BANNER_PADRAO, bannerSchema, CHAVE_DO_BANNER } from "@/lib/loja/banner";
+import Link from "next/link";
+import { ArrowRight, Ticket } from "lucide-react";
+import { CabecalhoDaTela } from "@/components/painel/CabecalhoDaTela";
+import { botaoContorno, cartaoPainel, kicker } from "@/components/painel/estilos";
+import { cn } from "@/lib/utils";
 import { getRestaurantInfo } from "@/lib/restaurant";
 import type { PrinterConfig } from "@/app/api/settings/printer/route";
 
@@ -27,32 +29,13 @@ export default async function RestauranteAdminPage() {
   // aqui o proxy já garantiu sessão de restaurante com papel ADMIN.
   const tenantId = session!.user.tenantId!;
 
-  const [deliveryTimeSetting, businessHoursSetting, restaurantInfo, deliveryZones, printerSetting, coupons, bannerSetting, itensDoCardapio] = await Promise.all([
+  const [deliveryTimeSetting, businessHoursSetting, restaurantInfo, deliveryZones, printerSetting] = await Promise.all([
     prismaUnscoped.setting.findUnique({ where: { tenantId_key: { tenantId, key: "delivery_time_minutes" } } }),
     prismaUnscoped.setting.findUnique({ where: { tenantId_key: { tenantId, key: "business_hours" } } }),
     getRestaurantInfo(tenantId),
     prismaUnscoped.deliveryZone.findMany({ where: { active: true, tenantId }, orderBy: { position: "asc" } }),
     prismaUnscoped.setting.findUnique({ where: { tenantId_key: { tenantId, key: "printer_config" } } }),
-    prismaUnscoped.coupon.findMany({
-      where: { tenantId },
-      orderBy: { createdAt: "desc" },
-      include: { _count: { select: { orders: true } } },
-    }),
-    prismaUnscoped.setting.findUnique({ where: { tenantId_key: { tenantId, key: CHAVE_DO_BANNER } } }),
-    prismaUnscoped.menuItem.findMany({
-      where: { tenantId, available: true },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, price: true, imageUrl: true, imagemRecortadaUrl: true },
-    }),
   ]);
-
-  let banner = BANNER_PADRAO;
-  try {
-    const lido = bannerSetting ? bannerSchema.safeParse(JSON.parse(bannerSetting.value)) : null;
-    if (lido?.success) banner = lido.data;
-  } catch {
-    // configuração ilegível: o controle abre no padrão
-  }
 
   const printerConfig: PrinterConfig = printerSetting
     ? { enabled: false, paperWidth: "80mm", ...JSON.parse(printerSetting.value) }
@@ -67,36 +50,97 @@ export default async function RestauranteAdminPage() {
     : DEFAULT_HOURS;
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-neutral-900 mb-1">Gerenciamento do Restaurante</h1>
-      <p className="text-sm text-neutral-400 mb-8">Configure as operações do seu restaurante</p>
+    <div className="flex flex-col gap-9">
+      <CabecalhoDaTela contexto="Configurações da loja" titulo="Restaurante" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
-        <div className="lg:col-span-1 space-y-6">
+      <Secao
+        id="dados"
+        titulo="Dados do restaurante"
+        descricao="Nome, logo e contato que aparecem no topo do cardápio."
+      >
+        <RestaurantInfoControl initial={restaurantInfo} />
+      </Secao>
+
+      <Secao
+        id="horario"
+        titulo="Horário e entrega"
+        descricao="Quando a loja recebe pedidos e quanto tempo o cliente espera."
+      >
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <BusinessHoursControl initialSchedule={schedule} />
+          </div>
           <DeliveryTimeControl initialMinutes={deliveryMinutes} />
-          <RestaurantInfoControl initial={restaurantInfo} />
-          <BannerControl
-            initial={banner}
-            itens={itensDoCardapio.map((i) => ({ ...i, price: Number(i.price) }))}
-          />
+        </div>
+      </Secao>
+
+      <Secao
+        id="zonas"
+        titulo="Zonas de entrega"
+        descricao="Os bairros atendidos e o frete de cada um."
+      >
+        <DeliveryZonesControl
+          initialZones={deliveryZones.map((z) => ({ ...z, price: Number(z.price) }))}
+        />
+      </Secao>
+
+      <Secao
+        id="impressora"
+        titulo="Impressora"
+        descricao="Impressão do pedido direto da tela da cozinha."
+      >
+        <div className="max-w-2xl">
           <PrinterControl initial={printerConfig} />
         </div>
-        <div className="lg:col-span-3 space-y-6">
-          <BusinessHoursControl initialSchedule={schedule} />
-          <DeliveryZonesControl
-            initialZones={deliveryZones.map((z) => ({ ...z, price: Number(z.price) }))}
-          />
-          <CouponsControl
-            initialCoupons={coupons.map((c) => ({
-              ...c,
-              value: Number(c.value),
-              minOrder: Number(c.minOrder),
-              validFrom: c.validFrom?.toISOString() ?? null,
-              validUntil: c.validUntil?.toISOString() ?? null,
-            }))}
-          />
-        </div>
-      </div>
+      </Secao>
+
+      <Link
+        href="/adm/banner-cupons"
+        className={cn(
+          cartaoPainel,
+          "group flex flex-col gap-4 p-5 transition hover:bg-white sm:flex-row sm:items-center sm:p-6"
+        )}
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-loja-pessego-claro text-loja-preco">
+          <Ticket size={19} aria-hidden />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className={cn(kicker, "text-loja-preco")}>Mudou de lugar</span>
+          <span className="text-[15px] font-extrabold text-loja-tinta">Banner e cupons</span>
+          <span className="text-[13px] text-loja-tinta-2">
+            O destaque do topo do cardápio e os cupons de desconto agora têm uma tela própria.
+          </span>
+        </span>
+        <span className={cn(botaoContorno, "h-11 shrink-0 self-start px-5 text-[13px] sm:self-center")}>
+          Abrir banner e cupons
+          <ArrowRight size={15} aria-hidden className="transition group-hover:translate-x-0.5" />
+        </span>
+      </Link>
     </div>
+  );
+}
+
+function Secao({
+  id,
+  titulo,
+  descricao,
+  children,
+}: {
+  id: string;
+  titulo: string;
+  descricao: string;
+  children: React.ReactNode;
+}) {
+  const tituloId = `secao-${id}`;
+  return (
+    <section aria-labelledby={tituloId} className="flex flex-col gap-3">
+      <div className="flex flex-col gap-0.5">
+        <h2 id={tituloId} className="manchete text-[1.6rem] text-forest-dark">
+          {titulo}
+        </h2>
+        <p className="text-[13px] text-loja-tinta-2">{descricao}</p>
+      </div>
+      {children}
+    </section>
   );
 }

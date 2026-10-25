@@ -2,11 +2,13 @@
 
 import { useState, useTransition, useRef } from "react";
 import Image from "next/image";
-import { Store, Check, Upload, Loader2 } from "lucide-react";
+import { Check, Upload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { RestaurantInfo } from "@/lib/restaurant";
 import { uploadLogo } from "@/lib/upload-logo";
 import { imagemOtimizavel } from "@/lib/imagem-otimizavel";
+import { cn } from "@/lib/utils";
+import { botaoBrasa, botaoContorno, campo, cartaoPainel } from "@/components/painel/estilos";
 
 interface Props {
   initial: RestaurantInfo;
@@ -54,106 +56,117 @@ export function RestaurantInfoControl({ initial }: Props) {
     });
   }
 
+  const campoId = (nome: string) => `restaurante-${nome}`;
+  const rotuloDoCampo = "mb-1.5 block text-[13px] font-bold text-loja-tinta";
+
   return (
-    <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-4">
-      <div className="flex items-center gap-2 mb-1">
-        <Store size={15} className="text-neutral-400" />
-        <p className="text-xs text-neutral-400 font-medium uppercase tracking-wide">
-          Informações do Restaurante
-        </p>
-      </div>
-
-      {/* Logo */}
-      <div className="flex items-center gap-4">
-        <div className="relative w-20 h-20 rounded-xl border border-neutral-200 bg-neutral-50 overflow-hidden flex items-center justify-center shrink-0">
-          <Image
-            src={info.logoUrl}
-            alt="Logo"
-            fill
-            className="object-contain p-2"
-            unoptimized={!imagemOtimizavel(info.logoUrl)}
-          />
+    <div className={`${cartaoPainel} p-5 sm:p-6`}>
+      <div className="flex flex-col gap-6 md:flex-row md:items-start">
+        {/* Logo */}
+        <div className="flex items-center gap-4 md:w-56 md:flex-col md:items-start">
+          <div className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-loja-linha bg-white">
+            <Image
+              src={info.logoUrl}
+              alt="Logo do restaurante"
+              fill
+              className="object-contain p-2"
+              unoptimized={!imagemOtimizavel(info.logoUrl)}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <p className="text-[13px] font-bold text-loja-tinta">Logo do restaurante</p>
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className={cn(botaoContorno, "h-11 px-4 text-[13px]")}
+            >
+              {uploading ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <Upload size={15} aria-hidden />}
+              {uploading ? "Enviando..." : "Trocar logo"}
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              aria-label="Arquivo da logo"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleLogoSelected(f); }}
+            />
+          </div>
         </div>
-        <div className="flex-1">
-          <p className="text-xs font-medium text-neutral-700 mb-1.5">Logo do restaurante</p>
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border border-neutral-200 text-neutral-600 hover:bg-neutral-50 disabled:opacity-50 transition"
-          >
-            {uploading ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
-            {uploading ? "Enviando..." : "Trocar logo"}
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleLogoSelected(f); }}
-          />
+
+        <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* Nome */}
+          <div>
+            <label htmlFor={campoId("nome")} className={rotuloDoCampo}>Nome do restaurante</label>
+            <input
+              id={campoId("nome")}
+              type="text"
+              value={info.name}
+              onChange={(e) => change("name", e.target.value)}
+              className={campo}
+              placeholder="Nome do restaurante"
+            />
+          </div>
+
+          {/* Telefone */}
+          <div>
+            <label htmlFor={campoId("telefone")} className={rotuloDoCampo}>Telefone</label>
+            <input
+              id={campoId("telefone")}
+              type="text"
+              value={info.phone}
+              onChange={(e) => change("phone", e.target.value)}
+              className={campo}
+              placeholder="(XX) 99999-0000"
+            />
+          </div>
+
+          {/* Frase */}
+          <div className="sm:col-span-2">
+            <label htmlFor="restaurante-slogan" className={rotuloDoCampo}>
+              Frase do restaurante <span className="font-medium text-loja-tinta-2">(opcional)</span>
+            </label>
+            <input
+              id="restaurante-slogan"
+              type="text"
+              maxLength={60}
+              value={info.slogan ?? ""}
+              onChange={(e) => change("slogan", e.target.value)}
+              aria-describedby="restaurante-slogan-ajuda"
+              className={campo}
+              placeholder="Ex.: Hambúrguer de chapa"
+            />
+            <p id="restaurante-slogan-ajuda" className="mt-1.5 text-[12px] text-loja-tinta-2">
+              Aparece embaixo do nome, no topo do cardápio.
+            </p>
+          </div>
+
+          {/* Endereço */}
+          <div className="sm:col-span-2">
+            <label htmlFor={campoId("endereco")} className={rotuloDoCampo}>Endereço</label>
+            <input
+              id={campoId("endereco")}
+              type="text"
+              value={info.address}
+              onChange={(e) => change("address", e.target.value)}
+              className={campo}
+              placeholder="Rua, número, cidade"
+            />
+          </div>
+
+          <div className="sm:col-span-2 flex justify-end">
+            <button
+              type="button"
+              onClick={save}
+              disabled={pending || saved || uploading}
+              className={`${botaoBrasa} h-12 w-full text-[14px] sm:w-auto`}
+            >
+              {saved ? <><Check size={16} aria-hidden /> Salvo</> : pending ? "Salvando..." : "Salvar informações"}
+            </button>
+          </div>
         </div>
       </div>
-
-      {/* Nome */}
-      <div>
-        <label className="text-xs font-medium text-neutral-700 block mb-1.5">Nome do restaurante</label>
-        <input
-          type="text"
-          value={info.name}
-          onChange={(e) => change("name", e.target.value)}
-          className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-brand/30"
-          placeholder="Nome do restaurante"
-        />
-      </div>
-
-      {/* Frase */}
-      <div>
-        <label htmlFor="restaurante-slogan" className="text-xs font-medium text-neutral-700 block mb-1.5">
-          Frase do restaurante <span className="font-normal text-neutral-400">(opcional)</span>
-        </label>
-        <input
-          id="restaurante-slogan"
-          type="text"
-          maxLength={60}
-          value={info.slogan ?? ""}
-          onChange={(e) => change("slogan", e.target.value)}
-          className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-brand/30"
-          placeholder="Ex.: Hambúrguer de chapa"
-        />
-        <p className="mt-1 text-[11px] text-neutral-400">Aparece embaixo do nome, no topo do cardápio.</p>
-      </div>
-
-      {/* Endereço */}
-      <div>
-        <label className="text-xs font-medium text-neutral-700 block mb-1.5">Endereço</label>
-        <input
-          type="text"
-          value={info.address}
-          onChange={(e) => change("address", e.target.value)}
-          className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-brand/30"
-          placeholder="Rua, número, cidade"
-        />
-      </div>
-
-      {/* Telefone */}
-      <div>
-        <label className="text-xs font-medium text-neutral-700 block mb-1.5">Telefone</label>
-        <input
-          type="text"
-          value={info.phone}
-          onChange={(e) => change("phone", e.target.value)}
-          className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-brand/30"
-          placeholder="(XX) 99999-0000"
-        />
-      </div>
-
-      <button
-        onClick={save}
-        disabled={pending || saved || uploading}
-        className="w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-lg text-sm transition"
-      >
-        {saved ? <><Check size={14} /> Salvo</> : pending ? "Salvando..." : "Salvar informações"}
-      </button>
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Clock, Minus, Plus, Check } from "lucide-react";
 import { toast } from "sonner";
+import { botaoBrasa, cartaoPainel, tituloDeSecao } from "@/components/painel/estilos";
 
 interface Props {
   initialMinutes: number;
@@ -40,57 +41,65 @@ export function DeliveryTimeControl({ initialMinutes }: Props) {
       ? `${minutes} min`
       : `${Math.floor(minutes / 60)}h${minutes % 60 > 0 ? ` ${minutes % 60}min` : ""}`;
 
+  const botaoAjuste =
+    "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-[1.5px] border-loja-linha bg-white text-loja-tinta transition hover:border-brand hover:text-loja-preco disabled:cursor-not-allowed disabled:opacity-40";
+
   return (
-    <div className="bg-white rounded-xl border border-neutral-200 p-5">
-      <div className="flex items-center gap-2 mb-1">
-        <Clock size={15} className="text-neutral-400" />
-        <p className="text-xs text-neutral-400 font-medium uppercase tracking-wide">
-          Previsão de Entrega
-        </p>
+    <div className={`${cartaoPainel} flex h-full flex-col p-5 sm:p-6`}>
+      <div className="flex items-center gap-2">
+        <Clock size={17} className="text-loja-preco" aria-hidden />
+        <h3 className={tituloDeSecao}>Previsão de entrega</h3>
       </div>
 
-      <div className="flex items-center gap-3 mt-3">
+      <div className="mt-4 flex items-center gap-3">
         <button
+          type="button"
           onClick={() => adjust(-5)}
           disabled={minutes <= 5}
-          className="w-9 h-9 rounded-lg border border-neutral-200 flex items-center justify-center text-neutral-600 hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed transition"
+          aria-label="Diminuir 5 minutos"
+          className={botaoAjuste}
         >
-          <Minus size={14} />
+          <Minus size={16} aria-hidden />
         </button>
 
-        <div className="flex-1 text-center">
-          <p className="text-3xl font-bold text-neutral-900">{label}</p>
-          <p className="text-xs text-neutral-400 mt-0.5">tempo estimado</p>
+        <div className="flex-1 text-center" aria-live="polite">
+          <p className="manchete text-[2.6rem] leading-none text-forest-dark">{label}</p>
+          <p className="mt-1 text-[12px] text-loja-tinta-2">tempo estimado</p>
         </div>
 
         <button
+          type="button"
           onClick={() => adjust(5)}
           disabled={minutes >= 180}
-          className="w-9 h-9 rounded-lg border border-neutral-200 flex items-center justify-center text-neutral-600 hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed transition"
+          aria-label="Aumentar 5 minutos"
+          className={botaoAjuste}
         >
-          <Plus size={14} />
+          <Plus size={16} aria-hidden />
         </button>
       </div>
 
-      <button
-        onClick={save}
-        disabled={pending || saved}
-        className="mt-4 w-full flex items-center justify-center gap-2 bg-brand hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-2.5 rounded-lg text-sm transition"
-      >
-        {saved ? (
-          <>
-            <Check size={14} /> Salvo
-          </>
-        ) : pending ? (
-          "Salvando..."
-        ) : (
-          "Salvar previsão"
-        )}
-      </button>
+      <div className="mt-auto pt-5">
+        <button
+          type="button"
+          onClick={save}
+          disabled={pending || saved}
+          className={`${botaoBrasa} h-12 w-full text-[14px]`}
+        >
+          {saved ? (
+            <>
+              <Check size={16} aria-hidden /> Salvo
+            </>
+          ) : pending ? (
+            "Salvando..."
+          ) : (
+            "Salvar previsão"
+          )}
+        </button>
 
-      <p className="text-xs text-neutral-400 text-center mt-2">
-        Aplica a todos os novos pedidos
-      </p>
+        <p className="mt-2 text-center text-[12px] text-loja-tinta-2">
+          Aplica a todos os novos pedidos
+        </p>
+      </div>
     </div>
   );
 }
